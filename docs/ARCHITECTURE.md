@@ -318,6 +318,9 @@ flowchart LR
   - The newest edition goes first. A podcast keeps the voice it started in.
   - `KokoroEngine.lock` keeps one Kokoro loaded at a time, the speed check
     included: a stopped run's native code runs on until its sentence ends.
+  - `KokoroThread` runs all of Kokoro's native calls on one thread at
+    background priority; the threads Kokoro starts inherit it, so the rest
+    of the phone (the network included) isn't starved while it makes.
   - Turning Kokoro off stops the making after the current page; removing it
     deletes the podcasts.
   - Each finished podcast with 10 minutes of speech or more teaches the
