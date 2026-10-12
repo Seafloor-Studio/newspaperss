@@ -85,6 +85,7 @@ class PodcastMaker(
                     continue
                 }
                 val voice = store.voice(editionId) ?: continue
+                val asked = store.asked(editionId)
                 book.use {
                     for (page in book.pages.indices) {
                         if (store.settled(editionId, page)) continue
@@ -93,7 +94,7 @@ class PodcastMaker(
                             return
                         }
                         // A newer edition asked for since: it goes first, and this one carries on after.
-                        if (store.waiting().firstOrNull() != editionId) return@use
+                        if (store.waiting().firstOrNull() != editionId || !store.wanted(editionId, asked)) return@use
                         if (kokoro?.first != voice) {
                             kokoro?.second?.release()
                             kokoro = null
@@ -103,10 +104,10 @@ class PodcastMaker(
                             store.addCost(editionId, now() - began, 0.0)
                             log.add("Kokoro loaded (${voice.label}) in ${seconds(now() - began)}s")
                         }
-                        makePage(editionId, page, script(book, page), kokoro!!.second)
+                        makePage(editionId, asked, page, script(book, page), kokoro!!.second)
                     }
                     // Stopped during its last page: not finished, so Make the rest can carry on.
-                    if (!store.wanted(editionId)) return@use
+                    if (!store.wanted(editionId, asked)) return@use
                     store.finish(editionId)
                     log.add("Edition $editionId: podcast finished")
                     // Failing to keep the pace mustn't stop the podcasts behind this one.
@@ -134,7 +135,7 @@ class PodcastMaker(
         null
     }
 
-    private suspend fun makePage(editionId: Long, page: Int, script: ListenScript?, kokoro: PodcastEngine) {
+    private suspend fun makePage(editionId: Long, asked: String?, page: Int, script: ListenScript?, kokoro: PodcastEngine) {
         if (script == null || script.lines.isEmpty() || !english(script.language)) {
             store.leaveLive(editionId, page)
             return
@@ -150,9 +151,10 @@ class PodcastMaker(
             for (i in from until lines.size) {
                 // Native code can't be stopped mid-sentence: between sentences is the soonest.
                 currentCoroutineContext().ensureActive()
-                if (!store.wanted(editionId)) {
-                    // Stopped or deleted by the reader: what's made is kept (a deleted one drops it).
-                    piece?.keep(editionId, page)
+                if (!store.wanted(editionId, asked)) {
+                    // Stopped by the reader: what's made is kept. Deleted, the piece is dropped,
+                    // even if it's been asked for again since: that one starts afresh.
+                    piece?.keep(editionId, page, asked)
                     piece = null
                     log.add("Edition $editionId stopped or deleted on page $page before line $i")
                     return
@@ -179,12 +181,14 @@ class PodcastMaker(
                 if (took >= SLOW_LINE_SECONDS) log.add("Page $page line $i took ${took}s (${lines[i].spoken.length} characters)")
                 next = i + 1
                 if (current.seconds >= pieceSeconds && i < lines.lastIndex) {
-                    current.keep(editionId, page)
+                    current.keep(editionId, page, asked)
                     piece = null
                 }
             }
-            piece?.keep(editionId, page)
+            piece?.keep(editionId, page, asked)
             piece = null
+            // Stopped or deleted while its last line was said.
+            if (!store.wanted(editionId, asked)) return
             store.complete(editionId, page)
             log.add("Page $page made")
         } catch (e: Unsayable) {
@@ -229,7 +233,9 @@ class PodcastMaker(
             samples += audio.size
         }
 
-        fun keep(editionId: Long, page: Int) {
+        /** Keeps it, unless the podcast was deleted (and maybe asked for again) since [asked]: then it's dropped. */
+        fun keep(editionId: Long, page: Int, asked: String?) {
+            if (store.asked(editionId) != asked) return drop()
             // Lines Kokoro made nothing of (a row of symbols): an encoder given no audio at all
             // can't finish its file.
             if (samples == 0L) write(FloatArray(rate / 10))

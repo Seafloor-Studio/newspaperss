@@ -325,6 +325,27 @@ class PodcastMakerTest {
     }
 
     @Test
+    fun deletedAndAskedForAgainMidSentenceItsMadeAfreshAndWhole() {
+        inUse()
+        pieceSeconds = 0.1
+        val id = edition("Thursday", knots, lagos)
+        request(id)
+        afterLine = {
+            if (it == "Nobody knew." && said.count { line -> line == it } == 1) {
+                podcasts.delete(id)
+                request(id)
+            }
+        }
+        make()
+
+        assertTrue(store.finished(id))
+        assertTrue((0..2).all { store.made(id, it) })
+        // The first article from its first line: nothing of the deleted one's run kept in it.
+        assertEquals(0, store.pieces(id, 0).first().firstLine)
+        assertEquals(5, store.pieces(id, 0).sumOf { it.starts.size })
+    }
+
+    @Test
     fun aDeletedPodcastFreesItsSpaceAndCanBeMadeAgain() {
         inUse()
         val id = edition("Thursday", knots)

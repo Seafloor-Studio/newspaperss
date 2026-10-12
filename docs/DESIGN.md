@@ -751,7 +751,8 @@ whose Kindle and KOReader answers ask for more on the same page).
     is made after the book, only while the phone charges: unplugged, it
     stops and keeps what's made. It's made in the foreground, with a
     quiet "Making the podcast" notification (if notifications are on),
-    whose **Stop** stops that edition's podcast:
+    whose **Stop** stops making podcasts, keeping what's made, until one
+    is asked for again:
     Android lets long work run only so. From Android 12 that's allowed
     overnight only if the app's battery use is Unrestricted, and from
     Android 15 for 6 hours a day; otherwise it's made a few minutes at a
@@ -770,7 +771,7 @@ whose Kindle and KOReader answers ask for more on the same page).
     (made by hand, say) offers **Make the podcast**, made while charging.
     While it's made or waiting, **Stop making** stops it between sentences,
     keeping what's made (those articles play from it, the rest in the
-    phone's voice) and offering **Make the rest**. Once any is made,
+    phone's voice) and offering **Make the rest**. Once any audio is made,
     **Delete podcast · 7 MB** deletes it, after asking: the edition plays
     in the phone's voice and can have its podcast made again.
   - **E-reader & delivery:** the e-reader in a dropdown at the top, then

@@ -8,7 +8,7 @@ import com.app.newspaperss.settings.PodcastVoice
 import com.app.newspaperss.testutil.TestApp
 import com.app.newspaperss.testutil.idleUntil
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
@@ -22,7 +22,7 @@ class StopPodcastReceiverTest {
     private val store get() = app.container.podcastStore
 
     @Test
-    fun theNotificationsStopStopsThePodcastBeingMadeAndNoOther() {
+    fun theNotificationsStopStopsThePodcastBeingMadeAndThoseWaiting() {
         store.want(7, PodcastVoice.HEART)
         store.want(8, PodcastVoice.HEART)
         store.making(8)
@@ -32,8 +32,7 @@ class StopPodcastReceiverTest {
         assertEquals(StopPodcastReceiver::class.java.name, sent.component?.className)
         StopPodcastReceiver().onReceive(app, Intent(sent))
 
-        idleUntil { store.stopped(8) }
-        assertFalse(store.stopped(7))
-        assertEquals(listOf(7L), store.waiting())
+        idleUntil { store.stopped(8) && store.stopped(7) }
+        assertTrue(store.waiting().isEmpty())
     }
 }

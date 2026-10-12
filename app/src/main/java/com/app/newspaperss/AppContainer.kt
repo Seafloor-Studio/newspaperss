@@ -203,10 +203,9 @@ class AppContainer(
     internal val podcastStore = PodcastStore(File(context.filesDir, "podcasts"))
     private val podcasts = Podcasts(podcastStore, settings, kokoroInstall, start = { PodcastWorker.enqueue(context) }, log = podcastLog)
 
-    /** Stops the podcast being made now, if one is: the notification's Stop. */
-    fun stopMakingPodcast() {
-        podcastStore.making.value?.let(podcasts::stop)
-    }
+    /** The notification's Stop: no more podcasts are made, until one is asked for. */
+    fun stopMakingPodcasts() = podcasts.stopAll()
+
     val podcastMaker: PodcastMaker by lazy {
         PodcastMaker(editions, podcastStore, kokoroInstall, settings, podcastEngine, AacEncoder, log = podcastLog)
     }

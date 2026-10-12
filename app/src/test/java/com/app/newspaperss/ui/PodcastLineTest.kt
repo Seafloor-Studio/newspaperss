@@ -103,6 +103,9 @@ class PodcastLineTest {
         store.want(7, PodcastVoice.HEART)
         store.complete(7, 0)
         show()
+        waitFor("Stop making")
+        // Nothing to delete until audio is kept: the made pages here are only marked so.
+        assertTrue(compose.onAllNodes(androidx.compose.ui.test.hasText("Delete podcast", substring = true)).fetchSemanticsNodes().isEmpty())
         compose.onNodeWithText("Stop making").performClick()
         idleUntil { store.stopped(7) }
         assertTrue(store.waiting().isEmpty())

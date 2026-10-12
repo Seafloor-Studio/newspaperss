@@ -85,6 +85,12 @@ class Podcasts(
         log.add("Edition $editionId's podcast stopped")
     }
 
+    /**
+     * Stops every podcast waiting to be made, the one being made too, keeping what's made. Each
+     * page's Make the rest, or a new edition's podcast, starts the making again.
+     */
+    fun stopAll() = store.waiting().forEach(::stop)
+
     /** Deletes [editionId]'s podcast: it plays in the phone's voice, and can be made again. */
     fun delete(editionId: Long) {
         store.delete(editionId)
