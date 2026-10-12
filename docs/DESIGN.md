@@ -279,6 +279,9 @@ too); opening the mail app to email it to a Kindle; or **Read** on a Boox. **Mar
 **Send again** (in a sent edition's ⋮ menu) is there if a send didn't arrive. An edition still "ready"
 when the next one is built was never sent: it's marked not sent and its
 articles go back, keeping their stars, before the new one is planned.
+Its page still offers **Mark as sent** while its file is here, for one
+sent some other way: its articles are used up, even any taken into the
+newer edition since.
 
 **Send to Kindle is slow.** A book can take a few minutes to reach a
 Kindle, so for half an hour after a send the edition (on Today and its own
@@ -646,8 +649,11 @@ whose Kindle and KOReader answers ask for more on the same page).
     area is 48dp, though the mark is narrower so titles line up.
   - The star (a 48dp target) puts the article in the next edition and
     turns into **★** on an outlined disc.
-  A row already in an unsent edition can't change: its mark doesn't
-  respond, and it has no star but keeps the slot so titles line up.
+  A row already in an unsent edition can still be marked read: its book
+  can't change, but if that edition is never sent the article doesn't
+  come back for the next one, and marked unread it's back in the edition.
+  It has no star (it's already going), but keeps the slot so titles line
+  up.
   Read, delivered and too-old rows have a dimmed title, in a lighter weight
   as well as a muted colour so it shows on e-ink, so what's still to come
   stands out. A starred one isn't dimmed: it's going out again.

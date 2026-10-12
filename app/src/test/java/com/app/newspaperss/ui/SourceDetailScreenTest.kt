@@ -4,6 +4,7 @@ import org.junit.Assert.assertFalse
 import com.app.newspaperss.ui.components.BUILDING_NOTE
 import com.app.newspaperss.data.PublicationEntity
 import com.app.newspaperss.data.MarkedRead
+import com.app.newspaperss.data.EditionArticleEntity
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionStatus
 import androidx.compose.runtime.mutableStateOf
@@ -225,6 +226,8 @@ class SourceDetailScreenTest {
         val ids = db.articles().allForSource(id).associate { it.guid to it.id }
         db.articles().setDelivered(listOf(ids.getValue("delivered")))
         db.articles().setState(listOf(ids.getValue("unsent")), ArticleState.IN_EDITION)
+        val edition = db.editions().insert(EditionEntity(title = "Thursday", status = EditionStatus.READY))
+        db.editions().insertArticles(listOf(EditionArticleEntity(editionId = edition, articleId = ids.getValue("unsent"), position = 0, title = "Article unsent", sourceTitle = "Example", minutes = 1.0)))
         id to ids
     }
 
@@ -250,7 +253,7 @@ class SourceDetailScreenTest {
 
     @Test
     @Config(qualifiers = "w411dp-h1600dp")
-    fun eachRowHasTheStarAndTheReadToggleExceptInAnUnsentEdition() {
+    fun eachRowHasTheReadToggleAndTheStarExceptInAnUnsentEdition() {
         val (id, ids) = sourceWithArticles()
         show(id)
 
@@ -261,9 +264,13 @@ class SourceDetailScreenTest {
         star("Article unsent").assertDoesNotExist()
         markRead("Article waiting").assertHasClickAction()
         markUnread("Article delivered").assertHasClickAction()
-        markRead("Article unsent").assertDoesNotExist()
-        markUnread("Article unsent").assertDoesNotExist()
         compose.onNodeWithText("Tap ● to mark one read or unread, and ☆ to put it in your next edition.").assertExists()
+
+        // In an unsent edition, the dot still marks it read; brought back, it's in that edition again.
+        markRead("Article unsent").performClick()
+        settle { state(ids.getValue("unsent")) == ArticleState.SKIPPED && compose.onAllNodes(hasContentDescription("Mark Article unsent as unread")).fetchSemanticsNodes().isNotEmpty() }
+        markUnread("Article unsent").performClick()
+        settle { state(ids.getValue("unsent")) == ArticleState.IN_EDITION }
 
         star("Article delivered").performClick()
         settle { visible("In your next edition") }
@@ -362,8 +369,8 @@ class SourceDetailScreenTest {
     }
 
     /**
-     * The bar counts only what an action would change: an article already delivered or in an
-     * unsent edition can't be marked read. One Undo brings back the whole batch, and the rows
+     * The bar counts only what an action would change: an article already delivered can't be
+     * marked read. One Undo brings back the whole batch, and the rows
      * never move, so e-ink doesn't redraw the list.
      */
     @Test
@@ -387,21 +394,24 @@ class SourceDetailScreenTest {
         assertEquals(
             "side by side at normal size",
             compose.onNodeWithContentDescription("Put 3 articles in your next edition").fetchSemanticsNode().boundsInRoot.top,
-            compose.onNodeWithText("Mark 2 as read").fetchSemanticsNode().boundsInRoot.top,
+            compose.onNodeWithText("Mark 3 as read").fetchSemanticsNode().boundsInRoot.top,
         )
-        compose.onNodeWithText("Mark 2 as read").assertIsEnabled().performClick()
+        compose.onNodeWithText("Mark 3 as read").assertIsEnabled().performClick()
 
-        settle { visible("Marked 2 as read") }
+        settle { visible("Marked 3 as read") }
         assertFalse("done selecting", visible("selected"))
         assertEquals(ArticleState.SKIPPED, state(ids.getValue("waiting")))
         assertEquals(ArticleState.SKIPPED, state(ids.getValue("more1")))
         assertEquals(ArticleState.DELIVERED, state(ids.getValue("delivered")))
-        assertEquals(ArticleState.IN_EDITION, state(ids.getValue("unsent")))
+        assertEquals(ArticleState.SKIPPED, state(ids.getValue("unsent")))
         assertEquals("rows stay put", top, compose.onNodeWithText("Article delivered").fetchSemanticsNode().boundsInRoot.top)
 
         compose.onNodeWithText("Undo").performClick()
 
-        settle { state(ids.getValue("waiting")) == ArticleState.NEW && state(ids.getValue("more1")) == ArticleState.NEW }
+        settle {
+            state(ids.getValue("waiting")) == ArticleState.NEW && state(ids.getValue("more1")) == ArticleState.NEW &&
+                state(ids.getValue("unsent")) == ArticleState.IN_EDITION
+        }
     }
 
     @Test
@@ -480,7 +490,7 @@ class SourceDetailScreenTest {
     /** The counts follow the articles as they are now, not as they were when selected. */
     @Test
     @Config(qualifiers = "w411dp-h1600dp")
-    fun aSelectedArticleThatGoesIntoAnEditionMeanwhileIsNoLongerCounted() {
+    fun aSelectedArticleThatGoesIntoAnEditionMeanwhileIsStillMarkedRead() {
         val (id, ids) = sourceWithArticles(moreWaiting = 1)
         show(id)
         row("Article waiting").performTouchInput { longClick() }
@@ -489,10 +499,9 @@ class SourceDetailScreenTest {
 
         runBlocking { db.articles().setState(listOf(ids.getValue("more1")), ArticleState.IN_EDITION) }
 
-        settle { visible("Mark 1 as read") }
-        compose.onNodeWithText("Mark 1 as read").performClick()
-        settle { visible("Marked as read") }
-        assertEquals(ArticleState.IN_EDITION, state(ids.getValue("more1")))
+        compose.onNodeWithText("Mark 2 as read").performClick()
+        settle { visible("Marked 2 as read") }
+        assertEquals(ArticleState.SKIPPED, state(ids.getValue("more1")))
     }
 
     @Test

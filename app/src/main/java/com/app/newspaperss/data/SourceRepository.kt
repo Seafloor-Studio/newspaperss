@@ -174,28 +174,29 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
     fun observeBuilding(): Flow<Boolean> = db.editions().observeBuilding(clock)
 
     /**
-     * Marks waiting articles as read: they never go in an edition, and a tt-rss source marks them
-     * read on the server at its next sync, so Undo never has to reach the server. All or none: a
-     * build holds every waiting one or none. Articles that aren't waiting (one may have just gone
-     * into an edition) are passed over and not counted as held back.
+     * Marks waiting articles, and ones in an unsent edition, as read: they never go in another
+     * edition (an unsent one's book already holds them), and a tt-rss source marks them read on the
+     * server at its next sync, so Undo never has to reach the server. All or none: a build holds
+     * every one or none. Articles already read or delivered are passed over and not counted as held
+     * back.
      */
     suspend fun markRead(articleIds: Collection<Long>): MarkReadBatch = db.withTransaction {
-        val waiting = db.articles().byIds(articleIds).filter { it.state == ArticleState.NEW }
+        val waiting = db.articles().byIds(articleIds).filter { it.state == ArticleState.NEW || it.state == ArticleState.IN_EDITION }
         if (waiting.isEmpty()) return@withTransaction MarkReadBatch(emptyList(), 0)
         val changed = db.articles().markReadAll(waiting.map { it.id }, clock.instant().minus(BUILD_HOLD))
         if (changed == 0) MarkReadBatch(emptyList(), waiting.size) else MarkReadBatch(waiting.map { MarkedRead(it.id, it.starredAt) }, 0)
     }
 
     /**
-     * The read toggle on an article: a waiting one is marked read (see [markRead]); a read, expired
-     * or delivered one goes back to waiting, keeping any star. tt-rss hears of either at the next
+     * The read toggle on an article: a waiting one, or one in an unsent edition, is marked read (see
+     * [markRead]); a read, expired or delivered one goes back to waiting, or to its unsent edition,
+     * keeping any star. tt-rss hears of either at the next
      * sync.
      */
     suspend fun toggleRead(articleId: Long): Toggled {
         val article = db.articles().byId(articleId) ?: return Toggled.UNCHANGED
         return when (article.state) {
-            ArticleState.NEW -> markRead(listOf(articleId)).let { if (it.marked.isNotEmpty()) Toggled.CHANGED else if (it.heldBack > 0) Toggled.HELD else Toggled.UNCHANGED }
-            ArticleState.IN_EDITION -> Toggled.UNCHANGED
+            ArticleState.NEW, ArticleState.IN_EDITION -> markRead(listOf(articleId)).let { if (it.marked.isNotEmpty()) Toggled.CHANGED else if (it.heldBack > 0) Toggled.HELD else Toggled.UNCHANGED }
             else -> if (db.articles().markUnread(articleId, clock.instant()) > 0) Toggled.CHANGED else Toggled.UNCHANGED
         }
     }

@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import com.app.newspaperss.delivery.KindleSend
 import com.app.newspaperss.delivery.KindleSends
 import com.app.newspaperss.delivery.EditionEmail
+import com.app.newspaperss.edition.EditionBuilder
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -62,6 +63,17 @@ class EditionRepository(
     }
 
     /**
+     * The reader says they sent an edition: a ready one, or one released as not sent because a
+     * newer one was made first (see [notSent]). The released one's articles are marked delivered
+     * too, even any taken into a newer edition since: they went out in this one.
+     */
+    suspend fun markSentByHand(id: Long) = markDelivered(id, onlyIfReady = true, orNotSent = true)
+
+    /** Released as not sent when a newer edition was made, and still here to have been sent another way. */
+    fun notSent(edition: EditionEntity): Boolean =
+        edition.status == EditionStatus.FAILED && edition.error == EditionBuilder.NOT_SENT && fileOf(edition) != null
+
+    /**
      * The reader's mail app was opened, or picked, to email an edition to their Kindle's own
      * address. Like picking an app in the share sheet, that's as close as the app gets to knowing
      * it was sent; see [markSent].
@@ -72,7 +84,7 @@ class EditionRepository(
     }
 
     /** Delivery succeeded: only now are the edition's articles used up. */
-    suspend fun markDelivered(id: Long, onlyIfReady: Boolean = false) {
+    suspend fun markDelivered(id: Long, onlyIfReady: Boolean = false, orNotSent: Boolean = false) {
         kindleSends.clear(id)
         val firstTime = db.withTransaction {
             val edition = db.editions().byId(id) ?: return@withTransaction null
@@ -81,7 +93,7 @@ class EditionRepository(
             // Already delivered (the reader tapped Sent while a folder copy was finishing): the
             // work that follows delivery, like saving notes, mustn't run twice.
             if (edition.status == EditionStatus.DELETED || edition.status == EditionStatus.DELIVERED) return@withTransaction null
-            if (onlyIfReady && edition.status != EditionStatus.READY) return@withTransaction null
+            if (onlyIfReady && edition.status != EditionStatus.READY && !(orNotSent && notSent(edition))) return@withTransaction null
             val articleIds = db.editions().articleIds(id)
             // One instant for both: marking it as not sent finds the links it remembered by it.
             val now = clock.instant()

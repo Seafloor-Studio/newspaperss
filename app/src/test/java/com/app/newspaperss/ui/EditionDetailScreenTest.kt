@@ -263,6 +263,28 @@ class EditionDetailScreenTest {
     }
 
     @Test
+    fun anEditionReleasedAsNotSentCanStillBeMarkedAsSent() {
+        // A newer edition was made first: this one was released, its articles back to waiting.
+        val (id, articles) = edition(EditionStatus.FAILED, listOf("A story"), articleState = ArticleState.NEW)
+        runBlocking { db.editions().update(db.editions().byId(id)!!.copy(error = EditionBuilder.NOT_SENT)) }
+        show(id)
+
+        compose.onNodeWithText("Mark as sent").performClick()
+
+        idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+        assertEquals(ArticleState.DELIVERED, runBlocking { db.articles().byId(articles[0]) }?.state)
+    }
+
+    @Test
+    fun aFailedBuildCantBeMarkedAsSent() {
+        val (id, _) = edition(EditionStatus.FAILED, listOf("A story"), articleState = ArticleState.NEW)
+        runBlocking { db.editions().update(db.editions().byId(id)!!.copy(error = EditionBuilder.INTERRUPTED)) }
+        show(id)
+
+        compose.onNodeWithText("Mark as sent").assertDoesNotExist()
+    }
+
+    @Test
     fun aDeletedEpubCanNeitherBeSentNorOpened() {
         val (id, _) = edition(EditionStatus.READY, listOf("A story"), withFile = false)
         show(id)
