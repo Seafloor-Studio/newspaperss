@@ -105,6 +105,8 @@ class PodcastMaker(
                         }
                         makePage(editionId, page, script(book, page), kokoro!!.second)
                     }
+                    // Stopped during its last page: not finished, so Make the rest can carry on.
+                    if (!store.wanted(editionId)) return@use
                     store.finish(editionId)
                     log.add("Edition $editionId: podcast finished")
                     // Failing to keep the pace mustn't stop the podcasts behind this one.
@@ -148,6 +150,13 @@ class PodcastMaker(
             for (i in from until lines.size) {
                 // Native code can't be stopped mid-sentence: between sentences is the soonest.
                 currentCoroutineContext().ensureActive()
+                if (!store.wanted(editionId)) {
+                    // Stopped or deleted by the reader: what's made is kept (a deleted one drops it).
+                    piece?.keep(editionId, page)
+                    piece = null
+                    log.add("Edition $editionId stopped or deleted on page $page before line $i")
+                    return
+                }
                 val death = if (i == deadAt) deaths + 1 else 1
                 if (death > CRASHES) throw Unsayable(IllegalStateException("Line $i took the app down $deaths times"))
                 val began = now()

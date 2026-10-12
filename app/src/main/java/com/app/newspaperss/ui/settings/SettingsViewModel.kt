@@ -100,6 +100,13 @@ class SettingsViewModel(
     /** What the podcast's making did, newest first. */
     suspend fun podcastLog(): List<String> = withContext(Dispatchers.IO) { podcast?.log?.read().orEmpty().asReversed() }
 
+    /** The space podcasts take, in bytes; null without the podcast. */
+    val podcastBytes: StateFlow<Long?> = (podcast?.podcastBytes ?: flowOf(null)).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun deletePodcasts() {
+        viewModelScope.launch { podcast?.deletePodcasts() }
+    }
+
     fun removeKokoro() {
         viewModelScope.launch { podcast?.remove() }
     }

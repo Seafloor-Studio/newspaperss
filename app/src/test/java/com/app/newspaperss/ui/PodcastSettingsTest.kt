@@ -201,6 +201,25 @@ class PodcastSettingsTest {
     }
 
     @Test
+    fun deletingAllPodcastsAsksFirstAndKeepsKokoro() {
+        ready(1.2f)
+        runBlocking { store.update { it.copy(listenVoice = ListenVoice.PODCAST) } }
+        val podcasts = PodcastStore(java.io.File(context.filesDir, "podcasts"))
+        podcasts.want(7, PodcastVoice.HEART)
+        podcasts.keep(7, 0, 0, podcasts.scratch(7, 0, 0).apply { writeBytes(ByteArray(5_000_000)) }, listOf(0.0))
+        show()
+        waitFor("Podcasts take 5 MB")
+        compose.onNodeWithText("Delete all podcasts").performScrollTo().performClick()
+        waitFor("It frees 5 MB")
+        compose.onNodeWithText("Delete").performClick()
+        idleUntil { podcasts.voice(7) == null }
+        assertTrue(install.complete)
+        assertEquals(ListenVoice.PODCAST, runBlocking { store.current() }.listenVoice)
+        // Nothing left to delete: the button goes.
+        idleUntil { compose.onAllNodes(hasText("Delete all podcasts")).fetchSemanticsNodes().isEmpty() }
+    }
+
+    @Test
     fun theLogShowsWhatTheMakingDidNewestFirst() {
         ready(1.2f)
         runBlocking { store.update { it.copy(listenVoice = ListenVoice.PODCAST) } }
