@@ -2,6 +2,7 @@ package com.app.newspaperss.listen
 
 import android.content.Context
 import android.os.Build
+import android.os.Process
 import com.app.newspaperss.core.listen.KokoroFile
 import com.app.newspaperss.core.listen.KokoroManifest
 import com.app.newspaperss.settings.PodcastVoice
@@ -28,6 +29,9 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.net.URLEncoder
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -209,11 +213,40 @@ interface PodcastEngine {
     fun release()
 }
 
-/** Kokoro through sherpa-onnx. Loading takes a couple of seconds. */
+/**
+ * Runs Kokoro's native code on one thread at low priority. Making a podcast keeps several cores
+ * busy for an hour; at normal priority that starves what the phone is doing meanwhile, the network
+ * included. The threads Kokoro starts take the priority of the thread that starts them, so they
+ * all give way too.
+ */
+internal object KokoroThread {
+    /**
+     * Just above [Process.THREAD_PRIORITY_BACKGROUND]: at that or lower, Android also moves the
+     * thread into the background group, which some phones hold to a sliver of one small core, and
+     * an hour's podcast would take many.
+     */
+    const val PRIORITY = Process.THREAD_PRIORITY_BACKGROUND + Process.THREAD_PRIORITY_MORE_FAVORABLE
+
+    private val executor = Executors.newSingleThreadExecutor { task -> Thread(task, "kokoro") }
+
+    /** Runs [block] there and waits for it, throwing what it throws. */
+    fun <T> run(block: () -> T): T = try {
+        executor.submit(
+            Callable {
+                Process.setThreadPriority(PRIORITY)
+                block()
+            },
+        ).get()
+    } catch (e: ExecutionException) {
+        throw e.cause ?: e
+    }
+}
+
+/** Kokoro through sherpa-onnx, on [KokoroThread]. Loading takes a couple of seconds. */
 class KokoroEngine(install: KokoroInstall, voice: PodcastVoice) : PodcastEngine {
     private val speaker = speakerOf(voice)
     private val british = voice == PodcastVoice.EMMA || voice == PodcastVoice.GEORGE
-    private val tts = OfflineTts(
+    private val tts = KokoroThread.run { OfflineTts(
         null,
         OfflineTtsConfig(
             model = OfflineTtsModelConfig(
@@ -229,11 +262,11 @@ class KokoroEngine(install: KokoroInstall, voice: PodcastVoice) : PodcastEngine 
                 numThreads = THREADS,
             ),
         ),
-    )
+    ) }
 
-    override fun speak(text: String): Speech = tts.generate(text, speaker, 1f).let { Speech(it.samples, it.sampleRate) }
+    override fun speak(text: String): Speech = KokoroThread.run { tts.generate(text, speaker, 1f).let { Speech(it.samples, it.sampleRate) } }
 
-    override fun release() = tts.release()
+    override fun release() = KokoroThread.run { tts.release() }
 
     companion object {
         /**

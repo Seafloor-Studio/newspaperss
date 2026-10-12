@@ -749,7 +749,8 @@ whose Kindle and KOReader answers ask for more on the same page).
     they can be made again), **Remove Kokoro**, and **Podcast log**: what the making and playing did,
     newest first, with Share to send it to whoever's fixing it. While it's in use, each scheduled edition's podcast
     is made after the book, only while the phone charges: unplugged, it
-    stops and keeps what's made. It's made in the foreground, with a
+    stops and keeps what's made. It runs at low priority, so using
+    the phone meanwhile isn't slowed. It's made in the foreground, with a
     quiet "Making the podcast" notification (if notifications are on),
     whose **Stop** stops making podcasts, keeping what's made, until one
     is asked for again:
