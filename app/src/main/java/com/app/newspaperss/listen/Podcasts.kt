@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 /**
@@ -19,6 +20,8 @@ import kotlinx.coroutines.withContext
  * @param makingOther whether another edition's podcast is being made right now, this one after it.
  * @param asked whether a podcast was asked for: made with a scheduled edition, or by hand.
  * @param pace this phone's, to say how long making one would take.
+ * @param stopped whether the reader stopped its making; what's made stays.
+ * @param bytes the space it takes.
  */
 data class PodcastProgress(
     val asked: Boolean,
@@ -29,6 +32,8 @@ data class PodcastProgress(
     val share: List<Double>,
     val makingNow: Boolean,
     val makingOther: Boolean,
+    val stopped: Boolean = false,
+    val bytes: Long = 0,
 )
 
 /** Podcasts as the rest of the app sees them: what's made of each, asking for one, and deleting them. */
@@ -53,6 +58,8 @@ class Podcasts(
             share = (0 until articles).map { store.share(editionId, it) },
             makingNow = making == editionId,
             makingOther = making != null && making != editionId,
+            stopped = store.stopped(editionId),
+            bytes = store.bytes(editionId),
         )
     }.flowOn(Dispatchers.IO)
 
@@ -71,6 +78,27 @@ class Podcasts(
     suspend fun resume() {
         if (withContext(Dispatchers.IO) { store.waiting().isNotEmpty() }) start()
     }
+
+    /** Stops making [editionId]'s podcast between sentences, keeping what's made; [request] carries on. */
+    fun stop(editionId: Long) {
+        store.stop(editionId)
+        log.add("Edition $editionId's podcast stopped")
+    }
+
+    /**
+     * Stops every podcast waiting to be made, the one being made too, keeping what's made. Each
+     * page's Make the rest, or a new edition's podcast, starts the making again.
+     */
+    fun stopAll() = store.waiting().forEach(::stop)
+
+    /** Deletes [editionId]'s podcast: it plays in the phone's voice, and can be made again. */
+    fun delete(editionId: Long) {
+        store.delete(editionId)
+        log.add("Edition $editionId's podcast deleted")
+    }
+
+    /** The space all podcasts take, in bytes, following [PodcastStore.changes]. */
+    val bytes: Flow<Long> = store.changes.map { store.bytes() }.flowOn(Dispatchers.IO)
 
     fun deleteAll() = store.deleteAll()
 }

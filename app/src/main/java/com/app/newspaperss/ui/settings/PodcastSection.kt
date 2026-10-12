@@ -1,26 +1,23 @@
 package com.app.newspaperss.ui.settings
 
-import java.time.format.FormatStyle
-import java.time.format.DateTimeFormatter
 import android.content.Context
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.material3.AlertDialog
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
 import android.content.Intent
 import android.media.MediaPlayer
 import android.net.ConnectivityManager
 import androidx.annotation.RawRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -32,9 +29,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,7 +41,9 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.app.newspaperss.R
 import com.app.newspaperss.core.listen.PodcastPace
 import com.app.newspaperss.core.listen.PodcastPace.Verdict
@@ -52,6 +51,9 @@ import com.app.newspaperss.listen.KokoroState
 import com.app.newspaperss.settings.ListenVoice
 import com.app.newspaperss.settings.PodcastVoice
 import com.app.newspaperss.settings.Settings as AppSettings
+import com.app.newspaperss.ui.listen.megabytes
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /** Left of the option's text, as the radio rows' text starts. */
 private val INDENT = 44.dp
@@ -259,9 +261,34 @@ private fun Podcast(s: AppSettings, vm: SettingsViewModel, kokoro: KokoroState.R
             Modifier.padding(top = 4.dp),
         )
         Note("Listen plays an article from its podcast once it's made, and in your phone's voice until then.", Modifier.padding(top = 4.dp))
+        DeletePodcasts(vm)
         TextButton(onClick = vm::removeKokoro, modifier = Modifier.padding(top = 4.dp)) { Text("Remove Kokoro") }
         Note("Frees $size. Listen goes back to reading live.")
         PodcastLogButton(vm)
+    }
+}
+
+/** The space podcasts take, and deleting them all while keeping Kokoro. Hidden with none made. */
+@Composable
+private fun DeletePodcasts(vm: SettingsViewModel) {
+    val bytes = vm.podcastBytes.collectAsStateWithLifecycle().value ?: return
+    if (bytes == 0L) return
+    var asking by rememberSaveable { mutableStateOf(false) }
+    TextButton(onClick = { asking = true }, modifier = Modifier.padding(top = 4.dp)) { Text("Delete all podcasts") }
+    Note("Podcasts take ${megabytes(bytes)}. Each edition's can also be deleted on its page.")
+    if (asking) {
+        AlertDialog(
+            onDismissRequest = { asking = false },
+            title = { Text("Delete all podcasts?") },
+            text = { Text("It frees ${megabytes(bytes)}. Editions play in your phone's voice, and Kokoro stays, so their podcasts can be made again.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    asking = false
+                    vm.deletePodcasts()
+                }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { asking = false }) { Text("Cancel") } },
+        )
     }
 }
 

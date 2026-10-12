@@ -20,6 +20,7 @@ import com.app.newspaperss.core.ReadingTime
 import com.app.newspaperss.core.plural
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.delivery.EditionIntents
+import com.app.newspaperss.work.StopPodcastReceiver
 import java.io.File
 
 interface EditionNotifier {
@@ -76,6 +77,10 @@ class Notifier(private val context: Context) : EditionNotifier {
         .setContentTitle("Making the podcast")
         .setContentText("It carries on while the phone charges")
         .setContentIntent(open())
+        .addAction(
+            0, "Stop",
+            PendingIntent.getBroadcast(context, 0, Intent(context, StopPodcastReceiver::class.java), PendingIntent.FLAG_IMMUTABLE),
+        )
         .setOngoing(true)
         .setSilent(true)
         .build()

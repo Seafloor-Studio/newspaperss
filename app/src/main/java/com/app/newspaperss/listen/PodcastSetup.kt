@@ -145,6 +145,12 @@ class PodcastSetup(
         backToPhone()
     }
 
+    /** The space the podcasts made take, in bytes. */
+    val podcastBytes: Flow<Long> get() = podcasts.bytes
+
+    /** Deletes every podcast made, keeping Kokoro: editions play in the phone's voice until made again. */
+    suspend fun deletePodcasts() = withContext(Dispatchers.IO) { podcasts.deleteAll() }
+
     /** Deletes Kokoro and the podcasts made with it, and goes back to reading live. */
     suspend fun remove() {
         stop()
