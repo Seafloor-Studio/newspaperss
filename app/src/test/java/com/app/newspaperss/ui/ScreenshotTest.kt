@@ -427,6 +427,13 @@ class ScreenshotTest {
         shoot("05b-edition-detail", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}, listening = listening) }
     }
 
+    /** Not sent before the next was made: released, and can still be marked as sent. */
+    @Test
+    fun editionDetailNotSent() {
+        val vm = sentEdition(notSent = true)
+        shoot("05j-edition-detail-not-sent", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}) }
+    }
+
     /** Kokoro in use, the first two of four articles made: the bar under Listen. */
     @Test
     fun editionDetailWithThePodcast() {
@@ -526,7 +533,7 @@ class ScreenshotTest {
         }
     }
 
-    private fun sentEdition(): EditionDetailViewModel {
+    private fun sentEdition(notSent: Boolean = false): EditionDetailViewModel {
         val id = runBlocking {
             val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Review"))
             val titles = listOf(
@@ -538,14 +545,18 @@ class ScreenshotTest {
             val articles = titles.mapIndexed { i, title ->
                 db.articles().insertIgnoring(
                     ArticleEntity(
-                        sourceId = source, guid = "$i", url = "https://example.com/$i", title = title, state = ArticleState.DELIVERED,
+                        sourceId = source, guid = "$i", url = "https://example.com/$i", title = title, state = if (notSent) ArticleState.NEW else ArticleState.DELIVERED,
                         starredAt = if (i == 1) Instant.parse("2026-09-29T08:00:00Z") else null,
                     ),
                 )
             }
             val now = Instant.parse("2026-09-29T06:30:00Z")
             val edition = db.editions().insert(
-                EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.DELIVERED, fileName = "e.epub", articleCount = 4, minutes = 27.5, deliveredAt = now),
+                if (notSent) {
+                    EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.FAILED, error = com.app.newspaperss.edition.EditionBuilder.NOT_SENT, fileName = "e.epub", articleCount = 4, minutes = 27.5)
+                } else {
+                    EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.DELIVERED, fileName = "e.epub", articleCount = 4, minutes = 27.5, deliveredAt = now)
+                },
             )
             db.editions().insertArticles(
                 titles.mapIndexed { i, title ->
