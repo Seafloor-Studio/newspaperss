@@ -424,24 +424,33 @@ interface ArticleDao {
     suspend fun setStarred(id: Long, starred: Boolean, now: Instant): Boolean =
         (if (starred) star(id, now) else unstar(id, now.minus(BUILD_HOLD))) > 0
 
-    /** Only waiting articles, and their stars go with them. Refused during a build, as for [unstar]. */
+    /**
+     * Waiting articles, and ones in an unsent edition: its book can't change, but the article
+     * won't come back for another if it's never sent. Their stars go with them. Refused during a
+     * build, as for [unstar].
+     */
     @Query(
-        """UPDATE articles SET state = 'SKIPPED', starredAt = NULL WHERE id IN (:ids) AND state = 'NEW'
+        """UPDATE articles SET state = 'SKIPPED', starredAt = NULL WHERE id IN (:ids) AND state IN ('NEW', 'IN_EDITION')
            AND NOT EXISTS (SELECT 1 FROM editions WHERE status = 'BUILDING' AND createdAt > :buildingSince)""",
     )
     suspend fun markReadAll(ids: Collection<Long>, buildingSince: Instant): Int
 
-    /** Keeps a star given since it was marked read. */
-    @Query("UPDATE articles SET state = 'NEW', starredAt = COALESCE(starredAt, :starredAt) WHERE id = :id AND state = 'SKIPPED'")
+    /** Keeps a star given since it was marked read. Back in its unsent edition, if it's in one. */
+    @Query(
+        """UPDATE articles SET state = CASE WHEN id IN ($IN_UNSENT) THEN 'IN_EDITION' ELSE 'NEW' END,
+               starredAt = COALESCE(starredAt, :starredAt) WHERE id = :id AND state = 'SKIPPED'""",
+    )
     suspend fun undoMarkRead(id: Long, starredAt: Instant?): Int
 
     /**
-     * Back to waiting, keeping any star. Found again [now], so it gets a week like a new article
-     * rather than expiring at the next sync. A delivered one was marked read on tt-rss, so the next
-     * sync marks it unread (see [unreportedUnread]).
+     * Back to waiting, keeping any star, or back in its unsent edition if it's in one. Found again
+     * [now], so it gets a week like a new article rather than expiring at the next sync. A
+     * delivered one was marked read on tt-rss, so the next sync marks it unread (see
+     * [unreportedUnread]).
      */
     @Query(
-        """UPDATE articles SET state = 'NEW', discoveredAt = :now, paidSkipped = 0,
+        """UPDATE articles SET state = CASE WHEN id IN ($IN_UNSENT) THEN 'IN_EDITION' ELSE 'NEW' END,
+               discoveredAt = :now, paidSkipped = 0,
                reportedRead = CASE WHEN state = 'DELIVERED' THEN 1 ELSE reportedRead END
            WHERE id = :id AND state IN ('SKIPPED', 'EXPIRED', 'DELIVERED')""",
     )
@@ -478,7 +487,8 @@ interface ArticleDao {
      * again [now] so it doesn't expire at once, as when marked unread here.
      */
     @Query(
-        """UPDATE articles SET state = 'NEW', reportedRead = 0, discoveredAt = :now WHERE sourceId = :sourceId AND guid IN (:guids)
+        """UPDATE articles SET state = CASE WHEN id IN ($IN_UNSENT) THEN 'IN_EDITION' ELSE 'NEW' END,
+               reportedRead = 0, discoveredAt = :now WHERE sourceId = :sourceId AND guid IN (:guids)
            AND state IN ('SKIPPED', 'DELIVERED') AND reportedRead = 1""",
     )
     suspend fun unreadOnServer(sourceId: Long, guids: List<String>, now: Instant)
@@ -559,6 +569,10 @@ interface ArticleDao {
     suspend fun ttrssUnsentInEdition(editionId: Long): List<ArticleEntity>
 }
 
+/** Articles in an edition not yet sent: ready, or being made. */
+private const val IN_UNSENT = """SELECT ea.articleId FROM edition_articles ea JOIN editions e ON e.id = ea.editionId
+    WHERE ea.articleId IS NOT NULL AND e.status IN ('READY', 'BUILDING')"""
+
 /** Articles of edition :editionId delivered again in an edition sent after it. */
 private const val DELIVERED_SINCE = """SELECT ea.articleId FROM edition_articles ea JOIN editions e ON e.id = ea.editionId
     WHERE ea.editionId != :editionId AND ea.articleId IS NOT NULL AND e.status = 'DELIVERED'
@@ -624,6 +638,10 @@ interface EditionDao {
            WHERE e.status IN ('READY', 'DELIVERED') AND ea.starred = 0 GROUP BY a.sourceId, a.originId""",
     )
     suspend fun lastFeatured(): List<Featured>
+
+    /** Whether an edition started after [since] is being made: one older is taken to have crashed. */
+    @Query("SELECT EXISTS(SELECT 1 FROM editions WHERE status = 'BUILDING' AND createdAt > :since)")
+    suspend fun buildingSince(since: Instant): Boolean
 
     /** When the newest edition being made was started, or null if none is. */
     @Query("SELECT MAX(createdAt) FROM editions WHERE status = 'BUILDING'")

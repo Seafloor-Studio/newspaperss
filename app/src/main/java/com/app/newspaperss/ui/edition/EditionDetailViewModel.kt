@@ -101,7 +101,7 @@ class EditionDetailViewModel(
     }
 
     fun markSent() {
-        viewModelScope.launch { editions.markSent(id) }
+        viewModelScope.launch { editions.markSentByHand(id) }
     }
 
     /** The mail app was opened to email this edition to the reader's Kindle, which counts as sent. */

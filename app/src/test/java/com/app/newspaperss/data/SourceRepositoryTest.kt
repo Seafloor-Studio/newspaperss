@@ -195,21 +195,47 @@ class SourceRepositoryTest {
     private suspend fun article(id: Long) = db.articles().byId(id)!!
 
     @Test
-    fun markingSeveralReadTakesOnlyWaitingOnesAndOneUndoPutsThemAllBackWithTheirStars() = runTest {
+    fun anArticleInAnUnsentEditionMarkedReadStaysReadWhenTheEditionIsntSent() = runTest {
+        val ids = articles("going" to ArticleState.IN_EDITION)
+        val going = ids.getValue("going")
+        val edition = db.editions().insert(com.app.newspaperss.data.EditionEntity(title = "Thursday", status = com.app.newspaperss.data.EditionStatus.READY))
+        db.editions().insertArticles(listOf(com.app.newspaperss.data.EditionArticleEntity(editionId = edition, articleId = going, position = 0, title = "going", sourceTitle = "A", minutes = 1.0)))
+
+        assertEquals(SourceRepository.Toggled.CHANGED, repo.toggleRead(going))
+        assertEquals(ArticleState.SKIPPED, article(going).state)
+        // Marked unread again, it's back in the edition, not waiting for another.
+        assertEquals(SourceRepository.Toggled.CHANGED, repo.toggleRead(going))
+        assertEquals(ArticleState.IN_EDITION, article(going).state)
+
+        // Read on tt-rss, then unread there: back in the edition too.
+        repo.toggleRead(going)
+        db.openHelper.writableDatabase.execSQL("UPDATE articles SET reportedRead = 1 WHERE id = $going")
+        db.articles().unreadOnServer(article(going).sourceId, listOf("going"), java.time.Instant.now())
+        assertEquals(ArticleState.IN_EDITION, article(going).state)
+
+        repo.toggleRead(going)
+        db.articles().release(edition)
+        assertEquals("not sent, it doesn't come back for the next edition", ArticleState.SKIPPED, article(going).state)
+    }
+
+    @Test
+    fun markingSeveralReadTakesWaitingAndUnsentOnesAndOneUndoPutsThemAllBackWithTheirStars() = runTest {
         val starredAt = java.time.Instant.parse("2026-09-01T08:00:00Z")
         val ids = articles("a" to ArticleState.NEW, "b" to ArticleState.NEW, "sent" to ArticleState.DELIVERED, "going" to ArticleState.IN_EDITION, starred = mapOf("b" to starredAt))
 
         val batch = repo.markRead(ids.values)
 
-        assertEquals(setOf(ids["a"], ids["b"]), batch.marked.map { it.articleId }.toSet())
+        assertEquals(setOf(ids["a"], ids["b"], ids["going"]), batch.marked.map { it.articleId }.toSet())
         assertEquals(0, batch.heldBack)
         assertEquals(ArticleState.SKIPPED, article(ids.getValue("b")).state)
         assertEquals("marking read takes the star with it", null, article(ids.getValue("b")).starredAt)
         assertEquals(ArticleState.DELIVERED, article(ids.getValue("sent")).state)
-        assertEquals(ArticleState.IN_EDITION, article(ids.getValue("going")).state)
+        assertEquals(ArticleState.SKIPPED, article(ids.getValue("going")).state)
 
-        assertEquals(2, repo.undoMarkRead(batch.marked))
+        assertEquals(3, repo.undoMarkRead(batch.marked))
         assertEquals(ArticleState.NEW, article(ids.getValue("a")).state)
+        // In no edition any more (none was made here), it waits like the others.
+        assertEquals(ArticleState.NEW, article(ids.getValue("going")).state)
         assertEquals(starredAt, article(ids.getValue("b")).starredAt)
     }
 

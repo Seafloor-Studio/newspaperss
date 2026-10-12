@@ -1,10 +1,9 @@
 package com.app.newspaperss.ui.edition
 
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.ui.semantics.heading
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,13 +12,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -32,32 +30,35 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import com.app.newspaperss.data.EditionContent
-import com.app.newspaperss.ui.components.ArticleRowFrame
-import com.app.newspaperss.listen.Listening
-import com.app.newspaperss.ui.listen.ListenButton
-import com.app.newspaperss.ui.listen.PodcastLine
-import com.app.newspaperss.ui.components.StarToggle
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
-import com.app.newspaperss.ui.components.BUILDING_NOTE
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.app.newspaperss.data.EditionContent
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionStatus
-import com.app.newspaperss.ui.today.failureColor
 import com.app.newspaperss.delivery.EditionEmail
 import com.app.newspaperss.delivery.EditionIntents
 import com.app.newspaperss.delivery.KindleSend
+import com.app.newspaperss.edition.EditionBuilder
+import com.app.newspaperss.listen.Listening
 import com.app.newspaperss.settings.KindleEmail
+import com.app.newspaperss.ui.components.ArticleRowFrame
+import com.app.newspaperss.ui.components.BUILDING_NOTE
+import com.app.newspaperss.ui.components.StarToggle
+import com.app.newspaperss.ui.listen.ListenButton
+import com.app.newspaperss.ui.listen.PodcastLine
+import com.app.newspaperss.ui.today.failureColor
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -216,6 +217,7 @@ fun EditionDetailScreen(
                 Header(
                     edition,
                     fileMissing = current.file == null,
+                    building = building,
                     sentToKindle = sentToKindle,
                     next = choices?.next,
                     preferOpen = preferOpen,
@@ -272,6 +274,7 @@ fun EditionDetailScreen(
 private fun Header(
     edition: EditionEntity,
     fileMissing: Boolean,
+    building: Boolean,
     sentToKindle: KindleSend?,
     next: NextStep?,
     preferOpen: Boolean,
@@ -301,7 +304,10 @@ private fun Header(
                 modifier = Modifier.padding(top = 8.dp),
             )
         }
-        if (edition.status == EditionStatus.READY) MarkAsSentLine(preferOpen, onSent, Modifier.padding(top = 4.dp))
+        // A ready one, or one released as not sent when a newer one was made: it may have gone out
+        // another way. Not while an edition is being made, which may be taking its articles.
+        val notSent = edition.status == EditionStatus.FAILED && edition.error == EditionBuilder.NOT_SENT && !fileMissing && !building
+        if (edition.status == EditionStatus.READY || notSent) MarkAsSentLine(preferOpen, onSent, Modifier.padding(top = 4.dp))
         listen?.invoke(Modifier.padding(top = 8.dp))
     }
 }

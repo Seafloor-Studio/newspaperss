@@ -91,9 +91,8 @@ internal fun ArticlesHeading(articles: List<ArticleEntity>, selecting: Boolean, 
     }
     if (articles.isEmpty()) Text("No articles yet.", modifier = Modifier.padding(horizontal = 16.dp))
     if (articles.isNotEmpty()) {
-        val canChange = articles.any { it.state != ArticleState.IN_EDITION }
         // Nothing while selecting: the selection bar says what to do then.
-        val shown = TAP_HELP.takeIf { canChange && !selecting }
+        val shown = TAP_HELP.takeIf { !selecting }
         // The longest wording is laid out invisibly under the one shown, so the line keeps one
         // height as what it says changes: a change in its line count would move every row below it.
         Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp)) {
@@ -129,7 +128,8 @@ internal fun SelectionBar(
     onMarkRead: (List<Long>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val waiting = chosen.filter { it.state == ArticleState.NEW }.map { it.id }
+    // Waiting, or in an unsent edition: either can be marked read.
+    val waiting = chosen.filter { it.state == ArticleState.NEW || it.state == ArticleState.IN_EDITION }.map { it.id }
     val starrable = chosen.filter { it.state != ArticleState.IN_EDITION }
     val takeOut = starrable.isNotEmpty() && starrable.all { it.starredAt != null }
     val toChange = starrable.filter { (it.starredAt != null) == takeOut }.map { it.id }
@@ -139,7 +139,7 @@ internal fun SelectionBar(
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             if (toChange.isEmpty() && waiting.isEmpty()) {
                 Text(
-                    if (chosen.isEmpty()) "Tap articles to choose them." else "These are in an edition you haven't sent yet, so there's nothing to change.",
+                    "Tap articles to choose them.",
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 )
@@ -301,23 +301,19 @@ internal fun looksRead(article: ArticleEntity): Boolean =
 
 /**
  * The read toggle: the article's status mark, which marks a waiting article read and brings back
- * a read or delivered one. No outline: it would box in every row. Narrower than a touch target,
- * so as not to push the titles right; Compose widens its touch area to 48dp. Not tappable on an
- * article in an unsent edition. While a build may be writing a waiting one into its book it still
- * takes the tap, which then says to wait, rather than letting it open the article underneath.
+ * a read or delivered one. One in an unsent edition is marked read too: its book can't change,
+ * but it won't come back for another edition. No outline: it would box in every row. Narrower than
+ * a touch target, so as not to push the titles right; Compose widens its touch area to 48dp. While
+ * a build may be writing a waiting one into its book it still takes the tap, which then says to
+ * wait, rather than letting it open the article underneath.
  */
 @Composable
 private fun ReadToggle(title: String, article: ArticleEntity, onToggle: () -> Unit) {
-    val waiting = article.state == ArticleState.NEW
-    val tappable = article.state != ArticleState.IN_EDITION
+    val waiting = article.state == ArticleState.NEW || article.state == ArticleState.IN_EDITION
     // Its own node, not merged into the row's, so TalkBack can reach it apart from opening the article.
-    val toggle = if (tappable) {
-        Modifier
-            .clickable(interactionSource = null, indication = ripple(bounded = false, radius = 24.dp), role = Role.Button, onClick = onToggle)
-            .semantics { contentDescription = if (waiting) "Mark $title as read" else "Mark $title as unread" }
-    } else {
-        Modifier
-    }
+    val toggle = Modifier
+        .clickable(interactionSource = null, indication = ripple(bounded = false, radius = 24.dp), role = Role.Button, onClick = onToggle)
+        .semantics { contentDescription = if (waiting) "Mark $title as read" else "Mark $title as unread" }
     Box(toggle, contentAlignment = Alignment.Center) {
         // A shape per state, not a colour, so it reads on e-ink; the words are in the line below.
         Text(statusMark(article), style = MaterialTheme.typography.bodyLarge, softWrap = false, modifier = Modifier.clearAndSetSemantics {})
