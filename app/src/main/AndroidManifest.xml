@@ -83,6 +83,9 @@
             android:name=".delivery.EditionSentReceiver"
             android:exported="false" />
         <receiver
+            android:name=".work.StopPodcastReceiver"
+            android:exported="false" />
+        <receiver
             android:name=".work.ClockChangeReceiver"
             android:exported="false">
             <intent-filter>

@@ -745,12 +745,15 @@ whose Kindle and KOReader answers ask for more on the same page).
     slow", offering only Remove and the paper size that would fit. A 32-bit
     phone sees the option greyed, with why. In use, it lists Heart,
     Michael, Emma and George, each with a clip shipped in the app,
-    **Remove Kokoro**, and **Podcast log**: what the making and playing did,
+    **Delete all podcasts** with the space they take (Kokoro stays, so
+    they can be made again), **Remove Kokoro**, and **Podcast log**: what the making and playing did,
     newest first, with Share to send it to whoever's fixing it. While it's in use, each scheduled edition's podcast
     is made after the book, only while the phone charges: unplugged, it
     stops and keeps what's made. It runs at low priority, so using
     the phone meanwhile isn't slowed. It's made in the foreground, with a
-    quiet "Making the podcast" notification (if notifications are on):
+    quiet "Making the podcast" notification (if notifications are on),
+    whose **Stop** stops making podcasts, keeping what's made, until one
+    is asked for again:
     Android lets long work run only so. From Android 12 that's allowed
     overnight only if the app's battery use is Unrestricted, and from
     Android 15 for 6 hours a day; otherwise it's made a few minutes at a
@@ -767,6 +770,11 @@ whose Kindle and KOReader answers ask for more on the same page).
     with how many minutes are made, and whether it's being made now or
     waiting for the phone to charge; an edition without a podcast
     (made by hand, say) offers **Make the podcast**, made while charging.
+    While it's made or waiting, **Stop making** stops it between sentences,
+    keeping what's made (those articles play from it, the rest in the
+    phone's voice) and offering **Make the rest**. Once any audio is made,
+    **Delete podcast · 7 MB** deletes it, after asking: the edition plays
+    in the phone's voice and can have its podcast made again.
   - **E-reader & delivery:** the e-reader in a dropdown at the top, then
     "How it gets there". They share a page because the e-reader decides
     which delivery options show: **Email it to your Kindle** (shown for a Kindle, or once

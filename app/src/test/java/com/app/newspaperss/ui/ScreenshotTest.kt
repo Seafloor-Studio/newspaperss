@@ -437,6 +437,7 @@ class ScreenshotTest {
         val made = PodcastStore(tmp.newFolder())
         val id = runBlocking { db.editions().observeAll().first().first().id }
         made.want(id, PodcastVoice.HEART)
+        made.keep(id, 0, 0, made.scratch(id, 0, 0).apply { writeBytes(ByteArray(4_000_000)) }, listOf(0.0))
         made.complete(id, 0)
         made.complete(id, 1)
         val listening = Listening(
@@ -1010,12 +1011,13 @@ class ScreenshotTest {
         inUse: Boolean = false,
         install: KokoroInstall = shownKokoro(installed = pace != null),
         log: PodcastLog = PodcastLog(null),
+        podcasts: PodcastStore = PodcastStore(tmp.newFolder()),
     ): SettingsViewModel {
         installVoice(ApplicationProvider.getApplicationContext())
         runBlocking { store.update { it.copy(podcastPace = pace, listenVoice = if (inUse) ListenVoice.PODCAST else ListenVoice.PHONE) } }
         val setup = PodcastSetup(
             install, store, work, start = {}, stop = {}, supported = true, engine = { error("not shot") },
-            podcasts = Podcasts(PodcastStore(tmp.newFolder()), store, install) {},
+            podcasts = Podcasts(podcasts, store, install) {},
             log = log,
         )
         return SettingsViewModel(store, podcast = setup) {}
@@ -1051,8 +1053,14 @@ class ScreenshotTest {
 
     @Test
     fun settingsPodcastInUse() {
-        val vm = podcastSettings(pace = 1.2f, inUse = true)
-        shoot("07s-settings-podcast-in-use", ready = { vm.kokoro.value is KokoroState.Ready }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
+        // Two editions' podcasts made, 38 MB between them.
+        val made = PodcastStore(tmp.newFolder())
+        listOf(7L, 8L).forEach { id ->
+            made.want(id, PodcastVoice.HEART)
+            made.keep(id, 0, 0, made.scratch(id, 0, 0).apply { writeBytes(ByteArray(19_000_000)) }, listOf(0.0))
+        }
+        val vm = podcastSettings(pace = 1.2f, inUse = true, podcasts = made)
+        shoot("07s-settings-podcast-in-use", ready = { vm.kokoro.value is KokoroState.Ready && vm.podcastBytes.value != null }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
     }
 
     @Test

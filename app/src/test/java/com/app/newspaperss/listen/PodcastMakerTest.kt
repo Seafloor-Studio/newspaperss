@@ -288,6 +288,80 @@ class PodcastMakerTest {
     }
 
     @Test
+    fun stoppingKeepsWhatsMadeLeavesItUnfinishedAndMakeTheRestCarriesOn() {
+        inUse()
+        pieceSeconds = 0.1
+        val id = edition("Thursday", knots, lagos)
+        request(id)
+        // Stopped between sentences of the first article, not at its end.
+        afterLine = { if (it == "Nobody knew.") podcasts.stop(id) }
+        make()
+
+        assertFalse(said.contains("Then a teacher counted."))
+        assertTrue(store.pieces(id, 0).isNotEmpty())
+        assertFalse(store.made(id, 0))
+        assertFalse(store.finished(id))
+        assertTrue(store.waiting().isEmpty())
+
+        afterLine = {}
+        request(id)
+        make()
+        assertTrue(store.finished(id))
+        assertEquals("Then a teacher counted.", said[said.indexOf("Nobody knew.") + 1])
+    }
+
+    @Test
+    fun stoppingOneEditionMovesOnToTheNextWaiting() {
+        inUse()
+        val older = edition("Wednesday", lagos)
+        val newer = edition("Thursday", knots)
+        request(older)
+        request(newer)
+        afterLine = { if (it == "Quanta") podcasts.stop(newer) }
+        make()
+
+        assertFalse(store.finished(newer))
+        assertTrue(store.finished(older))
+    }
+
+    @Test
+    fun deletedAndAskedForAgainMidSentenceItsMadeAfreshAndWhole() {
+        inUse()
+        pieceSeconds = 0.1
+        val id = edition("Thursday", knots, lagos)
+        request(id)
+        afterLine = {
+            if (it == "Nobody knew." && said.count { line -> line == it } == 1) {
+                podcasts.delete(id)
+                request(id)
+            }
+        }
+        make()
+
+        assertTrue(store.finished(id))
+        assertTrue((0..2).all { store.made(id, it) })
+        // The first article from its first line: nothing of the deleted one's run kept in it.
+        assertEquals(0, store.pieces(id, 0).first().firstLine)
+        assertEquals(5, store.pieces(id, 0).sumOf { it.starts.size })
+    }
+
+    @Test
+    fun aDeletedPodcastFreesItsSpaceAndCanBeMadeAgain() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        make()
+        assertTrue(store.bytes(id) > 0)
+
+        podcasts.delete(id)
+        assertEquals(0L, store.bytes(id))
+        assertNull(store.voice(id))
+        request(id)
+        make()
+        assertTrue(store.finished(id))
+    }
+
+    @Test
     fun aPodcastWhoseBookIsGoneIsDropped() {
         inUse()
         val id = edition("Thursday", lagos)

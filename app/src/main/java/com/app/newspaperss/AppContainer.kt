@@ -200,8 +200,12 @@ class AppContainer(
     /** What the podcast's making and playing did, shown in Settings › Listening while the podcast is debug-only. */
     val podcastLog = PodcastLog(File(context.filesDir, "podcast-log.txt"))
     private val podcastEngine = { voice: PodcastVoice -> KokoroEngine(kokoroInstall, voice) }
-    private val podcastStore = PodcastStore(File(context.filesDir, "podcasts"))
+    internal val podcastStore = PodcastStore(File(context.filesDir, "podcasts"))
     private val podcasts = Podcasts(podcastStore, settings, kokoroInstall, start = { PodcastWorker.enqueue(context) }, log = podcastLog)
+
+    /** The notification's Stop: no more podcasts are made, until one is asked for. */
+    fun stopMakingPodcasts() = podcasts.stopAll()
+
     val podcastMaker: PodcastMaker by lazy {
         PodcastMaker(editions, podcastStore, kokoroInstall, settings, podcastEngine, AacEncoder, log = podcastLog)
     }

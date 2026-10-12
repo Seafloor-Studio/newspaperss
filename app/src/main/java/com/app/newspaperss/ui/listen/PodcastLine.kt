@@ -4,17 +4,22 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
@@ -24,6 +29,7 @@ import com.app.newspaperss.core.listen.ListenTime
 import com.app.newspaperss.core.listen.PodcastPace
 import com.app.newspaperss.listen.Podcasts
 import com.app.newspaperss.ui.settings.SettingsSummary
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -72,15 +78,48 @@ fun PodcastLine(podcasts: Podcasts, editionId: Long, minutes: List<Double>, modi
         // Rounded to whole minutes, nearly done would read as all of it.
         val sofar = if (ReadingTime.format(made) == total) "Almost all of $total made." else "${ReadingTime.format(made)} of $total made."
         val rest = if (leftOut) "The rest plays in your phone's voice until it's made, and articles it left out always do." else "The rest plays in your phone's voice until it's made."
+        val done = p.finished || p.made.all { it }
         val text = when {
             p.made.all { it } -> "The podcast is ready."
             p.finished && !anyMade -> "The podcast couldn't make any of this edition, so it plays in your phone's voice."
             p.finished -> "The podcast is ready. Articles it left out, not in English or that it couldn't say, play in your phone's voice."
+            p.stopped -> "Stopped. " + (if (made > 0.0) "$sofar " else "") + "The rest plays in your phone's voice."
             p.makingNow -> "Making the podcast now. $sofar $rest"
             p.makingOther -> "Waiting while another edition's podcast is made: this one comes next. " + (if (made > 0.0) "$sofar " else "") + rest
             made == 0.0 -> "Waiting to make the podcast: it's made while the phone charges, and Android can take a few minutes to start. Until then, Listen uses your phone's voice."
             else -> "$sofar It carries on while the phone charges. $rest"
         }
         Text(text, style = small, color = soft, modifier = Modifier.padding(top = 6.dp))
+        var deleting by rememberSaveable { mutableStateOf(false) }
+        FlowRow {
+            when {
+                done -> {}
+                p.stopped -> {
+                    val rest = SettingsSummary.aboutTime(PodcastPace.minutesToMake((heard.sum() - made).toInt().coerceAtLeast(1), p.pace))
+                    TextButton(onClick = { scope.launch { runCatching { withContext(NonCancellable) { podcasts.request(editionId) } } } }) {
+                        Text("Make the rest · $rest while charging")
+                    }
+                }
+                else -> TextButton(onClick = { scope.launch(Dispatchers.IO) { podcasts.stop(editionId) } }) { Text("Stop making") }
+            }
+            if (p.bytes > 0) TextButton(onClick = { deleting = true }) { Text("Delete podcast · ${megabytes(p.bytes)}") }
+        }
+        if (deleting) {
+            AlertDialog(
+                onDismissRequest = { deleting = false },
+                title = { Text("Delete this edition's podcast?") },
+                text = { Text("It frees ${megabytes(p.bytes)}. The edition plays in your phone's voice, and you can make the podcast again.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        deleting = false
+                        scope.launch(Dispatchers.IO) { podcasts.delete(editionId) }
+                    }) { Text("Delete") }
+                },
+                dismissButton = { TextButton(onClick = { deleting = false }) { Text("Cancel") } },
+            )
+        }
     }
 }
+
+/** Whole megabytes, at least 1: a podcast is a few MB, and "0 MB" would say there's nothing to free. */
+internal fun megabytes(bytes: Long): String = "${(bytes / 1_000_000).coerceAtLeast(1)} MB"

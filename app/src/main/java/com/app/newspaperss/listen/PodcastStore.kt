@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.update
 import java.io.File
 import java.io.IOException
 import java.util.Locale
+import java.util.UUID
 
 /**
  * Podcasts made ahead, a folder per edition. Each page's audio is kept in pieces of a couple of
@@ -53,20 +54,56 @@ class PodcastStore(val dir: File) {
 
     private fun folder(editionId: Long) = File(dir, editionId.toString())
 
-    /** Asks for [editionId]'s podcast in [voice]. Asked again, it keeps the voice it was started in. */
+    /**
+     * Asks for [editionId]'s podcast in [voice]. Asked again, it keeps the voice it was started in,
+     * and one stopped carries on.
+     */
     @Synchronized
     fun want(editionId: Long, voice: PodcastVoice) {
         folder(editionId).mkdirs()
         // Rewritten if unreadable: the app may have died as it was first written.
-        if (voice(editionId) == null) write(editionId, VOICE, voice.name)
+        if (voice(editionId) == null) {
+            write(editionId, VOICE, voice.name)
+            write(editionId, ASKED, UUID.randomUUID().toString())
+        }
+        File(folder(editionId), STOPPED).delete()
         changed()
     }
 
-    /** Editions whose podcast was asked for and isn't finished, newest first. */
+    /** Stops making [editionId]'s podcast, keeping what's made, until it's asked for again. */
+    @Synchronized
+    fun stop(editionId: Long) {
+        write(editionId, STOPPED, "")
+        changed()
+    }
+
+    fun stopped(editionId: Long): Boolean = File(folder(editionId), STOPPED).exists()
+
+    /**
+     * Which asking for [editionId]'s podcast this is: deleted and asked for again, it's another, so
+     * a run still making the first can tell its work no longer belongs.
+     */
+    fun asked(editionId: Long): String? = read(editionId, ASKED)
+
+    /** Whether [editionId]'s podcast is still to be made: asked for, and neither stopped nor deleted since. */
+    fun wanted(editionId: Long): Boolean = voice(editionId) != null && !stopped(editionId)
+
+    /** [wanted], and still the asking a run started on ([asked]). */
+    fun wanted(editionId: Long, asked: String?): Boolean = wanted(editionId) && asked(editionId) == asked
+
+    /** Editions whose podcast was asked for and isn't finished or stopped, newest first. */
     fun waiting(): List<Long> = (dir.listFiles() ?: emptyArray())
         .mapNotNull { it.name.toLongOrNull() }
-        .filter { voice(it) != null && !finished(it) }
+        .filter { wanted(it) && !finished(it) }
         .sortedDescending()
+
+    /** The space [editionId]'s podcast's audio takes, in bytes: none until a piece is kept. */
+    fun bytes(editionId: Long): Long = audioBytes(folder(editionId))
+
+    /** The space every podcast's audio takes, in bytes. */
+    fun bytes(): Long = audioBytes(dir)
+
+    private fun audioBytes(folder: File) = folder.walk().filter { it.isFile && it.name.endsWith(".$AUDIO") }.sumOf { it.length() }
 
     fun voice(editionId: Long): PodcastVoice? =
         read(editionId, VOICE)?.let { name -> PodcastVoice.entries.firstOrNull { it.name == name } }
@@ -213,6 +250,8 @@ class PodcastStore(val dir: File) {
         const val SEP = "-"
         const val VOICE = "voice"
         const val FINISHED = "finished"
+        const val STOPPED = "stopped"
+        const val ASKED = "asked"
         const val AUDIO = "m4a"
         const val STARTS = "starts"
         const val MADE = "made"

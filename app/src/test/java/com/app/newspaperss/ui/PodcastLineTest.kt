@@ -17,7 +17,9 @@ import com.app.newspaperss.testutil.kokoroInstall
 import com.app.newspaperss.ui.listen.PodcastLine
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -94,6 +96,51 @@ class PodcastLineTest {
         // Another edition's being made first.
         store.making(8)
         waitFor("Waiting while another edition's podcast is made")
+    }
+
+    @Test
+    fun stoppingKeepsWhatsMadeAndMakeTheRestCarriesOn() {
+        store.want(7, PodcastVoice.HEART)
+        store.complete(7, 0)
+        show()
+        waitFor("Stop making")
+        // Nothing to delete until audio is kept: the made pages here are only marked so.
+        assertTrue(compose.onAllNodes(androidx.compose.ui.test.hasText("Delete podcast", substring = true)).fetchSemanticsNodes().isEmpty())
+        compose.onNodeWithText("Stop making").performClick()
+        idleUntil { store.stopped(7) }
+        assertTrue(store.waiting().isEmpty())
+        waitFor("Stopped. 12 min of 27 min made.")
+
+        compose.onNodeWithText("Make the rest", substring = true).performClick()
+        idleUntil { started > 0 }
+        assertFalse(store.stopped(7))
+        assertEquals(listOf(7L), store.waiting())
+    }
+
+    @Test
+    fun deletingAPodcastAsksFirstThenFreesItsSpace() {
+        store.want(7, PodcastVoice.HEART)
+        val scratch = store.scratch(7, 0, 0).apply { writeBytes(ByteArray(3_000_000)) }
+        store.keep(7, 0, 0, scratch, listOf(0.0))
+        show()
+        compose.onNodeWithText("Delete podcast · 3 MB").performClick()
+        waitFor("It frees 3 MB")
+        // Nothing's gone until it's confirmed.
+        assertNotNull(store.voice(7))
+        compose.onNodeWithText("Delete").performClick()
+        idleUntil { store.voice(7) == null }
+        assertEquals(0L, store.bytes(7))
+        waitFor("No podcast for this edition yet")
+    }
+
+    @Test
+    fun aFinishedPodcastOffersNoStop() {
+        store.want(7, PodcastVoice.HEART)
+        (0..2).forEach { store.complete(7, it) }
+        store.finish(7)
+        show()
+        waitFor("The podcast is ready.")
+        assertTrue(compose.onAllNodes(androidx.compose.ui.test.hasText("Stop making")).fetchSemanticsNodes().isEmpty())
     }
 
     @Test
