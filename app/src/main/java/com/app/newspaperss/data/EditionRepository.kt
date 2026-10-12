@@ -65,7 +65,9 @@ class EditionRepository(
     /**
      * The reader says they sent an edition: a ready one, or one released as not sent because a
      * newer one was made first (see [notSent]). The released one's articles are marked delivered
-     * too, even any taken into a newer edition since: they went out in this one.
+     * too, even any taken into a newer edition since: they went out in this one. A released one
+     * waits while an edition is being made, which may be taking its articles: the build would
+     * put them back in an edition after this marked them delivered.
      */
     suspend fun markSentByHand(id: Long) = markDelivered(id, onlyIfReady = true, orNotSent = true)
 
@@ -93,7 +95,11 @@ class EditionRepository(
             // Already delivered (the reader tapped Sent while a folder copy was finishing): the
             // work that follows delivery, like saving notes, mustn't run twice.
             if (edition.status == EditionStatus.DELETED || edition.status == EditionStatus.DELIVERED) return@withTransaction null
-            if (onlyIfReady && edition.status != EditionStatus.READY && !(orNotSent && notSent(edition))) return@withTransaction null
+            if (onlyIfReady && edition.status != EditionStatus.READY &&
+                !(orNotSent && notSent(edition) && !db.editions().buildingSince(clock.instant().minus(BUILD_HOLD)))
+            ) {
+                return@withTransaction null
+            }
             val articleIds = db.editions().articleIds(id)
             // One instant for both: marking it as not sent finds the links it remembered by it.
             val now = clock.instant()

@@ -281,7 +281,8 @@ when the next one is built was never sent: it's marked not sent and its
 articles go back, keeping their stars, before the new one is planned.
 Its page still offers **Mark as sent** while its file is here, for one
 sent some other way: its articles are used up, even any taken into the
-newer edition since.
+newer edition since. It's hidden while an edition is being made, which
+may be taking those articles.
 
 **Send to Kindle is slow.** A book can take a few minutes to reach a
 Kindle, so for half an hour after a send the edition (on Today and its own
@@ -321,11 +322,14 @@ phone restarts.
   read or expired. Stars never expire. Delivery clears them, on every copy
   of the link; an edition that's never sent gives its articles back with
   their stars, each in the state it had before (a starred delivered article
-  goes back to delivered). A paused source holds its stars; removing a
+  goes back to delivered), except one marked read while in it, which stays
+  read. A paused source holds its stars; removing a
   source removes them.
 - **Read and unread.** A waiting article you've read elsewhere, or don't
   want, is marked `SKIPPED` and never goes in an edition; its star goes.
-  Marking it unread puts it back to waiting. So does marking a delivered
+  So can one in an unsent edition: its book can't change, but it won't
+  come back for another. Marking it unread puts it back to waiting, or
+  back in its unsent edition. So does marking a delivered
   or expired one unread: it waits its turn with the others, unlike ★, which
   puts it in the next edition. It counts as found again, so it gets a week
   before it expires. A batch marked read from selection has one Undo.
@@ -666,7 +670,8 @@ whose Kindle and KOReader answers ask for more on the same page).
   - **Select** (or pressing and holding a row) enters selection mode:
     checkboxes take the status marks' place, the top bar says "N
     selected", and a bar at the bottom has **☆ Next edition** and
-    **Mark N as read** (counting only waiting articles). One Undo covers
+    **Mark N as read** (counting waiting articles and those in an unsent
+    edition). One Undo covers
     the whole batch. Back or ✕ leaves without changing anything.
   - With TalkBack, the mark is its own button: "Mark <title> as read" or
     "as unread".

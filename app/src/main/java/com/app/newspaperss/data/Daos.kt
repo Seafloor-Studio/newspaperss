@@ -487,7 +487,8 @@ interface ArticleDao {
      * again [now] so it doesn't expire at once, as when marked unread here.
      */
     @Query(
-        """UPDATE articles SET state = 'NEW', reportedRead = 0, discoveredAt = :now WHERE sourceId = :sourceId AND guid IN (:guids)
+        """UPDATE articles SET state = CASE WHEN id IN ($IN_UNSENT) THEN 'IN_EDITION' ELSE 'NEW' END,
+               reportedRead = 0, discoveredAt = :now WHERE sourceId = :sourceId AND guid IN (:guids)
            AND state IN ('SKIPPED', 'DELIVERED') AND reportedRead = 1""",
     )
     suspend fun unreadOnServer(sourceId: Long, guids: List<String>, now: Instant)
@@ -568,11 +569,11 @@ interface ArticleDao {
     suspend fun ttrssUnsentInEdition(editionId: Long): List<ArticleEntity>
 }
 
-/** Articles of edition :editionId delivered again in an edition sent after it. */
 /** Articles in an edition not yet sent: ready, or being made. */
 private const val IN_UNSENT = """SELECT ea.articleId FROM edition_articles ea JOIN editions e ON e.id = ea.editionId
     WHERE ea.articleId IS NOT NULL AND e.status IN ('READY', 'BUILDING')"""
 
+/** Articles of edition :editionId delivered again in an edition sent after it. */
 private const val DELIVERED_SINCE = """SELECT ea.articleId FROM edition_articles ea JOIN editions e ON e.id = ea.editionId
     WHERE ea.editionId != :editionId AND ea.articleId IS NOT NULL AND e.status = 'DELIVERED'
     AND e.deliveredAt > COALESCE((SELECT deliveredAt FROM editions WHERE id = :editionId), 0)"""
@@ -637,6 +638,10 @@ interface EditionDao {
            WHERE e.status IN ('READY', 'DELIVERED') AND ea.starred = 0 GROUP BY a.sourceId, a.originId""",
     )
     suspend fun lastFeatured(): List<Featured>
+
+    /** Whether an edition started after [since] is being made: one older is taken to have crashed. */
+    @Query("SELECT EXISTS(SELECT 1 FROM editions WHERE status = 'BUILDING' AND createdAt > :since)")
+    suspend fun buildingSince(since: Instant): Boolean
 
     /** When the newest edition being made was started, or null if none is. */
     @Query("SELECT MAX(createdAt) FROM editions WHERE status = 'BUILDING'")

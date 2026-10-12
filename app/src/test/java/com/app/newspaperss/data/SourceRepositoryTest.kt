@@ -207,6 +207,12 @@ class SourceRepositoryTest {
         assertEquals(SourceRepository.Toggled.CHANGED, repo.toggleRead(going))
         assertEquals(ArticleState.IN_EDITION, article(going).state)
 
+        // Read on tt-rss, then unread there: back in the edition too.
+        repo.toggleRead(going)
+        db.openHelper.writableDatabase.execSQL("UPDATE articles SET reportedRead = 1 WHERE id = $going")
+        db.articles().unreadOnServer(article(going).sourceId, listOf("going"), java.time.Instant.now())
+        assertEquals(ArticleState.IN_EDITION, article(going).state)
+
         repo.toggleRead(going)
         db.articles().release(edition)
         assertEquals("not sent, it doesn't come back for the next edition", ArticleState.SKIPPED, article(going).state)
@@ -228,6 +234,8 @@ class SourceRepositoryTest {
 
         assertEquals(3, repo.undoMarkRead(batch.marked))
         assertEquals(ArticleState.NEW, article(ids.getValue("a")).state)
+        // In no edition any more (none was made here), it waits like the others.
+        assertEquals(ArticleState.NEW, article(ids.getValue("going")).state)
         assertEquals(starredAt, article(ids.getValue("b")).starredAt)
     }
 

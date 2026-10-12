@@ -217,6 +217,7 @@ fun EditionDetailScreen(
                 Header(
                     edition,
                     fileMissing = current.file == null,
+                    building = building,
                     sentToKindle = sentToKindle,
                     next = choices?.next,
                     preferOpen = preferOpen,
@@ -273,6 +274,7 @@ fun EditionDetailScreen(
 private fun Header(
     edition: EditionEntity,
     fileMissing: Boolean,
+    building: Boolean,
     sentToKindle: KindleSend?,
     next: NextStep?,
     preferOpen: Boolean,
@@ -302,8 +304,9 @@ private fun Header(
                 modifier = Modifier.padding(top = 8.dp),
             )
         }
-        // A ready one, or one released as not sent when a newer one was made: it may have gone out another way.
-        val notSent = edition.status == EditionStatus.FAILED && edition.error == EditionBuilder.NOT_SENT && !fileMissing
+        // A ready one, or one released as not sent when a newer one was made: it may have gone out
+        // another way. Not while an edition is being made, which may be taking its articles.
+        val notSent = edition.status == EditionStatus.FAILED && edition.error == EditionBuilder.NOT_SENT && !fileMissing && !building
         if (edition.status == EditionStatus.READY || notSent) MarkAsSentLine(preferOpen, onSent, Modifier.padding(top = 4.dp))
         listen?.invoke(Modifier.padding(top = 8.dp))
     }

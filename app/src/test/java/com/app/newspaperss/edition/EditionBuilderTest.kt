@@ -878,6 +878,55 @@ class EditionBuilderTest {
     }
 
     @Test
+    fun aReleasedEditionMarkedSentUsesUpItsArticlesEvenOnesInTheNewerEdition() = runTest {
+        source("a", "a1")
+        val first = builder.build(EditionSettings()) as BuildResult.Built
+        // Not sent before the next: released, its article taken into the second.
+        val second = builder.build(EditionSettings()) as BuildResult.Built
+        assertEquals(EditionBuilder.NOT_SENT, db.editions().byId(first.editionId)!!.error)
+        assertEquals(listOf(idOf("a1")), db.editions().articleIds(second.editionId))
+
+        editions.markSentByHand(first.editionId)
+        assertEquals(EditionStatus.DELIVERED, db.editions().byId(first.editionId)!!.status)
+        assertEquals(ArticleState.DELIVERED, stateOf("a1"))
+
+        // The second never sent either: it went out in the first, so it doesn't come back.
+        builder.build(EditionSettings())
+        assertEquals(EditionStatus.FAILED, db.editions().byId(second.editionId)!!.status)
+        assertEquals(ArticleState.DELIVERED, stateOf("a1"))
+    }
+
+    @Test
+    fun aReleasedEditionCantBeMarkedSentWhileAnotherIsBeingMadeOrWithoutItsBook() = runTest {
+        source("a", "a1")
+        val first = builder.build(EditionSettings()) as BuildResult.Built
+        builder.build(EditionSettings())
+        val building = db.editions().insert(EditionEntity(title = "Being made", status = EditionStatus.BUILDING, createdAt = clock.instant()))
+
+        editions.markSentByHand(first.editionId)
+        assertEquals("a build may be taking its articles", EditionStatus.FAILED, db.editions().byId(first.editionId)!!.status)
+
+        db.editions().update(db.editions().byId(building)!!.copy(status = EditionStatus.FAILED))
+        editions.fileOf(db.editions().byId(first.editionId)!!)!!.delete()
+        editions.markSentByHand(first.editionId)
+        assertEquals("no book, nothing was sent", EditionStatus.FAILED, db.editions().byId(first.editionId)!!.status)
+    }
+
+    @Test
+    fun anArticleMarkedReadInAnEditionThatsReleasedComesBackAsWaitingWhenMarkedUnread() = runTest {
+        source("a", "a1")
+        builder.build(EditionSettings())
+        sources.toggleRead(idOf("a1"))
+        assertEquals(ArticleState.SKIPPED, stateOf("a1"))
+
+        // Not sent before the next: read, it isn't taken into it.
+        builder.build(EditionSettings())
+        assertEquals(ArticleState.SKIPPED, stateOf("a1"))
+        sources.toggleRead(idOf("a1"))
+        assertEquals(ArticleState.NEW, stateOf("a1"))
+    }
+
+    @Test
     fun onlyADeliveredEditionWithItsBookStillThereCanBeMarkedAsNotSent() = runTest {
         source("a", "a1")
         val ready = builder.build(EditionSettings()) as BuildResult.Built
