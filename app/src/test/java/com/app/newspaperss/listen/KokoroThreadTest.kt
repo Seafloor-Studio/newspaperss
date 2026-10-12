@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.testutil.TestApp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -14,12 +15,14 @@ import org.robolectric.annotation.Config
 @Config(application = TestApp::class)
 class KokoroThreadTest {
     @Test
-    fun kokoroRunsAtBackgroundPriorityOffTheCallersThread() {
+    fun kokoroRunsAtLowPriorityOffTheCallersThread() {
         val caller = Thread.currentThread()
         val (thread, priority) = KokoroThread.run { Thread.currentThread() to Process.getThreadPriority(Process.myTid()) }
 
         assertNotEquals(caller, thread)
-        assertEquals(Process.THREAD_PRIORITY_BACKGROUND, priority)
+        assertTrue(priority > Process.THREAD_PRIORITY_DEFAULT)
+        // Not in the background group, which can starve it.
+        assertTrue(priority < Process.THREAD_PRIORITY_BACKGROUND)
     }
 
     @Test
