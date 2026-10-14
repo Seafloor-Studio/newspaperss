@@ -227,7 +227,8 @@ Many of the writers worth reading publish as newsletters. Two routes, from easy 
   - redirect-wrapped and tracking links (`substack.com/redirect/…`, `utm_*`): unwrap for the
     "Read the original" link and strip before fetching;
   - "Share", "Subscribe", "Leave a comment" and like buttons: page-cleanup furniture;
-  - podcast episodes in the same feed (an enclosure, little text): skip or note, don't pad the paper.
+  - podcast episodes in the same feed (an enclosure, little text): skip or note, don't pad the paper
+    (unless "Podcast feeds in the podcast", under Listen, is built).
 - **Newsletters that only arrive by email.** Options: a Kill the Newsletter-style address
   (email in, Atom feed out; hosted or self-hosted), which needs nothing new in the app; or reading
   one folder or label over IMAP with an app password (Fastmail, iCloud, most hosts; Gmail needs
@@ -257,6 +258,13 @@ The phone's voice reading an edition, and Settings › Listening for it, are bui
 - **🔊 in the article preview**, starting the same player at that article.
 - **A sleep timer**, and a way in from Today's card.
 - **Save as audio:** the edition as a file with a chapter per article, for a podcast or audiobook app. With a podcast made, it's already most of the way there.
+- **Podcast feeds in the podcast** *(you asked)*: when a source is a podcast (items with an audio `<enclosure>`), its episodes go into the edition like articles, and Listen plays the episode's own audio there instead of a voice reading the show notes.
+  - **In the book:** the episode's title and show notes, marked as an episode to listen to. EPUB 3 allows `<audio>`, but most e-readers can't play it, so the audio stays on the phone.
+  - **Length:** an episode counts towards the paper's length by its running time (`itunes:duration`, else the file's), not its words. A 90-minute episode is a paper on its own, so a cap on episode length, or episodes only in a separate "listening" part of the paper.
+  - **Download:** episodes are 30–100 MB each. Fetched with the edition on Wi-Fi only (asking before mobile data, as Kokoro does), stored beside the edition and deleted with it, like the made podcast.
+  - **Playing:** `Media3Audio` already plays an article's pieces as files, so an episode is one more article whose audio is already made; the phone's voice and Kokoro skip it. ↶ ↷ jump 15 seconds, not a sentence; no sentence tint, just the notes.
+  - **Untrusted input:** only `http(s)` enclosures, an `audio/*` type, and a size limit before downloading; a feed can claim any length.
+  - **Open questions:** whether episodes belong in the paper at all, or only in Listen; what an edition with episodes shows when nobody listens (they expire with it, unheard); and how this meets the Newsletters item's "skip podcast episodes", which it would replace.
 
 ### Listening in the reading view *(you asked)*
 Today the article preview (the book's own page in a WebView, with Aa, pinch zoom and quote sharing)
