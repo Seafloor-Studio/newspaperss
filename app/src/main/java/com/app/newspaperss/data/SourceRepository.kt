@@ -299,17 +299,18 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
 
     /**
      * Every feed as OPML: those on the phone, and a tt-rss account's as it last listed them, each in
-     * a folder named for its category there. A feed unsubscribed in tt-rss since isn't included.
+     * a folder named for its category there. A feed unsubscribed in tt-rss since isn't included,
+     * and one both on the phone and in tt-rss (part way through a move) is listed once, in its folder.
      */
     suspend fun exportOpml(): String {
         val all = sources.all()
-        val phone = all.filter { it.kind == SourceKind.FEED }.map { OpmlFeed(it.url, it.title, folder = null) }
         val server = all.filter { it.kind == SourceKind.TTRSS }.flatMap { account ->
             sources.observePublicationsOf(account.id).first()
                 .filter { it.feedUrl != null && (it.listed || it.outsideCategory) }
-                .map { OpmlFeed(it.feedUrl!!, it.title, folder = it.category) }
+                .map { OpmlFeed(it.feedUrl!!, it.title, folder = it.category?.ifBlank { null }) }
         }
-        return Opml.write("NewspapeRSS sources", phone + server)
+        val phone = all.filter { it.kind == SourceKind.FEED }.map { OpmlFeed(it.url, it.title, folder = null) }
+        return Opml.write("NewspapeRSS sources", (server + phone).distinctBy { it.url })
     }
 
     companion object {

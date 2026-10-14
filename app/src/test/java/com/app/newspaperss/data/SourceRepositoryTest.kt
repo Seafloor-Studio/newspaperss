@@ -62,6 +62,8 @@ class SourceRepositoryTest {
         db.sources().savePublication(PublicationEntity(account, "1", title = "Science Weekly", feedUrl = "https://science.example/feed", category = "Science", listed = true))
         db.sources().savePublication(PublicationEntity(account, "2", title = "Elsewhere", feedUrl = "https://else.example/feed", category = "Other", outsideCategory = true))
         db.sources().savePublication(PublicationEntity(account, "3", title = "Gone", feedUrl = "https://gone.example/feed", category = "Science"))
+        // Moved to tt-rss, still on the phone too: once, in its folder.
+        repo.addFeed("https://science.example/feed", "Science Weekly")
 
         val feeds = com.app.newspaperss.core.feed.Opml.parse(repo.exportOpml())
 

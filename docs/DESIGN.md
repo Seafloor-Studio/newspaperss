@@ -813,7 +813,7 @@ whose Kindle and KOReader answers ask for more on the same page).
     what happens: NewspapeRSS signs out and deletes all tt-rss data here
     (articles, stars and feed settings); past editions stay; nothing
     changes in tt-rss; the feeds don't come along, so it points to
-    tt-rss's OPML export, imported in Sources.
+    Sources' OPML export, to save first and import after.
     Feeds moved to tt-rss and still kept for their stars become phone feeds
     again, and a move under way stops.
     With a server, the page also has the account: its address, who's
