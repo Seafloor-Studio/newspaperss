@@ -55,6 +55,28 @@ class SourceRepositoryTest {
         other.close()
     }
 
+    @Test
+    fun exportIncludesATtrssAccountsFeedsInTheirCategoriesButNotOnesUnsubscribedThere() = runTest {
+        repo.addFeed("https://a.example/feed", "A")
+        val account = db.sources().insert(SourceEntity(url = "https://rss.example/api/", title = "Tiny Tiny RSS", kind = SourceKind.TTRSS))
+        db.sources().savePublication(PublicationEntity(account, "1", title = "Science Weekly", feedUrl = "https://science.example/feed", category = "Science", listed = true))
+        db.sources().savePublication(PublicationEntity(account, "2", title = "Elsewhere", feedUrl = "https://else.example/feed", category = "Other", outsideCategory = true))
+        db.sources().savePublication(PublicationEntity(account, "3", title = "Gone", feedUrl = "https://gone.example/feed", category = "Science"))
+        // Moved to tt-rss, still on the phone too: once, in its folder.
+        repo.addFeed("https://science.example/feed", "Science Weekly")
+
+        val feeds = com.app.newspaperss.core.feed.Opml.parse(repo.exportOpml())
+
+        assertEquals(
+            setOf(
+                com.app.newspaperss.core.feed.OpmlFeed("https://a.example/feed", "A", null),
+                com.app.newspaperss.core.feed.OpmlFeed("https://science.example/feed", "Science Weekly", "Science"),
+                com.app.newspaperss.core.feed.OpmlFeed("https://else.example/feed", "Elsewhere", "Other"),
+            ),
+            feeds.toSet(),
+        )
+    }
+
     private var day = 20_000L
 
     /** [times] pieces of evidence, one a day. */

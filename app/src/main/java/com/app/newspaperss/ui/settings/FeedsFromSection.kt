@@ -190,7 +190,7 @@ private fun LeaveDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
                         "Past editions stay. Nothing changes in tt-rss itself.",
                 )
                 Text(
-                    "To keep your feeds, export an OPML file from tt-rss (Preferences › Feeds) and import it in Sources.",
+                    "To keep your feeds, first save them from Sources › ⋮ › Export your sites (OPML), then import that file there.",
                     modifier = Modifier.padding(top = 12.dp),
                 )
             }

@@ -711,8 +711,10 @@ whose Kindle and KOReader answers ask for more on the same page).
       one of the curated lists, which stay on the phone.
     - If the dialog was closed, the answer comes as a snackbar when Sources
       is open.
-    - The ⋮ menu has **Where your feeds live** instead of OPML: tt-rss
-      imports and exports OPML itself. No starter packs are offered.
+    - The ⋮ menu has **Where your feeds live** instead of OPML import:
+      feeds are added in tt-rss, which imports OPML itself. **Export your
+      sites (OPML)** stays: the tt-rss feeds as last listed, each in a
+      folder named for its category there, and any still on the phone. No starter packs are offered.
   Getting or leaving a server is in Settings.
 - **Reading list:** links you shared into the app, each with its title,
   site and reading time (looked up in the background). They go first in
@@ -811,7 +813,7 @@ whose Kindle and KOReader answers ask for more on the same page).
     what happens: NewspapeRSS signs out and deletes all tt-rss data here
     (articles, stars and feed settings); past editions stay; nothing
     changes in tt-rss; the feeds don't come along, so it points to
-    tt-rss's OPML export, imported in Sources.
+    Sources' OPML export, to save first and import after.
     Feeds moved to tt-rss and still kept for their stars become phone feeds
     again, and a move under way stops.
     With a server, the page also has the account: its address, who's

@@ -152,7 +152,8 @@ fun SourcesScreen(
                     Box {
                         IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "More options") }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                            // With a server, its feeds are tt-rss's to import and export (Preferences › Feeds there).
+                            // With a server, feeds are added in tt-rss, so a file's are imported there
+                            // (Preferences › Feeds); exporting still helps without its web page to hand.
                             if (server) {
                                 DropdownMenuItem(text = { Text("Where your feeds live") }, onClick = { menu = false; onOpenAccount() })
                             } else {
@@ -160,11 +161,11 @@ fun SourcesScreen(
                                     text = { Text("Import from another reader (OPML)") },
                                     onClick = { menu = false; importFile.launch(arrayOf("*/*")) },
                                 )
-                                DropdownMenuItem(
-                                    text = { Text("Export your sites (OPML)") },
-                                    onClick = { menu = false; exportFile.launch("NewspapeRSS-sources.opml") },
-                                )
                             }
+                            DropdownMenuItem(
+                                text = { Text("Export your sites (OPML)") },
+                                onClick = { menu = false; exportFile.launch("NewspapeRSS-sources.opml") },
+                            )
                         }
                     }
                 },

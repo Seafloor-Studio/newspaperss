@@ -11,6 +11,7 @@ import com.app.newspaperss.core.lists.CuratedLists
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.Clock
 import java.time.Duration
@@ -296,10 +297,21 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
         return OpmlImport(feeds.size, added)
     }
 
-    suspend fun exportOpml(): String = Opml.write(
-        "NewspapeRSS sources",
-        sources.all().filter { it.kind == SourceKind.FEED }.map { OpmlFeed(it.url, it.title, folder = null) },
-    )
+    /**
+     * Every feed as OPML: those on the phone, and a tt-rss account's as it last listed them, each in
+     * a folder named for its category there. A feed unsubscribed in tt-rss since isn't included,
+     * and one both on the phone and in tt-rss (part way through a move) is listed once, in its folder.
+     */
+    suspend fun exportOpml(): String {
+        val all = sources.all()
+        val server = all.filter { it.kind == SourceKind.TTRSS }.flatMap { account ->
+            sources.observePublicationsOf(account.id).first()
+                .filter { it.feedUrl != null && (it.listed || it.outsideCategory) }
+                .map { OpmlFeed(it.feedUrl!!, it.title, folder = it.category?.ifBlank { null }) }
+        }
+        val phone = all.filter { it.kind == SourceKind.FEED }.map { OpmlFeed(it.url, it.title, folder = null) }
+        return Opml.write("NewspapeRSS sources", (server + phone).distinctBy { it.url })
+    }
 
     companion object {
         private val FEEDS_LISTED_FOR: Duration = Duration.ofDays(30)
