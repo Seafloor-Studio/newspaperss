@@ -315,8 +315,10 @@ They came in these shapes, with what the paper does with each today:
   episodes' notes together: every episode came out as the same 350-word jumble.
 - **An episode post with only notes.** Either a timestamped list of topics (270–660 words) or
   sponsors, links and timestamps (1,200–2,200 words). Each is printed as if it were an article.
-- **A transcript.** Either a separate post or the whole post: 7,700–22,000 words, so 30–90
-  minutes to read. One alone is three times a 30-minute paper.
+- **A transcript.** About 9 posts (0.6%), from 5 feeds: 7,600–25,000 words, so 30–105 minutes
+  to read. One alone can be three times a 30-minute paper. Most came from one interview show
+  that posts a transcript beside every episode's notes; the rest were one-offs inside a feed's
+  usual posts.
 - **An episode with a real write-up** (1,700–3,300 words of essay or takeaways). It reads well
   as an article; nothing needs to change.
 - **The same episode twice.** Notes and transcript as two posts sharing one audio file; a
@@ -337,7 +339,9 @@ What the feeds give to tell them apart:
 - **Not reliable:**
   - The episode's length: Substack gives none, so text length can't be compared with audio
     length from the feed alone.
-  - Lines starting "Name:", which link roundups have too.
+  - Conversation formatting ("Name:" turns). Written Q&A interviews, fiction told in dialogue
+    and conference write-ups look the same: 12 such posts against 9 real transcripts, and the
+    written interviews are what their readers subscribe for.
 - **Neither path keeps attachments today.** The feed parser and the tt-rss sync both drop
   them, so detection starts by storing them (tt-rss reports them with each article).
 
@@ -350,9 +354,12 @@ Proposed:
   nothing from the edition's length.
 - **Pairs keep the readable one.** Of notes and transcript, or a stub and its written chapter,
   the paper takes the transcript or the chapter, and drops the other.
-- **Transcripts are the reader's choice per source.** By default one is listed under Episodes
-  with its reading time. Turned on, it's printed and counts at its real length, at most the
-  edition's length.
+- **A transcript is one only when tied to an episode:** audio attached to the post itself, the
+  same audio as another post, or "Transcript" in its title. Conversation formatting alone never
+  makes one, so written interviews stay articles.
+- **A show that posts notes and a transcript for each episode** gets the episode listed once
+  under Episodes; printing its transcripts is that source's opt-in. A one-off transcript among a
+  feed's usual posts stays an article, under a long-read cap so it can't take over the paper.
 - **Visible on the source's page:** "Posts episodes: notes only", with one control.
 - **Test corpus:** made-up feed items in each shape above, with the music-embed and link-roundup
   cases kept as checks against false alarms.
