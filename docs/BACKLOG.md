@@ -307,6 +307,61 @@ article without leaving the page.
 
 Recommendation: build step 1, use it for a week, then decide on step 2.
 
+### Podcast episodes in feeds *(you asked)*
+Some posts are podcast episodes, and the paper treats them as articles. Measured on one real
+reading list (91 feeds, about 1,450 recent posts), about 4% carried podcast audio, in 12 feeds.
+They came in these shapes, with what the paper does with each today:
+- **An audio-only feed.** The app reads the show's web page instead, which runs several
+  episodes' notes together: every episode came out as the same 350-word jumble.
+- **An episode post with only notes.** Either a timestamped list of topics (270–660 words) or
+  sponsors, links and timestamps (1,200–2,200 words). Each is printed as if it were an article.
+- **A transcript.** Either a separate post or the whole post: 7,700–22,000 words, so 30–90
+  minutes to read. One alone is three times a 30-minute paper.
+- **An episode with a real write-up** (1,700–3,300 words of essay or takeaways). It reads well
+  as an article; nothing needs to change.
+- **The same episode twice.** Notes and transcript as two posts sharing one audio file; a
+  serial's audio version posted beside its written chapter (a 100-word stub next to 2,000
+  words); a long write-up and a podcast post on the same subject.
+- **Not podcasts at all.** Audio and video embeds were mostly music: Spotify tracks, albums and
+  playlists outnumbered its episodes two to one, and a music blog embeds SoundCloud. YouTube
+  embeds are video versions of podcasts as often as plain videos.
+
+What the feeds give to tell them apart:
+- **Reliable:**
+  - An audio file attached to the post, from the big hosts (Substack, art19, Spotify for
+    Podcasters).
+  - The same audio file on two posts.
+  - "Transcript" in a title.
+  - A list of ten or more timestamps.
+  - A Spotify embed's kind: an episode, not a track.
+- **Not reliable:**
+  - The episode's length: Substack gives none, so text length can't be compared with audio
+    length from the feed alone.
+  - Lines starting "Name:", which link roundups have too.
+- **Neither path keeps attachments today.** The feed parser and the tt-rss sync both drop
+  them, so detection starts by storing them (tt-rss reports them with each article).
+
+Proposed:
+- **Each post gets a kind when synced:** article, episode notes, episode transcript, or the
+  audio version of another post. When in doubt it stays an article: wrongly dropping reading is
+  worse than printing one stub.
+- **Episode notes, and audio-only feeds, aren't printed as articles.** They go in a short
+  "Episodes" list at the end of the edition: show, title, and length when known. It takes almost
+  nothing from the edition's length.
+- **Pairs keep the readable one.** Of notes and transcript, or a stub and its written chapter,
+  the paper takes the transcript or the chapter, and drops the other.
+- **Transcripts are the reader's choice per source.** By default one is listed under Episodes
+  with its reading time. Turned on, it's printed and counts at its real length, at most the
+  edition's length.
+- **Visible on the source's page:** "Posts episodes: notes only", with one control.
+- **Test corpus:** made-up feed items in each shape above, with the music-embed and link-roundup
+  cases kept as checks against false alarms.
+- **Later, if the list proves useful:** Listen plays an episode's own audio, downloaded on Wi-Fi
+  while charging. One voice reading a conversation's transcript is the worst of both.
+- **Open question:** whether to fetch an episode's length (a quick request for the audio file's
+  size) to tell a short write-up from notes for a two-hour show; the shapes above suggest
+  timestamps and word counts are enough.
+
 ### Backup *(you asked)*
 Android's Auto Backup already copies the database and settings (sources, reading list, edition
 history) to the reader's Google account, within its 25 MB quota. Past EPUBs, the schedule timer and
