@@ -302,12 +302,13 @@ class ServerAddTest {
     }
 
     @Test
-    fun withAServerTheMenuPointsToTheAccountNotToOpml() {
+    fun withAServerTheMenuPointsToTheAccountAndExportsButDoesntImport() {
         signedIn()
         show()
         compose.onNodeWithContentDescription("More options").performClick()
         assertTrue(visible("Where your feeds live"))
-        assertFalse(visible("OPML"))
+        assertTrue(visible("Export your sites (OPML)"))
+        assertFalse(visible("Import from another reader (OPML)"))
     }
 
     @Test

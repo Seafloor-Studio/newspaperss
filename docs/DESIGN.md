@@ -711,8 +711,10 @@ whose Kindle and KOReader answers ask for more on the same page).
       one of the curated lists, which stay on the phone.
     - If the dialog was closed, the answer comes as a snackbar when Sources
       is open.
-    - The ⋮ menu has **Where your feeds live** instead of OPML: tt-rss
-      imports and exports OPML itself. No starter packs are offered.
+    - The ⋮ menu has **Where your feeds live** instead of OPML import:
+      feeds are added in tt-rss, which imports OPML itself. **Export your
+      sites (OPML)** stays: the tt-rss feeds as last listed, each in a
+      folder named for its category there, and any still on the phone. No starter packs are offered.
   Getting or leaving a server is in Settings.
 - **Reading list:** links you shared into the app, each with its title,
   site and reading time (looked up in the background). They go first in
