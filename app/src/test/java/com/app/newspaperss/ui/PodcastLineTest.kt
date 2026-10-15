@@ -123,6 +123,7 @@ class PodcastLineTest {
         val scratch = store.scratch(7, 0, 0).apply { writeBytes(ByteArray(3_000_000)) }
         store.keep(7, 0, 0, scratch, listOf(0.0))
         show()
+        waitFor("Delete podcast · 3 MB")
         compose.onNodeWithText("Delete podcast · 3 MB").performClick()
         waitFor("It frees 3 MB")
         // Nothing's gone until it's confirmed.
