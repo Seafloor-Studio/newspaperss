@@ -33,7 +33,9 @@ There's one APK per ABI (arm64-v8a, armeabi-v7a, x86_64, x86), since the
 podcast voice's native code is about 30 MB for each 64-bit one. Each has
 version code `versionCode * 10` plus 1 to 4, in that order: armeabi-v7a,
 arm64-v8a, x86, x86_64. A store offers a device the highest code it can
-run. The AAB keeps `versionCode` itself: Play makes its own per-device APKs.
+run. The AAB takes the first of these, `versionCode * 10 + 1`, as Android's
+build gives a bundle its first output's code. Play makes its own per-device
+APKs from it and only needs the code to rise, which it does.
 
 Before the first release, install a release build on a real phone and go
 through onboarding, an edition and a send: CI only tests the debug build.
