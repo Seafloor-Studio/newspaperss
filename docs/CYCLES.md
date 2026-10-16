@@ -3,6 +3,11 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle D3 — build: a wait before tt-rss hears of a delivery
+
+- **Replaced WorkManager work is pruned, not left as CANCELLED**: `getWorkInfoById` of the old id can be null. Assert "null or cancelled".
+- **Give a delay test the network first** (`setAllConstraintsMet` before the undo), or it passes without the delay because the work was never runnable.
+
 ### Cycle D1 — build: Substack Notes through tt-rss
 
 Run of 16 Oct, four sessions in parallel; this one (D) owns content and tt-rss.

@@ -14,6 +14,11 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Today, D3: a quick "Mark as not sent" stays off tt-rss
+- **From the backlog (personas):** sending to the wrong app and marking the edition as not sent flipped its articles read, then unread, on the server.
+- **Shipped:** the marking waits two minutes (WorkManager's initial delay). A Mark as not sent in that time replaces it, so tt-rss isn't told either way.
+- **Review:** a sync inside the two minutes still marks delivered links read, and Doze can stretch the wait, so DESIGN says "a couple of minutes or more" and "usually". A rare path (an article tt-rss has unread but the app thinks it confirmed read, synced in the window) can bring it back for one more edition; noted in the PR, not fixed.
+
 ### Today, D1: Substack Notes through tt-rss
 - **From the backlog (device):** tt-rss strips the text of a Note embedded in a Substack post, so the sentence introducing it hung.
 - **Found:** Substack's page shows only a placeholder there too, but carries the whole post, as its feed has it, in a data script (`preloads-json`).
