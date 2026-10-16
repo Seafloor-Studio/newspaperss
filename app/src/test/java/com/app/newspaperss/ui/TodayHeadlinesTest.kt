@@ -15,6 +15,7 @@ import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionRepository
 import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.testutil.TestApp
+import com.app.newspaperss.testutil.ViewModels
 import com.app.newspaperss.testutil.closeAfter
 import com.app.newspaperss.testutil.idleUntil
 import com.app.newspaperss.ui.today.TodayScreen
@@ -34,12 +35,13 @@ class TodayHeadlinesTest {
     @get:Rule(order = 0) val closeDb = closeAfter { db.close() }
     @get:Rule(order = 1) val tmp = TemporaryFolder()
     @get:Rule(order = 2) val compose = createComposeRule()
+    @get:Rule(order = 3) val viewModels = ViewModels()
 
     private val app = ApplicationProvider.getApplicationContext<Application>()
     private val db = Room.inMemoryDatabaseBuilder(app, AppDatabase::class.java).allowMainThreadQueries().build()
 
     private fun today(status: EditionStatus, starred: Int? = null, count: Int = 5) {
-        val vm = TodayViewModel(EditionRepository(db, tmp.newFolder()), flowOf(null)) {}
+        val vm = viewModels.add(TodayViewModel(EditionRepository(db, tmp.newFolder()), flowOf(null)) {})
         runBlocking {
             val id = db.editions().insert(EditionEntity(title = "Tuesday Morning Edition", status = status, articleCount = count, minutes = 4.0 * count))
             // Last first, so the card's order can only come from the positions.
