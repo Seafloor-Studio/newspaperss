@@ -240,6 +240,9 @@ module so it's all unit-tested without Android.
   Today's next-edition line and in the speed check's verdict.
 - **Feeds sync right before each build,** and in the background every 12
   hours when the battery isn't low.
+- **One build at a time.** A timed edition takes the place of one made by
+  hand that is still waiting for a connection, so it comes with its Ready
+  notification, podcast and retries; one already being made is left to finish.
 - **No edition is never silent.** A timed run with nothing new sends a quiet
   "No new edition"; if every source failed, it's retried twice, then reported
   as a failure pointing to Sources. A build waiting for a connection says so.
@@ -290,11 +293,13 @@ in the share sheet (Android reports the choice back, from the notification
 too); opening the mail app to email it to a Kindle; or **Read** on a Boox. **Mark as sent** covers any other route, and
 **Send again** (in a sent edition's ⋮ menu) is there if a send didn't arrive. An edition still "ready"
 when the next one is built was never sent: it's marked not sent and its
-articles go back, keeping their stars, before the new one is planned.
-Its page still offers **Mark as sent** while its file is here, for one
-sent some other way: its articles are used up, even any taken into the
-newer edition since. It's hidden while an edition is being made, which
-may be taking those articles.
+articles go back, keeping their stars, before the new one is planned,
+and its Ready notification comes down. Its page still offers **Mark as
+sent** while its file is here, for one sent some other way, and a send
+from a share sheet or Send left open counts too: its articles are used
+up, even any taken into the newer edition since. Neither counts while an
+edition is being made, which may be taking those articles; Mark as sent,
+hidden meanwhile, records it afterwards.
 
 **Send to Kindle is slow.** A book can take a few minutes to reach a
 Kindle, so for half an hour after a send the edition (on Today and its own
@@ -458,7 +463,8 @@ phone restarts.
    step below, which the import counts towards. The result survives the app
    being closed in the picker.
 5. **With this phone, pick your sources:** starter packs of well-known
-   public feeds; paste any website (the app finds its feed); import an OPML
+   public feeds; paste any website (the app finds its feed, or, with none,
+   offers to save the page to the reading list instead); import an OPML
    file (its folders are ignored: the paper has no sections); or import
    saved links from Pocket or Instapaper, which alone are enough to start.
 6. **With a server, sign in**, then see what's there: the address,
@@ -742,7 +748,8 @@ whose Kindle and KOReader answers ask for more on the same page).
       your reading list**, or **Add Arts & Letters Daily** when the site is
       one of the curated lists, which stay on the phone.
     - If the dialog was closed, the answer comes as a snackbar when Sources
-      is open.
+      is open and on screen: one that arrives, or is showing, while the app
+      is in the background waits for it to come back, Undo and all.
     - The ⋮ menu has **Where your feeds live** instead of OPML import:
       feeds are added in tt-rss, which imports OPML itself. **Export your
       sites (OPML)** stays: the tt-rss feeds as last listed, each in a
@@ -753,7 +760,8 @@ whose Kindle and KOReader answers ask for more on the same page).
   the next edition. Import and export as a Markdown
   checklist (compatible with the library); Pocket and Instapaper exports
   import too. **✕** removes a link at once, with **Undo** in a snackbar, since
-  removing is routine and a confirm would only be tapped through.
+  removing is routine and a confirm would only be tapped through. Leaving
+  the screen or the app settles a removal still waiting for Undo.
 - **Settings** is a summary: one row per page, each with a line saying
   how it's set now ("About 30 minutes · 1 per source · take turns",
   "Ready by 6:30 AM, weekdays", "Kindle · emailed to …", "Off"), then the
@@ -842,10 +850,13 @@ whose Kindle and KOReader answers ask for more on the same page).
     phone feeds, the page offers the move at once: "Signed in. 58 feeds in
     7 categories. Move your 8 phone feeds to tt-rss?", **Move 8** (the same
     sheet as Sources) or **Not now** (the banner on Sources stays). **I pick my own sites** asks first ("Pick your own sites instead?"), saying
-    what happens: NewspapeRSS signs out and deletes all tt-rss data here
-    (articles, stars and feed settings); past editions stay; nothing
-    changes in tt-rss; the feeds don't come along, so it points to
-    Sources' OPML export, to save first and import after.
+    what happens: the feeds in the paper come along as phone feeds, with
+    their settings (article text, cap, paid posts), left-out ones paused;
+    NewspapeRSS signs out and deletes its tt-rss articles and stars; past
+    editions stay; nothing changes in tt-rss. Not a feed outside the
+    paper's category, one already on the phone (by address, give or take
+    "www." and a slash), or one the daily list hasn't given an address yet;
+    a message after says how many came and why any didn't.
     Feeds moved to tt-rss and still kept for their stars become phone feeds
     again, and a move under way stops.
     With a server, the page also has the account: its address, who's

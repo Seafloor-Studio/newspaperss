@@ -1,6 +1,8 @@
 package com.app.newspaperss.ui.sources
 
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.app.newspaperss.ui.components.showWhileStarted
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.font.FontWeight
@@ -113,6 +115,7 @@ fun SourcesScreen(
     val add by viewModel.add.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val context = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     val importFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -123,7 +126,7 @@ fun SourcesScreen(
     }
     LaunchedEffect(message) {
         message?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showWhileStarted(lifecycle, it)
             viewModel.dismissMessage()
         }
     }
@@ -136,7 +139,7 @@ fun SourcesScreen(
             // A snackbar under an open dialog can't be reached, and its Undo would time out unseen.
             viewModel.add.first { it == AddState.Closed }
             val undo = notice.undo
-            val answer = snackbar.showSnackbar(notice.text, actionLabel = undo?.let { "Undo" }, duration = SnackbarDuration.Long)
+            val answer = snackbar.showWhileStarted(lifecycle, notice.text, actionLabel = undo?.let { "Undo" }, duration = SnackbarDuration.Long)
             if (answer == SnackbarResult.ActionPerformed && undo != null) viewModel.undo(undo)
             viewModel.noticeShown(notice)
         }
@@ -668,10 +671,10 @@ internal fun fullTextLine(learned: PublicationEntity?): String? {
 private fun AddSourceDialog(state: AddState, curatedLists: List<CuratedList>, viewModel: SourcesViewModel, server: Boolean) {
     if (state == AddState.Closed) return
     // The category list replaces the Subscribe step's content, then Done brings it back.
-    var picking by remember(state is AddState.Subscribing) { mutableStateOf(false) }
+    val picking = state is AddState.Subscribing && state.picking
     AlertDialog(
         // Back from the category list returns to the Subscribe step rather than losing the feed found.
-        onDismissRequest = { if (picking) picking = false else viewModel.closeAdd() },
+        onDismissRequest = { if (picking) viewModel.pickCategory(false) else viewModel.closeAdd() },
         title = {
             Text(
                 when (state) {
@@ -717,7 +720,7 @@ private fun AddSourceDialog(state: AddState, curatedLists: List<CuratedList>, vi
                         )
                     }
                 }
-                is AddState.Subscribing -> if (picking) CategoryChoices(state, viewModel::chooseCategory) else SubscribeStep(state, onPick = { picking = true })
+                is AddState.Subscribing -> if (picking) CategoryChoices(state, viewModel::chooseCategory) else SubscribeStep(state, onPick = { viewModel.pickCategory(true) })
                 is AddState.Asking -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     // Stepped text rather than a spinner: e-ink redraws the whole screen for an animation.
                     Text("Asking tt-rss to subscribe…", modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
@@ -746,7 +749,7 @@ private fun AddSourceDialog(state: AddState, curatedLists: List<CuratedList>, vi
         confirmButton = {
             when {
                 state is AddState.Editing -> TextButton(onClick = viewModel::find, enabled = state.input.isNotBlank()) { Text("Add") }
-                state is AddState.Subscribing && picking -> TextButton(onClick = { picking = false }) { Text("Done") }
+                picking -> TextButton(onClick = { viewModel.pickCategory(false) }) { Text("Done") }
                 state is AddState.Subscribing -> TextButton(onClick = viewModel::subscribeInTtrss, enabled = state.categories != null) { Text("Subscribe") }
                 state is AddState.AlreadyIn -> TextButton(onClick = viewModel::closeAdd) { Text("OK") }
             }
@@ -755,7 +758,7 @@ private fun AddSourceDialog(state: AddState, curatedLists: List<CuratedList>, vi
             when (state) {
                 is AddState.AlreadyIn -> {}
                 is AddState.Asking -> TextButton(onClick = viewModel::closeAdd) { Text("Close") }
-                else -> if (!(state is AddState.Subscribing && picking)) TextButton(onClick = viewModel::closeAdd) { Text("Cancel") }
+                else -> if (!picking) TextButton(onClick = viewModel::closeAdd) { Text("Cancel") }
             }
         },
     )

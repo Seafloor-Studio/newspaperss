@@ -44,6 +44,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import androidx.compose.ui.test.junit4.StateRestorationTester
+import androidx.compose.ui.test.hasContentDescription
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
@@ -146,6 +148,28 @@ class MoveFeedsTest {
         waitGone("fetched by this phone")
         waitGone("Morning Wire (phone)")
         waitGone("Still on this phone")
+    }
+
+    @Test
+    fun theSheetsCategoryListSurvivesTheScreenBeingRecreated() {
+        signedIn()
+        phoneFeed("https://aeon.example/feed", "Aeon")
+        val vm = SourcesViewModel(sources, FeedFinder(http), ttrss, settings = store, moves = moves) {}
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent { SourcesScreen(vm) }
+        idleUntil { vm.screen.value != null }
+        vm.mover!!.open()
+        waitFor("Category for the new ones")
+        idleUntil { compose.waitForIdle(); compose.onAllNodes(hasContentDescription("Category, ", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(hasContentDescription("Category, ", substring = true)).performClick()
+        waitFor("Science")
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.onNodeWithText("Done").assertExists()
+        compose.onNodeWithText("Science").performClick()
+        compose.onNodeWithText("Done").performClick()
+        waitFor("Move 1 feed to tt-rss")
     }
 
     @Test

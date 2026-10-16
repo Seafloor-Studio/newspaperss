@@ -2,6 +2,10 @@ package com.app.newspaperss.data
 
 import com.app.newspaperss.testutil.idleUntilYielding
 import com.app.newspaperss.testutil.TestDataStores
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.stringSetPreferencesKey
+import kotlinx.coroutines.flow.onEach
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.core.extract.ContentMode
 import com.app.newspaperss.core.extract.FullTextEvidence
@@ -273,6 +277,35 @@ class FeedMovesTest {
 
         assertFalse(db.sources().byId(aeon.id)!!.paused)
         assertTrue(moves.current().retiring.isEmpty())
+    }
+
+    @Test
+    fun leavingTheServerJustAsAFeedIsMovedLeavesItAPhoneFeed() = runTest {
+        connect()
+        val aeon = phoneFeed("https://aeon.example/feed", "Aeon")
+        article(aeon.id, "starred", starred = true)
+        // Left as the move is about to pause the feed: right after it last read that the batch
+        // was still on, its third read once every feed is subscribed (the run's end, the
+        // finish's start, then the check before each feed).
+        val store = object : DataStore<Preferences> {
+            var reads = 0
+            var leave: (suspend () -> Unit)? = null
+            override val data = movesData.data.onEach {
+                val s = it[stringSetPreferencesKey("subscribed")].orEmpty()
+                val q = it[stringSetPreferencesKey("queued")].orEmpty()
+                if (s.isNotEmpty() && q.isEmpty() && ++reads == 3) leave?.invoke()
+            }
+            override suspend fun updateData(transform: suspend (Preferences) -> Preferences) = movesData.updateData(transform)
+        }
+        val leaving = FeedMoves(store, db, ttrss, clock) {}
+        store.leave = { leaving.restore() }
+        leaving.start(listOf(aeon.id), science)
+
+        leaving.run()
+
+        assertTrue("it left during the move", leaving.current().total == 0)
+        assertFalse("with no server to come from, it's a phone feed again", db.sources().byId(aeon.id)!!.paused)
+        assertTrue(leaving.current().retiring.isEmpty())
     }
 
     @Test
