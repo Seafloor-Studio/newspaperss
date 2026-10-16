@@ -58,6 +58,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import java.time.Duration
 import java.time.Instant
 
 /** A tt-rss account's feeds: on Sources under their categories in the server setup, each with a page of its own. */
@@ -384,18 +385,33 @@ class TtrssFeedsTest {
     @Test
     fun aFeedsLineSaysOnlyWhatsWorthSaying() {
         fun feed(publication: PublicationEntity?) = FeedChoice("7", "Q", inPaper = true, publication)
-        assertNull(feedNote(feed(null)))
-        assertNull(feedNote(feed(PublicationEntity(1, "7", title = "Q", listed = true))))
+        assertNull(feedNote(now = Instant.EPOCH, feed = feed(null)))
+        assertNull(feedNote(now = Instant.EPOCH, feed = feed(PublicationEntity(1, "7", title = "Q", listed = true))))
         assertEquals(
             "Feed's text · At most 1 · Skips paid posts",
-            feedNote(feed(PublicationEntity(1, "7", chosenMode = ContentMode.FEED, maxArticles = 1, skipPaidPosts = true))),
+            feedNote(now = Instant.EPOCH, feed = feed(PublicationEntity(1, "7", chosenMode = ContentMode.FEED, maxArticles = 1, skipPaidPosts = true))),
         )
-        assertEquals("Full page", feedNote(feed(PublicationEntity(1, "7", chosenMode = ContentMode.PAGE))))
+        assertEquals("Full page", feedNote(now = Instant.EPOCH, feed = feed(PublicationEntity(1, "7", chosenMode = ContentMode.PAGE))))
         // A feed tt-rss can't fetch says so first; waiting for a first fetch that failed is the same news.
         assertEquals(
             "tt-rss couldn't fetch it last time · Full page",
-            feedNote(feed(PublicationEntity(1, "7", chosenMode = ContentMode.PAGE, awaitingFirstFetch = true, serverError = "HTTP Code: 404"))),
+            feedNote(now = Instant.EPOCH, feed = feed(PublicationEntity(1, "7", chosenMode = ContentMode.PAGE, awaitingFirstFetch = true, serverError = "HTTP Code: 404"))),
         )
+        // Quiet: from three weeks, in weeks, then months; not over a reason tt-rss already gives.
+        val now = Instant.parse("2026-10-16T12:00:00Z")
+        fun posted(daysAgo: Long, serverError: String? = null) =
+            feedNote(feed(PublicationEntity(1, "7", newestPostAt = now.minus(Duration.ofDays(daysAgo)), serverError = serverError)), now)
+        assertNull(posted(20))
+        assertEquals("Nothing new in 3 weeks", posted(21))
+        assertEquals("Nothing new in 8 weeks", posted(59))
+        assertEquals("Nothing new in 2 months", posted(60))
+        assertEquals("tt-rss couldn't fetch it last time", posted(90, serverError = "HTTP Code: 404"))
+        // Nothing seen since the app started watching it, four weeks ago.
+        assertEquals("Nothing new in 4 weeks", feedNote(feed(PublicationEntity(1, "7", watchedSince = now.minus(Duration.ofDays(28)))), now))
+        // A post seen counts, however recent the watching.
+        assertNull(feedNote(feed(PublicationEntity(1, "7", newestPostAt = now.minus(Duration.ofDays(2)), watchedSince = now.minus(Duration.ofDays(60)))), now))
+        // A feed tt-rss hasn't fetched yet has its own line.
+        assertEquals("Not fetched by tt-rss yet", feedNote(feed(PublicationEntity(1, "7", awaitingFirstFetch = true, watchedSince = now.minus(Duration.ofDays(28)))), now))
         assertTrue(sameFeed("https://www.Example.com/feed/", "http://example.com/feed"))
         assertFalse(sameFeed("https://example.com/feed", "https://example.com/rss"))
     }
