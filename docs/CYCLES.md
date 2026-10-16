@@ -8,6 +8,14 @@ For the next cycle: what each one should do differently. What was built is in
 - **Run the real validator, not only the spec**: Ace on a live edition found the heading-order problem the backlog item never named. EPUBCheck is a jar from GitHub releases; Ace installs from npm (`@daisy/ace`) and runs with `ace-puppeteer` and `PUPPETEER_EXECUTABLE_PATH` at the pre-installed Chromium (the default Electron one refuses to run as root).
 - **A break that stays green can mean the fixture never takes that path**: a plain-space alt passed with or without decoding; `&nbsp;` is the form that needed it.
 
+### Cycle A5 (16 Oct) — build: another tt-rss user on the same server
+
+- **"Keep both sides" is wrong for a removed line.** Merging main's shared docs with a script
+  that keeps both halves of each conflict put back backlog items another PR had ticked off.
+  After such a merge, diff BACKLOG.md against main and check each `-`/`+` line by hand.
+- **A reviewer judges the branch it reads, not main.** It flagged a mid-build delete that an
+  earlier PR, already merged, had fixed: merge main before the review on a run of related PRs.
+
 ### Cycle A1 (16 Oct, day run, four sessions) — build: a source removed during a build
 
 - **Four sessions at once:** cycles are numbered by area (A1, B1…) so they don't collide. Work
