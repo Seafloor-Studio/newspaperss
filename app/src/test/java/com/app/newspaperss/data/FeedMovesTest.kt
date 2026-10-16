@@ -246,6 +246,7 @@ class FeedMovesTest {
         idleUntilYielding { server.subscribed.size >= 2 }
         // The app dies while tt-rss is fetching the second.
         running.cancelAndJoin()
+        assertEquals("stopped part way: the first asked, the second being fetched", 2, server.subscribed.size)
         assertTrue(moves.current().running)
 
         server.subscribeGate = null

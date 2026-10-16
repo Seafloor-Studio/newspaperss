@@ -42,6 +42,7 @@ class MoveFeedsWorkerTest {
         val stopped = launch { worker().doWork() }
         idleUntilYielding { server.subscribed.size >= 2 }
         stopped.cancelAndJoin()
+        assertEquals("stopped part way: the first asked, the second being fetched", 2, server.subscribed.size)
         server.subscribeGate = null
         server.afterSubscribe = null
 
