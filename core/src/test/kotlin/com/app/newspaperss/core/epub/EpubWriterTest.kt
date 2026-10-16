@@ -205,6 +205,80 @@ class EpubWriterTest {
     }
 
 
+    private fun Epub.accessibility(property: String) =
+        opf().elements("meta").filter { it.getAttribute("property") == "schema:$property" }.map { it.textContent }
+
+    /** EPUB Accessibility 1.1's discovery metadata: a text-only edition needs nothing but text. */
+    @Test
+    fun aTextOnlyEditionSaysItsTextIsEnough() {
+        val epub = write(unsectioned(article()))
+        assertEquals(listOf("textual"), epub.accessibility("accessMode"))
+        assertEquals(listOf("textual"), epub.accessibility("accessModeSufficient"))
+        assertEquals(listOf("tableOfContents", "readingOrder", "structuralNavigation"), epub.accessibility("accessibilityFeature"))
+        assertEquals(listOf("none"), epub.accessibility("accessibilityHazard"))
+        assertTrue(epub.accessibility("accessibilitySummary").single().startsWith("A reflowable edition"))
+    }
+
+    /** Pictures that all carry their alt text into the book are described; one without makes sight necessary. */
+    @Test
+    fun picturesAreDescribedOnlyWhenEveryOneHasAltText() {
+        val photo = EpubImage("images/a1-0.jpg", "image/jpeg", byteArrayOf(9))
+        val chart = EpubImage("images/a2-0.jpg", "image/jpeg", byteArrayOf(8))
+        val described = article(body = "<p>Text.</p><figure><img src=\"images/a1-0.jpg\" alt=\"A heron on one leg\"></figure>", images = listOf(photo))
+        val bare = article(title = "Second", body = "<p>Text.</p><figure><img src=\"images/a2-0.jpg\" alt=\"\"></figure>", images = listOf(chart))
+
+        val all = write(unsectioned(described))
+        assertEquals(listOf("textual", "visual"), all.accessibility("accessMode"))
+        assertEquals(listOf("textual"), all.accessibility("accessModeSufficient"))
+        assertTrue("alternativeText" in all.accessibility("accessibilityFeature"))
+        assertTrue("the alt text reached the page", all.text("OEBPS/" + all.articleHrefs().single()).contains("alt=\"A heron on one leg\""))
+
+        // Not an image, though its name starts like one.
+        val zoom = article(title = "Third", body = "<p>Text.</p><img-zoom alt=\"\"></img-zoom>")
+        assertTrue("alternativeText" in write(unsectioned(described, zoom)).accessibility("accessibilityFeature"))
+        val spaced = article(title = "Fourth", body = "<p>Text.</p><figure><img src=\"images/a2-0.jpg\" alt=\"&nbsp;\"></figure>", images = listOf(chart))
+        assertFalse("a space describes nothing", "alternativeText" in write(unsectioned(described, spaced)).accessibility("accessibilityFeature"))
+
+        val some = write(unsectioned(described, bare))
+        assertEquals(listOf("textual,visual"), some.accessibility("accessModeSufficient"))
+        assertFalse("alternativeText" in some.accessibility("accessibilityFeature"))
+        assertTrue(some.accessibility("accessibilitySummary").single().contains("Some pictures have no text description"))
+    }
+
+    /** The cover is a picture too, with its own description; a GIF may move, so it isn't promised still. */
+    @Test
+    fun theCoverCountsAndOnlyStillPicturesAreSafe() {
+        val cover = write(doc(EditionSection(null, listOf(article()))).copy(cover = EpubImage("images/cover.jpg", "image/jpeg", byteArrayOf(1))))
+        assertEquals(listOf("textual", "visual"), cover.accessibility("accessMode"))
+        assertTrue("alternativeText" in cover.accessibility("accessibilityFeature"))
+        assertEquals(listOf("none"), cover.accessibility("accessibilityHazard"))
+
+        val gif = EpubImage("images/a1-0.gif", "image/gif", byteArrayOf(7))
+        val moving = write(unsectioned(article(body = "<p><img src=\"images/a1-0.gif\" alt=\"A dancing cat\"></p>", images = listOf(gif))))
+        assertEquals(listOf("unknown"), moving.accessibility("accessibilityHazard"))
+        val gifCover = write(doc(EditionSection(null, listOf(article()))).copy(cover = EpubImage("images/cover.gif", "image/gif", byteArrayOf(1))))
+        assertEquals(listOf("unknown"), gifCover.accessibility("accessibilityHazard"))
+    }
+
+    /** Under the title's h1, a site's headings go down one level at a time, as screen readers expect. */
+    @Test
+    fun anArticlesHeadingsNeverSkipALevel() {
+        val body = "<p>Intro.</p><h3>Tactic one</h3><p>a</p><h5>A detail</h5><p>b</p><h3>Tactic two</h3><p>c</p><h2>Coda</h2><p>d</p>"
+        val epub = write(unsectioned(article(body = body)))
+        val page = epub.xml("OEBPS/" + epub.articleHrefs().single())
+        val headings = page.documentElement.elements("*").filter { it.localName.matches(Regex("h[1-6]")) }
+        assertEquals(
+            listOf("h1" to "An article", "h2" to "Tactic one", "h3" to "A detail", "h2" to "Tactic two", "h2" to "Coda"),
+            headings.map { it.localName to it.textContent },
+        )
+    }
+
+    @Test
+    fun theContentsListHasItsRole() {
+        val nav = write(unsectioned(article())).xml("OEBPS/nav.xhtml").documentElement.elements("nav").single { it.getAttribute("id") == "toc" }
+        assertEquals("doc-toc", nav.getAttribute("role"))
+    }
+
     @Test
     fun spineIsCoverContentsArticlesThenEndAllLinear() {
         val epub = write(

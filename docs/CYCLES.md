@@ -3,13 +3,10 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
-### Cycle C1 — build: Send for a look
+### Cycle D5 — build: accessibility metadata for the book
 
-Run of 16 Oct, four sessions in parallel; this one (C) owns the screens.
-- **A limit on a URL is a limit on the encoded URL.** Capping raw characters let a non-Latin
-  address through at twice the length; measure what is sent.
-- **Falsify with a break that changes the outcome for the test's input**: a raw cap of 4,000
-  stayed green because the test's address was over both; check the break crosses the input.
+- **Run the real validator, not only the spec**: Ace on a live edition found the heading-order problem the backlog item never named. EPUBCheck is a jar from GitHub releases; Ace installs from npm (`@daisy/ace`) and runs with `ace-puppeteer` and `PUPPETEER_EXECUTABLE_PATH` at the pre-installed Chromium (the default Electron one refuses to run as root).
+- **A break that stays green can mean the fixture never takes that path**: a plain-space alt passed with or without decoding; `&nbsp;` is the form that needed it.
 
 ### Cycle D3 — build: a wait before tt-rss hears of a delivery
 

@@ -35,7 +35,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 ### Sources and fetching
 - [ ] **Platform pass** *(you asked)*: a test corpus of real posts from the big blog and newsletter platforms, from their own feeds and through tt-rss, checked for footnotes, embeds, captions, paywall teasers and link posts; what breaks gets fixed and the corpus keeps it fixed (`PlatformCorpusTest`). Round 1 covered Substack, Ghost, WordPress, Medium, Blogger, Buttondown and Micro.blog; round 2 added a magazine with its own site (New Left Review), Stratechery and a MemberPress site, found by running `extractionSweep` over a real reading list and over `tools/sweep-feeds.opml`, public feeds picked for variety (news, other languages and scripts, static sites, microblogs). Run that list again before a change to extraction. Still to add: Tumblr (it answers 429 to the collector), beehiiv, posts with galleries, tweets and Bluesky embeds, and more footnote styles
 - [x] **Show tt-rss's own feed errors** *(you asked)*: tt-rss's `last_error` for each feed, on the feed's row and page and named in a banner on Sources
-- [ ] Send for a look on an e-reader with no browser says so and stops there; copying the form's address would let the reader send it from a phone. And check on a device whether the GitHub app, if installed, takes the link and drops the filled-in fields *(today C1 review)*
+- [ ] **Proposal: "Send this article for a look"** *(you asked)*. On an article's page in the app, a link that opens GitHub's new-issue form with the article's address, the app's version and an `extraction` label filled in, for the daily issue check to pick up: it compares the result with the page, fixes what's wrong and adds the page to the corpus. No GitHub sign-in inside the app; the browser does that. It must say first that the issue, and so the link, is public. Waiting for your go-ahead
 - [ ] Paywalled and summary-only sites: warn when a site is added; keep stubs from eating the budget; drop metered sites from starter packs *(personas)*
 - [x] A feed over 10 MB was refused as too large: some static sites (a Hugo `index.xml`) put every post they ever wrote in one feed. Now it's read up to 10 MB, keeping the whole items before the cut *(sweep)*
 - [ ] "No feed found" in onboarding: offer the reading list there too (done in Sources) *(personas)*
@@ -84,7 +84,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 ### Accessibility *(a11y, you asked for it)*
 A full pass over the app and the book, not just spot fixes:
 - [ ] App: TalkBack walk-through of every screen (labels, headings, focus order), font scale at 200%, display size, touch targets ≥ 48dp, contrast in light and dark, e-ink readability, nothing carried by colour or animation alone. Confirm the new live regions with TalkBack on a device
-- [ ] Book: EPUB Accessibility 1.1 metadata (`schema:accessMode`, `accessibilityFeature`, `accessibilitySummary`), image alt text carried through, reading order checked with a screen reader
+- [ ] Book: reading order with a screen reader on a device. The metadata, alt text and heading levels are done, and Ace by DAISY passes a live edition (D5); that run had no pictures, so try one with them *(a11y)*
 - [ ] Tooling: Compose accessibility checks in the Robolectric tests, Accessibility Scanner on a device, Ace by DAISY on a live edition
 - [ ] Generate alt text for pictures that have none *(you asked)*. Many feeds' images arrive without a description, so a screen reader (and Listen) says nothing or a file name. Do it when the edition is built, so the book gets it too, and on the phone, so nothing leaves it. Cheapest first, stopping at the first that gives something:
   - The article's own alt text or caption (free, every phone). Never replace it
@@ -444,7 +444,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
-- [x] **Send for a look**: ⋮ › Send for a look… on an article's preview says the report is a public GitHub issue, then opens GitHub's form with "Extraction: *title*", the address and the app's version filled in (today C1)
+- [x] Book: EPUB Accessibility 1.1 metadata, alt text counted honestly, article headings that never skip a level, the contents list's role; EPUBCheck and Ace pass (today D5)
 - [x] tt-rss marks delivered articles read a couple of minutes after delivery, so a quick Mark as not sent usually never reaches it (today D3)
 - [x] Signing in as another user on the same tt-rss server starts without the first user's articles and stars, as signing in to another server does, and a sync still running for the first user can't add theirs back (audit, 16 Oct)
 - [x] Removing a source, a saved link or the tt-rss account while an edition is being made no longer throws the finished edition away: the removed articles stay in the book and are listed by title, as a removed source's past ones are (audit, 16 Oct)

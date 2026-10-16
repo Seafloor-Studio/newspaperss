@@ -14,12 +14,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
-### Today, C1: Send this article for a look
-- **From you (morning page):** build the approved proposal.
-- **Shipped:** an article's preview has a ⋮ in its top bar (only for an article with a web link) with **Send for a look…**. It says first that what's sent becomes a public GitHub issue with the article's address and the app's version, then opens GitHub's new-issue form in the browser filled in: "Extraction: *title*", the address, the version, and a line to say what looks wrong. The question stays up across rotation; with no browser it says so.
-- **Review:** found the form could still be too long once encoded (a non-Latin or already percent-encoded address), and a long title could be cut through an emoji; both fixed, with a test. The ⋮ costs the title some room at 2× font ("The quie…" becomes "The q…").
-- **For you:** the `extraction` label doesn't exist yet; GitHub only applies a label from the form for people who can label issues, so the title's "Extraction:" is what marks the rest. The `handle-issues` skill (shared from claude-playground) doesn't mention these issues yet; as a bug report they're fixed the usual way.
-- **Left:** no browser is a dead end; whether the GitHub app takes the link and loses the fields wants a look on a device. Both in the backlog.
+### Today, D5: the book says what it offers a screen reader
+- **From the backlog (a11y):** EPUB Accessibility 1.1 metadata and alt text carried through.
+- **Found:** alt text already reached the book. Ace by DAISY on a live edition found what the metadata item didn't name: article headings skipping levels (a site's h3 straight under the title), 7 of them in 14 articles, and the contents list without its ARIA role.
+- **Shipped:** the metadata (what the book needs and offers; pictures count as described only when every one has alt text), headings re-leveled under each article's title, `role="doc-toc"`. A live edition passes EPUBCheck 5.2.1 (0 messages) and Ace 1.3.2 (0 violations).
+- **Review:** "no hazards" now only when every picture is a still JPEG; a custom `<img-zoom>` element and a no-break-space alt no longer count; right-to-left subheads are right-aligned.
+- **Left:** a screen reader on a device, and Ace on an edition with pictures (backlog).
 
 ### Today, D3: a quick "Mark as not sent" stays off tt-rss
 - **From the backlog (personas):** sending to the wrong app and marking the edition as not sent flipped its articles read, then unread, on the server.
