@@ -85,6 +85,39 @@ class TtrssSyncTest {
     }
 
     @Test
+    fun anotherUserOnTheSameServerStartsWithNoneOfTheFirstUsersArticles() = runTest {
+        // Feed ids are each user's own: the reader's articles would go in under the partner's feeds.
+        val first = connect()
+        server.add(10, "The reader's", feedId = 1, feedTitle = "A Blog")
+        sync.syncAll()
+        db.articles().setStarred(db.articles().allForSource(first.id).single().id, true, now)
+
+        server.user = "partner"
+        assertNull(ttrss.connect("rss.example.com/tt-rss", "partner", "secret"))
+
+        val second = db.sources().ofKind(SourceKind.TTRSS).single()
+        assertTrue(db.articles().allForSource(second.id).isEmpty())
+        assertEquals(0, db.articles().observeStarredWaiting().first())
+    }
+
+    @Test
+    fun aSyncUnderWayWhenAnotherUserSignsInAddsNoneOfTheFirstUsersArticles() = runTest {
+        connect()
+        server.add(10, "The reader's", feedId = 1, feedTitle = "A Blog")
+        // The partner signs in on the same server once the reader's articles have been read.
+        server.afterUnreadHeadlines = {
+            server.afterUnreadHeadlines = null
+            server.user = "partner"
+            kotlinx.coroutines.runBlocking { assertNull(ttrss.connect("rss.example.com/tt-rss", "partner", "secret")) }
+        }
+        sync.syncAll()
+
+        val second = db.sources().ofKind(SourceKind.TTRSS).single()
+        assertEquals("partner", (accounts.load() as StoredAccount.Ready).account.user)
+        assertTrue(db.articles().allForSource(second.id).isEmpty())
+    }
+
+    @Test
     fun unreadArticlesArriveOnceWithTheirPublication() = runTest {
         val source = connect()
         server.add(12345, "Rates rise", feedId = 111, feedTitle = "Example News")
