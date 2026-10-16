@@ -14,6 +14,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Overnight cycles, 5: one big item stopped every edition
+- **From the backlog (resources), then a finding:** "load build candidates without their feed text" turned up something worse while checking it. Android reads a database row through a 2 MB window, and nothing capped a feed item's text. One item over it (a post with a picture inlined as text, in a feed the app reads up to 10 MB) made the edition fail with "Something went wrong" every time until the article expired, or forever if starred, and could crash a source's page.
+- **Shipped:** feed text is kept to 500,000 characters when stored; a bigger item loses its inlined pictures, or else its text, and its page is fetched instead. Rows already stored are shrunk once by a database migration (version 10), read in pieces that fit the window, so a post keeps its words.
+- **Review:** the first version healed on each build and sync instead: too late for a source's page, it threw away words the cap keeps and emptied starred articles, and it scanned every stored text each time. Moved into the migration. A second look caught that a 10 MB row read into memory could run a small e-reader out at every launch; such rows are now dropped unread.
+- **Left:** loading candidates without their text stays in the backlog, now about memory rather than a crash; a feed's title and link are still uncapped, a new backlog item.
+
 ### Overnight cycles, 4: a line where a player was
 - **From the backlog (live):** audio players, and video players other than YouTube and Vimeo, vanished, leaving a lead-in ("Hear it for yourself:") over nothing.
 - **Found:** real: `<audio>`, a video with no poster frame and other sites' players were simply removed.

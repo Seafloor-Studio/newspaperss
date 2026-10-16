@@ -104,7 +104,7 @@ class MigrationTest {
 
         helper.runMigrationsAndValidate(DB, 3, true, AppDatabase.MIGRATION_2_3).close()
         val room = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java, DB)
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9).allowMainThreadQueries().build()
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10).allowMainThreadQueries().build()
         try {
             runBlocking {
                 assertEquals(7000L, room.articles().byId(4)!!.starredAt?.toEpochMilli())
@@ -305,6 +305,33 @@ class MigrationTest {
 
     private companion object {
         const val DB = "migration-test.db"
+    }
+
+    /** Feed text too big for the 2 MB window Android reads a row through failed every query loading it. */
+    @Test
+    fun version10ShrinksFeedTextTooBigToReadBack() {
+        val words = "<p>${"Words of the post, and some in Ελληνικά. ".repeat(2_000)}</p>"
+        helper.createDatabase(DB, 9).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, kind, url, title, position, contentMode, contentModeChosen, fullTextStreak, paused, markReadOnServer, addedAt) " +
+                    "VALUES (1, 'FEED', 'https://a.example/feed', 'A', 0, 'AUTO', 0, 0, 0, 1, 0)",
+            )
+            fun article(id: Int, starred: Boolean, html: String) = db.execSQL(
+                "INSERT INTO articles (id, sourceId, guid, url, title, feedHtml, discoveredAt, state, starredAt, reportedRead, paidOnly, paidSkipped) VALUES (?, 1, ?, ?, 'T', ?, 0, 'NEW', ?, 0, 0, 0)",
+                arrayOf<Any?>(id, "g$id", "https://a.example/$id", html, if (starred) 1 else null),
+            )
+            article(1, starred = true, words + "<img src=\"data:image/png;base64,${"A".repeat(3_000_000)}\">")
+            article(2, starred = false, "<p>${"word ".repeat(700_000)}</p>")
+            article(3, starred = false, "<p>small</p>")
+        }
+        helper.runMigrationsAndValidate(DB, 10, true, AppDatabase.MIGRATION_9_10).use { db ->
+            db.query("SELECT id, feedHtml FROM articles ORDER BY id").use { c ->
+                val stored = buildMap { while (c.moveToNext()) put(c.getInt(0), c.getString(1)) }
+                assertEquals("a starred post keeps its words, without the inlined picture", words + "<img src=\"\">", stored[1])
+                assertNull("too long even then: its page is fetched instead", stored[2])
+                assertEquals("<p>small</p>", stored[3])
+            }
+        }
     }
 
     @Test
