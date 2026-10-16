@@ -14,12 +14,6 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
-### Day cycles, A2: a late send of a released edition counts
-- **From the backlog (audit, and the UX pass):** an edition released because a newer one was made could still be sent from a share sheet left open, its Ready notification or Today, and that send wasn't recorded, so its articles went out again in the next edition. Its Ready notification also stayed up after it was released.
-- **Found:** both real. Only the edition page's **Mark as sent** handled a released edition.
-- **Shipped:** the share sheet, the notification's Send and Read, email to a Kindle and Today now count such a send as Mark as sent does, while its book is still there. A build releasing an edition takes its Ready notification down.
-- **Review:** caught that a send arriving while a build runs still doesn't count (as for Mark as sent, the build may be taking those articles), yet left a "Sent to Kindle" note. The note now only follows a recorded send. Left: the newer edition holding the same articles still offers Send; nothing is lost, as before with Mark as sent.
-
 ### Today, D2: articles that expire here can be read in tt-rss too
 - **From the backlog (personas):** articles that waited their week out here stayed unread in tt-rss.
 - **Shipped:** **Mark read when they expire here**, a switch under Sync read status (off by default, shown only with read sync on). Waiting out the week then counts as marked read, which the next sync passes to tt-rss. Leaving a feed out or changing the category still leaves articles unread there. Database version 11.
