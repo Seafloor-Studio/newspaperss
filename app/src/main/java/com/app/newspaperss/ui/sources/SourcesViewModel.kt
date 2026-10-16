@@ -1,5 +1,6 @@
 package com.app.newspaperss.ui.sources
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.newspaperss.core.feed.FeedFinder
@@ -136,6 +137,8 @@ sealed interface AddState {
         val categories: List<TtrssCategory>? = null,
         val chosen: Int = UNCATEGORIZED_ID,
         val error: String? = null,
+        /** The category list is open in place of the step. Here, not in the screen, so it goes with the step. */
+        val picking: Boolean = false,
     ) : AddState
 
     /** Waiting for tt-rss's answer, which can take half a minute; closing the dialog doesn't stop it. */
@@ -175,6 +178,8 @@ class SourcesViewModel(
     private val settings: SettingsStore? = null,
     private val subscriptions: TtrssSubscriptions? = null,
     moves: FeedMoves? = null,
+    /** Keeps the address typed into Add a site if Android ends the app in the background. */
+    private val saved: SavedStateHandle = SavedStateHandle(),
     private val onSourcesChanged: () -> Unit,
 ) : ViewModel() {
     /** Moving phone feeds into tt-rss; null where that isn't offered. */
@@ -246,7 +251,9 @@ class SourcesViewModel(
         CuratedLists.all.filter { CuratedLists.sourceUrl(it) !in added }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val _add = MutableStateFlow<AddState>(AddState.Closed)
+    // Back where it was typed, after Android ended the app: a search under way, or a step
+    // after it, comes back as the address to search again.
+    private val _add = MutableStateFlow<AddState>(saved.get<String>(ADD_INPUT)?.let { AddState.Editing(it) } ?: AddState.Closed)
     val add: StateFlow<AddState> = _add.asStateFlow()
 
     /**
@@ -315,7 +322,13 @@ class SourcesViewModel(
         val categories = pickerCategories((loaded as? TtrssRepository.Categories.Loaded)?.categories.orEmpty())
         val ids = categories.map { it.id }.toSet()
         val chosen = listOfNotNull(settings?.current()?.lastCategoryId, screen.value?.server?.account?.ttrssCategoryId).firstOrNull { it in ids } ?: UNCATEGORIZED_ID
-        _add.value = AddState.Subscribing(feed, page, categories, chosen, (loaded as? TtrssRepository.Categories.Failed)?.message)
+        _add.value = AddState.Subscribing(feed, page, categories, chosen, (loaded as? TtrssRepository.Categories.Failed)?.message, picking = (add.value as? AddState.Subscribing)?.picking == true)
+    }
+
+    /** Opens or closes the category list of the Subscribe step. */
+    fun pickCategory(open: Boolean) {
+        val s = add.value as? AddState.Subscribing ?: return
+        _add.value = s.copy(picking = open)
     }
 
     fun chooseCategory(id: Int) {
@@ -451,6 +464,19 @@ class SourcesViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     init {
+        viewModelScope.launch {
+            _add.collect { state ->
+                when (state) {
+                    is AddState.Editing -> saved[ADD_INPUT] = state.input
+                    is AddState.Searching -> saved[ADD_INPUT] = state.input
+                    is AddState.Choosing -> saved[ADD_INPUT] = state.input
+                    // The later steps hold a found feed, not what was typed; their dialog closing
+                    // is the end of it.
+                    AddState.Closed -> saved.remove<String>(ADD_INPUT)
+                    else -> {}
+                }
+            }
+        }
         // Said once, whichever screen started the move.
         mover?.let { m ->
             viewModelScope.launch {
@@ -512,3 +538,5 @@ class SourcesViewModel(
         onSourcesChanged()
     }
 }
+
+private const val ADD_INPUT = "sources.addInput"

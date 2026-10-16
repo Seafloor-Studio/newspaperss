@@ -137,7 +137,7 @@ class AppContainer(
     ) { sourceId, originId, evidence, text ->
         sources.recordFullText(sourceId, originId, evidence, text.check, text.day)
     }
-    val editionBuilder = EditionBuilder(db, content, editionsDir, cover = CoverRenderer()::render, retiring = feedMoves::retiringIds)
+    val editionBuilder = EditionBuilder(db, content, editionsDir, cover = CoverRenderer()::render, retiring = feedMoves::retiringIds, onReleased = notifier::dismissFor)
     val settings = SettingsStore(settingsData)
     val debugUpdates = DebugUpdates(http, context.getSharedPreferences("debug-updates", Context.MODE_PRIVATE), installedBuild)
     val editionNotes = EditionNotes(db, File(context.filesDir, "notes"))

@@ -58,6 +58,13 @@ data class SourceEntity(
      * marked read, here and so on the server, rather than expiring.
      */
     @ColumnInfo(defaultValue = "0") val markExpiredRead: Boolean = false,
+    /** tt-rss only: what the reader stars in tt-rss goes in the next edition, once each ([TtrssStarEntity]). */
+    @ColumnInfo(defaultValue = "0") val takeTtrssStars: Boolean = false,
+    /**
+     * tt-rss only: the stars already there when [takeTtrssStars] was turned on have been noted,
+     * and stay out of the paper: a long list of kept stars would otherwise all go in at once.
+     */
+    @ColumnInfo(defaultValue = "0") val ttrssStarsNoted: Boolean = false,
     /** tt-rss only: the newest article id [FeedSync] has looked at for posts, read or not. */
     val ttrssSeenId: Long? = null,
     /**
@@ -256,6 +263,19 @@ data class DeliveredUrlEntity(
     @PrimaryKey val url: String,
     val deliveredAt: Instant,
 )
+
+/**
+ * A star in tt-rss that an account set to [SourceEntity.takeTtrssStars] has seen: taken into the
+ * paper, or there when the option was turned on. Kept apart from articles, which are trimmed, so a
+ * star kept for months doesn't go in again. Forgotten when the star goes, so starring it again
+ * sends it again.
+ */
+@Entity(
+    tableName = "ttrss_stars",
+    primaryKeys = ["sourceId", "articleId"],
+    foreignKeys = [ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE)],
+)
+data class TtrssStarEntity(val sourceId: Long, val articleId: Long)
 
 enum class EditionStatus {
     BUILDING, READY, DELIVERED, FAILED,

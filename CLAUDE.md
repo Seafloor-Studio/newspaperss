@@ -22,6 +22,7 @@ changed and why.
 
     ./gradlew :core:test                 # fast JVM tests
     ./gradlew :app:testDebugUnitTest     # Robolectric tests
+    ./gradlew :app:screenshotTest        # every screen drawn to app/build/screenshots (not counted in coverage)
     ./gradlew build                      # everything CI runs
     ./gradlew :epubsink:installDebug :app:connectedDebugAndroidTest   # device tests (emulator)
     ./gradlew koverHtmlReport            # coverage: build/reports/kover/html
@@ -133,8 +134,8 @@ A PR that changes how a screen looks shows it: before and after images in
 the description, one pair per screen or state that changes (only "after"
 for a new screen).
 
-- Render both with `ScreenshotTest` (`./gradlew :app:testDebugUnitTest
-  --tests '*ScreenshotTest'`, PNGs in `app/build/screenshots`): "before"
+- Render both with `ScreenshotTest` (`./gradlew :app:screenshotTest`, PNGs
+  in `app/build/screenshots`): "before"
   from `origin/main`, "after" from the branch. A changed screen the test
   doesn't shoot yet gets a shot added, which also guards it.
 - Sample data only, never anyone's own: the repo is public.

@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 13,
-    "identityHash": "e248b5723b73cc5c151a0b05fc1eb946",
+    "identityHash": "9dde6e704b4695ff774c51710508fbd1",
     "entities": [
       {
         "tableName": "sources",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `kind` TEXT NOT NULL, `url` TEXT NOT NULL, `title` TEXT NOT NULL, `siteUrl` TEXT, `position` INTEGER NOT NULL, `contentMode` TEXT NOT NULL, `paused` INTEGER NOT NULL, `section` TEXT, `contentModeChosen` INTEGER NOT NULL, `fullTextEvidence` TEXT, `fullTextStreak` INTEGER NOT NULL, `fullTextDay` INTEGER, `maxArticles` INTEGER, `ttrssCategoryId` INTEGER, `ttrssCategoryTitle` TEXT, `markReadOnServer` INTEGER NOT NULL, `markExpiredRead` INTEGER NOT NULL DEFAULT 0, `ttrssSeenId` INTEGER, `feedsListedAt` INTEGER, `addedAt` INTEGER NOT NULL, `lastFetchedAt` INTEGER, `lastError` TEXT, `failingSince` INTEGER, `serverNote` TEXT, `skipPaidPosts` INTEGER NOT NULL DEFAULT 0)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `kind` TEXT NOT NULL, `url` TEXT NOT NULL, `title` TEXT NOT NULL, `siteUrl` TEXT, `position` INTEGER NOT NULL, `contentMode` TEXT NOT NULL, `paused` INTEGER NOT NULL, `section` TEXT, `contentModeChosen` INTEGER NOT NULL, `fullTextEvidence` TEXT, `fullTextStreak` INTEGER NOT NULL, `fullTextDay` INTEGER, `maxArticles` INTEGER, `ttrssCategoryId` INTEGER, `ttrssCategoryTitle` TEXT, `markReadOnServer` INTEGER NOT NULL, `markExpiredRead` INTEGER NOT NULL DEFAULT 0, `takeTtrssStars` INTEGER NOT NULL DEFAULT 0, `ttrssStarsNoted` INTEGER NOT NULL DEFAULT 0, `ttrssSeenId` INTEGER, `feedsListedAt` INTEGER, `addedAt` INTEGER NOT NULL, `lastFetchedAt` INTEGER, `lastError` TEXT, `failingSince` INTEGER, `serverNote` TEXT, `skipPaidPosts` INTEGER NOT NULL DEFAULT 0)",
         "fields": [
           {
             "fieldPath": "id",
@@ -111,6 +111,20 @@
             "defaultValue": "0"
           },
           {
+            "fieldPath": "takeTtrssStars",
+            "columnName": "takeTtrssStars",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "ttrssStarsNoted",
+            "columnName": "ttrssStarsNoted",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
             "fieldPath": "ttrssSeenId",
             "columnName": "ttrssSeenId",
             "affinity": "INTEGER"
@@ -174,7 +188,7 @@
       },
       {
         "tableName": "articles",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sourceId` INTEGER NOT NULL, `guid` TEXT NOT NULL, `url` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT, `published` INTEGER, `feedHtml` TEXT, `discoveredAt` INTEGER NOT NULL, `state` TEXT NOT NULL, `starredAt` INTEGER, `originId` TEXT, `originTitle` TEXT, `pageWords` INTEGER, `reportedRead` INTEGER NOT NULL DEFAULT 0, `viaUrl` TEXT, `paidOnly` INTEGER NOT NULL DEFAULT 0, `paidSkipped` INTEGER NOT NULL DEFAULT 0, `unreadable` TEXT, FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sourceId` INTEGER NOT NULL, `guid` TEXT NOT NULL, `url` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT, `published` INTEGER, `feedHtml` TEXT, `discoveredAt` INTEGER NOT NULL, `state` TEXT NOT NULL, `starredAt` INTEGER, `originId` TEXT, `originTitle` TEXT, `pageWords` INTEGER, `reportedRead` INTEGER NOT NULL DEFAULT 0, `viaUrl` TEXT, `paidOnly` INTEGER NOT NULL DEFAULT 0, `paidSkipped` INTEGER NOT NULL DEFAULT 0, FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -278,11 +292,6 @@
             "affinity": "INTEGER",
             "notNull": true,
             "defaultValue": "0"
-          },
-          {
-            "fieldPath": "unreadable",
-            "columnName": "unreadable",
-            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -689,11 +698,49 @@
             ]
           }
         ]
+      },
+      {
+        "tableName": "ttrss_stars",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sourceId` INTEGER NOT NULL, `articleId` INTEGER NOT NULL, PRIMARY KEY(`sourceId`, `articleId`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "articleId",
+            "columnName": "articleId",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sourceId",
+            "articleId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "sources",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sourceId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e248b5723b73cc5c151a0b05fc1eb946')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9dde6e704b4695ff774c51710508fbd1')"
     ]
   }
 }

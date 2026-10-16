@@ -16,8 +16,8 @@ class Converters {
 }
 
 @Database(
-    entities = [SourceEntity::class, ArticleEntity::class, EditionEntity::class, EditionArticleEntity::class, DeliveredUrlEntity::class, PublicationEntity::class],
-    version = 13,
+    entities = [SourceEntity::class, ArticleEntity::class, EditionEntity::class, EditionArticleEntity::class, DeliveredUrlEntity::class, PublicationEntity::class, TtrssStarEntity::class],
+    version = 14,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -239,8 +239,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        /** Why a saved link can never be read, so editions stop trying it and the reading list says so. */
+        /** tt-rss's opt-in to take what's starred there into the next edition. */
         val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE sources ADD COLUMN takeTtrssStars INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE sources ADD COLUMN ttrssStarsNoted INTEGER NOT NULL DEFAULT 0")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `ttrss_stars` (`sourceId` INTEGER NOT NULL, `articleId` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`sourceId`, `articleId`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+                )
+            }
+        }
+
+        /** Why a saved link can never be read, so editions stop trying it and the reading list says so. */
+        val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE articles ADD COLUMN unreadable TEXT")
             }
@@ -252,6 +264,6 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun open(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "newspaperss.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13).build()
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14).build()
     }
 }

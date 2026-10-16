@@ -19,6 +19,9 @@ import com.app.newspaperss.data.PublicationEntity
 import com.app.newspaperss.data.PaidOnlyCount
 import com.app.newspaperss.data.ReadingListRepository
 import com.app.newspaperss.data.SourceRepository
+import com.app.newspaperss.delivery.EditionIntents
+import com.app.newspaperss.delivery.KindleSend
+import com.app.newspaperss.delivery.KindleSends
 import com.app.newspaperss.testutil.DbRule
 import com.app.newspaperss.testutil.TestApp
 import kotlinx.coroutines.CompletableDeferred
@@ -773,6 +776,37 @@ class EditionBuilderTest {
         assertEquals(EditionBuilder.INTERRUPTED, edition.error)
     }
 
+    @Test
+    fun theBookOfAnEditionLeftBuildingByADeadProcessIsDeleted() = runTest {
+        // Written just before the process died, before the edition could point to it.
+        val title = "Monday Evening Edition, Sep 28"
+        db.editions().insert(EditionEntity(title = title, status = EditionStatus.BUILDING))
+        val orphan = java.io.File(tmp.root, com.app.newspaperss.delivery.FolderDelivery.fileName(title)).apply { writeText("epub") }
+        source("a", "a1")
+
+        val built = builder.build(EditionSettings()) as BuildResult.Built
+
+        assertFalse(orphan.exists())
+        assertTrue("the new edition's own book stays", editions.fileOf(db.editions().byId(built.editionId)!!) != null)
+    }
+
+    @Test
+    fun eachArticleIsMadeFromItsOwnFeedText() = runTest {
+        val id = sources.addFeed("https://a.example/feed", "a")
+        db.articles().insertNew(
+            listOf("a1", "a2").map { g -> ArticleEntity(sourceId = id, guid = g, url = "https://a.example/$g", title = g, feedHtml = "<p>Feed text of $g.</p>") },
+        )
+        val given = mutableMapOf<String, String?>()
+        val recording = ArticleContentProvider { a, _, _, _ ->
+            given[a.guid] = a.feedHtml
+            ArticleContent(a.title, null, a.feedHtml ?: "<p>none</p>", wordCount = 200)
+        }
+
+        EditionBuilder(db, recording, tmp.root, clock, { ZoneOffset.UTC }).build(EditionSettings())
+
+        assertEquals(mapOf("a1" to "<p>Feed text of a1.</p>", "a2" to "<p>Feed text of a2.</p>"), given)
+    }
+
     /** A tt-rss account's source with articles given as guid to (feed id, feed title). */
     private suspend fun ttrss(vararg articles: Pair<String, Pair<String, String>>): Long {
         val id = sources.addTtrss("https://rss.example.com/api/")
@@ -927,6 +961,28 @@ class EditionBuilderTest {
     }
 
     @Test
+    fun aReleasedEditionSentFromItsShareSheetOrByEmailUsesUpItsArticles() = runTest {
+        // A share sheet, a Ready notification or Today's Send left open while a newer one was made.
+        source("a", "a1")
+        val shared = builder.build(EditionSettings()) as BuildResult.Built
+        source("b", "b1")
+        val emailed = builder.build(EditionSettings()) as BuildResult.Built
+        builder.build(EditionSettings())
+        assertEquals(EditionBuilder.NOT_SENT, db.editions().byId(shared.editionId)!!.error)
+        assertEquals(EditionBuilder.NOT_SENT, db.editions().byId(emailed.editionId)!!.error)
+
+        editions.markSent(shared.editionId, sentWith = "com.example.reader")
+        editions.markEmailedToKindle(emailed.editionId)
+
+        assertEquals(EditionStatus.DELIVERED, db.editions().byId(shared.editionId)!!.status)
+        assertEquals(EditionStatus.DELIVERED, db.editions().byId(emailed.editionId)!!.status)
+        assertEquals(ArticleState.DELIVERED, stateOf("a1"))
+        assertEquals(ArticleState.DELIVERED, stateOf("b1"))
+        // So the edition holding them now, never sent, doesn't give them back to go out again.
+        assertTrue(builder.build(EditionSettings()) is BuildResult.NothingNew)
+    }
+
+    @Test
     fun aReleasedEditionCantBeMarkedSentWhileAnotherIsBeingMadeOrWithoutItsBook() = runTest {
         source("a", "a1")
         val first = builder.build(EditionSettings()) as BuildResult.Built
@@ -935,6 +991,13 @@ class EditionBuilderTest {
 
         editions.markSentByHand(first.editionId)
         assertEquals("a build may be taking its articles", EditionStatus.FAILED, db.editions().byId(first.editionId)!!.status)
+        // Nor from the share sheet, which says no more about a send it didn't record.
+        val kindleSends = KindleSends(clock)
+        val sending = EditionRepository(db, tmp.root, clock, kindleSends)
+        sending.markSent(first.editionId, sentWith = EditionIntents.KINDLE_PACKAGE)
+        sending.markEmailedToKindle(first.editionId)
+        assertEquals(EditionStatus.FAILED, db.editions().byId(first.editionId)!!.status)
+        assertEquals(emptyMap<Long, KindleSend>(), kindleSends.recent.first())
 
         db.editions().update(db.editions().byId(building)!!.copy(status = EditionStatus.FAILED))
         editions.fileOf(db.editions().byId(first.editionId)!!)!!.delete()

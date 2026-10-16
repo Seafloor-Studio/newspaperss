@@ -1,6 +1,10 @@
 package com.app.newspaperss.ui.readinglist
 
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.Lifecycle
+import com.app.newspaperss.ui.components.showWhileStarted
 import com.app.newspaperss.ui.components.LocalClock
 import com.app.newspaperss.ui.components.openInBrowser
 import com.app.newspaperss.core.extract.ArticleExtractor
@@ -66,6 +70,7 @@ fun ReadingListScreen(viewModel: ReadingListViewModel, onBack: () -> Unit) {
     val items by viewModel.items.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val context = LocalContext.current
     var menu by remember { mutableStateOf(false) }
 
@@ -77,7 +82,7 @@ fun ReadingListScreen(viewModel: ReadingListViewModel, onBack: () -> Unit) {
     }
     LaunchedEffect(message) {
         message?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showWhileStarted(lifecycle, it)
             viewModel.dismissMessage()
         }
     }
@@ -87,10 +92,15 @@ fun ReadingListScreen(viewModel: ReadingListViewModel, onBack: () -> Unit) {
     DisposableEffect(Unit) {
         onDispose { if ((context as? Activity)?.isChangingConfigurations != true) viewModel.commitRemove() }
     }
+    // And when the app goes to the background: a removal still waiting there would go into an
+    // edition made meanwhile, and come back if Android ends the app before it returns.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        if ((context as? Activity)?.isChangingConfigurations != true) viewModel.commitRemove()
+    }
     val removed by viewModel.removed.collectAsStateWithLifecycle()
     LaunchedEffect(removed) {
         val gone = removed ?: return@LaunchedEffect
-        val result = snackbar.showSnackbar("Removed “${titleOf(gone)}”", actionLabel = "Undo", duration = SnackbarDuration.Long)
+        val result = snackbar.showWhileStarted(lifecycle, "Removed “${titleOf(gone)}”", actionLabel = "Undo", duration = SnackbarDuration.Long)
         if (result == SnackbarResult.ActionPerformed) viewModel.undoRemove() else viewModel.commitRemove()
     }
 

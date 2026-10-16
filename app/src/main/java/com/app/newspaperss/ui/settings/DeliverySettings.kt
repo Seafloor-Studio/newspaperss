@@ -145,7 +145,7 @@ internal fun DeliverySection(s: AppSettings, vm: SettingsViewModel) {
     if (s.delivery == DeliveryMethod.SHARE) {
         s.device?.let {
             Text(
-                DeviceTips.tip(it),
+                DeviceTips.tip(it) + "\n\n" + DeviceTips.delivered(it, byHand = true),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = OPTION_INDENT, bottom = 8.dp),

@@ -6,6 +6,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.hasText
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -124,5 +129,32 @@ class ReadingListScreenTest {
         idleUntil { runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.map { it.title } == listOf("Two") }
         vm.commitRemove()
         idleUntil { runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.isEmpty() }
+    }
+
+    /** Moved by hand: the app going to the background and coming back. */
+    private class Owner : LifecycleOwner {
+        val registry = LifecycleRegistry.createUnsafe(this).apply { currentState = Lifecycle.State.RESUMED }
+        override val lifecycle: Lifecycle get() = registry
+    }
+
+    @Test
+    fun aRemovalWaitingForUndoIsSettledWhenTheAppGoesToTheBackground() {
+        val list = app.container.readingList
+        runBlocking { list.save("https://b.example/long-read", "A long read") }
+        val vm = ReadingListViewModel(list)
+        val owner = Owner()
+        compose.setContent { CompositionLocalProvider(LocalLifecycleOwner provides owner) { ReadingListScreen(vm, onBack = {}) } }
+        waitFor("A long read")
+        compose.onNodeWithContentDescription("Remove A long read").performClick()
+        waitFor("Removed “A long read”")
+
+        // Not left waiting: an edition made meanwhile would take it, and a killed app would bring it back.
+        compose.runOnUiThread { owner.registry.currentState = Lifecycle.State.CREATED }
+        idleUntil { runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.isEmpty() }
+        assertEquals(null, vm.removed.value)
+
+        compose.runOnUiThread { owner.registry.currentState = Lifecycle.State.RESUMED }
+        compose.waitForIdle()
+        compose.onNodeWithText("Undo").assertDoesNotExist()
     }
 }

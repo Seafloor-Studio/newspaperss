@@ -1,5 +1,7 @@
 package com.app.newspaperss.ui
 
+import com.app.newspaperss.core.extract.ContentMode
+import com.app.newspaperss.data.PublicationEntity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,9 +51,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import androidx.lifecycle.SavedStateHandle
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
@@ -117,6 +121,35 @@ class FeedsFromTest {
         compose.onNodeWithText("Sign in").performClick()
     }
 
+    /** What Android keeps of a screen's SavedStateHandle when it ends the app, read back as a new one. */
+    private fun afterProcessDeath(saved: SavedStateHandle) = SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) })
+
+    @Test
+    fun theSignInsAddressAndUsernameSurviveAndroidEndingTheAppButNotThePassword() {
+        val saved = SavedStateHandle()
+        val first = FeedsFromViewModel(store, ttrss, saved = saved) {}
+        first.openSignIn()
+        idleUntil { first.form.value != null }
+        first.editSignIn(first.form.value!!.copy(address = "rss.example.com/tt-rss", user = "reader", password = "secret"))
+        idleUntil { "reader" in saved.keys().map { saved.get<Any?>(it) } }
+        assertFalse("never the password", "secret" in saved.keys().map { saved.get<Any?>(it) })
+
+        val settingsVm = SettingsViewModel(store, ttrss.observeStatus()) {}
+        val restored = FeedsFromViewModel(store, ttrss, saved = afterProcessDeath(saved)) {}
+        compose.setContent { SettingsPageScreen(settingsVm, SettingsPage.FEEDS, onBack = {}, feedsFrom = restored) }
+        waitFor("Server address")
+        compose.onNode(hasSetTextAction() and hasText("rss.example.com/tt-rss")).assertExists()
+        compose.onNode(hasSetTextAction() and hasText("reader")).assertExists()
+        assertEquals("", restored.form.value?.password)
+
+        // Closed, it isn't back the next time Android ends the app.
+        val restoredSaved = afterProcessDeath(saved)
+        val again = FeedsFromViewModel(store, ttrss, saved = restoredSaved) {}
+        again.closeSignIn()
+        idleUntil { "reader" !in restoredSaved.keys().map { restoredSaved.get<Any?>(it) } }
+        assertEquals(null, FeedsFromViewModel(store, ttrss, saved = afterProcessDeath(restoredSaved)) {}.form.value)
+    }
+
     @Test
     fun thePhoneSetupSaysSoAndChoosingTheServerSignsInFirst() {
         runBlocking { store.update { it.copy(feedsFrom = FeedsFrom.PHONE) } }
@@ -158,9 +191,19 @@ class FeedsFromTest {
 
     @Test
     fun switchingToThePhoneSaysWhatHappensAndThenRemovesTheAccount() {
-        val id = signedIn()
+        // The paper takes category 4 and its feeds were never listed: leaving lists them first.
+        val id = signedIn(category = 4)
+        server.feeds[7] = FakeTtrss.Feed("A Blog", "https://blog.example/feed", categoryId = 4)
+        server.feeds[8] = FakeTtrss.Feed("Quiet", "https://quiet.example/feed", categoryId = 4)
+        server.feeds[9] = FakeTtrss.Feed("Just subscribed", "", categoryId = 4)
+        server.feeds[10] = FakeTtrss.Feed("Other", "https://other.example/feed", categoryId = 0)
+        server.feeds[11] = FakeTtrss.Feed("Both", "http://both.example/feed", categoryId = 4)
         runBlocking {
             db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "ttrss:1", url = "https://news.example/1", title = "Waiting", originId = "1")))
+            db.sources().savePublication(PublicationEntity(id, "7", maxArticles = 2, chosenMode = ContentMode.FEED))
+            db.sources().savePublication(PublicationEntity(id, "8", leftOut = true))
+            // Already on the phone, under a slightly different address, and paused there.
+            db.sources().setPaused(sources.addFeed("https://www.both.example/feed/", "Both"), true)
         }
         showSettings(SettingsPage.FEEDS)
         waitFor("Signed in as reader")
@@ -168,21 +211,52 @@ class FeedsFromTest {
         compose.onNodeWithText("I pick my own sites").performClick()
         waitFor("Pick your own sites instead?")
         compose.onNode(isDialog()).assertExists()
-        compose.onNodeWithText("To keep your feeds", substring = true).assertExists()
+        compose.onNodeWithText("Your feeds come along", substring = true).assertExists()
         compose.onNodeWithText("Cancel").performClick()
         waitGone("Pick your own sites instead?")
         assertEquals("cancelling changes nothing", FeedsFrom.SERVER, runBlocking { store.current().feedsFrom })
-        assertEquals(1, runBlocking { db.sources().all() }.size)
+        assertEquals(2, runBlocking { db.sources().all() }.size)
 
         compose.onNodeWithText("I pick my own sites").performClick()
         waitFor("Stop using tt-rss")
         compose.onNodeWithText("Stop using tt-rss").performClick()
         idleUntil { runBlocking { store.current().feedsFrom } == FeedsFrom.PHONE }
-        assertTrue(runBlocking { db.sources().all() }.isEmpty())
+        waitFor("2 feeds from tt-rss are on this phone now. 1 was here already. 1 feed had no address yet: add it in Sources.")
+        val phone = runBlocking { db.sources().all() }.associateBy { it.url }
+        assertEquals("the paper's feeds came; not one outside its category", setOf("https://blog.example/feed", "https://quiet.example/feed", "https://www.both.example/feed/"), phone.keys)
+        assertTrue(phone.values.all { it.kind == SourceKind.FEED })
+        val blog = phone.getValue("https://blog.example/feed")
+        assertEquals("A Blog", blog.title)
+        assertEquals(false, blog.paused)
+        val settings = runBlocking { db.sources().publication(blog.id, PublicationEntity.OWN) }!!
+        assertEquals("with its settings", 2 to ContentMode.FEED, settings.maxArticles to settings.chosenMode)
+        assertEquals("left out comes paused", true, phone.getValue("https://quiet.example/feed").paused)
+        assertEquals("one already here stays as the reader left it", true, phone.getValue("https://www.both.example/feed/").paused)
         assertTrue("its articles go with it", runBlocking { db.articles().byIds(listOf(1L, 2L, 3L)) }.isEmpty())
         assertEquals(StoredAccount.None, runBlocking { accounts.load() })
         waitGone("Your tt-rss")
         compose.onNodeWithText("I pick my own sites").assertIsSelected()
+    }
+
+    /** tt-rss not answering when leaving: the feeds of its last list come, and the message says so. */
+    @Test
+    fun leavingWhileTtrssIsDownBringsTheLastListedFeeds() {
+        val id = signedIn()
+        runBlocking {
+            db.sources().savePublication(PublicationEntity(id, "7", listed = true, feedUrl = "https://blog.example/feed", title = "A Blog"))
+            db.sources().savePublication(PublicationEntity(id, "10", outsideCategory = true, feedUrl = "https://other.example/feed"))
+        }
+        http.unreachable += server.apiUrl
+        showSettings(SettingsPage.FEEDS)
+        waitFor("Signed in as reader")
+
+        compose.onNodeWithText("I pick my own sites").performClick()
+        waitFor("Stop using tt-rss")
+        compose.onNodeWithText("Stop using tt-rss").performClick()
+
+        waitFor("1 feed from tt-rss is on this phone now. tt-rss didn't answer, so these are the feeds as it last listed them.")
+        assertEquals(listOf("https://blog.example/feed"), runBlocking { db.sources().all() }.map { it.url })
+        assertEquals("unpaused once signed out", false, runBlocking { db.sources().all() }.single().paused)
     }
 
     @Test
@@ -216,6 +290,10 @@ class FeedsFromTest {
         compose.onNodeWithText("Mark read when they expire here").performScrollTo().performClick()
         waitFor("are marked read in tt-rss too")
         assertEquals(true, runBlocking { db.sources().byId(id)!!.markExpiredRead })
+
+        compose.onNodeWithText("Starred in tt-rss goes in the paper").performScrollTo().performClick()
+        waitFor("goes in your next edition, once")
+        assertEquals(true, runBlocking { db.sources().byId(id)!!.takeTtrssStars })
 
         compose.onNodeWithText("Sync read status with tt-rss").performScrollTo().performClick()
         waitFor("keep their own read and unread")

@@ -119,7 +119,7 @@ internal fun FeedsFromSection(vm: FeedsFromViewModel) {
         OutlinedButton(onClick = vm::resume, modifier = Modifier.padding(vertical = 4.dp)) { Text("Resume") }
     }
     OutlinedButton(onClick = vm::openSignIn, modifier = Modifier.padding(vertical = 4.dp)) { Text("Sign in again") }
-    TtrssOptions(source, vm::openCategories, vm::setMarkRead, vm::setMarkExpiredRead)
+    TtrssOptions(source, vm::openCategories, vm::setMarkRead, vm::setMarkExpiredRead, vm::setTakeStars)
     val startingFresh by vm.startingFresh.collectAsStateWithLifecycle()
     StartFresh(source, startingFresh, vm::startFresh)
     val categories by vm.categories.collectAsStateWithLifecycle()
@@ -188,11 +188,11 @@ private fun LeaveDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    "NewspapeRSS signs out and deletes all tt-rss data including articles, stars, and feed settings. " +
-                        "Past editions stay. Nothing changes in tt-rss itself.",
+                    "Your feeds come along as this phone's feeds, with their settings. Ones you left out come paused.",
                 )
                 Text(
-                    "To keep your feeds, first save them from Sources › ⋮ › Export your sites (OPML), then import that file there.",
+                    "NewspapeRSS signs out and deletes its tt-rss articles and stars. " +
+                        "Past editions stay. Nothing changes in tt-rss itself.",
                     modifier = Modifier.padding(top = 12.dp),
                 )
             }
@@ -203,7 +203,13 @@ private fun LeaveDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun TtrssOptions(source: SourceEntity, onChangeCategory: () -> Unit, onMarkRead: (Boolean) -> Unit, onMarkExpiredRead: (Boolean) -> Unit) {
+private fun TtrssOptions(
+    source: SourceEntity,
+    onChangeCategory: () -> Unit,
+    onMarkRead: (Boolean) -> Unit,
+    onMarkExpiredRead: (Boolean) -> Unit,
+    onTakeStars: (Boolean) -> Unit,
+) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
@@ -254,6 +260,26 @@ private fun TtrssOptions(source: SourceEntity, onChangeCategory: () -> Unit, onM
             }
             Switch(checked = source.markExpiredRead, onCheckedChange = null)
         }
+    }
+    Row(
+        Modifier.fillMaxWidth()
+            .toggleable(value = source.takeTtrssStars, role = Role.Switch, onValueChange = onTakeStars)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Starred in tt-rss goes in the paper")
+            Text(
+                if (source.takeTtrssStars) {
+                    "What you star in tt-rss from now on goes in your next edition, once. The star stays in tt-rss."
+                } else {
+                    "Starring in tt-rss changes nothing here"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = muted,
+            )
+        }
+        Switch(checked = source.takeTtrssStars, onCheckedChange = null)
     }
 }
 

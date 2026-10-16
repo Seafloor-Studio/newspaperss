@@ -77,7 +77,13 @@ class EditionWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 // starts early, though Doze can hold them longer. A late paper beats none.
                 .setBackoffCriteria(BackoffPolicy.LINEAR, RETRY_MINUTES, TimeUnit.MINUTES)
                 .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE, ExistingWorkPolicy.KEEP, request)
+            val work = WorkManager.getInstance(context)
+            // A timed run takes the place of one made by hand that hasn't started (it waits for a
+            // connection): kept, the paper would come from the manual run, with no Ready
+            // notification, podcast or retries. One already being made is kept, and so is anything
+            // when the reader taps Make: cancelled, a build would throw away what it had fetched.
+            val replace = scheduled && work.getWorkInfosForUniqueWork(UNIQUE).get().none { it.state == WorkInfo.State.RUNNING }
+            work.enqueueUniqueWork(UNIQUE, if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP, request)
         }
 
         fun observe(context: Context): Flow<WorkInfo?> =

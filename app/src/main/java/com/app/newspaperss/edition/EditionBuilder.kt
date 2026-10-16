@@ -73,6 +73,8 @@ class EditionBuilder(
      * above all, goes in as if they weren't (see [com.app.newspaperss.data.FeedMoves]).
      */
     private val retiring: suspend () -> Set<Long> = { emptySet() },
+    /** An unsent edition was released for this one: its Ready notification would offer it still. */
+    private val onReleased: (editionId: Long) -> Unit = {},
     private val cover: (CoverInfo) -> EpubImage? = { null },
 ) {
     /**
@@ -109,7 +111,7 @@ class EditionBuilder(
             // A star is the reader asking for that article, even from a feed they left out.
             val publications = db.sources().allPublications()
             val leftOut = publications.filter { it.leftOut }.map { publicationOf(it.sourceId, it.key) }.toSet()
-            val articles = db.articles().candidates()
+            val articles = db.articles().buildCandidates()
                 .filter { it.sourceId in sourcesById && (it.starredAt != null || publicationOf(it) !in leftOut) }
                 .sortedBy { it.starredAt == null }
                 .distinctBy { it.url.ifBlank { "#${it.id}" } }
@@ -169,11 +171,13 @@ class EditionBuilder(
         val texts = TextChoices(publications, clock.instant().atZone(zone).toLocalDate().toEpochDay())
         val picked = EditionPlanner.fill<Pair<ArticleEntity, ArticleContent>>(ordered, rules, { minutesOf(it.second) }) { c ->
             if (deadline != null && kept > 0 && !clock.instant().isBefore(deadline)) return@fill null
-            val article = byId.getValue(c.id.toLong())
-            val source = sourcesById.getValue(article.sourceId)
-            tried += article.id
+            val listed = byId.getValue(c.id.toLong())
+            val source = sourcesById.getValue(listed.sourceId)
+            tried += listed.id
             val result = try {
-                content.contentFor(article, source, allowance, texts.choose(article, source))?.let { article to it }
+                // Its feed text, read now and let go once its content is made: see buildCandidates.
+                val article = listed.copy(feedHtml = db.articles().feedHtml(listed.id))
+                content.contentFor(article, source, allowance, texts.choose(article, source))?.let { listed to it }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -275,12 +279,14 @@ class EditionBuilder(
     private suspend fun releaseUndelivered() {
         val editions = db.editions()
         for (listed in editions.withStatus(EditionStatus.READY)) {
-            db.withTransaction {
+            val released = db.withTransaction {
                 // Read again inside the transaction: it may have been sent since it was listed.
-                val edition = editions.byId(listed.id)?.takeIf { it.status == EditionStatus.READY } ?: return@withTransaction
+                val edition = editions.byId(listed.id)?.takeIf { it.status == EditionStatus.READY } ?: return@withTransaction false
                 db.articles().release(edition.id)
                 editions.update(edition.copy(status = EditionStatus.FAILED, error = NOT_SENT))
+                true
             }
+            if (released) onReleased(listed.id)
         }
     }
 
@@ -302,8 +308,15 @@ class EditionBuilder(
      * one still running.
      */
     private suspend fun failInterrupted() {
-        for (edition in db.editions().withStatus(EditionStatus.BUILDING)) {
-            db.editions().update(edition.copy(status = EditionStatus.FAILED, error = INTERRUPTED))
+        for (listed in db.editions().withStatus(EditionStatus.BUILDING)) {
+            // Read again inside the transaction: a stopped worker's build may only just have finished.
+            val edition = db.withTransaction {
+                db.editions().byId(listed.id)?.takeIf { it.status == EditionStatus.BUILDING }
+                    ?.also { db.editions().update(it.copy(status = EditionStatus.FAILED, error = INTERRUPTED)) }
+            } ?: continue
+            // It may have written its book before dying: found by its title, as [fail] finds it,
+            // since the edition only gets its fileName once finished.
+            File(editionsDir, fileNameOf(edition.title)).delete()
         }
     }
 

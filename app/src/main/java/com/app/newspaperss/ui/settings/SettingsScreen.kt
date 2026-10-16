@@ -76,6 +76,8 @@ import com.app.newspaperss.listen.PhoneVoice
 import com.app.newspaperss.listen.LISTEN_SPEEDS
 import com.app.newspaperss.ui.listen.speedLabel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.app.newspaperss.ui.components.showWhileStarted
 import com.app.newspaperss.core.edition.Ordering
 import com.app.newspaperss.core.plural
 import com.app.newspaperss.settings.PreviewTextSize
@@ -166,12 +168,13 @@ fun SettingsPageScreen(viewModel: SettingsViewModel, page: SettingsPage, onBack:
     // Signing in takes the page over, as a step of its own: Back returns to the page.
     BackHandler(enabled = signingIn) { feedsFrom?.closeSignIn() }
     val snackbar = remember { SnackbarHostState() }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     if (page == SettingsPage.FEEDS && feedsFrom != null) {
         val notice by feedsFrom.notice.collectAsStateWithLifecycle()
         LaunchedEffect(notice) {
             val text = notice ?: return@LaunchedEffect
             try {
-                snackbar.showSnackbar(text, duration = SnackbarDuration.Long)
+                snackbar.showWhileStarted(lifecycle, text, duration = SnackbarDuration.Long)
             } finally {
                 feedsFrom.noticeShown()
             }

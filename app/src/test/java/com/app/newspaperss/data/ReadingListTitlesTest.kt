@@ -106,7 +106,7 @@ class ReadingListTitlesTest {
         val saved = db.articles().allForSource(list.sourceId()).associateBy { it.url }
         assertEquals("not a web page", saved.getValue("https://a.example/report.pdf").unreadable)
         assertEquals("a server having a bad day may answer next time", null, saved.getValue("https://a.example/down").unreadable)
-        assertEquals("editions leave it out", listOf("https://a.example/down"), db.articles().candidates().map { it.url })
+        assertEquals("editions leave it out", listOf("https://a.example/down"), db.articles().buildCandidates().map { it.url })
         assertEquals("nor counted as waiting", 1, list.observeWaiting().first())
     }
 
@@ -140,7 +140,7 @@ class ReadingListTitlesTest {
 
         val saved = db.articles().allForSource(list.sourceId()).single()
         assertEquals(null, saved.unreadable)
-        assertEquals(listOf("https://a.example/report"), db.articles().candidates().map { it.url })
+        assertEquals(listOf("https://a.example/report"), db.articles().buildCandidates().map { it.url })
     }
 
     @Test
@@ -171,6 +171,6 @@ class ReadingListTitlesTest {
 
         assertEquals("error 410", db.articles().byId(again)!!.unreadable)
         assertEquals("read after all", null, db.articles().byId(inPaper)!!.unreadable)
-        assertEquals("no longer planned, starred or not", emptyList<String>(), db.articles().candidates().map { it.url })
+        assertEquals("no longer planned, starred or not", emptyList<String>(), db.articles().buildCandidates().map { it.url })
     }
 }

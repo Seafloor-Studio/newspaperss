@@ -8,7 +8,7 @@ Fixes #
 
 ## Screenshots
 <!-- Only if a screen looks different. One pair per screen or state that changes; a new screen gets "after" only.
-Render with `./gradlew :app:testDebugUnitTest --tests '*ScreenshotTest'` (PNGs in app/build/screenshots):
+Render with `./gradlew :app:screenshotTest` (PNGs in app/build/screenshots):
 "before" from origin/main, "after" from this branch. A changed screen the test doesn't shoot yet gets a shot added.
 Sample data only. After opening the PR, commit the PNGs to the `claude/screenshots` branch under pr-<N>/
 as <screen>-before.png and <screen>-after.png, then fill in <N> below.

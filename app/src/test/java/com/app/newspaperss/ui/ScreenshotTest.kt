@@ -234,6 +234,13 @@ class ScreenshotTest {
         shoot("02-onboarding-device") { OnboardingScreen(vm) }
     }
 
+    /** A Kindle reader sending with the Kindle app: the how-to, and when an edition counts as sent. */
+    @Test
+    fun onboardingDeviceKindleApp() {
+        val vm = onboarding().apply { next(); chooseDevice(Device.KINDLE); useKindleApp() }
+        shoot("02f-onboarding-device-kindle-app", act = { compose.onNodeWithText("counts as sent", substring = true).performScrollTo() }) { OnboardingScreen(vm) }
+    }
+
     @Test
     fun onboardingFeedsFrom() {
         val vm = onboarding().apply { next(); chooseDevice(Device.KOBO); next() }
@@ -278,6 +285,19 @@ class ScreenshotTest {
         next(); chooseDevice(Device.KINDLE); editKindleEmail("name_abc123@kindle.com"); next()
         answer(FeedsAnswer.SITES)
         idleUntil { state.value.step == Step.SOURCES }
+    }
+
+    /** A site with no feed: its page can go to the reading list instead. */
+    @Test
+    fun onboardingNoFeed() {
+        val http = FakeHttp().apply { page("https://example.com/essay", "<html><head><title>An essay</title></head><body><p>Words.</p></body></html>") }
+        val vm = onboardingOnThePhone(OnboardingViewModel(store, SourceRepository(db, clock), FeedFinder(http)) {}).apply {
+            editPasted("example.com/essay"); findPasted()
+        }
+        val readingList = com.app.newspaperss.ui.readinglist.ReadingListViewModel(com.app.newspaperss.data.ReadingListRepository(db, clock))
+        shoot("03f-onboarding-no-feed", ready = { vm.state.value.findPage != null }, act = {
+            compose.onNodeWithText("Save this page to your reading list instead").performScrollTo()
+        }) { OnboardingScreen(vm, readingList = readingList) }
     }
 
     @Test
@@ -587,6 +607,20 @@ class ScreenshotTest {
         file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
         // The page itself is a WebView, which Robolectric doesn't draw; this shoots the top bar.
         shoot("05c-article-preview", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {})
+        }
+    }
+
+    /** Send for a look: what it says before anything is sent. */
+    @Test
+    fun articlePreviewSendForALook() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "The quiet return of the night train", sourceTitle = "The Example Review", url = "https://example.com/night-train", bodyHtml = "<p>Sleeper services are coming back.</p>", minutes = 4.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05e-article-preview-look", ready = { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }, act = {
+            compose.onNodeWithContentDescription("More").performClick()
+            compose.onNodeWithText("Send for a look…").performClick()
+        }) {
             ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {})
         }
     }
