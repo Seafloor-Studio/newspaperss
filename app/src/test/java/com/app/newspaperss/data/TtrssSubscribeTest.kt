@@ -1,7 +1,7 @@
 package com.app.newspaperss.data
 
+import com.app.newspaperss.testutil.idleUntilYielding
 import com.app.newspaperss.testutil.TestDataStores
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.core.ttrss.TtrssCategory
 import com.app.newspaperss.core.ttrss.TtrssClient
@@ -14,7 +14,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -48,16 +47,6 @@ class TtrssSubscribeTest {
     private val sync by lazy { FeedSync(db, http, clock, Duration.ofDays(7), accounts) }
     private val science = TtrssCategory(4, "Science")
     private val feedUrl = "https://science.example/feed"
-
-    /** Lets other work run, some of it on other threads, until [condition] is false. */
-    private suspend fun idleWhile(condition: () -> Boolean) {
-        val deadline = System.currentTimeMillis() + 5_000
-        while (condition()) {
-            check(System.currentTimeMillis() < deadline) { "still waiting" }
-            Thread.sleep(5)
-            yield()
-        }
-    }
 
     private suspend fun connect(): SourceEntity {
         server.categories[4] = "Science"
@@ -185,7 +174,7 @@ class TtrssSubscribeTest {
         val gate = CompletableDeferred<Unit>()
         server.subscribeGate = gate
         val pending = async { ttrss.subscribe(feedUrl, science) }
-        idleWhile { server.subscribed.isEmpty() }
+        idleUntilYielding { server.subscribed.isNotEmpty() }
         server.user = "someone-else"
         assertNull(ttrss.connect("rss.example.com/tt-rss", "someone-else", server.password))
         gate.complete(Unit)
