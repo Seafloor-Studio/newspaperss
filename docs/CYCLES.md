@@ -3,6 +3,21 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycles A2–A6 (16 Oct) — build: the rest of area A's audit list
+
+- **With parallel sessions, keep shared docs out of code PRs.** Every merge to main put each open
+  PR's BACKLOG, DEVLOG and cycle log entries in conflict, and each fix cost a CI run. Put a
+  run's entries in one docs PR after its code PRs merge, and turn on auto-merge for the code PRs.
+  This is now how area A closes; worth a line in the cycles skill if it holds for the other areas.
+- **A "keep both" merge script is wrong for a removed line.** It put back backlog items another PR
+  had ticked off. After any scripted merge, diff BACKLOG.md against main and read each line.
+- **A test that waits for text can pass before the change it checks.** "Sent" matched "Sent it
+  another way?". Wait for the condition itself (the database), as CLAUDE.md says.
+- **The test WorkManager keeps network-constrained work ENQUEUED**, which is "waiting for a
+  connection" for free. Replaced work is pruned at once: `getWorkInfoById` returns null.
+- **Run end check:** no emulator was started; nothing left running. The two extra worktrees in
+  `/home/user` (wt-a, wt-b) are removed at the end.
+
 ### Cycle D6 — build: feeds come home from tt-rss
 
 - **Settings screens are shot by `ScreenshotTest` (07i–07l)**: a change to the tt-rss options or the leave dialog needs before and after pairs.
