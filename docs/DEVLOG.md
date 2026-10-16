@@ -14,6 +14,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Today, D2: articles that expire here can be read in tt-rss too
+- **From the backlog (personas):** articles that waited their week out here stayed unread in tt-rss.
+- **Shipped:** **Mark read when they expire here**, a switch under Sync read status (off by default, shown only with read sync on). Waiting out the week then counts as marked read, which the next sync passes to tt-rss. Leaving a feed out or changing the category still leaves articles unread there. Database version 11.
+- **Review:** the first version emptied tt-rss's backlog through the paper: each sync takes a feed's newest five unread, so marking five read brought in the next five, months old, each with a fresh week. Now a newly arrived article published over a week ago is marked read at once; a second look caught that the first version of that also undid a reader's own mark-unread. A paused account's articles expire as before rather than going out as read on resume.
+- **Left:** such articles show as "Read" on a source's page, not "Not picked". Another user signing in on the same server inherits the switch (as with the rest of the account's settings; the audit's item covers it).
+
 ### Today, D5: the book says what it offers a screen reader
 - **From the backlog (a11y):** EPUB Accessibility 1.1 metadata and alt text carried through.
 - **Found:** alt text already reached the book. Ace by DAISY on a live edition found what the metadata item didn't name: article headings skipping levels (a site's h3 straight under the title), 7 of them in 14 articles, and the contents list without its ARIA role.

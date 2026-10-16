@@ -119,7 +119,7 @@ internal fun FeedsFromSection(vm: FeedsFromViewModel) {
         OutlinedButton(onClick = vm::resume, modifier = Modifier.padding(vertical = 4.dp)) { Text("Resume") }
     }
     OutlinedButton(onClick = vm::openSignIn, modifier = Modifier.padding(vertical = 4.dp)) { Text("Sign in again") }
-    TtrssOptions(source, vm::openCategories, vm::setMarkRead)
+    TtrssOptions(source, vm::openCategories, vm::setMarkRead, vm::setMarkExpiredRead)
     val startingFresh by vm.startingFresh.collectAsStateWithLifecycle()
     StartFresh(source, startingFresh, vm::startFresh)
     val categories by vm.categories.collectAsStateWithLifecycle()
@@ -203,7 +203,7 @@ private fun LeaveDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun TtrssOptions(source: SourceEntity, onChangeCategory: () -> Unit, onMarkRead: (Boolean) -> Unit) {
+private fun TtrssOptions(source: SourceEntity, onChangeCategory: () -> Unit, onMarkRead: (Boolean) -> Unit, onMarkExpiredRead: (Boolean) -> Unit) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
@@ -231,6 +231,29 @@ private fun TtrssOptions(source: SourceEntity, onChangeCategory: () -> Unit, onM
             )
         }
         Switch(checked = source.markReadOnServer, onCheckedChange = null)
+    }
+    // Only with read sync on: without it, nothing marked read here reaches tt-rss.
+    if (source.markReadOnServer) {
+        Row(
+            Modifier.fillMaxWidth()
+                .toggleable(value = source.markExpiredRead, role = Role.Switch, onValueChange = onMarkExpiredRead)
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Mark read when they expire here")
+                Text(
+                    if (source.markExpiredRead) {
+                        "Articles that wait a week without going in an edition are marked read in tt-rss too"
+                    } else {
+                        "Articles that wait a week without going in an edition stay unread in tt-rss"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = muted,
+                )
+            }
+            Switch(checked = source.markExpiredRead, onCheckedChange = null)
+        }
     }
 }
 
