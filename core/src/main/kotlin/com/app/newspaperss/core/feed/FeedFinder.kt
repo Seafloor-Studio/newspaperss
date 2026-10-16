@@ -1,6 +1,7 @@
 package com.app.newspaperss.core.feed
 
 import com.app.newspaperss.core.net.siteHost
+import com.app.newspaperss.core.extract.ArticleExtractor
 import com.app.newspaperss.core.net.ErrorAnswers
 import com.app.newspaperss.core.net.HttpClient
 import com.app.newspaperss.core.net.HttpResponse
@@ -39,6 +40,7 @@ class FeedFinder(private val http: HttpClient) {
         if (FeedParser.looksLikeFeed(response.body)) {
             return feedAt(response) ?: FindResult.NotFound("$url is too large a feed to read.")
         }
+        if (ArticleExtractor.isBotCheck(response.body)) return FindResult.NotFound(ErrorAnswers.botCheck(url))
         // Only a feed may come cut short: a page that big is a video or a file, not a site.
         if (response.truncated) return FindResult.NotFound("$url is too large to be a web page or a feed.")
 

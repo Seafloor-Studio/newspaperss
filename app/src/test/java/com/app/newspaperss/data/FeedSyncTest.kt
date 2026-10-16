@@ -81,6 +81,21 @@ class FeedSyncTest {
         assertNull(db.sources().byId(id)!!.failingSince)
     }
 
+    /** Shaped like SiteGround's: a 202 whose page only sends the browser on to a captcha. */
+    @Test
+    fun aBotCheckInsteadOfTheFeedSaysTheSiteTurnedTheAppAway() = runTest {
+        val id = repo.addFeed(url, "Blog")
+        http.page(url, "<html><head><meta http-equiv=\"refresh\" content=\"0;/.well-known/sgcaptcha/?r=%2Ffeed%2F\"></meta></head></html>", code = 202)
+        assertEquals(1, sync.syncAll().failedSources)
+        // Not "it may have moved": adding it again would meet the same check.
+        assertEquals("The site turned NewspapeRSS away with a bot check. Some sites block apps: try again later.", db.sources().byId(id)!!.lastError)
+
+        // A feed whose post is about bot checks is still a feed.
+        http.page(url, rss("Blog", "1" to "What Cloudflare's /cdn-cgi/challenge-platform/ does"))
+        assertEquals(1, sync.syncAll().newArticles)
+        assertNull(db.sources().byId(id)!!.lastError)
+    }
+
     @Test
     fun pausedSourcesAreNotFetched() = runTest {
         val id = repo.addFeed(url, "Blog")

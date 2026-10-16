@@ -1,5 +1,6 @@
 package com.app.newspaperss.data
 
+import com.app.newspaperss.core.extract.ArticleExtractor
 import com.app.newspaperss.core.feed.FeedParseException
 import com.app.newspaperss.core.feed.FeedParser
 import com.app.newspaperss.core.feed.FeedTooLargeException
@@ -68,7 +69,9 @@ class FeedSync(
         val now = clock.instant()
         val error = try {
             val response = http.getFeed(source.url)
-            if (response.isSuccessful) {
+            // A feed that only mentions a bot check (a post about Cloudflare) is still a feed.
+            val botCheck = response.isSuccessful && !FeedParser.looksLikeFeed(response.body) && ArticleExtractor.isBotCheck(response.body)
+            if (response.isSuccessful && !botCheck) {
                 val feed = FeedParser.parse(response.body, response.finalUrl, response.truncated)
                 val added = db.articles().insertFetched(
                     feed.items.map {
@@ -82,7 +85,7 @@ class FeedSync(
                 db.sources().recordSuccess(source.id, now, feed.title, feed.siteUrl, SourceRepository.hostOf(source.url))
                 return added
             }
-            ErrorAnswers.message(response.code)
+            if (botCheck) ErrorAnswers.botCheck() else ErrorAnswers.message(response.code)
         } catch (e: CancellationException) {
             throw e
         } catch (e: IOException) {

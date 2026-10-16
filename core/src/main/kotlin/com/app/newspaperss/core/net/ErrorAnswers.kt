@@ -22,11 +22,19 @@ object ErrorAnswers {
                 // Adding the same feed address again would fail the same way; the home page finds the new one.
                 else -> "The site's feed isn't there any more (error $code). It may have moved: add the site's home page again to find its new feed."
             }
-            in BLOCKED ->
-                "$site turned NewspapeRSS away (error $code). Some sites block apps: " +
-                    if (address != null) "try its feed or RSS link if it lists one, or try again later." else "try again later."
+            in BLOCKED -> "$site turned NewspapeRSS away (error $code). " + blockedAdvice(address)
             in 500..599 -> "$site isn't working right now (error $code). Try again later."
             else -> "$site answered with error $code."
         }
     }
+
+    /**
+     * A bot check answered instead of the feed, which can come with a success code (SiteGround's
+     * is a 202): a refusal like a 403, and adding the site again would meet it too.
+     */
+    fun botCheck(address: String? = null): String =
+        "${address ?: "The site"} turned NewspapeRSS away with a bot check. " + blockedAdvice(address)
+
+    private fun blockedAdvice(address: String?) =
+        "Some sites block apps: " + if (address != null) "try its feed or RSS link if it lists one, or try again later." else "try again later."
 }
