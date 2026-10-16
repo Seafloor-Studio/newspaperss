@@ -678,6 +678,34 @@ class EditionBuilderTest {
     }
 
     @Test
+    fun removingASourceOrASavedLinkWhileAnEditionIsBeingMadeKeepsTheEdition() = runTest {
+        source("a", "a1")
+        val b = source("b", "b1")
+        val list = ReadingListRepository(db)
+        list.save("https://saved.example/post", "A saved post")
+        val saved = db.articles().candidates().single { it.url == "https://saved.example/post" }
+        // Removed once its articles were read for the build, while it fetches the last one.
+        var removed = false
+        val removing = ArticleContentProvider { a, s, allowance, choice ->
+            if (!removed) {
+                removed = true
+                sources.remove(db.sources().byId(b)!!)
+                list.remove(saved)
+            }
+            content.contentFor(a, s, allowance, choice)
+        }
+
+        val built = EditionBuilder(db, removing, tmp.root, clock, { ZoneOffset.UTC }).build(EditionSettings(maxPerSource = 5)) as BuildResult.Built
+
+        // The book has them; the edition lists them as it lists a removed source's past articles.
+        val edition = db.editions().byId(built.editionId)!!
+        assertEquals(EditionStatus.READY, edition.status)
+        assertTrue(editions.fileOf(edition) != null)
+        assertEquals(setOf("a a1", "b b1", "A saved post"), editions.observeArticles(edition.id).first().map { it.title }.toSet())
+        assertEquals(ArticleState.IN_EDITION, stateOf("a1"))
+    }
+
+    @Test
     fun anArticleThatCrashesTheProviderIsSkipped() = runTest {
         source("a", "a1", "a2", "a3")
         broken += "a2"
