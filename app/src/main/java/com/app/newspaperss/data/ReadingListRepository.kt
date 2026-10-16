@@ -48,17 +48,16 @@ class ReadingListRepository(
 
     /**
      * Returns false if the link was already on the list. One there that couldn't be read
-     * ([ArticleEntity.unreadable]) is looked at again instead, as if new: saving it is the way to
-     * say "try again".
+     * ([ArticleEntity.unreadable]) is looked at again too: saving it again is the way to say "try
+     * again", and the lookup clears the mark if the page reads now.
      */
     suspend fun save(url: String, title: String? = null): Boolean {
         val article = ArticleEntity(sourceId = sourceId(), guid = url, url = url, title = title?.trim().orEmpty(), discoveredAt = clock.instant())
         val articleId = db.articles().insertIgnoring(article)
         if (articleId == -1L) {
-            val there = db.articles().allForSource(article.sourceId).firstOrNull { it.guid == url && it.unreadable != null } ?: return false
-            db.articles().setUnreadable(there.id, null)
-            onUntitled(listOf(there.id))
-            return true
+            db.articles().allForSource(article.sourceId).firstOrNull { it.guid == url && it.unreadable != null && it.state == ArticleState.NEW }
+                ?.let { onUntitled(listOf(it.id)) }
+            return false
         }
         onUntitled(listOf(articleId))
         return true

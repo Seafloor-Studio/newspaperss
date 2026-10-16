@@ -262,10 +262,10 @@ interface ArticleDao {
     suspend fun candidates(): List<ArticleEntity>
 
     /**
-     * Marks a saved link still waiting as one that can never be read, and why (see
-     * [ArticleEntity.unreadable]); null clears it. Not one an edition has taken meanwhile.
+     * Marks a saved link as one that can never be read, and why (see [ArticleEntity.unreadable]);
+     * null clears it. Not one in an edition, which was read after all.
      */
-    @Query("UPDATE articles SET unreadable = :why WHERE id = :id AND state = 'NEW'")
+    @Query("UPDATE articles SET unreadable = :why WHERE id = :id AND state != 'IN_EDITION'")
     suspend fun setUnreadable(id: Long, why: String?)
 
     /** Starred links not yet in an edition, from sources that aren't paused; a link starred in two sources counts once. */

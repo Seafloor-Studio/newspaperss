@@ -135,7 +135,7 @@ class ReadingListTitlesTest {
         // Fixed by the site since: an article after all.
         http.contentTypes.remove("https://a.example/report")
         http.page("https://a.example/report", page("The report"))
-        assertTrue("taken as saved, not \"already on your list\"", list.save("https://a.example/report"))
+        assertFalse("it is on the list already", list.save("https://a.example/report"))
         titles.fetch(untitled)
 
         val saved = db.articles().allForSource(list.sourceId()).single()
@@ -153,5 +153,24 @@ class ReadingListTitlesTest {
         titles.fetch(listOf(pick))
 
         assertEquals(null, db.articles().byId(pick)!!.unreadable)
+    }
+
+    @Test
+    fun aStarredLinkReadBeforeIsMarkedByAnEditionButOneInAnEditionIsNot() = runTest {
+        list.save("https://a.example/once")
+        list.save("https://a.example/in-paper")
+        val saved = db.articles().allForSource(list.sourceId()).associateBy { it.url }
+        val again = saved.getValue("https://a.example/once").id
+        val inPaper = saved.getValue("https://a.example/in-paper").id
+        db.articles().setState(listOf(again), ArticleState.DELIVERED)
+        assertTrue(db.articles().setStarred(again, true, java.time.Instant.EPOCH))
+        db.articles().setState(listOf(inPaper), ArticleState.IN_EDITION)
+
+        db.articles().setUnreadable(again, "error 410")
+        db.articles().setUnreadable(inPaper, "error 410")
+
+        assertEquals("error 410", db.articles().byId(again)!!.unreadable)
+        assertEquals("read after all", null, db.articles().byId(inPaper)!!.unreadable)
+        assertEquals("no longer planned, starred or not", emptyList<String>(), db.articles().candidates().map { it.url })
     }
 }

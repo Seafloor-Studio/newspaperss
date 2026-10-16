@@ -24,7 +24,8 @@ class ReadingListTitles(private val db: AppDatabase, private val http: HttpClien
             val page = try {
                 http.get(article.url)
             } catch (e: IOException) {
-                ArticleExtractor.permanentFailure(e)?.let { why -> if (readingList) db.articles().setUnreadable(id, why) } ?: run { unreachable = true }
+                val why = ArticleExtractor.permanentFailure(e)
+                if (why == null) unreachable = true else if (readingList && why != article.unreadable) db.articles().setUnreadable(id, why)
                 continue
             }
             // A PDF, a video or a page gone for good: said in the reading list now, rather than
