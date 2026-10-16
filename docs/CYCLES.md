@@ -22,9 +22,9 @@ For the next cycle: what each one should do differently. What was built is in
 
 Run of 16 Oct, four sessions in parallel; this one (C) owns the screens. Baseline: a fresh cloud
 container, no emulator.
-- **Shared logs go in one docs PR at the end of a parallel run.** Every merge to main conflicted
-  with the others' BACKLOG, DEVLOG and cycle log entries faster than CI could pass; C1 went red
-  twice that way. Feature PRs carry DESIGN.md, not the logs.
+- **Learned again, as in A2–A6: shared logs go in one docs PR at the end of a parallel run.** C1
+  conflicted three times before it could merge. Two areas learning it makes it a rule: it belongs
+  in the cycles skill's parallel-run notes (claude-playground, madCode's call).
 - **Merging main into a PR can merge two new tests into one spot** (two `@Test`s inserted before
   the same anchor). Read the conflict, don't keep-both it blindly.
 - **Run end check:** nothing left running in the container; no emulator was started.
