@@ -200,11 +200,32 @@ class FeedsFromTest {
         val settings = runBlocking { db.sources().publication(blog.id, PublicationEntity.OWN) }!!
         assertEquals("with its settings", 2 to ContentMode.FEED, settings.maxArticles to settings.chosenMode)
         assertEquals("left out comes paused", true, phone.getValue("https://quiet.example/feed").paused)
-        assertEquals("one already here is taken up again", false, phone.getValue("https://www.both.example/feed/").paused)
+        assertEquals("one already here stays as the reader left it", true, phone.getValue("https://www.both.example/feed/").paused)
         assertTrue("its articles go with it", runBlocking { db.articles().byIds(listOf(1L, 2L, 3L)) }.isEmpty())
         assertEquals(StoredAccount.None, runBlocking { accounts.load() })
         waitGone("Your tt-rss")
         compose.onNodeWithText("I pick my own sites").assertIsSelected()
+    }
+
+    /** tt-rss not answering when leaving: the feeds of its last list come, and the message says so. */
+    @Test
+    fun leavingWhileTtrssIsDownBringsTheLastListedFeeds() {
+        val id = signedIn()
+        runBlocking {
+            db.sources().savePublication(PublicationEntity(id, "7", listed = true, feedUrl = "https://blog.example/feed", title = "A Blog"))
+            db.sources().savePublication(PublicationEntity(id, "10", outsideCategory = true, feedUrl = "https://other.example/feed"))
+        }
+        http.unreachable += server.apiUrl
+        showSettings(SettingsPage.FEEDS)
+        waitFor("Signed in as reader")
+
+        compose.onNodeWithText("I pick my own sites").performClick()
+        waitFor("Stop using tt-rss")
+        compose.onNodeWithText("Stop using tt-rss").performClick()
+
+        waitFor("1 feed from tt-rss is on this phone now. tt-rss didn't answer, so these are the feeds as it last listed them.")
+        assertEquals(listOf("https://blog.example/feed"), runBlocking { db.sources().all() }.map { it.url })
+        assertEquals("unpaused once signed out", false, runBlocking { db.sources().all() }.single().paused)
     }
 
     @Test

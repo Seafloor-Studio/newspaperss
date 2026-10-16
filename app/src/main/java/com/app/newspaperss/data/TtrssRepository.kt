@@ -15,6 +15,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import java.io.IOException
+import java.time.Duration
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The tt-rss account as the screens show it.
@@ -120,38 +122,42 @@ class TtrssRepository(
      * What [bringFeedsHome] did: feeds [added] to the phone, [alreadyHere] on it, and [noAddress]
      * left behind; [toResume] are the phone feeds to unpause once signed out.
      */
-    data class BroughtHome(val added: Int, val alreadyHere: Int, val noAddress: Int, val toResume: List<Long> = emptyList())
+    data class BroughtHome(
+        val added: Int, val alreadyHere: Int, val noAddress: Int, val toResume: List<Long> = emptyList(),
+        /** tt-rss didn't give a fresh list: the feeds are those of the last one, which may be out of date. */
+        val fromOldList: Boolean = false,
+    )
 
     /**
      * Before leaving the server: the account's feeds in the paper become phone feeds, with their
      * settings (article text, cap, paid posts). Not a feed outside the paper's category, which the
      * paper wasn't taking, nor one the feed list hasn't given an address for. A feed already on the
-     * phone stays as it is, unpaused if the paper takes it. The articles stay with the account.
+     * phone stays as it is, paused or not. The articles stay with the account.
      *
      * The feeds come paused, for [resumeBroughtHome] after signing out: the app killed in between
      * would otherwise fetch each feed both here and from tt-rss.
      */
     suspend fun bringFeedsHome(): BroughtHome {
         val none = BroughtHome(0, 0, 0)
-        // A fresh list, if tt-rss answers: the one kept goes stale when the category changes, and
-        // there's none before the first. listTtrssFeeds keeps the old one if this fails.
-        usableAccount()?.let { (login, source) ->
+        // A fresh list, if tt-rss answers soon: the one kept goes stale when the category changes,
+        // and there's none before the first. The reader is waiting, so not for long.
+        val listed = usableAccount()?.let { (login, source) ->
             val client = login.client(http)
             try {
-                listTtrssFeeds(db, client, source, clock.instant())
+                withTimeoutOrNull(LIST_BEFORE_LEAVING.toMillis()) { listTtrssFeeds(db, client, source, clock.instant()) } == true
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // The list kept, or every feed if there's none, will do.
+                false
             } finally {
                 logOut(client)
             }
-        }
+        } == true
         return db.withTransaction {
             val account = db.sources().ofKind(SourceKind.TTRSS).firstOrNull() ?: return@withTransaction none
             val publications = db.sources().allPublications().filter { it.sourceId == account.id && it.key != PublicationEntity.OWN }
-            // Never listed, the flags say nothing: every feed with settings here is one the paper took.
-            val feeds = if (account.feedsListedAt == null) publications else publications.filter { it.listed }
+            // Without a fresh list, the last one: never more than the paper took then.
+            val feeds = publications.filter { it.listed }
             val phone = db.sources().all().filter { it.kind == SourceKind.FEED }.toMutableList()
             val toResume = mutableListOf<Long>()
             var added = 0
@@ -162,10 +168,8 @@ class TtrssRepository(
                 val here = url?.let { u -> phone.firstOrNull { sameFeed(it.url, u) } }
                 when {
                     url.isNullOrBlank() -> noAddress++
-                    here != null -> {
-                        alreadyHere++
-                        if (here.paused && !feed.leftOut) toResume += here.id
-                    }
+                    // Paused or not: a pause on the phone is the reader's.
+                    here != null -> alreadyHere++
                     else -> {
                         val id = sources.addFeed(url, feed.title)
                         db.sources().savePublication(
@@ -184,7 +188,7 @@ class TtrssRepository(
                     }
                 }
             }
-            BroughtHome(added, alreadyHere, noAddress, toResume)
+            BroughtHome(added, alreadyHere, noAddress, toResume, fromOldList = !listed)
         }
     }
 
@@ -559,6 +563,9 @@ class TtrssRepository(
     }
 
     companion object {
+        /** How long leaving waits for tt-rss's feed list before going by the last one. */
+        val LIST_BEFORE_LEAVING: Duration = Duration.ofSeconds(20)
+
         /** Another login signed in while a move was under way. */
         const val SIGNED_IN_AGAIN = "You signed in to tt-rss again while it was moving. Move it again to put it in this account."
     }
