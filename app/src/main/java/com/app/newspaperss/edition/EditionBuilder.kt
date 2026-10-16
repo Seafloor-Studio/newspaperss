@@ -249,9 +249,13 @@ class EditionBuilder(
         if (writeError != null) return fail(editionId, UNEXPECTED)
 
         db.withTransaction {
+            // The articles were read at the start, minutes ago: one removed since (its source, a
+            // saved link, the tt-rss account) is in the book all the same, and listed as a removed
+            // source's past articles are, by title, with no link to an article that's gone.
+            val here = db.articles().stillHere(arranged.map { it.first.id }).toSet()
             db.editions().insertArticles(
                 arranged.mapIndexed { i, (a, c) ->
-                    EditionArticleEntity(editionId = editionId, articleId = a.id, position = i, title = c.title, sourceTitle = bylineOf(a, c, sourcesById.getValue(a.sourceId)), minutes = minutesOf(c), starred = a.starredAt != null, stateBefore = a.state)
+                    EditionArticleEntity(editionId = editionId, articleId = a.id.takeIf { it in here }, position = i, title = c.title, sourceTitle = bylineOf(a, c, sourcesById.getValue(a.sourceId)), minutes = minutesOf(c), starred = a.starredAt != null, stateBefore = a.state)
                 },
             )
             db.articles().setState(arranged.map { it.first.id }, ArticleState.IN_EDITION)

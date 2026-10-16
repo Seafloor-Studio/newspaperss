@@ -13,7 +13,6 @@ Grouped by part of the app. The tag says where each item came from: *device* (yo
 
 ### From the 16 Oct audit *(audit)*
 Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "checked" means read against the code, not yet reproduced.
-- [ ] **Removing a source, a saved link or the tt-rss account while an edition is being made throws the finished edition away** (checked). The build reads its articles at the start and links them into the edition at the end, up to 8 minutes later; a deleted one fails the `edition_articles` foreign key, and `fail()` deletes the EPUB. Nothing holds deletes during a build the way Mark as read and unstarring are held. Reproduce with a test first
 - [ ] Signing in as another user on the same tt-rss server keeps the first user's waiting and starred articles, credited to feed ids that may be the new user's; a sync running during the switch can add more
 - [ ] A timed edition is dropped while a manual one waits for a connection (`EditionWorker` enqueues with KEEP, checked), and the manual run then has no Ready notification, podcast or retries
 - [ ] An EPUB written by a build the process died during is never deleted: `failInterrupted` marks it FAILED without removing the file, which has no `fileName` yet (checked)
@@ -444,6 +443,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 ## Done
 
 - [x] An edition released because a newer one was made counts as sent when it is sent anyway, from a share sheet, its notification or Today, as Mark as sent already did, so its articles don't go out again; and its Ready notification comes down when it is released (audit and UX pass, 16 Oct)
+- [x] Removing a source, a saved link or the tt-rss account while an edition is being made no longer throws the finished edition away: the removed articles stay in the book and are listed by title, as a removed source's past ones are (audit, 16 Oct)
 - [x] Substack Notes in posts from tt-rss come back: the post is read from its page's data, one fetch, only where a Note was (today D1)
 - [x] Tapping a notification brings back the app as it was rather than starting it afresh (audit, 16 Oct)
 - [x] One feed item too big for Android to read back (a picture inlined as text) no longer stops every edition: feed text is capped when stored, and rows stored before are shrunk once, keeping a post's words (database version 10)
