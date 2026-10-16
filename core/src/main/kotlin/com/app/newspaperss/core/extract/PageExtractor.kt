@@ -27,6 +27,8 @@ internal data class PageContent(
     val description: String? = null,
     /** A webcomic's own comic, each panel in a `<figure>`, where its page marks it (ComicControl's `#cc-comic`, xkcd's `#comic`). */
     val comicImage: String? = null,
+    /** [comicImage] is a strip: an episode cut into dozens of images read top to bottom (Webtoons). */
+    val comicStrip: Boolean = false,
     /** The language the page declares, as written (`<html lang>`, else `og:locale`). */
     val language: String? = null,
     /** The site's own name (`og:site_name`, else the JSON-LD publisher). */
@@ -49,6 +51,13 @@ internal object PageExtractor {
     const val MIN_WORDS = 150
     private const val MAIN_IMAGE_MIN_PX = 200
     private const val MAX_COMIC_PANELS = 20
+    // Webtoons' viewer: an episode is one long strip cut into dozens of images. The desktop site
+    // loads each lazily from its data-url; the mobile one, which a phone is sent to, lists them in
+    // a script. Episodes run to 60 or so; more than this is cut short.
+    private const val COMIC_STRIP = "#_imageList img._images"
+    private val STRIP_SCRIPT = Regex("""var\s+imageList\s*=\s*\[(.*?)];""", RegexOption.DOT_MATCHES_ALL)
+    private val STRIP_PANEL_URL = Regex("""\burl\s*:\s*"(https://[^"\s]+)"""")
+    const val MAX_STRIP_PANELS = 100
     // Where webcomic engines put the comic: ComicControl (Hiveworks sites), xkcd and similar.
     private const val COMIC_IMAGE = "img#cc-comic, #cc-comicbody img, #comic img, img#comic, #comic-image img"
 
@@ -73,6 +82,7 @@ internal object PageExtractor {
         val doc = Jsoup.parse(html, url)
         val jsonLd = jsonLdObjects(doc)
         val siteName = doc.metaContent("og:site_name") ?: jsonLd.firstNotNullOfOrNull { (it["publisher"] as? JsonObject)?.string("name") }
+        val strip = stripPanels(doc, url)
         // Once JSON-LD is read, nothing needs these, and Readability clones the whole document:
         // on script-heavy sites inline scripts are most of the page, parsed and copied for nothing.
         // Declarative shadow DOM is shown on the page, so its templates stay.
@@ -133,7 +143,8 @@ internal object PageExtractor {
             mainImage = main?.let(::mainImage),
             articleText = main?.text()?.takeIf { it.isNotBlank() },
             description = doc.metaContent("og:description"),
-            comicImage = doc.select(COMIC_IMAGE).take(MAX_COMIC_PANELS).joinToString("") { figureOf(it) }.ifEmpty { null },
+            comicImage = strip.ifEmpty { doc.select(COMIC_IMAGE).take(MAX_COMIC_PANELS).map(::figureOf) }.joinToString("").ifEmpty { null },
+            comicStrip = strip.isNotEmpty(),
             language = doc.selectFirst("html")?.let { html -> html.attr("lang").ifBlank { html.attr("xml:lang") } }?.ifBlank { null }
                 ?: doc.metaContent("og:locale"),
             siteName = siteName?.trim()?.ifBlank { null },
@@ -159,11 +170,26 @@ internal object PageExtractor {
         return figureOf(img)
     }
 
+    /**
+     * A Webtoons episode's panels as `<figure>`s, from the desktop viewer's images or the mobile
+     * one's script; read before scripts go. Only on Webtoons: the script's shape is its own.
+     */
+    private fun stripPanels(doc: Document, url: String): List<String> {
+        val host = runCatching { URI(url).host }.getOrNull()?.lowercase().orEmpty()
+        if (host != "webtoons.com" && !host.endsWith(".webtoons.com")) return emptyList()
+        val images = doc.select(COMIC_STRIP)
+        if (images.isNotEmpty()) return images.take(MAX_STRIP_PANELS).map(::figureOf)
+        val list = doc.select("script").firstNotNullOfOrNull { STRIP_SCRIPT.find(it.data()) } ?: return emptyList()
+        // The desktop viewer's size: the bare address is the original, about eight times larger.
+        return STRIP_PANEL_URL.findAll(list.groupValues[1]).map { it.groupValues[1] }.map { if ('?' in it) it else "$it?type=q90" }.take(MAX_STRIP_PANELS)
+            .map { Element("figure").apply { appendElement("img").attr("src", it).attr("alt", "") }.outerHtml() }.toList()
+    }
+
     /** [img] alone in a `<figure>`, with just the attributes [HtmlCleaner] reads. */
     private fun figureOf(img: Element): String {
         val figure = Element("figure")
         val copy = figure.appendElement("img")
-        for (name in listOf("src", "srcset", "data-src", "data-srcset", "alt", "title")) img.attr(name).takeIf { it.isNotBlank() }?.let { copy.attr(name, it) }
+        for (name in listOf("src", "srcset", "data-src", "data-srcset", "data-url", "alt", "title")) img.attr(name).takeIf { it.isNotBlank() }?.let { copy.attr(name, it) }
         return figure.outerHtml()
     }
 

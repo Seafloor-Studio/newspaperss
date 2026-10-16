@@ -2,6 +2,7 @@ package com.app.newspaperss.core.extract
 
 import com.app.newspaperss.core.ReadingTime
 import com.app.newspaperss.core.feed.LinkPosts
+import com.app.newspaperss.core.images.ImageRules
 import com.app.newspaperss.core.net.ErrorAnswers
 import com.app.newspaperss.core.net.HttpClient
 import com.app.newspaperss.core.net.HttpResponse
@@ -76,6 +77,8 @@ data class ExtractedArticle(
      * feed's text ended in Substack's "Read more" back to the post.
      */
     val paidPost: Boolean = false,
+    /** How many of [imageUrls] to download: a comic strip's panels are the article, beyond the usual cap. */
+    val imageLimit: Int = ImageRules.MAX_PER_ARTICLE,
 ) {
     /** A paid post with next to nothing free: a title and a picture, a sentence of preview. */
     val nothingFree: Boolean get() = paidPost && wordCount < ArticleExtractor.NOTHING_FREE_WORDS
@@ -156,6 +159,10 @@ class ArticleExtractor(private val http: HttpClient) {
                 if (input.feedUrl == null && feed != null && onThePage(feed, page)) return fromFeed(feed, null, null)
                 if (input.feedUrl != null && feed != null) return linkPost(input, page, feedWords) { note, siteName ->
                     fromFeed(feed, note, words, declaredLanguage = page.content.language, siteName = siteName)
+                }
+                // A strip (a Webtoons episode) is its panels, whatever text the page has around them.
+                if (page.content.comicStrip) page.content.comicImage?.let { strip ->
+                    imagePost(input, page, strip, feed, feedAuthor, feedWords)?.let { return it.copy(imageLimit = PageExtractor.MAX_STRIP_PANELS) }
                 }
                 // A cartoon or comic: extraction found little text and no image. Only on strong
                 // signs, so a short brief doesn't get a stray picture: a feed item that's

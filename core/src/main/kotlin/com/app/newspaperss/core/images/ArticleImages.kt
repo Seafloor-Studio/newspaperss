@@ -19,11 +19,11 @@ object ArticleImages {
     private val EXTENSIONS = mapOf("image/jpeg" to "jpg", "image/png" to "png", "image/gif" to "gif")
 
     /**
-     * The images worth downloading: the first [ImageRules.MAX_PER_ARTICLE] that aren't SVG, which
-     * e-readers render badly or not at all.
+     * The images worth downloading: the first [limit] that aren't SVG, which e-readers render
+     * badly or not at all.
      */
-    fun wanted(imageUrls: List<String>): List<String> =
-        imageUrls.distinct().filterNot(::isSvg).take(ImageRules.MAX_PER_ARTICLE)
+    fun wanted(imageUrls: List<String>, limit: Int = ImageRules.MAX_PER_ARTICLE): List<String> =
+        imageUrls.distinct().filterNot(::isSvg).take(limit)
 
     fun isSvg(url: String) = url.substringBefore('#').substringBefore('?').lowercase().endsWith(".svg")
 
