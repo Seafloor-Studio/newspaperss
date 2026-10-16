@@ -421,7 +421,11 @@ phone restarts.
    one that looks like an email address, and an address not at kindle.com
    or kindle.cn gets a warning), the mail app to send with, and a reminder
    to approve the sending address on Amazon. **Use the Kindle app
-   instead** shares to the Kindle app.
+   instead** shares to the Kindle app, with a short how-to: the Kindle app
+   on the same Amazon account, the form's device and "Add to your library",
+   and Library › Docs on the Kindle. Under each device's tip (and in
+   Settings under **Send it myself**) a line says when an edition counts as
+   sent and that **Didn't arrive? Mark as not sent** undoes it.
 3. **Where do your feeds live now?** Three cards; tapping one answers and
    moves on, with no Next:
    - **I'll pick some sites** ("Newspapers, magazines, blogs, newsletters.

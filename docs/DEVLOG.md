@@ -14,6 +14,11 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Today, C5: a Kindle how-to, and what counts as sent
+- **From the backlog (personas):** a short Kindle how-to, and per device what counts as "delivered".
+- **Shipped:** the Kindle tip now starts with the Kindle app on the same Amazon account and ends with where the edition shows up (Library › Docs). Under each device's tip, in setup and in Settings under Send it myself, a quieter line says when the app takes an edition as sent (choosing the Kindle app or Dropbox, sending it to the mail app, Read on a Boox, saving to the folder), that its articles won't come again, and to use "Didn't arrive? Mark as not sent" if it never arrives.
+- **Review:** checked each line against the delivery code. It caught KOReader's line naming a folder under Send it myself, where none is in use, and two loose phrasings; fixed, with a test.
+
 ### Today, D5: the book says what it offers a screen reader
 - **From the backlog (a11y):** EPUB Accessibility 1.1 metadata and alt text carried through.
 - **Found:** alt text already reached the book. Ace by DAISY on a live edition found what the metadata item didn't name: article headings skipping levels (a site's h3 straight under the title), 7 of them in 14 articles, and the contents list without its ARIA role.
