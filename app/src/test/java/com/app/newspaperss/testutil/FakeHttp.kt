@@ -9,6 +9,8 @@ class FakeHttp : HttpClient {
     /** url -> (status, body); a missing url is a 404. */
     val pages = mutableMapOf<String, Pair<Int, String>>()
     val unreachable = mutableSetOf<String>()
+    /** Feed urls whose [pages] are only the start of a feed over the size limit, as [getFeed] marks one. */
+    val cutShort = mutableSetOf<String>()
     /** Urls whose POSTs time out, as OkHttp reports a slow server. */
     val timingOut = mutableSetOf<String>()
     /** Runs after the request is "sent" and before the response returns, to simulate edits made meanwhile. */
@@ -36,6 +38,11 @@ class FakeHttp : HttpClient {
         beforeResponse(url)
         val (code, body) = pages[url] ?: (404 to "")
         return HttpResponse(code, url, null, body)
+    }
+
+    override suspend fun getFeed(url: String): HttpResponse {
+        val response = get(url)
+        return if (url in cutShort) HttpResponse(response.code, response.finalUrl, response.contentType, response.body, truncated = true) else response
     }
 
     override suspend fun getBytes(url: String, headers: Map<String, String>): HttpBytes {
