@@ -78,6 +78,18 @@ class EditionBuilderTest {
         c.moveToFirst(); ArticleState.valueOf(c.getString(0))
     }
 
+    /** Android reads a row through a 2 MB window: one row bigger than that failed every edition. */
+    @Test
+    fun feedTextTooBigToReadDoesntStopTheEdition() = runTest {
+        val id = source("a", "a1")
+        db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "big", url = "https://a.example/big", title = "a big", feedHtml = "<p>${"x".repeat(3_000_000)}</p>")))
+
+        val result = builder.build(EditionSettings(minutes = 60, maxPerSource = 5))
+
+        assertTrue(result.toString(), result is BuildResult.Built)
+        assertEquals(setOf("a a1", "a big"), editions.observeArticles((result as BuildResult.Built).editionId).first().map { it.title }.toSet())
+    }
+
     @Test
     fun aDeletedEditionsTitleIsntReused() = runTest {
         // Send to Kindle drops a title it has seen, and the deleted one may already have been sent.

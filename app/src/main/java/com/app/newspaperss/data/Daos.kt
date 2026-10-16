@@ -529,6 +529,15 @@ interface ArticleDao {
     suspend fun dropOldFeedHtml(before: Instant): Int
 
     /**
+     * Forgets feed text too big to read back, which [FeedSync.storable] keeps out of new rows:
+     * Android reads a row through a 2 MB window, and one row over it fails every query that
+     * loads it, an edition's included. Measured in characters, which SQLite can do without
+     * reading the row through that window.
+     */
+    @Query("UPDATE articles SET feedHtml = NULL WHERE length(feedHtml) > :maxChars")
+    suspend fun forgetOversizedFeedHtml(maxChars: Int): Int
+
+    /**
      * Expires all but the newest [keep] unpicked articles of a source, so a list that grows
      * faster than it's read stays bounded. Starred articles are the reader's and stay.
      */

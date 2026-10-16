@@ -56,7 +56,7 @@ class FeedSync(
         val results = feeds.map { source -> async { limit.withPermit { sync(source) } } }.awaitAll()
         db.articles().expireOlderThan(clock.instant().minus(keepFor))
         db.articles().forgetDeliveredBefore(clock.instant().minus(REMEMBER_DELIVERED))
-        val trimmed = db.articles().dropOldFeedHtml(clock.instant().minus(KEEP_FEED_TEXT))
+        val trimmed = db.articles().dropOldFeedHtml(clock.instant().minus(KEEP_FEED_TEXT)) + db.articles().forgetOversizedFeedHtml(MAX_FEED_HTML_CHARS)
         // Freed pages stay in the file until a VACUUM, and Auto Backup copies the file (25 MB quota).
         if (trimmed >= VACUUM_AFTER) runCatching { db.openHelper.writableDatabase.execSQL("VACUUM") }
         SyncResult(results.sumOf { it ?: 0 }, results.count { it == null }, feeds.size)
@@ -77,7 +77,7 @@ class FeedSync(
                     feed.items.map {
                         ArticleEntity(
                             sourceId = source.id, guid = it.guid, url = it.url, title = it.title,
-                            author = it.author, published = it.published, feedHtml = it.contentHtml, discoveredAt = now,
+                            author = it.author, published = it.published, feedHtml = storable(it.contentHtml), discoveredAt = now,
                         ).linkedToStory(feed.siteUrl ?: source.siteUrl) to it.url
                     },
                 )
@@ -202,7 +202,7 @@ class FeedSync(
                 val articles = headlines.map {
                     it to ArticleEntity(
                         sourceId = source.id, guid = "$TTRSS_GUID_PREFIX${it.id}", url = it.link, title = it.title,
-                        author = it.author, published = it.updated?.let(Instant::ofEpochSecond), feedHtml = it.content,
+                        author = it.author, published = it.updated?.let(Instant::ofEpochSecond), feedHtml = storable(it.content),
                         discoveredAt = now, originId = it.feedId, originTitle = it.feedTitle,
                     ).linkedToStory(siteUrl = null)
                 }
@@ -302,6 +302,24 @@ class FeedSync(
         val REMEMBER_DELIVERED: Duration = Duration.ofDays(365)
         // A month: long enough to bring an article back from a recent edition with its text.
         private val KEEP_FEED_TEXT: Duration = Duration.ofDays(30)
+
+        /**
+         * The most feed text an article keeps: well under the 2 MB Android reads a row through,
+         * even at three bytes a character.
+         */
+        const val MAX_FEED_HTML_CHARS = 500_000
+        // A picture inlined in the feed as text, the usual reason an item is that big.
+        private val INLINE_IMAGE = Regex("data:[^\"'\\s>]{1000,}")
+
+        /**
+         * [html] as it can be stored: without its inlined pictures if it's too big, or not at all
+         * if it's too big even then, when the article's page is fetched as for a feed that sends
+         * no text.
+         */
+        internal fun storable(html: String?): String? {
+            if (html == null || html.length <= MAX_FEED_HTML_CHARS) return html
+            return html.replace(INLINE_IMAGE, "").takeIf { it.length <= MAX_FEED_HTML_CHARS }
+        }
         private const val VACUUM_AFTER = 500
 
         /** tt-rss articles are stored with this guid prefix followed by their tt-rss id. */

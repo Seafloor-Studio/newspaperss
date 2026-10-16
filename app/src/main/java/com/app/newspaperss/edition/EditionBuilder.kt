@@ -27,6 +27,7 @@ import com.app.newspaperss.data.ArticleState
 import com.app.newspaperss.data.EditionArticleEntity
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionStatus
+import com.app.newspaperss.data.FeedSync
 import com.app.newspaperss.data.PublicationEntity
 import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.SourceKind
@@ -109,6 +110,8 @@ class EditionBuilder(
             // A star is the reader asking for that article, even from a feed they left out.
             val publications = db.sources().allPublications()
             val leftOut = publications.filter { it.leftOut }.map { publicationOf(it.sourceId, it.key) }.toSet()
+            // A row stored too big to read, before feed text was capped, would fail this query.
+            db.articles().forgetOversizedFeedHtml(FeedSync.MAX_FEED_HTML_CHARS)
             val articles = db.articles().candidates()
                 .filter { it.sourceId in sourcesById && (it.starredAt != null || publicationOf(it) !in leftOut) }
                 .sortedBy { it.starredAt == null }

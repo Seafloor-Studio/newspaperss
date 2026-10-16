@@ -8,6 +8,7 @@ import com.app.newspaperss.testutil.rss
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -100,6 +101,27 @@ class FeedSyncTest {
         http.page(url, """{"items":[{"content_html":"$post","id":"2","title":"Enable JavaScript and cookies to continue, and other walls","url":"https://example.com/2"}],"title":"Blog","version":"https://jsonfeed.org/version/1.1"}""")
         assertEquals(1, sync.syncAll().newArticles)
         assertNull(db.sources().byId(id)!!.lastError)
+    }
+
+    /** Android reads a row through a 2 MB window, so a feed's text is kept well under it. */
+    @Test
+    fun feedTextTooBigToReadBackIsntKept() = runTest {
+        repo.addFeed(url, "Blog")
+        val words = "<p>${"Words of the post. ".repeat(1_000)}</p>"
+        val picture = "<img src=\"data:image/png;base64,${"A".repeat(600_000)}\">"
+        fun item(guid: String, html: String) = "<item><guid>$guid</guid><title>$guid</title><link>https://example.com/$guid</link><description><![CDATA[$html]]></description></item>"
+        http.page(url, "<rss version=\"2.0\"><channel><title>Blog</title>${item("pictured", words + picture)}${item("long", "<p>${"word ".repeat(150_000)}</p>")}</channel></rss>")
+        sync.syncAll()
+        val stored = db.articles().candidates().associate { it.guid to it.feedHtml }
+        assertEquals("the inlined picture goes, the words stay", words + "<img src=\"\">", stored["pictured"])
+        assertNull("too long even then: the page is fetched instead", stored["long"])
+
+        // A row stored too big before is forgotten at the next sync, and reads again.
+        val old = db.articles().candidates().first { it.guid == "long" }
+        db.openHelper.writableDatabase.execSQL("UPDATE articles SET feedHtml = ? WHERE id = ?", arrayOf<Any>("x".repeat(3_000_000), old.id))
+        assertTrue("it can't be read back", runCatching { db.articles().candidates() }.isFailure)
+        sync.syncAll()
+        assertNull(db.articles().candidates().first { it.guid == "long" }.feedHtml)
     }
 
     @Test
