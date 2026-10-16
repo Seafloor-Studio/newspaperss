@@ -9,6 +9,7 @@ import java.util.Locale
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import org.jsoup.parser.Parser
 
 /**
  * Writes an [EditionDoc] as an EPUB 3 book that also carries an NCX and a `<guide>` for EPUB 2
@@ -81,7 +82,7 @@ object EpubWriter {
     }
 
     // The writer's own markup: Xhtml writes src before alt, and alt always.
-    private val IMG_ALT = Regex("""<img\b[^>]*\balt="([^"]*)"""")
+    private val IMG_ALT = Regex("""<img\s[^>]*\salt="([^"]*)"""")
 
     private class Page(val id: String, val href: String, val title: String, val xhtml: String)
 
@@ -293,7 +294,10 @@ object EpubWriter {
          * articles' own sites give it or not. No conformance claim, which would take an audit.
          */
         fun accessibility(pages: List<Page>): List<Pair<String, String>> {
-            val alts = pages.flatMap { page -> IMG_ALT.findAll(page.xhtml).map { it.groupValues[1].isNotBlank() }.toList() }
+            val alts = pages.flatMap { page ->
+                // A space for alt is written as a no-break space's reference; it describes nothing.
+                IMG_ALT.findAll(page.xhtml).map { Parser.unescapeEntities(it.groupValues[1], true).replace('\u00a0', ' ').isNotBlank() }.toList()
+            }
             val pictures = alts.isNotEmpty()
             val described = pictures && alts.all { it }
             return buildList {
@@ -304,8 +308,10 @@ object EpubWriter {
                 add("accessibilityFeature" to "readingOrder")
                 add("accessibilityFeature" to "structuralNavigation")
                 if (described) add("accessibilityFeature" to "alternativeText")
-                // Pictures are re-encoded as still JPEGs, and there's no audio or video.
-                add("accessibilityHazard" to "none")
+                // No audio or video, and the app re-encodes pictures as still JPEGs. A GIF or PNG
+                // may be animated, which this can't tell.
+                val stills = (listOfNotNull(doc.cover) + doc.articles.flatMap { it.images }).all { it.mediaType == "image/jpeg" }
+                add("accessibilityHazard" to if (stills) "none" else "unknown")
                 add(
                     "accessibilitySummary" to buildString {
                         append("A reflowable edition of articles with a table of contents, a heading for each article, and the articles in reading order.")

@@ -217,10 +217,29 @@ class EpubWriterTest {
         assertTrue("alternativeText" in all.accessibility("accessibilityFeature"))
         assertTrue("the alt text reached the page", all.text("OEBPS/" + all.articleHrefs().single()).contains("alt=\"A heron on one leg\""))
 
+        // Not an image, though its name starts like one.
+        val zoom = article(title = "Third", body = "<p>Text.</p><img-zoom alt=\"\"></img-zoom>")
+        assertTrue("alternativeText" in write(unsectioned(described, zoom)).accessibility("accessibilityFeature"))
+        val spaced = article(title = "Fourth", body = "<p>Text.</p><figure><img src=\"images/a2-0.jpg\" alt=\" \"></figure>", images = listOf(chart))
+        assertFalse("a space describes nothing", "alternativeText" in write(unsectioned(described, spaced)).accessibility("accessibilityFeature"))
+
         val some = write(unsectioned(described, bare))
         assertEquals(listOf("textual,visual"), some.accessibility("accessModeSufficient"))
         assertFalse("alternativeText" in some.accessibility("accessibilityFeature"))
         assertTrue(some.accessibility("accessibilitySummary").single().contains("Some pictures have no text description"))
+    }
+
+    /** The cover is a picture too, with its own description; a GIF may move, so it isn't promised still. */
+    @Test
+    fun theCoverCountsAndOnlyStillPicturesAreSafe() {
+        val cover = write(doc(EditionSection(null, listOf(article()))).copy(cover = EpubImage("images/cover.jpg", "image/jpeg", byteArrayOf(1))))
+        assertEquals(listOf("textual", "visual"), cover.accessibility("accessMode"))
+        assertTrue("alternativeText" in cover.accessibility("accessibilityFeature"))
+        assertEquals(listOf("none"), cover.accessibility("accessibilityHazard"))
+
+        val gif = EpubImage("images/a1-0.gif", "image/gif", byteArrayOf(7))
+        val moving = write(unsectioned(article(body = "<p><img src=\"images/a1-0.gif\" alt=\"A dancing cat\"></p>", images = listOf(gif))))
+        assertEquals(listOf("unknown"), moving.accessibility("accessibilityHazard"))
     }
 
     /** Under the title's h1, a site's headings go down one level at a time, as screen readers expect. */
