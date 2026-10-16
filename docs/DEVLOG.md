@@ -14,6 +14,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Today, D4: a quiet tt-rss feed says so
+- **From the backlog (personas):** a tt-rss feed that stopped posting looked like any other on Sources.
+- **Shipped:** "Nothing new in N weeks" (months past two) under a feed's row once it has gone three weeks without posting. Each sync takes one look at every article tt-rss got since the last, read or not, without their text (up to 1,000, oldest first; the rest wait for the next sync), since a feed read on the laptop leaves nothing unread here. A feed with nothing seen counts from when the app started watching it. Database version 12.
+- **The review changed the design:** the first version asked each feed for its newest article once a day; that missed purged articles, starved big accounts and slowed the edition's sync. A second look found that a look cut short dropped older articles for good; it now goes on from where it stopped.
+- **Item 7, Webtoons, built and measured, not shipped:** branch `claude/today-d-c7`. See the backlog item for what the review found.
+
 ### Today, area C (screens), closing
 - **Six PRs merged, seven of the nine items done** (#251, #258, #264, #266, #270, #276), all with CI green, plus one item checked and found not to be a bug (Stop making and Delete podcast). #271 was a test fix #268 had already made, so it was closed.
 - **Item 6, saved links that can never be read, is built and reviewed twice** (branch `claude/screens-c8`). It adds database version 14, after session D's 12 and 13, so it opens once those merge.

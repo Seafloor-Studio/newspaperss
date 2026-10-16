@@ -3,6 +3,15 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle D4 — build: a quiet tt-rss feed says so
+
+- **A fix stacked on an unmerged PR's migration** (v11 → v12 here) branches from that PR's branch and merges main once it lands; two sessions bumping the version at once would collide.
+- **One look per sync beats a daily question per feed.** Reading every new article id since the last sync costs one small request and can't miss a feed; the per-feed version had three failure modes the review found.
+
+### Cycle D7 — build, parked: Webtoons strips
+
+- **Measure the real thing at scale before building on a cap.** Episodes run 84–140 panels, not the 60 assumed; the image budget is shared and greedy, so a strip gets gaps mid-episode. "Built it, measured it, not shipping it" was the right call, and the branch keeps the work.
+
 ### Cycles B1–B12 (16 Oct) — build: test health and speed
 
 - **A teardown hook is shared by every test, so a reviewer's "low risk, none found" there needs

@@ -646,8 +646,14 @@ whose Kindle and KOReader answers ask for more on the same page).
       no category go under **Uncategorized**, last. A line under a feed only
       when it says something: "tt-rss couldn't fetch it last time" for a feed
       tt-rss's own fetcher failed on, "Not fetched by tt-rss yet" for a feed
-      just added, or its own settings ("Feed's text", "Full page", "At most
-      2", "Skips paid posts"). Each opens its own page, which says "In your
+      just added, "Nothing new in 3 weeks" for one that has stopped posting
+      (in months past two), or its own settings ("Feed's text", "Full page",
+      "At most 2", "Skips paid posts"). For the quiet line, each sync looks
+      at every article in the account since the last one it saw, read or
+      not, in one request (the first looks back over the newest thousand):
+      a feed read on the laptop still counts as posting. tt-rss deletes old
+      articles, so a feed with none seen counts from when the app started
+      watching it, and says so only three weeks after that. Each opens its own page, which says "In your
       tt-rss · category News", and for a feed tt-rss couldn't fetch, that if
       this stays the feed may have moved or closed, with tt-rss's own words
       ("HTTP Code: 404"). "Last time", as tt-rss reports even a one-off

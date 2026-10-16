@@ -219,6 +219,7 @@ class FeedSync(
                 } else {
                     db.sources().recordSuccess(source.id, now, null, null, source.title)
                     listFeeds(client, source, now)
+                    watchPosts(client, source, now)
                     return added
                 }
             } catch (e: CancellationException) {
@@ -244,6 +245,33 @@ class FeedSync(
     private suspend fun listFeeds(client: TtrssClient, source: SourceEntity, now: Instant) {
         if (source.feedsListedAt?.let { Duration.between(it, now) < LIST_FEEDS_EVERY } == true) return
         listTtrssFeeds(db, client, source, now)
+    }
+
+    /**
+     * Notes when each of the account's feeds last posted, for the quiet ones' line on Sources.
+     * One look at every article since the last sync's, read or not: a feed read on the laptop
+     * leaves nothing unread here. The first looks back over the newest few hundred. A feed with
+     * nothing seen counts from when the app started watching it, since tt-rss deletes old
+     * articles and a long-dead feed has none left to date it by. Best effort: a failure waits
+     * for the next sync, which looks from the same place.
+     */
+    private suspend fun watchPosts(client: TtrssClient, source: SourceEntity, now: Instant) {
+        val posted = try {
+            client.postedSince(source.ttrssSeenId, if (source.ttrssSeenId == null) FIRST_LOOK_PAGES else WATCH_PAGES)
+        } catch (e: TtrssException) {
+            return
+        } catch (e: IOException) {
+            return
+        }
+        db.withTransaction {
+            val sources = db.sources()
+            posted.posts.groupBy { it.feedId }.forEach { (feed, its) ->
+                // Not later than now: a server clock ahead would keep a feed from ever seeming quiet.
+                its.mapNotNull { it.updated }.maxOrNull()?.let { sources.posted(source.id, feed, minOf(Instant.ofEpochSecond(it), now)) }
+            }
+            sources.watching(source.id, now)
+            posted.upTo?.let { sources.setTtrssSeenId(source.id, maxOf(it, source.ttrssSeenId ?: 0)) }
+        }
     }
 
     private suspend fun syncList(source: SourceEntity): Int? {
@@ -296,6 +324,13 @@ class FeedSync(
     companion object {
         private val UNTITLED_LOOKUP_FOR: Duration = Duration.ofDays(2)
         private val LIST_FEEDS_EVERY: Duration = Duration.ofDays(1)
+
+        /** A feed in the paper with nothing new for this long says so on Sources. */
+        val QUIET_AFTER: Duration = Duration.ofDays(21)
+
+        /** Pages of 200 articles looked at per sync; more wait for the next. */
+        private const val WATCH_PAGES = 5
+        private const val FIRST_LOOK_PAGES = 5
 
         /** How long an unpicked article waits, from when it was found, before it expires. */
         val KEEP_WAITING: Duration = Duration.ofDays(7)
