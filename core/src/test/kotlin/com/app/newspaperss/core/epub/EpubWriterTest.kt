@@ -1,6 +1,7 @@
 package com.app.newspaperss.core.epub
 
 import com.app.newspaperss.core.extract.HtmlCleaner
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -132,6 +133,21 @@ class EpubWriterTest {
         assertEquals("mimetype", String(raw, 30, 8, Charsets.US_ASCII))
         assertEquals("application/epub+zip", String(raw, 38, 20, Charsets.US_ASCII))
         assertEquals("mimetype", epub.entries.first().first.name)
+    }
+
+    /** Pictures are compressed already, so they go in as they are; text is deflated. */
+    @Test
+    fun picturesAreStoredAndTextIsDeflated() {
+        val picture = ByteArray(5_000) { (it * 31).toByte() }
+        val cover = EpubImage("images/cover.jpg", "image/jpeg", byteArrayOf(4, 5, 6))
+        val epub = write(unsectioned(article(images = listOf(EpubImage("images/a1-0.jpg", "image/jpeg", picture)))).copy(cover = cover))
+        val methods = epub.entries.associate { it.first.name to it.first.method }
+
+        assertEquals(ZipEntry.STORED, methods["OEBPS/images/a1-0.jpg"])
+        assertEquals(ZipEntry.STORED, methods["OEBPS/images/cover.jpg"])
+        assertArrayEquals(picture, epub.files["OEBPS/images/a1-0.jpg"])
+        assertEquals(ZipEntry.DEFLATED, methods["OEBPS/content.opf"])
+        assertTrue("every page deflated", epub.entries.filter { it.first.name.endsWith(".xhtml") }.all { it.first.method == ZipEntry.DEFLATED })
     }
 
     @Test

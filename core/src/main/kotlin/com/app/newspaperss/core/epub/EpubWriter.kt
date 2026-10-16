@@ -56,29 +56,33 @@ object EpubWriter {
         val book = Book(doc)
         val entries = book.entries()
         val time = doc.modified.toEpochMilli()
-        val zip = ZipOutputStream(out)
+        // Buffered: the deflater hands over a few hundred bytes at a time, each a write to the file.
+        val zip = ZipOutputStream(out.buffered())
         // The mimetype must be the first entry, uncompressed and without extra fields, so that
         // readers can identify the file from its first bytes.
-        val mimetype = MIMETYPE.toByteArray(Charsets.US_ASCII)
-        zip.putNextEntry(
-            ZipEntry("mimetype").apply {
-                method = ZipEntry.STORED
-                size = mimetype.size.toLong()
-                compressedSize = mimetype.size.toLong()
-                crc = CRC32().apply { update(mimetype) }.value
-                this.time = time
-            },
-        )
-        zip.write(mimetype)
+        zip.putNextEntry(stored("mimetype", MIMETYPE.toByteArray(Charsets.US_ASCII), time))
+        zip.write(MIMETYPE.toByteArray(Charsets.US_ASCII))
         zip.closeEntry()
-        for ((name, bytes) in entries) {
-            zip.putNextEntry(ZipEntry(name).apply { this.time = time })
-            zip.write(bytes)
+        for (entry in entries) {
+            // Pictures are compressed already: deflating them again costs time and saves nothing.
+            zip.putNextEntry(if (entry.compressed) stored(entry.name, entry.bytes, time) else ZipEntry(entry.name).apply { this.time = time })
+            zip.write(entry.bytes)
             zip.closeEntry()
         }
         zip.finish()
         zip.flush()
     }
+
+    private fun stored(name: String, bytes: ByteArray, time: Long) = ZipEntry(name).apply {
+        method = ZipEntry.STORED
+        size = bytes.size.toLong()
+        compressedSize = bytes.size.toLong()
+        crc = CRC32().apply { update(bytes) }.value
+        this.time = time
+    }
+
+    /** A file in the book; [compressed] if its format already is, as every image type allowed is. */
+    private class Entry(val name: String, val bytes: ByteArray, val compressed: Boolean = false)
 
     private class Page(val id: String, val href: String, val title: String, val xhtml: String)
 
@@ -99,7 +103,7 @@ object EpubWriter {
         // An article with no words (a comic, a photo) would otherwise read "0 min".
         fun minutesLabel(minutes: Double): String? = if (minutes <= 0.0) null else ReadingTime.format(minutes)
 
-        fun entries(): List<Pair<String, ByteArray>> {
+        fun entries(): List<Entry> {
             val pages = listOf(coverPage(), contentsPage()) + articles.indices.map(::articlePage) + endPage()
             val toc = toc()
             val files = mutableListOf(
@@ -108,10 +112,10 @@ object EpubWriter {
                 "OEBPS/nav.xhtml" to nav(toc),
                 "OEBPS/toc.ncx" to ncx(toc),
                 "OEBPS/style.css" to EPUB_CSS,
-            ).map { (name, text) -> name to text.toByteArray(Charsets.UTF_8) }.toMutableList()
-            pages.forEach { files += "OEBPS/${it.href}" to it.xhtml.toByteArray(Charsets.UTF_8) }
-            images.forEach { files += "OEBPS/${it.href}" to it.bytes }
-            doc.cover?.let { files += "OEBPS/${it.href}" to it.bytes }
+            ).map { (name, text) -> Entry(name, text.toByteArray(Charsets.UTF_8)) }.toMutableList()
+            pages.forEach { files += Entry("OEBPS/${it.href}", it.xhtml.toByteArray(Charsets.UTF_8)) }
+            images.forEach { files += Entry("OEBPS/${it.href}", it.bytes, compressed = true) }
+            doc.cover?.let { files += Entry("OEBPS/${it.href}", it.bytes, compressed = true) }
             return files
         }
 

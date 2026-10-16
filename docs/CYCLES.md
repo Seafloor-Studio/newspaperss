@@ -7,6 +7,11 @@ For the next cycle: what each one should do differently. What was built is in
 
 - **Settings screens are shot by `ScreenshotTest` (07i–07l)**: a change to the tt-rss options or the leave dialog needs before and after pairs.
 
+### Cycle D3 — build: a wait before tt-rss hears of a delivery
+
+- **Replaced WorkManager work is pruned, not left as CANCELLED**: `getWorkInfoById` of the old id can be null. Assert "null or cancelled".
+- **Give a delay test the network first** (`setAllConstraintsMet` before the undo), or it passes without the delay because the work was never runnable.
+
 ### Cycle A5 (16 Oct) — build: another tt-rss user on the same server
 
 - **"Keep both sides" is wrong for a removed line.** Merging main's shared docs with a script
