@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.rules.ExternalResource
 import java.io.File
 import kotlin.io.path.createTempDirectory
@@ -50,11 +51,15 @@ class TestDataStores : ExternalResource() {
  *
  * A DataStore runs an update's transform in the caller's context. If a screen's tap started that
  * update, the store's last write waits on the main thread, so blocking the main thread to join it
- * would hang; under Robolectric the main looper keeps running until the scope has finished.
+ * would hang: under Robolectric, the main looper is run then, but only then. Run at every test's
+ * end, it would also run what the test left queued, such as a screen's query of a database the
+ * test has closed, whose error then fails the next test.
  */
 fun stopStores(scope: CoroutineScope) {
     val job = scope.coroutineContext[Job]!!
     job.cancel()
     val onMainLooper = runCatching { Looper.getMainLooper().thread == Thread.currentThread() }.getOrDefault(false)
-    if (onMainLooper) idleUntil { job.isCompleted } else runBlocking { job.join() }
+    if (!onMainLooper) return runBlocking { job.join() }
+    runBlocking { withTimeoutOrNull(1_000) { job.join() } }
+    if (!job.isCompleted) idleUntil { job.isCompleted }
 }

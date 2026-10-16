@@ -14,10 +14,17 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
-### Today, C4: no dead end in setup
-- **From the backlog (personas):** a site with no feed, pasted during setup, ended at "No feed found"; Sources already offered the reading list instead.
-- **Shipped:** setup offers **Save this page to your reading list instead** under the error. Saved, the field clears and says so, and the link is enough to go on.
-- **Review:** caught a double tap saving twice (and saying "already in your reading list"), and a late answer clearing what the reader had typed since; the tap now hides the button and only its own answer counts, with a test. Left: TalkBack doesn't announce a search's "No feed found" (it's the field's error text), as before.
+### Today, D5: the book says what it offers a screen reader
+- **From the backlog (a11y):** EPUB Accessibility 1.1 metadata and alt text carried through.
+- **Found:** alt text already reached the book. Ace by DAISY on a live edition found what the metadata item didn't name: article headings skipping levels (a site's h3 straight under the title), 7 of them in 14 articles, and the contents list without its ARIA role.
+- **Shipped:** the metadata (what the book needs and offers; pictures count as described only when every one has alt text), headings re-leveled under each article's title, `role="doc-toc"`. A live edition passes EPUBCheck 5.2.1 (0 messages) and Ace 1.3.2 (0 violations).
+- **Review:** "no hazards" now only when every picture is a still JPEG; a custom `<img-zoom>` element and a no-break-space alt no longer count; right-to-left subheads are right-aligned.
+- **Left:** a screen reader on a device, and Ace on an edition with pictures (backlog).
+
+### Today, D3: a quick "Mark as not sent" stays off tt-rss
+- **From the backlog (personas):** sending to the wrong app and marking the edition as not sent flipped its articles read, then unread, on the server.
+- **Shipped:** the marking waits two minutes (WorkManager's initial delay). A Mark as not sent in that time replaces it, so tt-rss isn't told either way.
+- **Review:** a sync inside the two minutes still marks delivered links read, and Doze can stretch the wait, so DESIGN says "a couple of minutes or more" and "usually". A rare path (an article tt-rss has unread but the app thinks it confirmed read, synced in the window) can bring it back for one more edition; noted in the PR, not fixed.
 
 ### Day cycles, A5: another tt-rss user on the same server
 - **From the backlog (audit):** signing in as another user on the same tt-rss server kept the first user's waiting and starred articles, filed under feed ids that belong to the first user and may name the second's feeds. A sync running during the switch could add more.
