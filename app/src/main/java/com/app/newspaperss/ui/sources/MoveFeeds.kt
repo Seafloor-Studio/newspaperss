@@ -23,10 +23,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -78,6 +74,8 @@ data class MoveSheet(
     val chosen: Int = UNCATEGORIZED_ID,
     val error: String? = null,
     val paper: TtrssCategory? = null,
+    /** The category list is open in place of the feeds. Here, not in the dialog, so it goes with the sheet. */
+    val picking: Boolean = false,
 ) {
     val ticked get() = feeds.count { it.ticked }
 }
@@ -168,6 +166,11 @@ class PhoneFeedMover(
 
     fun toggle(sourceId: Long) {
         _sheet.value = _sheet.value?.let { s -> s.copy(feeds = s.feeds.map { if (it.sourceId == sourceId) it.copy(ticked = !it.ticked) else it }) }
+    }
+
+    /** Opens or closes the sheet's category list. */
+    fun pick(open: Boolean) {
+        _sheet.value = _sheet.value?.copy(picking = open)
     }
 
     fun choose(categoryId: Int) {
@@ -292,10 +295,10 @@ fun MoveOffer(offer: PhoneFeeds.Offer, found: String?, onMove: () -> Unit, onNot
 @Composable
 fun MoveSheetDialog(sheet: MoveSheet, mover: PhoneFeedMover) {
     // The category list replaces the feeds, then Done brings them back.
-    var picking by remember { mutableStateOf(false) }
+    val picking = sheet.picking
     AlertDialog(
         // Back from the category list returns to the feeds rather than closing the sheet.
-        onDismissRequest = { if (picking) picking = false else mover.close() },
+        onDismissRequest = { if (picking) mover.pick(false) else mover.close() },
         title = { Text(if (picking) "Category" else "Move ${plural(sheet.ticked, "feed")} to tt-rss") },
         text = {
             if (picking) {
@@ -314,12 +317,12 @@ fun MoveSheetDialog(sheet: MoveSheet, mover: PhoneFeedMover) {
                     Muted("To add a category, make it in tt-rss first.")
                 }
             } else {
-                MoveSheetFeeds(sheet, mover::toggle, onPick = { picking = true })
+                MoveSheetFeeds(sheet, mover::toggle, onPick = { mover.pick(true) })
             }
         },
         confirmButton = {
             if (picking) {
-                TextButton(onClick = { picking = false }) { Text("Done") }
+                TextButton(onClick = { mover.pick(false) }) { Text("Done") }
             } else {
                 TextButton(onClick = mover::move, enabled = sheet.ticked > 0 && sheet.categories != null) { Text("Move ${sheet.ticked}") }
             }

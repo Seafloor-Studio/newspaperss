@@ -671,10 +671,10 @@ internal fun fullTextLine(learned: PublicationEntity?): String? {
 private fun AddSourceDialog(state: AddState, curatedLists: List<CuratedList>, viewModel: SourcesViewModel, server: Boolean) {
     if (state == AddState.Closed) return
     // The category list replaces the Subscribe step's content, then Done brings it back.
-    var picking by remember(state is AddState.Subscribing) { mutableStateOf(false) }
+    val picking = state is AddState.Subscribing && state.picking
     AlertDialog(
         // Back from the category list returns to the Subscribe step rather than losing the feed found.
-        onDismissRequest = { if (picking) picking = false else viewModel.closeAdd() },
+        onDismissRequest = { if (picking) viewModel.pickCategory(false) else viewModel.closeAdd() },
         title = {
             Text(
                 when (state) {
@@ -720,7 +720,7 @@ private fun AddSourceDialog(state: AddState, curatedLists: List<CuratedList>, vi
                         )
                     }
                 }
-                is AddState.Subscribing -> if (picking) CategoryChoices(state, viewModel::chooseCategory) else SubscribeStep(state, onPick = { picking = true })
+                is AddState.Subscribing -> if (picking) CategoryChoices(state, viewModel::chooseCategory) else SubscribeStep(state, onPick = { viewModel.pickCategory(true) })
                 is AddState.Asking -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     // Stepped text rather than a spinner: e-ink redraws the whole screen for an animation.
                     Text("Asking tt-rss to subscribe…", modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
@@ -749,7 +749,7 @@ private fun AddSourceDialog(state: AddState, curatedLists: List<CuratedList>, vi
         confirmButton = {
             when {
                 state is AddState.Editing -> TextButton(onClick = viewModel::find, enabled = state.input.isNotBlank()) { Text("Add") }
-                state is AddState.Subscribing && picking -> TextButton(onClick = { picking = false }) { Text("Done") }
+                picking -> TextButton(onClick = { viewModel.pickCategory(false) }) { Text("Done") }
                 state is AddState.Subscribing -> TextButton(onClick = viewModel::subscribeInTtrss, enabled = state.categories != null) { Text("Subscribe") }
                 state is AddState.AlreadyIn -> TextButton(onClick = viewModel::closeAdd) { Text("OK") }
             }
@@ -758,7 +758,7 @@ private fun AddSourceDialog(state: AddState, curatedLists: List<CuratedList>, vi
             when (state) {
                 is AddState.AlreadyIn -> {}
                 is AddState.Asking -> TextButton(onClick = viewModel::closeAdd) { Text("Close") }
-                else -> if (!(state is AddState.Subscribing && picking)) TextButton(onClick = viewModel::closeAdd) { Text("Cancel") }
+                else -> if (!picking) TextButton(onClick = viewModel::closeAdd) { Text("Cancel") }
             }
         },
     )

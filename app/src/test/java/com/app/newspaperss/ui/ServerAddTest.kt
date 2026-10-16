@@ -50,6 +50,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import androidx.compose.ui.test.junit4.StateRestorationTester
+
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -132,6 +134,27 @@ class ServerAddTest {
         compose.onNode(hasContentDescription("Category, ", substring = true)).performClick()
         compose.onNodeWithText(category).performClick()
         compose.onNodeWithText("Done").performClick()
+    }
+
+    @Test
+    fun theCategoryListSurvivesTheScreenBeingRecreated() {
+        signedIn()
+        val vm = SourcesViewModel(sources, FeedFinder(http), ttrss, settings = settings, subscriptions = subscriptions) {}
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent { SourcesScreen(vm) }
+        idleUntil { compose.waitForIdle(); vm.screen.value?.server != null }
+        add("science.example")
+        waitFor("Subscribe in your tt-rss")
+        idleUntil { compose.waitForIdle(); compose.onAllNodes(hasContentDescription("Category, ", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(hasContentDescription("Category, ", substring = true)).performClick()
+        waitFor("Science")
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.onNodeWithText("Done").assertExists()
+        compose.onNodeWithText("Science").performClick()
+        compose.onNodeWithText("Done").performClick()
+        compose.onNodeWithContentDescription("Category, Science").assertExists()
     }
 
     @Test
