@@ -459,7 +459,7 @@ internal fun failingLine(since: Instant?, locale: Locale, now: Instant = Instant
     return when {
         days <= 0 -> null
         days == 1L -> "Failing since yesterday"
-        else -> "Failing for $days days, since ${shortDate(since, locale, zone)}"
+        else -> "Failing for $days days, since ${shortDate(since, locale, now, zone)}"
     }
 }
 
@@ -470,13 +470,13 @@ internal fun lastCheckedLine(at: Instant?, locale: Locale, is24Hour: Boolean, no
         val pattern = DateFormat.getBestDateTimePattern(locale, if (is24Hour) "Hm" else "hma")
         "Last checked today at ${DateTimeFormatter.ofPattern(pattern, locale).format(date)}"
     } else {
-        "Last checked ${shortDate(at, locale, zone)}"
+        "Last checked ${shortDate(at, locale, now, zone)}"
     }
 }
 
 /** Month and day, and the year too when it isn't this one. */
-internal fun shortDate(at: Instant, locale: Locale, zone: ZoneId = ZoneId.systemDefault()): String {
+internal fun shortDate(at: Instant, locale: Locale, now: Instant = Instant.now(), zone: ZoneId = ZoneId.systemDefault()): String {
     val date = at.atZone(zone)
-    val skeleton = if (date.year == java.time.LocalDate.now(zone).year) "MMMd" else "yMMMd"
+    val skeleton = if (date.year == now.atZone(zone).year) "MMMd" else "yMMMd"
     return DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, skeleton), locale).format(date)
 }

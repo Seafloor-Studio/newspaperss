@@ -243,6 +243,7 @@ private class BuildAnnouncer {
 @Composable
 private fun BuildPanel(build: BuildState, announcer: BuildAnnouncer, make: MakeButton, hadOne: Boolean, onMake: () -> Unit) {
     val running = isRunning(build)
+    val zone = LocalClock.current.zone
     // Announced only once a build has run while this screen was up: a failure WorkManager still
     // remembers from earlier would otherwise be read out every time Today opens.
     announcer.update(build)
@@ -253,7 +254,7 @@ private fun BuildPanel(build: BuildState, announcer: BuildAnnouncer, make: MakeB
             when (build) {
                 BuildState.Syncing -> "Checking your sources for new articles…"
                 BuildState.WaitingForNetwork -> "Waiting for an internet connection…"
-                is BuildState.Retrying -> "Couldn't read your sources. Trying again at ${timeOf(build.atMillis)}."
+                is BuildState.Retrying -> "Couldn't read your sources. Trying again at ${timeOf(build.atMillis, zone)}."
                 is BuildState.Fetching -> "Making your edition"
                 // A finished state once there's been an edition, rather than an empty one.
                 BuildState.NothingNew -> if (hadOne) "Nothing new since your last edition. Check back later." else "Nothing new to read yet. Add sources, or check back later."
@@ -471,6 +472,6 @@ internal fun summary(edition: EditionEntity): String {
 internal fun failureColor(error: String?) =
     if (error == EditionBuilder.NOT_SENT || error == EditionBuilder.OLD_NOT_SENT) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
 
-private fun timeOf(epochMillis: Long): String =
-    java.time.Instant.ofEpochMilli(epochMillis).atZone(java.time.ZoneId.systemDefault()).toLocalTime()
+private fun timeOf(epochMillis: Long, zone: java.time.ZoneId): String =
+    java.time.Instant.ofEpochMilli(epochMillis).atZone(zone).toLocalTime()
         .format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
