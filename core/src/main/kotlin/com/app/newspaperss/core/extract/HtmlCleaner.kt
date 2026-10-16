@@ -376,11 +376,22 @@ object HtmlCleaner {
             if (!el.isAttached()) continue
             val text = el.text().trim()
             val words = text.split(WHITESPACE).size
-            if (words <= BOILERPLATE_MAX_WORDS && BOILERPLATE.containsMatchIn(text) || words <= PITCH_MAX_WORDS && isPitch(el, text)) {
+            if (words <= BOILERPLATE_MAX_WORDS && BOILERPLATE.containsMatchIn(text) || words <= PITCH_MAX_WORDS && isPitch(el, text) || isCrossLink(el, text)) {
                 val box = el.parent()?.takeIf { SUBSCRIBE_PITCH.containsMatchIn(text) && isPaywallBox(it, el, body) }
                 (box ?: el).remove()
             }
         }
+    }
+
+    /**
+     * "Lire aussi | <a>headline</a>": a label, then nothing but a link, however long the headline.
+     * Le Monde's run past the word cap, its "Article réservé à nos abonnés" inside the link.
+     */
+    private fun isCrossLink(el: Element, text: String): Boolean {
+        if (el.tagName() == "span") return false
+        val label = CROSS_LINK.find(text) ?: return false
+        val rest = text.length - label.value.length
+        return rest > 0 && el.select("a").text().length >= LINK_TEXT_SHARE * rest
     }
 
     /**
@@ -873,17 +884,24 @@ object HtmlCleaner {
     private val SMALL_CAPS = setOf("small-caps", "smallcaps")
     private val SMALL_CAPS_STYLE = Regex("font-variant(-caps)?\\s*:\\s*(all-)?small-caps", RegexOption.IGNORE_CASE)
     // Headings that name a site's box of links, never a section of the article itself. "Related" and
-    // "Further reading" aren't here: authors use them for their own references.
+    // "Further reading" aren't here: authors use them for their own references. French, German and
+    // Spanish ones are matched in any article, not by its language: a whole heading can't be mistaken
+    // across languages, and a page often doesn't say its language. French puts a space before a colon.
     private val FURNITURE_HEADING = Regex(
-        "recommended( (stories|articles|reading|for you))?|read (next|more)|you (may|might) also like|" +
+        "(recommended( (stories|articles|reading|for you))?|read (next|more)|you (may|might) also like|" +
             "most (read|popular)|more( (stories|picks|posts|articles|essays|reads))? (on|from) .{1,40}|" +
-            "related (stories|articles|coverage|posts|content)",
+            "related (stories|articles|coverage|posts|content)|" +
+            "([àa] )?lire (aussi|également)|sur le même sujet|(les articles )?les plus lus|articles (similaires|recommandés)|" +
+            "(mehr )?zum thema|das könnte (sie|dich|ihnen) (auch )?(interessieren|gefallen)|(die )?meistgelesen(en?)?( artikel)?|lesen sie auch|ähnliche artikel|" +
+            "le[ea] también|le(er|a) más|(también )?(te|le) puede interesar|(noticias|artículos) relacionad[oa]s|lo más (leído|visto)|más información)[\\s\u00a0\u2009\u202f]*:?",
         RegexOption.IGNORE_CASE,
     )
     // The ones no article uses for a section of its own paragraphs ("More on the method" can be), so they
     // go even when the extractor dropped their links and left them over the article's next paragraph.
     private val LONE_FURNITURE_HEADING = Regex(
-        "recommended( (stories|articles|reading|for you))?|read next|you (may|might) also like|most (read|popular)",
+        "(recommended( (stories|articles|reading|for you))?|read next|you (may|might) also like|most (read|popular)|" +
+            "([àa] )?lire (aussi|également)|(les articles )?les plus lus|das könnte (sie|dich|ihnen) (auch )?(interessieren|gefallen)|(die )?meistgelesen(en?)?( artikel)?|" +
+            "lesen sie auch|le[ea] también|(también )?(te|le) puede interesar|lo más leído)[\\s\u00a0\u2009\u202f]*:?",
         RegexOption.IGNORE_CASE,
     )
     private val CONTENT_TAGS = setOf("ul", "ol", "dl", "table")
@@ -914,11 +932,16 @@ object HtmlCleaner {
     )
     private val FILE_NAME_SEPARATORS = Regex("[-_+\\s]+")
 
+    // "Lire aussi | …", "Lesen Sie auch: …": a cross-link's label, only with its separator, so a
+    // sentence or list item that opens with the same words stays.
+    private const val CROSS_LINK_LABEL = "(([àa] )?lire (aussi|également)|lesen sie auch|mehr zum thema|le[ea] también|(también )?(te|le) puede interesar)[\\s\u00a0\u2009\u202f]*[:|]"
+    private val CROSS_LINK = Regex("^$CROSS_LINK_LABEL", RegexOption.IGNORE_CASE)
+
     private val BOILERPLATE = Regex(
         "^(listen to (this|the) (article|essay|story|episode)|\\d+[ -]min(ute)?s? (read|listen)|share (this|on)\\b|" +
             "advertisement$|sign up (for|to)\\b|subscribe (to|now|today)\\b|read more:|related:|recommended:|" +
             "click here to\\b|follow us on\\b|skip past newsletter|after newsletter promotion|(add|leave|post) a comment:?$|" +
-            "newsletter$)",
+            "newsletter$|$CROSS_LINK_LABEL)",
         RegexOption.IGNORE_CASE,
     )
 
