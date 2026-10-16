@@ -6,6 +6,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.hasText
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -107,5 +112,35 @@ class ReadingListScreenTest {
         idleUntil { runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.map { it.title } == listOf("Two") }
         vm.commitRemove()
         idleUntil { runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.isEmpty() }
+    }
+
+    /** Moved by hand: the app going to the background and coming back. */
+    private class Owner : LifecycleOwner {
+        val registry = LifecycleRegistry.createUnsafe(this).apply { currentState = Lifecycle.State.RESUMED }
+        override val lifecycle: Lifecycle get() = registry
+    }
+
+    @Test
+    fun anUndoOnScreenWhenTheAppLeavesIsOfferedAgainOnItsReturnNotTimedOutUnseen() {
+        val list = app.container.readingList
+        runBlocking { list.save("https://b.example/long-read", "A long read") }
+        val vm = ReadingListViewModel(list)
+        val owner = Owner()
+        compose.setContent { CompositionLocalProvider(LocalLifecycleOwner provides owner) { ReadingListScreen(vm, onBack = {}) } }
+        waitFor("A long read")
+        compose.onNodeWithContentDescription("Remove A long read").performClick()
+        waitFor("Removed “A long read”")
+
+        compose.runOnUiThread { owner.registry.currentState = Lifecycle.State.CREATED }
+        // Far longer than a Long snackbar shows for.
+        compose.mainClock.advanceTimeBy(60_000)
+        compose.waitForIdle()
+        assertEquals("still waiting for the reader", "A long read", vm.removed.value?.title)
+
+        compose.runOnUiThread { owner.registry.currentState = Lifecycle.State.RESUMED }
+        waitFor("Removed “A long read”")
+        compose.onNodeWithText("Undo").performClick()
+        waitFor("A long read")
+        assertEquals(1, runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.size)
     }
 }
