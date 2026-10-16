@@ -33,17 +33,18 @@ object DeviceTips {
      * it never arrives: a send the app saw can still fail on the way to the e-reader.
      *
      * @param byEmail a Kindle that's emailed its editions rather than sent them with the Kindle app.
+     * @param byHand every edition is sent with Send, so a KOReader reader has no folder to save to.
      */
-    fun delivered(device: Device, byEmail: Boolean = false): String {
+    fun delivered(device: Device, byEmail: Boolean = false, byHand: Boolean = false): String {
         val sent = when (device) {
-            Device.KINDLE -> if (byEmail) "your mail app opens with it" else "you choose the Kindle app"
+            Device.KINDLE -> if (byEmail) "you send it to your mail app" else "you choose the Kindle app"
             Device.KOBO -> "you choose Dropbox"
             Device.BOOX -> "you tap Read, or choose an app after Send"
             Device.POCKETBOOK -> "you choose your email app"
-            Device.KOREADER -> "it's saved to your folder, or you choose an app after Send"
+            Device.KOREADER -> if (byHand) "you choose an app after Send" else "it's saved to your folder, or you choose an app after Send"
             Device.OTHER -> "you choose an app after Send"
         }
         return "An edition counts as sent once $sent, and its articles won't come again. " +
-            "If it never arrives, open it and choose “$MARK_NOT_SENT” in its menu."
+            "If it never arrives, choose “$MARK_NOT_SENT” in its menu."
     }
 }

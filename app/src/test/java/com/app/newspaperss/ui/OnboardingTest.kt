@@ -163,7 +163,7 @@ class OnboardingTest {
         compose.setContent { OnboardingScreen(vm) }
         click("Get started")
         scrollAndClick("Kindle")
-        compose.onNodeWithText("counts as sent once your mail app opens with it", substring = true).performScrollTo().assertExists()
+        compose.onNodeWithText("counts as sent once you send it to your mail app", substring = true).performScrollTo().assertExists()
 
         scrollAndClick("Use the Kindle app instead")
         compose.onNodeWithText("same Amazon account as your Kindle", substring = true).performScrollTo().assertExists()
