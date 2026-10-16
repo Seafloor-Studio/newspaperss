@@ -1,7 +1,7 @@
 package com.app.newspaperss.data
 
+import com.app.newspaperss.testutil.idleUntilYielding
 import com.app.newspaperss.testutil.TestDataStores
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.core.extract.ContentMode
 import com.app.newspaperss.core.extract.FullTextEvidence
@@ -16,7 +16,6 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -69,16 +68,6 @@ class FeedMovesTest {
     }
 
     private fun feedIdOf(url: String) = server.feeds.entries.single { it.value.url == url }.key
-
-    /** Lets work on other threads run until [condition] is false. */
-    private suspend fun idleWhile(condition: () -> Boolean) {
-        val deadline = System.currentTimeMillis() + 5_000
-        while (condition()) {
-            check(System.currentTimeMillis() < deadline) { "still waiting" }
-            Thread.sleep(5)
-            yield()
-        }
-    }
 
     @Test
     fun aMoveCarriesEachFeedsSettingsAndKeepsAPhoneFeedOnlyUntilItsStarsAreDelivered() = runTest {
@@ -254,9 +243,10 @@ class FeedMovesTest {
         moves.start(listOf(first.id, second.id), science)
         assertFalse("a second Move while one is under way does nothing", moves.start(listOf(second.id), science))
         val running = launch { moves.run() }
-        idleWhile { server.subscribed.size < 2 }
+        idleUntilYielding { server.subscribed.size >= 2 }
         // The app dies while tt-rss is fetching the second.
         running.cancelAndJoin()
+        assertEquals("stopped part way: the first asked, the second being fetched", 2, server.subscribed.size)
         assertTrue(moves.current().running)
 
         server.subscribeGate = null

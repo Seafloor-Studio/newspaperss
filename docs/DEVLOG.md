@@ -21,6 +21,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 - **Review:** "no hazards" now only when every picture is a still JPEG; a custom `<img-zoom>` element and a no-break-space alt no longer count; right-to-left subheads are right-aligned.
 - **Left:** a screen reader on a device, and Ace on an edition with pictures (backlog).
 
+### Day cycles, A1: a source removed during a build
+- **From the backlog (audit), area A of four parallel sessions:** removing a source, a saved link or the tt-rss account while an edition was being made threw the finished edition away.
+- **Found:** real. A test that removes a feed and a saved link mid-build got "Something went wrong" and no edition: the articles read at the start were gone by the time they were linked into the edition, eight minutes later at most.
+- **Shipped:** the edition is kept. The removed articles are in the book, and the edition lists them by title, as it already did for a source removed after the edition was made.
+- **Review:** nothing blocking. It noted that a removed article's link isn't remembered as delivered, so a feed removed and added straight back could send the same story again. That was already so for a source removed while an edition waited to be sent; left as it is.
+
 ### Today, D1: Substack Notes through tt-rss
 - **From the backlog (device):** tt-rss strips the text of a Note embedded in a Substack post, so the sentence introducing it hung.
 - **Found:** Substack's page shows only a placeholder there too, but carries the whole post, as its feed has it, in a data script (`preloads-json`).
