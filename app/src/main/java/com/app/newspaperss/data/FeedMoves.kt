@@ -13,9 +13,11 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.withTransaction
 import com.app.newspaperss.core.ttrss.TtrssCategory
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import java.time.Clock
 import java.time.Duration
 import java.util.UUID
@@ -188,10 +190,13 @@ class FeedMoves(
                     s.copy(subscribed = s.subscribed - moved, failed = s.failed + Failure(moved.sourceId, if (listed) NOT_FOUND else NOT_LISTED))
                 }
                 // Paused and noted as retiring in one step with [restore]'s, both in a store edit:
-                // between a check of the batch and the pause, leaving would miss the feed.
-                else -> edit(batch) { s ->
-                    carry(source, target, moved.wasPaused)
-                    s.copy(subscribed = s.subscribed - moved, moved = s.moved + 1, retiring = s.retiring + (moved.sourceId to moved.wasPaused))
+                // between a check of the batch and the pause, leaving would miss the feed. Not
+                // cancellable either: stopped once the pause is in, the note would be dropped.
+                else -> withContext(NonCancellable) {
+                    edit(batch) { s ->
+                        carry(source, target, moved.wasPaused)
+                        s.copy(subscribed = s.subscribed - moved, moved = s.moved + 1, retiring = s.retiring + (moved.sourceId to moved.wasPaused))
+                    }
                 }
             }
         }
