@@ -3,6 +3,11 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle D2 — build: mark read in tt-rss when they expire here
+
+- **A change to one article's fate can change what the next sync fetches.** tt-rss sync takes a feed's newest five unread, so marking articles read there pulls in older ones. Ask "what arrives next?" of any change that marks things read on a server.
+- **Check a fake's fixed dates against the test clock**: FakeTtrss dated every article a year before `now`, which only mattered once publication dates did.
+
 ### Cycle D5 — build: accessibility metadata for the book
 
 - **Run the real validator, not only the spec**: Ace on a live edition found the heading-order problem the backlog item never named. EPUBCheck is a jar from GitHub releases; Ace installs from npm (`@daisy/ace`) and runs with `ace-puppeteer` and `PUPPETEER_EXECUTABLE_PATH` at the pre-installed Chromium (the default Electron one refuses to run as root).
