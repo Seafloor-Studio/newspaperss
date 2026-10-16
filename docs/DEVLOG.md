@@ -14,13 +14,6 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
-### Today, C2: an Undo that timed out unseen
-- **From the audit:** Sources' and the reading list's snackbars counted down while the app was in the background.
-- **Found:** real for a snackbar already on screen as the app leaves: its time ran out unseen, Undo with it. One arriving in the background already waited (the screens read it only while on screen). The same held on a source's page, Settings and an edition's page.
-- **Shipped:** those five screens show a snackbar only while the app is on screen, and show one cut short again in full on its return.
-- **Review:** caught that waiting would leave a removed reading-list link in the database while the app was away, where an overnight edition would take it and a killed app would bring it back. Leaving the app now settles that removal, as leaving the screen already did.
-- **Also checked:** "Stop making and Delete podcast without `NonCancellable`" isn't a bug: both are blocking writes launched straight onto a background thread, so leaving can't cut them short. Ticked with the reason.
-
 ### Today, D5: the book says what it offers a screen reader
 - **From the backlog (a11y):** EPUB Accessibility 1.1 metadata and alt text carried through.
 - **Found:** alt text already reached the book. Ace by DAISY on a live edition found what the metadata item didn't name: article headings skipping levels (a site's h3 straight under the title), 7 of them in 14 articles, and the contents list without its ARIA role.

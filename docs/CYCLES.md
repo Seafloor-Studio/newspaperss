@@ -3,14 +3,6 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
-### Cycle C2 — build: snackbars in the background
-
-- **`collectAsStateWithLifecycle` already pauses what it reads.** A test of "a message arriving
-  in the background" passed with the fix removed; the gap was only a snackbar already showing.
-  Ask what the screen collects before writing the background case.
-- **A wait you add holds whatever is waiting on it.** The reading list's removal was only
-  committed when its snackbar ended; making the snackbar wait made the deletion wait.
-
 ### Cycle D5 — build: accessibility metadata for the book
 
 - **Run the real validator, not only the spec**: Ace on a live edition found the heading-order problem the backlog item never named. EPUBCheck is a jar from GitHub releases; Ace installs from npm (`@daisy/ace`) and runs with `ace-puppeteer` and `PUPPETEER_EXECUTABLE_PATH` at the pre-installed Chromium (the default Electron one refuses to run as root).
