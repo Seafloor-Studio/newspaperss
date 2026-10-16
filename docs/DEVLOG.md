@@ -14,6 +14,13 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Today, C1: Send this article for a look
+- **From you (morning page):** build the approved proposal.
+- **Shipped:** an article's preview has a ⋮ in its top bar (only for an article with a web link) with **Send for a look…**. It says first that what's sent becomes a public GitHub issue with the article's address and the app's version, then opens GitHub's new-issue form in the browser filled in: "Extraction: *title*", the address, the version, and a line to say what looks wrong. The question stays up across rotation; with no browser it says so.
+- **Review:** found the form could still be too long once encoded (a non-Latin or already percent-encoded address), and a long title could be cut through an emoji; both fixed, with a test. The ⋮ costs the title some room at 2× font ("The quie…" becomes "The q…").
+- **For you:** the `extraction` label doesn't exist yet; GitHub only applies a label from the form for people who can label issues, so the title's "Extraction:" is what marks the rest. The `handle-issues` skill (shared from claude-playground) doesn't mention these issues yet; as a bug report they're fixed the usual way.
+- **Left:** no browser is a dead end; whether the GitHub app takes the link and loses the fields wants a look on a device. Both in the backlog.
+
 ### Today, D1: Substack Notes through tt-rss
 - **From the backlog (device):** tt-rss strips the text of a Note embedded in a Substack post, so the sentence introducing it hung.
 - **Found:** Substack's page shows only a placeholder there too, but carries the whole post, as its feed has it, in a data script (`preloads-json`).

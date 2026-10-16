@@ -35,7 +35,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 ### Sources and fetching
 - [ ] **Platform pass** *(you asked)*: a test corpus of real posts from the big blog and newsletter platforms, from their own feeds and through tt-rss, checked for footnotes, embeds, captions, paywall teasers and link posts; what breaks gets fixed and the corpus keeps it fixed (`PlatformCorpusTest`). Round 1 covered Substack, Ghost, WordPress, Medium, Blogger, Buttondown and Micro.blog; round 2 added a magazine with its own site (New Left Review), Stratechery and a MemberPress site, found by running `extractionSweep` over a real reading list and over `tools/sweep-feeds.opml`, public feeds picked for variety (news, other languages and scripts, static sites, microblogs). Run that list again before a change to extraction. Still to add: Tumblr (it answers 429 to the collector), beehiiv, posts with galleries, tweets and Bluesky embeds, and more footnote styles
 - [x] **Show tt-rss's own feed errors** *(you asked)*: tt-rss's `last_error` for each feed, on the feed's row and page and named in a banner on Sources
-- [ ] **Proposal: "Send this article for a look"** *(you asked)*. On an article's page in the app, a link that opens GitHub's new-issue form with the article's address, the app's version and an `extraction` label filled in, for the daily issue check to pick up: it compares the result with the page, fixes what's wrong and adds the page to the corpus. No GitHub sign-in inside the app; the browser does that. It must say first that the issue, and so the link, is public. Waiting for your go-ahead
+- [ ] Send for a look on an e-reader with no browser says so and stops there; copying the form's address would let the reader send it from a phone. And check on a device whether the GitHub app, if installed, takes the link and drops the filled-in fields *(today C1 review)*
 - [ ] Paywalled and summary-only sites: warn when a site is added; keep stubs from eating the budget; drop metered sites from starter packs *(personas)*
 - [x] A feed over 10 MB was refused as too large: some static sites (a Hugo `index.xml`) put every post they ever wrote in one feed. Now it's read up to 10 MB, keeping the whole items before the cut *(sweep)*
 - [ ] "No feed found" in onboarding: offer the reading list there too (done in Sources) *(personas)*
@@ -445,6 +445,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] **Send for a look**: ⋮ › Send for a look… on an article's preview says the report is a public GitHub issue, then opens GitHub's form with "Extraction: *title*", the address and the app's version filled in (today C1)
 - [x] Substack Notes in posts from tt-rss come back: the post is read from its page's data, one fetch, only where a Note was (today D1)
 - [x] Tapping a notification brings back the app as it was rather than starting it afresh (audit, 16 Oct)
 - [x] One feed item too big for Android to read back (a picture inlined as text) no longer stops every edition: feed text is capped when stored, and rows stored before are shrunk once, keeping a post's words (database version 10)

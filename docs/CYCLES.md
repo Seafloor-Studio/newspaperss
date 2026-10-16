@@ -3,6 +3,14 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle C1 — build: Send for a look
+
+Run of 16 Oct, four sessions in parallel; this one (C) owns the screens.
+- **A limit on a URL is a limit on the encoded URL.** Capping raw characters let a non-Latin
+  address through at twice the length; measure what is sent.
+- **Falsify with a break that changes the outcome for the test's input**: a raw cap of 4,000
+  stayed green because the test's address was over both; check the break crosses the input.
+
 ### Cycle D1 — build: Substack Notes through tt-rss
 
 Run of 16 Oct, four sessions in parallel; this one (D) owns content and tt-rss.
