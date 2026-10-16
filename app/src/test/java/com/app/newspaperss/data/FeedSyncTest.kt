@@ -96,7 +96,8 @@ class FeedSyncTest {
         assertNull(db.sources().byId(id)!!.lastError)
 
         // Even one the quick "is it a feed?" look misses: a JSON Feed written with its keys sorted.
-        http.page(url, """{"items":[{"id":"2","title":"Enable JavaScript and cookies to continue, and other walls","url":"https://example.com/2"}],"title":"Blog","version":"https://jsonfeed.org/version/1.1"}""")
+        val post = "<p>${"A wall of words. ".repeat(150)}</p>"
+        http.page(url, """{"items":[{"content_html":"$post","id":"2","title":"Enable JavaScript and cookies to continue, and other walls","url":"https://example.com/2"}],"title":"Blog","version":"https://jsonfeed.org/version/1.1"}""")
         assertEquals(1, sync.syncAll().newArticles)
         assertNull(db.sources().byId(id)!!.lastError)
     }
