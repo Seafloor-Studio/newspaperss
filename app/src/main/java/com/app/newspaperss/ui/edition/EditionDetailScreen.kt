@@ -44,6 +44,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.app.newspaperss.ui.components.showWhileStarted
 import com.app.newspaperss.data.EditionContent
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionStatus
@@ -90,6 +92,7 @@ fun EditionDetailScreen(
     val building by viewModel.building.collectAsStateWithLifecycle()
     val sentToKindle by viewModel.sentToKindle.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val context = LocalContext.current
     fun launch(intent: Intent): Boolean = try {
         context.startActivity(intent)
@@ -106,7 +109,7 @@ fun EditionDetailScreen(
     }
     LaunchedEffect(message) {
         message?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showWhileStarted(lifecycle, it)
             viewModel.dismissMessage()
         }
     }

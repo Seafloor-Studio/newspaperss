@@ -50,6 +50,11 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
@@ -155,6 +160,36 @@ class ServerAddTest {
         assertTrue(server.feeds.values.none { it.url == feedUrl })
         idleUntil { compose.waitForIdle(); !visible("Not fetched by tt-rss yet") }
         assertNull(runBlocking { ttrss.feedAt(feedUrl) })
+    }
+
+    /** Moved by hand: the app going to the background and coming back. */
+    private class Owner : LifecycleOwner {
+        val registry = LifecycleRegistry.createUnsafe(this).apply { currentState = Lifecycle.State.RESUMED }
+        override val lifecycle: Lifecycle get() = registry
+    }
+
+    @Test
+    fun anAnswerOnScreenWhenTheAppLeavesIsShownAgainWithItsUndoOnItsReturn() {
+        signedIn()
+        val vm = SourcesViewModel(sources, FeedFinder(http), ttrss, settings = settings, subscriptions = subscriptions) {}
+        val owner = Owner()
+        compose.setContent { CompositionLocalProvider(LocalLifecycleOwner provides owner) { SourcesScreen(vm) } }
+        idleUntil { compose.waitForIdle(); vm.screen.value?.server != null }
+        add("science.example")
+        pick("Science")
+        compose.onNodeWithText("Subscribe").performClick()
+        waitFor("Added to your tt-rss, in Science.")
+
+        compose.runOnUiThread { owner.registry.currentState = Lifecycle.State.CREATED }
+        // Far longer than a Long snackbar shows for.
+        compose.mainClock.advanceTimeBy(60_000)
+        compose.waitForIdle()
+        compose.runOnUiThread { owner.registry.currentState = Lifecycle.State.RESUMED }
+
+        waitFor("Added to your tt-rss, in Science.")
+        compose.onNodeWithText("Undo").performClick()
+        waitFor("Took Science Weekly out of your tt-rss.")
+        assertEquals(1, server.unsubscribed.size)
     }
 
     @Test

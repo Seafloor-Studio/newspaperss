@@ -689,6 +689,8 @@ class SourceDetailScreenTest {
         runBlocking { repo.undoMarkRead(MarkedRead(ids.getValue("waiting"), null)) }
         settle { state(ids.getValue("waiting")) == ArticleState.NEW }
         row("Article waiting").performTouchInput { longClick() }
+        // The action counts what the list shows as waiting, which can trail the database.
+        settle { visible("Mark 1 as read") }
         compose.onNodeWithText("Mark 1 as read").performClick()
         settle { visible("Undo") }
     }

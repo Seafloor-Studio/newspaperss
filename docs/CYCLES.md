@@ -12,6 +12,10 @@ For the next cycle: what each one should do differently. What was built is in
 
 - **Measure the real thing at scale before building on a cap.** Episodes run 84–140 panels, not the 60 assumed; the image budget is shared and greedy, so a strip gets gaps mid-episode. "Built it, measured it, not shipping it" was the right call, and the branch keeps the work.
 
+### Cycle D6 — build: feeds come home from tt-rss
+
+- **Settings screens are shot by `ScreenshotTest` (07i–07l)**: a change to the tt-rss options or the leave dialog needs before and after pairs.
+
 ### Cycle D2 — build: mark read in tt-rss when they expire here
 
 - **A change to one article's fate can change what the next sync fetches.** tt-rss sync takes a feed's newest five unread, so marking articles read there pulls in older ones. Ask "what arrives next?" of any change that marks things read on a server.

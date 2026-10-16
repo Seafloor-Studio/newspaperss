@@ -258,6 +258,21 @@ interface ArticleDao {
     @Query("SELECT * FROM articles WHERE state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')")
     suspend fun candidates(): List<ArticleEntity>
 
+    /**
+     * [candidates] without their feed text, which a build reads one article at a time with
+     * [feedHtml]: up to 500,000 characters each, for every waiting article, is more than a small
+     * e-reader has to spare.
+     */
+    @Query(
+        """SELECT id, sourceId, guid, url, title, author, published, NULL AS feedHtml, discoveredAt, state, starredAt,
+           originId, originTitle, pageWords, reportedRead, viaUrl, paidOnly, paidSkipped
+           FROM articles WHERE state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')""",
+    )
+    suspend fun buildCandidates(): List<ArticleEntity>
+
+    @Query("SELECT feedHtml FROM articles WHERE id = :id")
+    suspend fun feedHtml(id: Long): String?
+
     /** Starred links not yet in an edition, from sources that aren't paused; a link starred in two sources counts once. */
     @Query(
         """SELECT COUNT(DISTINCT CASE WHEN articles.url != '' THEN articles.url ELSE '#' || articles.id END)
