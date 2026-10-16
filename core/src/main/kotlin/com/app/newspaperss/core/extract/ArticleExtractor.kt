@@ -61,6 +61,8 @@ data class ExtractedArticle(
     val pageBlocked: Boolean = false,
     /** The page was tried and couldn't be read for another reason, or null if it was read or not tried. */
     val pageFailure: PageFailure? = null,
+    /** Why the page couldn't be read, in a few words ("not a web page"), when [pageFailure] is set. */
+    val pageFailureReason: String? = null,
     /** The article's language as a BCP 47 tag, if the text or the page says. */
     val language: String? = null,
     /** The name of the site the story is from, if its page was read and says. */
@@ -285,12 +287,8 @@ class ArticleExtractor(private val http: HttpClient) {
 
     private fun unusable(response: HttpResponse): PageResult.Failed? {
         if (response.code in ErrorAnswers.BLOCKED) return PageResult.Failed("the site turned the app away (error ${response.code})", blocked = true)
-        if (!response.isSuccessful) return PageResult.Failed("error ${response.code}", permanent = response.code in GONE_STATUS_CODES)
-        val type = response.contentType?.lowercase()
-        if (type != null && "html" !in type && "xml" !in type) return PageResult.Failed("not a web page", permanent = true)
-        // Parsed, a page takes several times its size in memory, and Readability copies it. Real
-        // articles are well under this; the feed's text is the better bet for anything bigger.
-        if (response.body.length > MAX_PAGE_CHARS) return PageResult.Failed("the page is too large", permanent = true)
+        permanentFailure(response)?.let { return PageResult.Failed(it, permanent = true) }
+        if (!response.isSuccessful) return PageResult.Failed("error ${response.code}")
         if (isBotCheck(response.body)) return PageResult.Failed("the site asked for a bot check", blocked = true)
         return null
     }
@@ -315,6 +313,7 @@ class ArticleExtractor(private val http: HttpClient) {
             pageWordCount = null,
             pageBlocked = blocked,
             pageFailure = failure,
+            pageFailureReason = reason.takeIf { failure != null },
         )
     }
 
@@ -400,6 +399,21 @@ class ArticleExtractor(private val http: HttpClient) {
     )
 
     companion object {
+        /**
+         * Why [response] will never be a readable article, in a few words, or null if it may be
+         * one, or may be next time: the page is gone (410), isn't a web page (a PDF, a video), or
+         * is too large to parse. A site turning the app away isn't counted: that can change.
+         */
+        fun permanentFailure(response: HttpResponse): String? {
+            if (!response.isSuccessful) return "error ${response.code}".takeIf { response.code in GONE_STATUS_CODES }
+            val type = response.contentType?.lowercase()
+            if (type != null && "html" !in type && "xml" !in type) return "not a web page"
+            // Parsed, a page takes several times its size in memory, and Readability copies it. Real
+            // articles are well under this; the feed's text is the better bet for anything bigger.
+            if (response.body.length > MAX_PAGE_CHARS) return "the page is too large"
+            return null
+        }
+
         /** Feed content with at least this many words is taken as the full text in [ContentMode.AUTO]. */
         const val FULL_TEXT_WORDS = 300
         const val SHORT_STORY_NOTE = "Only the summary: the story's own page had little more to read."

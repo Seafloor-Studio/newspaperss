@@ -254,9 +254,16 @@ interface ArticleDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertIgnoring(article: ArticleEntity): Long
 
-    /** Waiting articles, and starred ones in any state but already in an unsent edition. */
-    @Query("SELECT * FROM articles WHERE state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')")
+    /**
+     * Waiting articles, and starred ones in any state but already in an unsent edition; not the
+     * saved links that can never be read ([ArticleEntity.unreadable]).
+     */
+    @Query("SELECT * FROM articles WHERE (state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')) AND unreadable IS NULL")
     suspend fun candidates(): List<ArticleEntity>
+
+    /** Marks a saved link as one that can never be read, and why (see [ArticleEntity.unreadable]). */
+    @Query("UPDATE articles SET unreadable = :why WHERE id = :id")
+    suspend fun setUnreadable(id: Long, why: String)
 
     /** Starred links not yet in an edition, from sources that aren't paused; a link starred in two sources counts once. */
     @Query(

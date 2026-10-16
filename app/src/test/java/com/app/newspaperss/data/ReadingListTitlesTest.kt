@@ -91,4 +91,20 @@ class ReadingListTitlesTest {
 
         assertTrue(titles.fetch(untitled - untitled.first()))
     }
+
+    @Test
+    fun aSavedLinkThatIsNoWebPageIsMarkedUnreadableAtOnce() = runTest {
+        http.page("https://a.example/report.pdf", "%PDF-1.7")
+        http.contentTypes["https://a.example/report.pdf"] = "application/pdf"
+        list.save("https://a.example/report.pdf")
+        http.page("https://a.example/down", "", code = 503)
+        list.save("https://a.example/down")
+
+        titles.fetch(untitled)
+
+        val saved = db.articles().allForSource(list.sourceId()).associateBy { it.url }
+        assertEquals("not a web page", saved.getValue("https://a.example/report.pdf").unreadable)
+        assertEquals("a server having a bad day may answer next time", null, saved.getValue("https://a.example/down").unreadable)
+        assertEquals("editions leave it out", listOf("https://a.example/down"), db.articles().candidates().map { it.url })
+    }
 }

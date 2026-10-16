@@ -168,7 +168,7 @@ private fun AddLink(viewModel: ReadingListViewModel) {
 private fun SavedLink(article: ArticleEntity, onRemove: () -> Unit) {
     // Saved links never expire, so no days left.
     val clock = LocalClock.current
-    val status = historyLine(article, history = null, expires = false, now = clock.instant(), zone = clock.zone)
+    val status = article.unreadable?.let(::unreadableLine) ?: historyLine(article, history = null, expires = false, now = clock.instant(), zone = clock.zone)
     val context = LocalContext.current
     val site = listOfNotNull(
         // An untitled row's stand-in title already names the site.
@@ -188,6 +188,19 @@ private fun SavedLink(article: ArticleEntity, onRemove: () -> Unit) {
         },
         trailingContent = { IconButton(onClick = onRemove) { Icon(Icons.Default.Close, contentDescription = "Remove ${titleOf(article)}") } },
     )
+}
+
+/**
+ * What a saved link that can never be read says in place of "Waiting": why, in words, and what's
+ * left to do with it. [why] is the extractor's ("not a web page", "error 410").
+ */
+internal fun unreadableLine(why: String): String {
+    val reason = when {
+        why == "not a web page" -> "it isn't a web page (a PDF or a video, perhaps)"
+        why.startsWith("error ") -> "the page is gone (${why})"
+        else -> why
+    }
+    return "Can't go in your paper: $reason. Tap to open it, or remove it."
 }
 
 /** Before its title is found, a title made from the address reads better than the bare domain. */

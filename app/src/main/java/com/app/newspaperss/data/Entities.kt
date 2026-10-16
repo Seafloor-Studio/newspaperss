@@ -147,6 +147,12 @@ data class ArticleEntity(
      * [paidOnly]. Cleared when the reader marks it unread: then they want it, and it isn't skipped again.
      */
     @ColumnInfo(defaultValue = "0") val paidSkipped: Boolean = false,
+    /**
+     * A saved link that can never be read in an edition, and why in a few words ("not a web
+     * page", "error 410"): a PDF, a video, a page gone or too large. Editions leave it out, and
+     * the reading list says so, rather than it waiting there for ever.
+     */
+    val unreadable: String? = null,
 ) {
     /**
      * When it was published, for showing: a date more than a day after it was fetched is a

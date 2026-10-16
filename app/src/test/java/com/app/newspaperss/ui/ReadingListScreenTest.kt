@@ -56,6 +56,23 @@ class ReadingListScreenTest {
     }
 
     @Test
+    fun aLinkThatCanNeverBeReadSaysWhyAndCanStillBeOpened() {
+        val list = app.container.readingList
+        runBlocking {
+            list.save("https://b.example/report.pdf", "Annual report")
+            val saved = app.container.db.articles().allForSource(list.sourceId()).single()
+            app.container.db.articles().setUnreadable(saved.id, "not a web page")
+        }
+        val vm = ReadingListViewModel(list)
+        compose.setContent { ReadingListScreen(vm, onBack = {}) }
+
+        waitFor("Can't go in your paper: it isn't a web page")
+        compose.onNodeWithText("Annual report").performClick()
+        assertEquals("https://b.example/report.pdf", shadowOf(app).nextStartedActivity.dataString)
+        compose.onNodeWithContentDescription("Remove Annual report").assertExists()
+    }
+
+    @Test
     fun aRemovedLinkCanBeUndoneAndIsUntouched() {
         val list = app.container.readingList
         runBlocking { list.save("https://b.example/long-read", "A long read") }

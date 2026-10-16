@@ -25,6 +25,12 @@ class ReadingListTitles(private val db: AppDatabase, private val http: HttpClien
                 unreachable = true
                 continue
             }
+            // A PDF, a video or a page gone for good: said in the reading list now, rather than
+            // found out by an edition and then waiting for ever.
+            ArticleExtractor.permanentFailure(page)?.let { why ->
+                if (db.sources().byId(article.sourceId)?.kind == SourceKind.READING_LIST) db.articles().setUnreadable(id, why)
+                continue
+            }
             if (!page.isSuccessful || page.contentType?.contains("html", ignoreCase = true) == false) continue
             // Its title ("Client Challenge") would stick as the headline, and the edition prefers a stored title.
             if (ArticleExtractor.isBotCheck(page.body)) continue

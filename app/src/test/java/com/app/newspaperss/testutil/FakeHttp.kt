@@ -24,6 +24,9 @@ class FakeHttp : HttpClient {
     /** Answers [postJson] with (status, body); by default every POST is a 404. */
     var onPost: suspend (url: String, body: String) -> Pair<Int, String> = { _, _ -> 404 to "" }
 
+    /** The Content-Type [get] answers with, by url; none unless set. */
+    val contentTypes = mutableMapOf<String, String>()
+
     fun page(url: String, body: String, code: Int = 200) { pages[url] = code to body }
 
     override suspend fun postJson(url: String, body: String): HttpResponse {
@@ -37,7 +40,7 @@ class FakeHttp : HttpClient {
         if (url in unreachable) throw IOException("unreachable")
         beforeResponse(url)
         val (code, body) = pages[url] ?: (404 to "")
-        return HttpResponse(code, url, null, body)
+        return HttpResponse(code, url, contentTypes[url], body)
     }
 
     override suspend fun getFeed(url: String): HttpResponse {
