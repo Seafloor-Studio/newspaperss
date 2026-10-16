@@ -19,6 +19,9 @@ import com.app.newspaperss.data.PublicationEntity
 import com.app.newspaperss.data.PaidOnlyCount
 import com.app.newspaperss.data.ReadingListRepository
 import com.app.newspaperss.data.SourceRepository
+import com.app.newspaperss.delivery.EditionIntents
+import com.app.newspaperss.delivery.KindleSend
+import com.app.newspaperss.delivery.KindleSends
 import com.app.newspaperss.testutil.DbRule
 import com.app.newspaperss.testutil.TestApp
 import kotlinx.coroutines.CompletableDeferred
@@ -927,6 +930,13 @@ class EditionBuilderTest {
 
         editions.markSentByHand(first.editionId)
         assertEquals("a build may be taking its articles", EditionStatus.FAILED, db.editions().byId(first.editionId)!!.status)
+        // Nor from the share sheet, which says no more about a send it didn't record.
+        val kindleSends = KindleSends(clock)
+        val sending = EditionRepository(db, tmp.root, clock, kindleSends)
+        sending.markSent(first.editionId, sentWith = EditionIntents.KINDLE_PACKAGE)
+        sending.markEmailedToKindle(first.editionId)
+        assertEquals(EditionStatus.FAILED, db.editions().byId(first.editionId)!!.status)
+        assertEquals(emptyMap<Long, KindleSend>(), kindleSends.recent.first())
 
         db.editions().update(db.editions().byId(building)!!.copy(status = EditionStatus.FAILED))
         editions.fileOf(db.editions().byId(first.editionId)!!)!!.delete()

@@ -59,8 +59,9 @@ class EditionRepository(
      */
     suspend fun markSent(id: Long, sentWith: String? = null) {
         markDelivered(id, onlyIfReady = true, orNotSent = true)
-        // After markDelivered, which clears the note: a Send again with Kindle is noted too.
-        if (sentWith != null) kindleSends.record(id, sentWith)
+        // After markDelivered, which clears the note: a Send again with Kindle is noted too. Not
+        // for a send it didn't record (a released one, while a build runs), with nothing sent to wait for.
+        if (sentWith != null && delivered(id)) kindleSends.record(id, sentWith)
     }
 
     /**
@@ -83,8 +84,10 @@ class EditionRepository(
      */
     suspend fun markEmailedToKindle(id: Long) {
         markDelivered(id, onlyIfReady = true, orNotSent = true)
-        kindleSends.record(id, KindleSend.EMAIL)
+        if (delivered(id)) kindleSends.record(id, KindleSend.EMAIL)
     }
+
+    private suspend fun delivered(id: Long) = db.editions().byId(id)?.status == EditionStatus.DELIVERED
 
     /** Delivery succeeded: only now are the edition's articles used up. */
     suspend fun markDelivered(id: Long, onlyIfReady: Boolean = false, orNotSent: Boolean = false) {
