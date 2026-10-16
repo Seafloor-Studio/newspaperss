@@ -298,11 +298,15 @@ class EditionBuilder(
      * one still running.
      */
     private suspend fun failInterrupted() {
-        for (edition in db.editions().withStatus(EditionStatus.BUILDING)) {
+        for (listed in db.editions().withStatus(EditionStatus.BUILDING)) {
+            // Read again inside the transaction: a stopped worker's build may only just have finished.
+            val edition = db.withTransaction {
+                db.editions().byId(listed.id)?.takeIf { it.status == EditionStatus.BUILDING }
+                    ?.also { db.editions().update(it.copy(status = EditionStatus.FAILED, error = INTERRUPTED)) }
+            } ?: continue
             // It may have written its book before dying: found by its title, as [fail] finds it,
             // since the edition only gets its fileName once finished.
             File(editionsDir, fileNameOf(edition.title)).delete()
-            db.editions().update(edition.copy(status = EditionStatus.FAILED, error = INTERRUPTED))
         }
     }
 
