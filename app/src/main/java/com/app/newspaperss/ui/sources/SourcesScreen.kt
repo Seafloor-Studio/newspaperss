@@ -1,5 +1,6 @@
 package com.app.newspaperss.ui.sources
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -668,7 +669,7 @@ internal fun fullTextLine(learned: PublicationEntity?): String? {
 private fun AddSourceDialog(state: AddState, curatedLists: List<CuratedList>, viewModel: SourcesViewModel, server: Boolean) {
     if (state == AddState.Closed) return
     // The category list replaces the Subscribe step's content, then Done brings it back.
-    var picking by remember(state is AddState.Subscribing) { mutableStateOf(false) }
+    var picking by rememberSaveable(state is AddState.Subscribing) { mutableStateOf(false) }
     AlertDialog(
         // Back from the category list returns to the Subscribe step rather than losing the feed found.
         onDismissRequest = { if (picking) picking = false else viewModel.closeAdd() },

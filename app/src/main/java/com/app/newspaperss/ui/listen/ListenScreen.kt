@@ -1,5 +1,6 @@
 package com.app.newspaperss.ui.listen
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -125,7 +126,7 @@ fun ListenScreen(
         PodcastSpeaker.Instead.LEFT_OUT -> "This article plays in your phone's voice: the podcast left it out, as it's not in English or couldn't be made."
         null -> null
     }
-    var contents by remember { mutableStateOf(false) }
+    var contents by rememberSaveable { mutableStateOf(false) }
     val title = when {
         state.pages.isEmpty() -> "Listening"
         state.pages.getOrNull(state.at.page)?.end == true -> "Listening · the end"

@@ -1,5 +1,6 @@
 package com.app.newspaperss.ui.sources
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -292,7 +293,7 @@ fun MoveOffer(offer: PhoneFeeds.Offer, found: String?, onMove: () -> Unit, onNot
 @Composable
 fun MoveSheetDialog(sheet: MoveSheet, mover: PhoneFeedMover) {
     // The category list replaces the feeds, then Done brings them back.
-    var picking by remember { mutableStateOf(false) }
+    var picking by rememberSaveable { mutableStateOf(false) }
     AlertDialog(
         // Back from the category list returns to the feeds rather than closing the sheet.
         onDismissRequest = { if (picking) picking = false else mover.close() },

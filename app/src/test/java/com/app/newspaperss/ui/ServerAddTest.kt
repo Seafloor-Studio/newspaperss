@@ -26,7 +26,6 @@ import com.app.newspaperss.data.TtrssRepository
 import com.app.newspaperss.data.TtrssSubscriptions
 import com.app.newspaperss.settings.FeedsFrom
 import com.app.newspaperss.settings.SettingsStore
-import com.app.newspaperss.testutil.stopStores
 import com.app.newspaperss.testutil.FakeHttp
 import com.app.newspaperss.testutil.FakeTtrss
 import com.app.newspaperss.testutil.TestApp
@@ -50,6 +49,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
@@ -81,9 +81,9 @@ class ServerAddTest {
     private val saved = mutableListOf<String>()
     private val feedUrl = "https://science.example/feed"
 
-    @After fun stop() {
-        runBlocking { appScope.coroutineContext[Job]!!.cancelAndJoin() }
-        stopStores(storeScope)
+    @After fun stop() = runBlocking {
+        appScope.coroutineContext[Job]!!.cancelAndJoin()
+        storeScope.coroutineContext[Job]!!.cancelAndJoin()
     }
 
     private fun visible(text: String) = compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
@@ -127,6 +127,27 @@ class ServerAddTest {
         compose.onNode(hasContentDescription("Category, ", substring = true)).performClick()
         compose.onNodeWithText(category).performClick()
         compose.onNodeWithText("Done").performClick()
+    }
+
+    @Test
+    fun theCategoryListSurvivesTheScreenBeingRecreated() {
+        signedIn()
+        val vm = SourcesViewModel(sources, FeedFinder(http), ttrss, settings = settings, subscriptions = subscriptions) {}
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent { SourcesScreen(vm) }
+        idleUntil { compose.waitForIdle(); vm.screen.value?.server != null }
+        add("science.example")
+        waitFor("Subscribe in your tt-rss")
+        idleUntil { compose.waitForIdle(); compose.onAllNodes(hasContentDescription("Category, ", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(hasContentDescription("Category, ", substring = true)).performClick()
+        waitFor("Science")
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.onNodeWithText("Done").assertExists()
+        compose.onNodeWithText("Science").performClick()
+        compose.onNodeWithText("Done").performClick()
+        compose.onNodeWithContentDescription("Category, Science").assertExists()
     }
 
     @Test

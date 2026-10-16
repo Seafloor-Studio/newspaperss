@@ -1,5 +1,7 @@
 package com.app.newspaperss.ui.listen
 
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -36,7 +38,8 @@ import kotlinx.coroutines.launch
 fun ListenButton(listening: Listening, editionId: Long, minutes: List<Double>, onOpenPlayer: () -> Unit, modifier: Modifier = Modifier) {
     val state by listening.player.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
-    var offer by remember { mutableStateOf<Unfinished?>(null) }
+    // Saved: the question stays up across a rotation.
+    var offer by rememberSaveable(stateSaver = UNFINISHED_SAVER) { mutableStateOf<Unfinished?>(null) }
     val here = state.editionId == editionId
     // Read again whenever the player moves, so coming back from it shows where it was left.
     val saved = remember(state.at, state.finished, state.editionId) { listening.saved(editionId) }
@@ -76,3 +79,8 @@ fun ListenButton(listening: Listening, editionId: Long, minutes: List<Double>, o
         )
     }
 }
+
+private val UNFINISHED_SAVER = Saver<Unfinished?, List<Any>>(
+    save = { it?.let { u -> listOf(u.editionId, u.title, u.minutesLeft) } },
+    restore = { Unfinished(it[0] as Long, it[1] as String, it[2] as Double) },
+)
