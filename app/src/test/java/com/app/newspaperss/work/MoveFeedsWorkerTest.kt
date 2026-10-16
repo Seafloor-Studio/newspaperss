@@ -6,13 +6,13 @@ import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
 import com.app.newspaperss.core.ttrss.TtrssCategory
 import com.app.newspaperss.data.SourceKind
+import com.app.newspaperss.testutil.idleUntilYielding
 import com.app.newspaperss.testutil.FakeTtrss
 import com.app.newspaperss.testutil.TestApp
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -40,13 +40,9 @@ class MoveFeedsWorkerTest {
 
         // Stopped while tt-rss fetches the second, as when the app dies or the system's time is up.
         val stopped = launch { worker().doWork() }
-        val deadline = System.currentTimeMillis() + 5_000
-        while (server.subscribed.size < 2) {
-            check(System.currentTimeMillis() < deadline)
-            Thread.sleep(5)
-            yield()
-        }
+        idleUntilYielding { server.subscribed.size >= 2 }
         stopped.cancelAndJoin()
+        assertEquals("stopped part way: the first asked, the second being fetched", 2, server.subscribed.size)
         server.subscribeGate = null
         server.afterSubscribe = null
 
