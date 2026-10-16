@@ -59,6 +59,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] Several categories, and tt-rss's Starred and Published as choices
 - [ ] **Your call:** should tt-rss's star feed the ☆? Recommended: an opt-in, one-way "Starred in tt-rss goes in my next edition" setting, not a two-way sync, since the ☆ clears on delivery and syncing that back would unstar articles in tt-rss. On the morning page
 - [ ] Moving off tt-rss: **I pick my own sites** brings the feeds along as phone feeds, the reverse of moving phone feeds in. The daily feed list already has each feed's address, title and category. Feeds in the paper come with their settings (cap, article text, skip paid posts), left-out ones stay left out, and a feed already on the phone or without an address yet is skipped and said so. Open: whether starred articles come too (today they go with the account). About a cycle. Until then the leave dialog points to tt-rss's OPML export *(you asked)*
+- [ ] Delay tt-rss mark-read a little after sharing, so a quick "Mark as not sent" doesn't flip articles read and then unread again on the server
 - [ ] Articles that expire in the app stay unread in tt-rss: an opt-in "mark read when they expire here"
 - [ ] Read/unread, after trying the toggle *(you asked)*. The status mark on a source's page now marks read and unread, reaching tt-rss at the next sync. If the two toggles don't feel right on the phone, the one-button cycle (option A in the mockups) is the alternative
 - [ ] Read sync: an article marked unread in tt-rss further back than its feed's newest five unread only comes back here once it's among them. Ask tt-rss about delivered articles directly if that turns out to matter
@@ -84,7 +85,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 ### Accessibility *(a11y, you asked for it)*
 A full pass over the app and the book, not just spot fixes:
 - [ ] App: TalkBack walk-through of every screen (labels, headings, focus order), font scale at 200%, display size, touch targets ≥ 48dp, contrast in light and dark, e-ink readability, nothing carried by colour or animation alone. Confirm the new live regions with TalkBack on a device
-- [ ] Book: EPUB Accessibility 1.1 metadata (`schema:accessMode`, `accessibilityFeature`, `accessibilitySummary`), image alt text carried through, reading order checked with a screen reader
+- [ ] Book: reading order with a screen reader on a device. The metadata, alt text and heading levels are done, and Ace by DAISY passes a live edition (D5); that run had no pictures, so try one with them *(a11y)*
 - [ ] Tooling: Compose accessibility checks in the Robolectric tests, Accessibility Scanner on a device, Ace by DAISY on a live edition
 - [ ] Generate alt text for pictures that have none *(you asked)*. Many feeds' images arrive without a description, so a screen reader (and Listen) says nothing or a file name. Do it when the edition is built, so the book gets it too, and on the phone, so nothing leaves it. Cheapest first, stopping at the first that gives something:
   - The article's own alt text or caption (free, every phone). Never replace it
@@ -444,6 +445,8 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] tt-rss: an opt-in "Mark read when they expire here"; an old backlog drains on arrival instead of coming through the paper (today D2)
+- [x] Book: EPUB Accessibility 1.1 metadata, alt text counted honestly, article headings that never skip a level, the contents list's role; EPUBCheck and Ace pass (today D5)
 - [x] tt-rss marks delivered articles read a couple of minutes after delivery, so a quick Mark as not sent usually never reaches it (today D3)
 - [x] Signing in as another user on the same tt-rss server starts without the first user's articles and stars, as signing in to another server does, and a sync still running for the first user can't add theirs back (audit, 16 Oct)
 - [x] Removing a source, a saved link or the tt-rss account while an edition is being made no longer throws the finished edition away: the removed articles stay in the book and are listed by title, as a removed source's past ones are (audit, 16 Oct)

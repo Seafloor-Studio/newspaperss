@@ -209,6 +209,11 @@ module so it's all unit-tested without Android.
     totals and a question to think about, one of a short list of open
     questions that suit any paper ("What surprised you?"). It usually differs from
     one edition to the next, and the notes file shows the same one;
+  - for screen readers: EPUB Accessibility 1.1's metadata (what the book
+    needs and offers; pictures count as described only when every one has
+    the alt text its site gave), each article's headings going down one
+    level at a time under its title, and images keeping their alt text.
+    It passes EPUBCheck and Ace by DAISY;
   - styles Kindle's conversion keeps: plain class selectors, relative
     sizes, no side margins, headings aligned explicitly;
   - images as JPEG up to 1200px, about 15 MB in all including the cover, up
@@ -375,6 +380,17 @@ phone restarts.
       it's among that feed's newest five unread.
     - Changed on both sides between two syncs: the change made here wins.
     - Off, nothing flows either way: tt-rss and the app keep their own.
+    - **Mark read when they expire here** (off by default, shown with read
+      sync on): an article that waits its week out without going in an
+      edition is marked read rather than expiring, so the next sync marks
+      it read in tt-rss too. One published more than a week ago is marked
+      read as it arrives: otherwise a never-picked feed's backlog would come
+      through five at a time as each five went (a feed that dates its new
+      posts in the past loses them this way). Marked unread, it waits its
+      week like any other. It shows as "Read". Only by
+      age, and not while the account is paused: leaving a feed out or
+      changing the category also drop waiting articles, and those stay
+      unread there.
   - **The feed list.** Once a day a sync asks tt-rss for every feed the
     account takes articles from (in its category, if it has one), read ones
     too, with each feed's name, address and category. Until the first list,
@@ -515,7 +531,11 @@ whose Kindle and KOReader answers ask for more on the same page).
   **Share** in the top bar sends the article's original link to Android's share sheet;
   it's hidden when an article has no web link. Selected text shared from the
   page carries that link too, on its own line under the quote, with the
-  article's title as the subject. Large pictures that stand
+  article's title as the subject. **Send for a look…** in the top bar's ⋮ (also
+  only with a web link) is for an article that came out wrong: it first says the
+  report is a public GitHub issue, then opens GitHub's new-issue form in the
+  browser with "Extraction: *title*", the article's address and the app's version
+  filled in, for the issue check to compare with the page. Large pictures that stand
   alone fill the width (small ones keep their size), and the page can be
   pinched to zoom into a comic. **Notes** exports a Markdown file for a
   notes app: front matter

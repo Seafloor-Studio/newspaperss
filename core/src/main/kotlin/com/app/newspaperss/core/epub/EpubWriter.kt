@@ -9,6 +9,7 @@ import java.util.Locale
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import org.jsoup.parser.Parser
 
 /**
  * Writes an [EditionDoc] as an EPUB 3 book that also carries an NCX and a `<guide>` for EPUB 2
@@ -73,6 +74,8 @@ object EpubWriter {
         zip.flush()
     }
 
+    // The writer's own markup: Xhtml writes src before alt, and alt always.
+    private val IMG_ALT = Regex("""<img\s[^>]*\salt="([^"]*)"""")
     private fun stored(name: String, bytes: ByteArray, time: Long) = ZipEntry(name).apply {
         method = ZipEntry.STORED
         size = bytes.size.toLong()
@@ -287,6 +290,38 @@ object EpubWriter {
             return Page("end", END, "The end", xhtmlPage("The end", lang, body))
         }
 
+        /**
+         * EPUB Accessibility 1.1's discovery metadata, as schema.org properties: what the book needs
+         * (text, and sight for pictures) and offers. Only what holds for every edition, or is
+         * checked in this one: pictures count as described only if every one has alt text, as the
+         * articles' own sites give it or not. No conformance claim, which would take an audit.
+         */
+        fun accessibility(pages: List<Page>): List<Pair<String, String>> {
+            // A space for alt is written as a no-break space's reference, which is blank once read.
+            val alts = pages.flatMap { page -> IMG_ALT.findAll(page.xhtml).map { Parser.unescapeEntities(it.groupValues[1], true).isNotBlank() }.toList() }
+            val pictures = alts.isNotEmpty()
+            val described = pictures && alts.all { it }
+            return buildList {
+                add("accessMode" to "textual")
+                if (pictures) add("accessMode" to "visual")
+                add("accessModeSufficient" to if (pictures && !described) "textual,visual" else "textual")
+                add("accessibilityFeature" to "tableOfContents")
+                add("accessibilityFeature" to "readingOrder")
+                add("accessibilityFeature" to "structuralNavigation")
+                if (described) add("accessibilityFeature" to "alternativeText")
+                // No audio or video, and the app re-encodes pictures as still JPEGs. A GIF or PNG
+                // may be animated, which this can't tell.
+                val stills = (listOfNotNull(doc.cover) + doc.articles.flatMap { it.images }).all { it.mediaType == "image/jpeg" }
+                add("accessibilityHazard" to if (stills) "none" else "unknown")
+                add(
+                    "accessibilitySummary" to buildString {
+                        append("A reflowable edition of articles with a table of contents, a heading for each article, and the articles in reading order.")
+                        if (pictures) append(if (described) " Every picture has a text description." else " Some pictures have no text description: their sites didn't give one.")
+                    },
+                )
+            }
+        }
+
         fun opf(pages: List<Page>): String {
             val modified = doc.modified.truncatedTo(ChronoUnit.SECONDS)
             return buildString {
@@ -301,6 +336,7 @@ object EpubWriter {
                 append("<meta property=\"dcterms:modified\">${DateTimeFormatter.ISO_INSTANT.format(modified)}</meta>\n")
                 // EPUB 2 readers and Kindle find the cover image through this meta, not the manifest property.
                 if (doc.cover != null) append("<meta name=\"cover\" content=\"$COVER_IMAGE_ID\"/>\n")
+                accessibility(pages).forEach { (property, value) -> append("<meta property=\"schema:$property\">${esc(value)}</meta>\n") }
                 append("</metadata>\n<manifest>\n")
                 append("<item id=\"nav\" href=\"nav.xhtml\" media-type=\"$XHTML\" properties=\"nav\"/>\n")
                 append("<item id=\"ncx\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\"/>\n")
@@ -330,7 +366,7 @@ object EpubWriter {
                 if (entry.children.isEmpty()) "<li>$link</li>" else "<li>$link\n${list(entry.children)}\n</li>"
             }
             val body = buildString {
-                append("<nav epub:type=\"toc\" id=\"toc\">\n<h1>Contents</h1>\n")
+                append("<nav epub:type=\"toc\" role=\"doc-toc\" id=\"toc\">\n<h1>Contents</h1>\n")
                 append(list(toc))
                 append("\n</nav>\n<nav epub:type=\"landmarks\" id=\"landmarks\" hidden=\"hidden\">\n<ol>\n")
                 append("<li><a epub:type=\"cover\" href=\"$COVER\">Cover</a></li>\n")
