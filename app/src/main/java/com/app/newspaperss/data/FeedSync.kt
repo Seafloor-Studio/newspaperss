@@ -256,7 +256,7 @@ class FeedSync(
      * for the next sync, which looks from the same place.
      */
     private suspend fun watchPosts(client: TtrssClient, source: SourceEntity, now: Instant) {
-        val posts = try {
+        val posted = try {
             client.postedSince(source.ttrssSeenId, if (source.ttrssSeenId == null) FIRST_LOOK_PAGES else WATCH_PAGES)
         } catch (e: TtrssException) {
             return
@@ -265,12 +265,12 @@ class FeedSync(
         }
         db.withTransaction {
             val sources = db.sources()
-            posts.groupBy { it.feedId }.forEach { (feed, its) ->
+            posted.posts.groupBy { it.feedId }.forEach { (feed, its) ->
                 // Not later than now: a server clock ahead would keep a feed from ever seeming quiet.
                 its.mapNotNull { it.updated }.maxOrNull()?.let { sources.posted(source.id, feed, minOf(Instant.ofEpochSecond(it), now)) }
             }
             sources.watching(source.id, now)
-            posts.maxOfOrNull { it.id }?.let { sources.setTtrssSeenId(source.id, maxOf(it, source.ttrssSeenId ?: 0)) }
+            posted.upTo?.let { sources.setTtrssSeenId(source.id, maxOf(it, source.ttrssSeenId ?: 0)) }
         }
     }
 
@@ -328,7 +328,7 @@ class FeedSync(
         /** A feed in the paper with nothing new for this long says so on Sources. */
         val QUIET_AFTER: Duration = Duration.ofDays(21)
 
-        /** Pages of 200 articles looked at per sync; a busier account's feeds aren't quiet anyway. */
+        /** Pages of 200 articles looked at per sync; more wait for the next. */
         private const val WATCH_PAGES = 5
         private const val FIRST_LOOK_PAGES = 5
 

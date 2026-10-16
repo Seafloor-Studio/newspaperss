@@ -13,10 +13,13 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 
-/** One unread article as tt-rss's getHeadlines reports it. */
 /** An article's id, the feed it's from, and when it was posted in seconds since the epoch, if tt-rss says. */
 data class TtrssPost(val id: Long, val feedId: String, val updated: Long?)
 
+/** What [TtrssClient.postedSince] found, and the id to look from next time: null if it found nothing. */
+data class TtrssPosted(val posts: List<TtrssPost>, val upTo: Long?)
+
+/** One unread article as tt-rss's getHeadlines reports it. */
 data class TtrssHeadline(
     val id: Long,
     val title: String,
@@ -248,8 +251,12 @@ class TtrssClient(
      * Every article in the account newer than [sinceId], read or not, without its text: which feed
      * it's from and when it was posted. Up to [pages] pages of [MAX_LIMIT]. With no [sinceId], the
      * newest by date, for a first look back.
+     *
+     * After [sinceId], oldest first, so a look cut short by [pages] goes on next time from where it
+     * stopped. tt-rss's order for that is score, then when it got the article, which is the order of
+     * its ids; newest first, the cut would drop the older ones for good.
      */
-    suspend fun postedSince(sinceId: Long?, pages: Int): List<TtrssPost> {
+    suspend fun postedSince(sinceId: Long?, pages: Int): TtrssPosted {
         val posts = mutableListOf<TtrssPost>()
         for (page in 0 until pages) {
             val content = withSession { sid ->
@@ -261,7 +268,12 @@ class TtrssClient(
                     put("show_content", false)
                     put("limit", MAX_LIMIT)
                     put("skip", page * MAX_LIMIT)
-                    if (sinceId != null) put("since_id", sinceId) else put("order_by", "feed_dates")
+                    if (sinceId != null) {
+                        put("since_id", sinceId)
+                        put("order_by", "date_reverse")
+                    } else {
+                        put("order_by", "feed_dates")
+                    }
                 })
             }
             val items = content as? JsonArray ?: throw TtrssException.NotTtrss()
@@ -272,9 +284,11 @@ class TtrssClient(
                 val feed = (o["feed_id"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: continue
                 posts += TtrssPost(id, feed, (o["updated"] as? JsonPrimitive)?.longOrNull)
             }
-            if (items.size < MAX_LIMIT) break
+            if (items.size < MAX_LIMIT) return TtrssPosted(posts, posts.maxOfOrNull { it.id })
         }
-        return posts
+        // Cut short: the last one read is as far as the look got. A scored article read earlier
+        // may have a higher id; it's just read again.
+        return TtrssPosted(posts, if (sinceId == null) posts.maxOfOrNull { it.id } else posts.lastOrNull()?.id)
     }
 
     /** Marks [ids] as read. */

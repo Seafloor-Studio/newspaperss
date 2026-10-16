@@ -828,6 +828,31 @@ class TtrssSyncTest {
         assertEquals("only what's new is asked for", listOf<Long?>(null, 80L), server.postsAskedSince)
     }
 
+    /** More arrived between two syncs than one look takes: the rest are looked at next time, not skipped. */
+    @Test
+    fun aLookCutShortGoesOnFromWhereItStopped() = runTest {
+        val source = connect()
+        server.feeds[7] = FakeTtrss.Feed("Quarterly Review", "https://quarterly.example/feed")
+        server.feeds[9] = FakeTtrss.Feed("Weekly Notes", "https://weekly.example/feed")
+        server.add(10, "Today's news", feedId = 8, feedTitle = "Example News", updated = fresh)
+        sync.syncAll()
+
+        // A week off: the weekly feed posted first, then a busy feed more than a look's worth, then the quarterly.
+        val weekly = now.plus(Duration.ofHours(1))
+        server.add(11, "This week", feedId = 9, feedTitle = "Weekly Notes", updated = weekly.epochSecond)
+        (12L..1211L).forEach { server.add(it, "News $it", feedId = 8, feedTitle = "Example News", updated = fresh) }
+        val quarterly = now.plus(Duration.ofHours(2))
+        server.add(1212, "Autumn issue", feedId = 7, feedTitle = "Quarterly Review", updated = quarterly.epochSecond)
+        val later = FeedSync(db, http, Clock.fixed(now.plus(Duration.ofDays(7)), ZoneOffset.UTC), Duration.ofDays(7), accounts)
+        later.syncAll()
+        later.syncAll()
+
+        suspend fun publication(key: String) = db.sources().allPublications().single { it.sourceId == source.id && it.key == key }
+        assertEquals(weekly, publication("9").newestPostAt)
+        assertEquals(quarterly, publication("7").newestPostAt)
+        assertEquals(listOf<Long?>(null, 10L, 1010L), server.postsAskedSince)
+    }
+
     /**
      * Asked to, a feed's backlog of old unread articles is marked read as it arrives rather than
      * coming through the paper five at a time: marking the newest five read brings in the next.
