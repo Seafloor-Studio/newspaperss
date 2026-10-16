@@ -3,6 +3,17 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle 2 — build: a bot check served instead of a feed
+
+- **Check new detection where the old code gives up, not before it.** The first version tested
+  for a bot check up front and refused real sites whose pages carry a marker. A heuristic added
+  to a path that used to succeed needs a test with a real page that must still succeed.
+- **A test's sample must be big enough to reach the code.** The JSON Feed sample fit inside the
+  2048 characters `looksLikeFeed` reads, so it couldn't fail. Falsifying caught it; check the
+  red comes from the test meant, not a neighbour.
+- **Docs after the previous PR merges:** cycle 2 branched from main while #234 was in CI and
+  left BACKLOG, DEVLOG and this file until it merged, so nothing conflicted.
+
 ### Cycle 1 — build: screenshots on a fixed clock
 
 Run of 16 Oct: six cycles or three backlog items, whichever comes last. Baseline: a fresh cloud
