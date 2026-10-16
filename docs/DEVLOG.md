@@ -14,6 +14,11 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Today, C4: no dead end in setup
+- **From the backlog (personas):** a site with no feed, pasted during setup, ended at "No feed found"; Sources already offered the reading list instead.
+- **Shipped:** setup offers **Save this page to your reading list instead** under the error. Saved, the field clears and says so, and the link is enough to go on.
+- **Review:** caught a double tap saving twice (and saying "already in your reading list"), and a late answer clearing what the reader had typed since; the tap now hides the button and only its own answer counts, with a test. Left: TalkBack doesn't announce a search's "No feed found" (it's the field's error text), as before.
+
 ### Day cycles, A5: another tt-rss user on the same server
 - **From the backlog (audit):** signing in as another user on the same tt-rss server kept the first user's waiting and starred articles, filed under feed ids that belong to the first user and may name the second's feeds. A sync running during the switch could add more.
 - **Found:** both real, each with a test (the second switches users in the middle of a sync).

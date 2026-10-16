@@ -3,6 +3,11 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle C4 — build: onboarding's no-feed dead end
+
+- **A button that starts async work goes away (or disables) in the tap**, and the answer checks
+  it still belongs. Sources did this; the copy in onboarding didn't until the review.
+
 ### Cycle A5 (16 Oct) — build: another tt-rss user on the same server
 
 - **"Keep both sides" is wrong for a removed line.** Merging main's shared docs with a script
