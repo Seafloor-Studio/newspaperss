@@ -14,6 +14,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Day cycles, A6: leaving the server as a feed moves
+- **From the backlog (audit):** leaving the server just as a feed move paused a phone feed could leave that feed paused, and hidden, with no server to come from.
+- **Found:** real. A test that leaves at that exact moment left the feed paused.
+- **Shipped:** the move pauses a feed and notes it in one step that leaving waits for, so leaving always finds it and makes it a phone feed again.
+- **Review:** also found the step could be cut in two if the background work was stopped at that moment. It can't now. Left: a disk error writing the move's notes at that step, and Tidy racing Leave for a feed that was paused before it moved; both were already so and both are rare.
+
 ### Day cycles, A1: a source removed during a build
 - **From the backlog (audit), area A of four parallel sessions:** removing a source, a saved link or the tt-rss account while an edition was being made threw the finished edition away.
 - **Found:** real. A test that removes a feed and a saved link mid-build got "Something went wrong" and no edition: the articles read at the start were gone by the time they were linked into the edition, eight minutes later at most.
