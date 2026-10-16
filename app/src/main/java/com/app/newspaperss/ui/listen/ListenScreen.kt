@@ -157,7 +157,8 @@ fun ListenScreen(
             }
         }
     }
-    if (contents) Contents(state, onPick = { contents = false; player.seek(ListenPosition(it, 0)) }, onDismiss = { contents = false })
+    // Not over an empty player: saved open, it can come back after Android ended the app.
+    if (contents && state.pages.isNotEmpty()) Contents(state, onPick = { contents = false; player.seek(ListenPosition(it, 0)) }, onDismiss = { contents = false })
 }
 
 @Composable

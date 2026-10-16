@@ -12,6 +12,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +41,12 @@ fun ListenButton(listening: Listening, editionId: Long, minutes: List<Double>, o
     val scope = rememberCoroutineScope()
     // Saved: the question stays up across a rotation.
     var offer by rememberSaveable(stateSaver = UNFINISHED_SAVER) { mutableStateOf<Unfinished?>(null) }
+    // Asked again when it comes back after Android ended the app: the earlier edition may have
+    // been finished, or its file pruned, since.
+    LaunchedEffect(offer?.editionId) {
+        val asked = offer ?: return@LaunchedEffect
+        if (listening.earlierUnfinished(editionId)?.editionId != asked.editionId) offer = null
+    }
     val here = state.editionId == editionId
     // Read again whenever the player moves, so coming back from it shows where it was left.
     val saved = remember(state.at, state.finished, state.editionId) { listening.saved(editionId) }
