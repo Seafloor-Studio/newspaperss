@@ -359,7 +359,7 @@ object EpubWriter {
                 if (entry.children.isEmpty()) "<li>$link</li>" else "<li>$link\n${list(entry.children)}\n</li>"
             }
             val body = buildString {
-                append("<nav epub:type=\"toc\" id=\"toc\">\n<h1>Contents</h1>\n")
+                append("<nav epub:type=\"toc\" role=\"doc-toc\" id=\"toc\">\n<h1>Contents</h1>\n")
                 append(list(toc))
                 append("\n</nav>\n<nav epub:type=\"landmarks\" id=\"landmarks\" hidden=\"hidden\">\n<ol>\n")
                 append("<li><a epub:type=\"cover\" href=\"$COVER\">Cover</a></li>\n")

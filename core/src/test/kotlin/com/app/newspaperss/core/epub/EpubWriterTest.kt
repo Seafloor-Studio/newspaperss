@@ -223,6 +223,25 @@ class EpubWriterTest {
         assertTrue(some.accessibility("accessibilitySummary").single().contains("Some pictures have no text description"))
     }
 
+    /** Under the title's h1, a site's headings go down one level at a time, as screen readers expect. */
+    @Test
+    fun anArticlesHeadingsNeverSkipALevel() {
+        val body = "<p>Intro.</p><h3>Tactic one</h3><p>a</p><h5>A detail</h5><p>b</p><h3>Tactic two</h3><p>c</p><h2>Coda</h2><p>d</p>"
+        val epub = write(unsectioned(article(body = body)))
+        val page = epub.xml("OEBPS/" + epub.articleHrefs().single())
+        val headings = page.documentElement.elements("*").filter { it.localName.matches(Regex("h[1-6]")) }
+        assertEquals(
+            listOf("h1" to "An article", "h2" to "Tactic one", "h3" to "A detail", "h2" to "Tactic two", "h2" to "Coda"),
+            headings.map { it.localName to it.textContent },
+        )
+    }
+
+    @Test
+    fun theContentsListHasItsRole() {
+        val nav = write(unsectioned(article())).xml("OEBPS/nav.xhtml").documentElement.elements("nav").single { it.getAttribute("id") == "toc" }
+        assertEquals("doc-toc", nav.getAttribute("role"))
+    }
+
     @Test
     fun spineIsCoverContentsArticlesThenEndAllLinear() {
         val epub = write(
