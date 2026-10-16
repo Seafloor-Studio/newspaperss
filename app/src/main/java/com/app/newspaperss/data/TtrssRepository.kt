@@ -116,6 +116,81 @@ class TtrssRepository(
         return SignIn.SignedIn(feeds?.let { f -> Found(f.size, f.mapNotNull { it.categoryId }.distinct().size) })
     }
 
+    /**
+     * What [bringFeedsHome] did: feeds [added] to the phone, [alreadyHere] on it, and [noAddress]
+     * left behind; [toResume] are the phone feeds to unpause once signed out.
+     */
+    data class BroughtHome(val added: Int, val alreadyHere: Int, val noAddress: Int, val toResume: List<Long> = emptyList())
+
+    /**
+     * Before leaving the server: the account's feeds in the paper become phone feeds, with their
+     * settings (article text, cap, paid posts). Not a feed outside the paper's category, which the
+     * paper wasn't taking, nor one the feed list hasn't given an address for. A feed already on the
+     * phone stays as it is, unpaused if the paper takes it. The articles stay with the account.
+     *
+     * The feeds come paused, for [resumeBroughtHome] after signing out: the app killed in between
+     * would otherwise fetch each feed both here and from tt-rss.
+     */
+    suspend fun bringFeedsHome(): BroughtHome {
+        val none = BroughtHome(0, 0, 0)
+        // A fresh list, if tt-rss answers: the one kept goes stale when the category changes, and
+        // there's none before the first. listTtrssFeeds keeps the old one if this fails.
+        usableAccount()?.let { (login, source) ->
+            val client = login.client(http)
+            try {
+                listTtrssFeeds(db, client, source, clock.instant())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // The list kept, or every feed if there's none, will do.
+            } finally {
+                logOut(client)
+            }
+        }
+        return db.withTransaction {
+            val account = db.sources().ofKind(SourceKind.TTRSS).firstOrNull() ?: return@withTransaction none
+            val publications = db.sources().allPublications().filter { it.sourceId == account.id && it.key != PublicationEntity.OWN }
+            // Never listed, the flags say nothing: every feed with settings here is one the paper took.
+            val feeds = if (account.feedsListedAt == null) publications else publications.filter { it.listed }
+            val phone = db.sources().all().filter { it.kind == SourceKind.FEED }.toMutableList()
+            val toResume = mutableListOf<Long>()
+            var added = 0
+            var alreadyHere = 0
+            var noAddress = 0
+            for (feed in feeds) {
+                val url = feed.feedUrl
+                val here = url?.let { u -> phone.firstOrNull { sameFeed(it.url, u) } }
+                when {
+                    url.isNullOrBlank() -> noAddress++
+                    here != null -> {
+                        alreadyHere++
+                        if (here.paused && !feed.leftOut) toResume += here.id
+                    }
+                    else -> {
+                        val id = sources.addFeed(url, feed.title)
+                        db.sources().savePublication(
+                            PublicationEntity(
+                                sourceId = id, key = PublicationEntity.OWN, contentMode = feed.contentMode,
+                                fullTextEvidence = feed.fullTextEvidence, fullTextStreak = feed.fullTextStreak, fullTextDay = feed.fullTextDay,
+                                checkedDay = feed.checkedDay, chosenMode = feed.chosenMode, maxArticles = feed.maxArticles,
+                                skipPaidPosts = feed.skipPaidPosts,
+                            ),
+                        )
+                        db.sources().setPaused(id, true)
+                        // Left out of the paper is what pausing is for a phone feed: that one stays paused.
+                        if (!feed.leftOut) toResume += id
+                        db.sources().byId(id)?.let { phone += it }
+                        added++
+                    }
+                }
+            }
+            BroughtHome(added, alreadyHere, noAddress, toResume)
+        }
+    }
+
+    /** Unpauses the feeds [bringFeedsHome] brought, once the account is gone. */
+    suspend fun resumeBroughtHome(brought: BroughtHome) = brought.toResume.forEach { sources.setPaused(it, false) }
+
     /** Forgets the login and removes the account's source, with its articles. */
     suspend fun signOut() {
         accounts.clear()
