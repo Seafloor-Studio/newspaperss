@@ -335,6 +335,26 @@ class HtmlCleanerTest {
         assertFalse("other players still go", clean("""<iframe src="https://ads.example.com/x"></iframe><p>$longText</p>""").contains("iframe"))
     }
 
+    /** A player the e-reader can't play leaves a line where it was, so a lead-in or heading isn't left over nothing. */
+    @Test
+    fun otherPlayersLeaveALineWhereTheyWere() {
+        fun line(html: String) = clean("<p>Hear it for yourself:</p>$html<p>$longText</p>")
+        assertTrue(line("<audio controls src=\"/ep1.mp3\"></audio>").contains("<p><a href=\"https://example.com/ep1.mp3\">Listen to the audio</a></p>"))
+        assertTrue(line("<audio controls><source src=\"https://cdn.example.com/ep1.mp3\" type=\"audio/mpeg\"></audio>").contains("<p><a href=\"https://cdn.example.com/ep1.mp3\">Listen to the audio</a></p>"))
+        assertTrue(line("<video controls src=\"/clip.mp4\"></video>").contains("<p><a href=\"https://example.com/clip.mp4\">Watch the video</a></p>"))
+        assertTrue(
+            line("<iframe src=\"https://open.spotify.com/embed/episode/4rOoJ6Egrf8K2IrywzwOMk\" title=\"The episode\"></iframe>")
+                .contains("<p><a href=\"https://open.spotify.com/episode/4rOoJ6Egrf8K2IrywzwOMk\">Listen on Spotify: The episode</a></p>"),
+        )
+        assertTrue(line("<iframe src=\"https://www.dailymotion.com/embed/video/x8abc12\"></iframe>").contains(">Watch on Dailymotion</a></p>"))
+        // Inside a paragraph, as WordPress puts embeds, the line goes after it.
+        assertTrue(line("<p><iframe src=\"https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/123\"></iframe></p>").contains(">Listen on SoundCloud</a></p>"))
+        // With nowhere to send the reader, the line says where the player is.
+        assertTrue(line("<audio controls></audio>").contains("<p>There's audio here: listen on the original page.</p>"))
+        assertTrue("only web links", line("<audio controls src=\"javascript:alert(1)\"></audio>").contains("<p>There's audio here: listen on the original page.</p>"))
+        assertFalse("an ad or a map isn't a player", clean("<iframe src=\"https://ads.example.com/x\"></iframe><p>$longText</p>").contains("original page"))
+    }
+
     /** tt-rss passes no iframes on: the caption left behind becomes a paragraph rather than captioning nothing. */
     @Test
     fun aCaptionWhoseVideoIsGoneBecomesAParagraph() {

@@ -54,7 +54,7 @@ object HtmlCleaner {
         removeComments(body)
         // Before players become links: a hidden player stays hidden.
         removeHidden(body)
-        keepVideosAsLinks(body)
+        keepPlayersAsLinks(body)
         keepFootnoteContainers(body)
         keepQuoteCredits(body)
         body.select(REMOVE_TAGS.joinToString(",")).remove()
@@ -444,14 +444,23 @@ object HtmlCleaner {
     }
 
     /**
-     * An embedded video can't play on an e-reader, and without it its caption would describe
-     * nothing. A video with a poster frame becomes that picture; a YouTube or Vimeo player becomes
-     * a link to the video, with YouTube's thumbnail. Other players go, as before. tt-rss passes no
-     * iframes on at all, which [unwrapCaptionsWithoutMedia] deals with.
+     * A player can't play on an e-reader, and without it a lead-in ("Hear it for yourself:") or a
+     * caption would be left over nothing. A video with a poster frame becomes that picture; a
+     * YouTube or Vimeo player becomes a link to the video, with YouTube's thumbnail; an audio or
+     * video file, or a known audio or video site's player, becomes a line linking to it. Other
+     * iframes (ads, maps, forms) go. tt-rss passes no iframes on at all, which
+     * [unwrapCaptionsWithoutMedia] deals with.
      */
-    private fun keepVideosAsLinks(body: Element) {
+    private fun keepPlayersAsLinks(body: Element) {
         for (video in body.select("video[poster]")) {
             video.replaceWith(Element("img").attr("src", video.attr("poster")).attr("alt", "Video"))
+        }
+        for (media in body.select("audio, video")) {
+            val audio = media.tagName() == "audio"
+            val src = (listOf(media) + media.select("source")).map { it.absUrl("src") }.firstOrNull(::isWebLink)
+            val line = if (src != null) Element("a").attr("href", src).text(if (audio) "Listen to the audio" else "Watch the video")
+            else TextNode(if (audio) "There's audio here: listen on the original page." else "There's a video here: watch it on the original page.")
+            placeLine(media, Element("p").appendChild(line))
         }
         for (frame in body.select("iframe[src]")) {
             val src = frame.absUrl("src").ifEmpty { frame.attr("src") }
@@ -461,7 +470,17 @@ object HtmlCleaner {
             val (watch, label) = when {
                 youtube != null -> "https://www.youtube.com/watch?v=$youtube" to "YouTube"
                 vimeo != null -> "https://vimeo.com/$vimeo" to "Vimeo"
-                else -> continue
+                else -> {
+                    val host = runCatching { URI(src).host?.lowercase() }.getOrNull()
+                    val player = PLAYERS.entries.firstOrNull { (site, _) -> host != null && (host == site || host.endsWith(".$site")) }?.value
+                    if (player != null && isWebLink(src)) {
+                        // Spotify's embed address is its page's with /embed in front.
+                        val page = if (player.first == "Spotify") src.replaceFirst("/embed/", "/") else src
+                        val verb = if (player.second) "Listen" else "Watch"
+                        placeLine(frame, Element("p").appendChild(Element("a").attr("href", page).text("$verb on ${player.first}" + if (title.isEmpty()) "" else ": $title")))
+                    }
+                    continue
+                }
             }
             val link = Element("a").attr("href", watch)
             if (youtube != null) link.appendElement("img").attr("src", "https://i.ytimg.com/vi/$youtube/hqdefault.jpg").attr("alt", title.ifEmpty { "Video" })
@@ -471,6 +490,14 @@ object HtmlCleaner {
             (link.closest("p") ?: link).after(text)
         }
     }
+
+    /** Puts [line] where [player] was; after the paragraph holding it, as a paragraph can't hold another. */
+    private fun placeLine(player: Element, line: Element) {
+        val holder = player.closest("p")
+        if (holder == null) player.replaceWith(line) else { holder.after(line); player.remove() }
+    }
+
+    private fun isWebLink(url: String) = url.startsWith("https://", ignoreCase = true) || url.startsWith("http://", ignoreCase = true)
 
     /**
      * Removes a final link back to the article's own page that only says "Read more": Substack ends
@@ -949,6 +976,15 @@ object HtmlCleaner {
     // A video's id; "videoseries" is a playlist, which has no one video to link to.
     private val YOUTUBE_EMBED = Regex("youtube(?:-nocookie)?\\.com/embed/(?!videoseries)([A-Za-z0-9_-]{6,})")
     private val VIMEO_EMBED = Regex("player\\.vimeo\\.com/video/(\\d+)")
+    // Sites whose iframes are players, by host: (name, whether it's audio).
+    private val PLAYERS = mapOf(
+        "open.spotify.com" to ("Spotify" to true), "soundcloud.com" to ("SoundCloud" to true),
+        "embed.podcasts.apple.com" to ("Apple Podcasts" to true), "bandcamp.com" to ("Bandcamp" to true),
+        "simplecast.com" to ("Simplecast" to true), "acast.com" to ("Acast" to true), "transistor.fm" to ("Transistor" to true),
+        "buzzsprout.com" to ("Buzzsprout" to true), "megaphone.fm" to ("Megaphone" to true), "podbean.com" to ("Podbean" to true),
+        "dailymotion.com" to ("Dailymotion" to false), "player.twitch.tv" to ("Twitch" to false), "embed.ted.com" to ("TED" to false),
+        "rumble.com" to ("Rumble" to false), "streamable.com" to ("Streamable" to false),
+    )
 
     private val HTML_TAG = Regex("<\\s*[a-zA-Z!/]")
     private val WHITESPACE = Regex("\\s+")
