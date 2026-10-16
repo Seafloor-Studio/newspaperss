@@ -1,5 +1,6 @@
 package com.app.newspaperss.ui
 
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.CompositionLocalProvider
 import com.app.newspaperss.testutil.TestDataStores
 import com.app.newspaperss.testutil.writeEpub
@@ -172,7 +173,9 @@ class ScreenshotTest {
      * [dialog], only the open dialog is captured; otherwise the screen, with any open menu on it.
      */
     private fun shoot(name: String, ready: () -> Boolean = { true }, act: () -> Unit = {}, dialog: Boolean = false, content: @Composable () -> Unit) {
-        compose.setContent { NewspaperssTheme { CompositionLocalProvider(LocalClock provides clock, content = content) } }
+        // Without ripples: the last tap's lingers, never quite the same twice, so two renders of a
+        // screen with a menu opened or rows selected would differ.
+        compose.setContent { NewspaperssTheme { CompositionLocalProvider(LocalClock provides clock, LocalRippleConfiguration provides null, content = content) } }
         // Recomposing on each check: some screens only start loading part of what [ready] waits
         // for once they're drawn (Sources' folded categories).
         idleUntil { compose.waitForIdle(); ready() }
