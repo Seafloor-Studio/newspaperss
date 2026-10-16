@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Application
 import android.app.Notification
 import android.app.NotificationManager
+import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.data.EditionEntity
@@ -46,6 +47,19 @@ class NotifierTest {
         val file = java.io.File(app.filesDir, "editions/e.epub").apply { parentFile!!.mkdirs(); writeText("epub") }
         notifier.editionReady(EditionEntity(id = 1, title = "Tuesday Morning Edition", articleCount = 7, minutes = 30.0), file)
         assertEquals(NotificationManager.IMPORTANCE_DEFAULT, importanceOfShown())
+    }
+
+    /**
+     * Tapping a notification brings back the app as it is: with CLEAR_TOP alone, Android finishes
+     * the open app and starts a new one, losing the reader's place. Robolectric doesn't run
+     * Android's task rules, so this checks what asks for them.
+     */
+    @Test
+    fun tappingANotificationKeepsTheOpenApp() {
+        notifier.editionDelivered(EditionEntity(title = "Tuesday Morning Edition", articleCount = 7, minutes = 30.0), "Books")
+        val shown = shadowOf(app.getSystemService(NotificationManager::class.java)).allNotifications.single()
+        val flags = shadowOf(shown.contentIntent).savedIntent.flags
+        assertEquals(Intent.FLAG_ACTIVITY_SINGLE_TOP, flags and Intent.FLAG_ACTIVITY_SINGLE_TOP)
     }
 
     @Test
