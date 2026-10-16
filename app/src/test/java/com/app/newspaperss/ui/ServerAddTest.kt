@@ -26,6 +26,7 @@ import com.app.newspaperss.data.TtrssRepository
 import com.app.newspaperss.data.TtrssSubscriptions
 import com.app.newspaperss.settings.FeedsFrom
 import com.app.newspaperss.settings.SettingsStore
+import com.app.newspaperss.testutil.stopStores
 import com.app.newspaperss.testutil.FakeHttp
 import com.app.newspaperss.testutil.FakeTtrss
 import com.app.newspaperss.testutil.TestApp
@@ -85,9 +86,9 @@ class ServerAddTest {
     private val saved = mutableListOf<String>()
     private val feedUrl = "https://science.example/feed"
 
-    @After fun stop() = runBlocking {
-        appScope.coroutineContext[Job]!!.cancelAndJoin()
-        storeScope.coroutineContext[Job]!!.cancelAndJoin()
+    @After fun stop() {
+        runBlocking { appScope.coroutineContext[Job]!!.cancelAndJoin() }
+        stopStores(storeScope)
     }
 
     private fun visible(text: String) = compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()

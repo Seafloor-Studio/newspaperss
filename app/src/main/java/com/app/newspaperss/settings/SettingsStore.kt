@@ -140,14 +140,12 @@ data class Settings(
 }
 
 // A corrupt settings file resets to defaults rather than crashing every launch.
-private val Context.dataStore by preferencesDataStore(
+internal val Context.settingsData by preferencesDataStore(
     name = "settings",
     corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
 )
 
 class SettingsStore(private val store: DataStore<Preferences>) {
-    constructor(context: Context) : this(context.dataStore)
-
     private object Keys {
         val onboarded = booleanPreferencesKey("onboarded")
         val device = stringPreferencesKey("device")

@@ -13,7 +13,6 @@ Grouped by part of the app. The tag says where each item came from: *device* (yo
 
 ### From the 16 Oct audit *(audit)*
 Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "checked" means read against the code, not yet reproduced.
-- [ ] **Removing a source, a saved link or the tt-rss account while an edition is being made throws the finished edition away** (checked). The build reads its articles at the start and links them into the edition at the end, up to 8 minutes later; a deleted one fails the `edition_articles` foreign key, and `fail()` deletes the EPUB. Nothing holds deletes during a build the way Mark as read and unstarring are held. Reproduce with a test first
 - [ ] **Sending an edition a newer build has already released does nothing, and its articles go out again** (checked). The notification's Send and Read, the share sheet's report and Today's Send all mark sent only if READY, without the "or released, with no build running" case `markSentByHand` has; and releasing an edition leaves its Ready notification up
 - [ ] Signing in as another user on the same tt-rss server keeps the first user's waiting and starred articles, credited to feed ids that may be the new user's; a sync running during the switch can add more
 - [ ] A timed edition is dropped while a manual one waits for a connection (`EditionWorker` enqueues with KEEP, checked), and the manual run then has no Ready notification, podcast or retries
@@ -43,7 +42,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 
 ### The book
 - [ ] EPUB design, round 2: the cover image and a look on real devices (Kindle, Kobo, KOReader) *(device)*
-- [ ] Substack Notes embedded in posts that come through tt-rss: tt-rss strips the Note's text, so the sentence introducing it hangs. Fetching the post's page would bring it back (the full post is in the page's data), at one page fetch per Substack article *(device)*
+- [ ] Substack Notes when a Substack post is read from its page (PAGE mode, or an excerpt): the page shows a placeholder where the Note goes, so it vanishes. The page's data has the whole post (see `SubstackPost`); a free post could be read from there *(found in D1)*
 
 ### Delivery and schedule
 - [ ] Dropbox connection (OAuth PKCE) so Kobo delivery is automatic; waiting on an app key ([#18](https://github.com/madCode/newspaperss/issues/18)) *(personas)*
@@ -57,12 +56,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] A quiet tt-rss feed says so under its row ("Nothing new in 3 weeks"). tt-rss's feed list gives when it last fetched a feed, not when it last posted, so this needs the newest article's date from getHeadlines, once a day
 - [ ] Search on the account page's feed list (F4), if scrolling 50+ feeds on Sources gets slow
 - [ ] Several categories, and tt-rss's Starred and Published as choices
-- [ ] A heart for "loved this / keep it", synced to tt-rss *(you asked)*. The ☆ stays "put it in my next edition": two different wishes, and tt-rss's own star already means "keep" (which is why its stars aren't synced as ☆ today). Things to settle first:
-  - Where: on a source's rows, on delivered editions, and maybe from the book (a link on each article's end that opens the app).
-  - What it sets in tt-rss: its star (`marked`, field 0 of `updateArticle`), or Published (field 1) if she'd rather keep her stars for something else.
-  - Which way it syncs: app → tt-rss only, or also tt-rss → app, so a heart given on the laptop shows here. Both ways needs a rule for conflicts (the last change wins, like Mark as read reaching the server at sync).
-  - Not only tt-rss: for feeds and saved links, a hearted article could go to a "Loved" list here, exported with the notes (and later to Obsidian).
-  - Offline: queue the change and send it at the next sync, as Mark as read does, so Undo never has to reach the server.
+- [ ] **Your call:** should tt-rss's star feed the ☆? Recommended: an opt-in, one-way "Starred in tt-rss goes in my next edition" setting, not a two-way sync, since the ☆ clears on delivery and syncing that back would unstar articles in tt-rss. On the morning page
 - [ ] Moving off tt-rss: **I pick my own sites** brings the feeds along as phone feeds, the reverse of moving phone feeds in. The daily feed list already has each feed's address, title and category. Feeds in the paper come with their settings (cap, article text, skip paid posts), left-out ones stay left out, and a feed already on the phone or without an address yet is skipped and said so. Open: whether starred articles come too (today they go with the account). About a cycle. Until then the leave dialog points to tt-rss's OPML export *(you asked)*
 - [ ] Articles that expire in the app stay unread in tt-rss: an opt-in "mark read when they expire here"
 - [ ] Delay tt-rss mark-read a little after sharing, so a quick "Mark as not sent" doesn't flip articles read and then unread again on the server
@@ -416,6 +410,9 @@ Restoring onto a phone that already has sources asks first whether to replace or
 
 - **Generated summaries:** not doing. The paper gives whole articles; AI-shortened digests are what
   the competitors do, not what this app is for.
+- **A heart for "loved this / keep it", synced to tt-rss:** skipped by madCode, 16 Oct. The ☆ already
+  means "put it in my next edition", and tt-rss's own star means "keep". Whether tt-rss's star should
+  feed the ☆ is a separate question, on the morning page.
 
 ### Sections in the paper (taken out)
 Taken out in cycle 80, with OPML folders, the reading list's "Saved for later" heading, tt-rss
@@ -447,6 +444,8 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] Removing a source, a saved link or the tt-rss account while an edition is being made no longer throws the finished edition away: the removed articles stay in the book and are listed by title, as a removed source's past ones are (audit, 16 Oct)
+- [x] Substack Notes in posts from tt-rss come back: the post is read from its page's data, one fetch, only where a Note was (today D1)
 - [x] Tapping a notification brings back the app as it was rather than starting it afresh (audit, 16 Oct)
 - [x] One feed item too big for Android to read back (a picture inlined as text) no longer stops every edition: feed text is capped when stored, and rows stored before are shrunk once, keeping a post's words (database version 10)
 - [x] Audio, video without a poster, and other sites' players (Spotify, SoundCloud, Pocket Casts…) leave a line where they were, linking to the file or the player, instead of vanishing under their lead-in
