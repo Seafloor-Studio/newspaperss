@@ -354,8 +354,10 @@ phone restarts.
   the phone in both. It's chosen in onboarding and changed in Settings.
 - **tt-rss:** each sync takes up to five unread articles from every feed, so a
   feed that posts monthly isn't crowded out by busy ones. Articles are marked
-  read on the server once delivered (and unread again if the edition is
-  marked as not sent). One category can be taken instead of all unread,
+  read on the server a couple of minutes or more after delivery (and unread
+  again if the edition is marked as not sent), so a send to the wrong app,
+  marked as not sent straight away, usually never reaches tt-rss. A sync in
+  those minutes still marks a delivered link read. One category can be taken instead of all unread,
   chosen in Settings › Where your feeds live; a new account starts
   with all. tt-rss's own stars
   aren't synced: there a star usually means "keep this", not "for tomorrow".
@@ -384,8 +386,9 @@ phone restarts.
     articles. A feed left out isn't fetched, and its waiting articles go
     too, except starred ones. It stays in tt-rss and on the Left out list,
     so it can come back. Signing in as another user clears
-    every feed's settings: feed ids belong to each tt-rss user. The same
-    user signing in again keeps them.
+    every feed's settings and the first user's articles, stars included,
+    as signing in to another server does: feed ids belong to each tt-rss
+    user. The same user signing in again keeps them.
   - **Start fresh** ("Back after a break?" in Settings › Where your feeds
     live), after a
     confirmation, marks everything that reached tt-rss more than two weeks

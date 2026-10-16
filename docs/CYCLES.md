@@ -11,6 +11,19 @@ Run of 16 Oct, four sessions in parallel; this one (C) owns the screens.
 - **Falsify with a break that changes the outcome for the test's input**: a raw cap of 4,000
   stayed green because the test's address was over both; check the break crosses the input.
 
+### Cycle D3 — build: a wait before tt-rss hears of a delivery
+
+- **Replaced WorkManager work is pruned, not left as CANCELLED**: `getWorkInfoById` of the old id can be null. Assert "null or cancelled".
+- **Give a delay test the network first** (`setAllConstraintsMet` before the undo), or it passes without the delay because the work was never runnable.
+
+### Cycle A5 (16 Oct) — build: another tt-rss user on the same server
+
+- **"Keep both sides" is wrong for a removed line.** Merging main's shared docs with a script
+  that keeps both halves of each conflict put back backlog items another PR had ticked off.
+  After such a merge, diff BACKLOG.md against main and check each `-`/`+` line by hand.
+- **A reviewer judges the branch it reads, not main.** It flagged a mid-build delete that an
+  earlier PR, already merged, had fixed: merge main before the review on a run of related PRs.
+
 ### Cycle A1 (16 Oct, day run, four sessions) — build: a source removed during a build
 
 - **Four sessions at once:** cycles are numbered by area (A1, B1…) so they don't collide. Work
