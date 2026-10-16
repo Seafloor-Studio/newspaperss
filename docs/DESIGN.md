@@ -380,6 +380,17 @@ phone restarts.
       it's among that feed's newest five unread.
     - Changed on both sides between two syncs: the change made here wins.
     - Off, nothing flows either way: tt-rss and the app keep their own.
+    - **Mark read when they expire here** (off by default, shown with read
+      sync on): an article that waits its week out without going in an
+      edition is marked read rather than expiring, so the next sync marks
+      it read in tt-rss too. One published more than a week ago is marked
+      read as it arrives: otherwise a never-picked feed's backlog would come
+      through five at a time as each five went (a feed that dates its new
+      posts in the past loses them this way). Marked unread, it waits its
+      week like any other. It shows as "Read". Only by
+      age, and not while the account is paused: leaving a feed out or
+      changing the category also drop waiting articles, and those stay
+      unread there.
   - **The feed list.** Once a day a sync asks tt-rss for every feed the
     account takes articles from (in its category, if it has one), read ones
     too, with each feed's name, address and category. Until the first list,
@@ -520,7 +531,11 @@ whose Kindle and KOReader answers ask for more on the same page).
   **Share** in the top bar sends the article's original link to Android's share sheet;
   it's hidden when an article has no web link. Selected text shared from the
   page carries that link too, on its own line under the quote, with the
-  article's title as the subject. Large pictures that stand
+  article's title as the subject. **Send for a look…** in the top bar's ⋮ (also
+  only with a web link) is for an article that came out wrong: it first says the
+  report is a public GitHub issue, then opens GitHub's new-issue form in the
+  browser with "Extraction: *title*", the article's address and the app's version
+  filled in, for the issue check to compare with the page. Large pictures that stand
   alone fill the width (small ones keep their size), and the page can be
   pinched to zoom into a comic. **Notes** exports a Markdown file for a
   notes app: front matter
@@ -727,7 +742,8 @@ whose Kindle and KOReader answers ask for more on the same page).
       your reading list**, or **Add Arts & Letters Daily** when the site is
       one of the curated lists, which stay on the phone.
     - If the dialog was closed, the answer comes as a snackbar when Sources
-      is open.
+      is open and on screen: one that arrives, or is showing, while the app
+      is in the background waits for it to come back, Undo and all.
     - The ⋮ menu has **Where your feeds live** instead of OPML import:
       feeds are added in tt-rss, which imports OPML itself. **Export your
       sites (OPML)** stays: the tt-rss feeds as last listed, each in a
@@ -738,7 +754,8 @@ whose Kindle and KOReader answers ask for more on the same page).
   the next edition. Import and export as a Markdown
   checklist (compatible with the library); Pocket and Instapaper exports
   import too. **✕** removes a link at once, with **Undo** in a snackbar, since
-  removing is routine and a confirm would only be tapped through.
+  removing is routine and a confirm would only be tapped through. Leaving
+  the screen or the app settles a removal still waiting for Undo.
 - **Settings** is a summary: one row per page, each with a line saying
   how it's set now ("About 30 minutes · 1 per source · take turns",
   "Ready by 6:30 AM, weekdays", "Kindle · emailed to …", "Off"), then the

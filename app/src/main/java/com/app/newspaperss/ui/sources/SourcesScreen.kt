@@ -1,6 +1,8 @@
 package com.app.newspaperss.ui.sources
 
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.app.newspaperss.ui.components.showWhileStarted
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.font.FontWeight
@@ -113,6 +115,7 @@ fun SourcesScreen(
     val add by viewModel.add.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val context = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     val importFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -123,7 +126,7 @@ fun SourcesScreen(
     }
     LaunchedEffect(message) {
         message?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showWhileStarted(lifecycle, it)
             viewModel.dismissMessage()
         }
     }
@@ -136,7 +139,7 @@ fun SourcesScreen(
             // A snackbar under an open dialog can't be reached, and its Undo would time out unseen.
             viewModel.add.first { it == AddState.Closed }
             val undo = notice.undo
-            val answer = snackbar.showSnackbar(notice.text, actionLabel = undo?.let { "Undo" }, duration = SnackbarDuration.Long)
+            val answer = snackbar.showWhileStarted(lifecycle, notice.text, actionLabel = undo?.let { "Undo" }, duration = SnackbarDuration.Long)
             if (answer == SnackbarResult.ActionPerformed && undo != null) viewModel.undo(undo)
             viewModel.noticeShown(notice)
         }
