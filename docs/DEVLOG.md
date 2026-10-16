@@ -9,10 +9,26 @@ caught, and what got in the way. Newest first. Times are Pacific.
 ## Status
 
 - **Lately:** six overnight cycles on 16 Oct (#234–#239): screenshots on a fixed clock, bot checks, other-language furniture, players, oversized feed items, and an architecture and test health audit.
-- **Watching:** two tests that failed CI now and then: a settings test on a DataStore rename (#66, #81) and a source-page test on a closed database (#89). The 16 Oct audit found likely causes for both (the app's own DataStores shared across tests; view models never cancelled); they're at the top of the backlog.
+- **Watching:** `PodcastSettingsTest` timed out once in six full runs under load (backlog). The older settings and source-page flakes' likely causes were fixed on 16 Oct (#245, #246); neither reproduced locally in 10 runs before, so they're watched rather than counted. #245 itself made main's tests fail now and then for about an hour, until #267.
 - **Waiting on you:** [#18](https://github.com/madCode/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
 
 ## Fri 16 Oct
+
+### Today, B: test health and speed (B1–B12)
+Area B of four parallel sessions: the audit's test findings, then two speed items. All merged with CI green except #269, which is your call.
+- **B1, each test's own stores ([#245](https://github.com/madCode/newspaperss/pull/245)):** the app's settings, tt-rss and feed-move stores were made once per test run, so a setting one test wrote was read by the next (shown with two ordered tests). Each test's app now has its own, stopped at teardown. **It broke main for about an hour:** stopping them ran what a test had left queued, a screen's query of its closed database, and the error failed the next test (3 of 7 main builds). The first review had named the risk. Fixed in **B9 ([#267](https://github.com/madCode/newspaperss/pull/267))**: the stores stop off the main thread first. Then 5 of 6 full local runs were clean; the sixth timed out elsewhere under load.
+- **B2–B6 ([#244](https://github.com/madCode/newspaperss/pull/244), [#246](https://github.com/madCode/newspaperss/pull/246)–[#248](https://github.com/madCode/newspaperss/pull/248), [#250](https://github.com/madCode/newspaperss/pull/250)):**
+  - The app's FakeHttp can serve a cut-short feed, and FeedSync's handling of one is tested.
+  - Source-page view models stop at a test's end.
+  - `NotesWorkerTest` checks the edition it's given is saved; before, it couldn't fail.
+  - `PodcastMakerTest`'s fake counts loaded engines atomically.
+  - One shared 30-second wait replaces three 5-second loops. Falsifying it showed two "stopped part way" tests passed without being stopped part way; they now check.
+  - `SourceDetailScreenTest` runs on a fixed clock.
+- **B7, screenshots ([#260](https://github.com/madCode/newspaperss/pull/260)):** the three that differed between renders caught the last tap's ripple. Advancing Compose's clock and the main looper's didn't settle it, so screenshots are drawn without ripples. A third render found a fourth difference: Listen sometimes doesn't scroll down to the sentence (backlog).
+- **B8, EPUB writing ([#263](https://github.com/madCode/newspaperss/pull/263)):** pictures go into the book stored rather than compressed again, through a buffer. A 4 MB edition was written in 42 ms instead of 146. Wants a delivery check on a device.
+- **B10, coverage ([#269](https://github.com/madCode/newspaperss/pull/269), your call):** the screenshots run as their own task, which Kover doesn't measure. Coverage goes from 94.73% to 94.32%, still over the 93% floor.
+- **B12, a race other sessions hit ([#273](https://github.com/madCode/newspaperss/pull/273)):** the source page's Undo test tapped **Mark 1 as read** before the list showed the article waiting again; it now waits for the button.
+- **B11, memory ([#272](https://github.com/madCode/newspaperss/pull/272)):** a build reads each article's feed text as it reaches it. 300 waiting articles of 50,000 characters held 15 MB before, 82 KB after. The review found one rare difference, left on purpose: a source removed mid-build sends its remaining articles from their pages.
 
 ### Day cycles, area A, closing
 - **Six audit findings fixed, seven backlog items done** (#249, #255, #256, #257, #261, #262), all merged with CI green: the build and delivery list madCode set for area A, in order. Each was reproduced with a failing test first.
