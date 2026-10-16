@@ -19,6 +19,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 - **Shipped:** the marking waits two minutes (WorkManager's initial delay). A Mark as not sent in that time replaces it, so tt-rss isn't told either way.
 - **Review:** a sync inside the two minutes still marks delivered links read, and Doze can stretch the wait, so DESIGN says "a couple of minutes or more" and "usually". A rare path (an article tt-rss has unread but the app thinks it confirmed read, synced in the window) can bring it back for one more edition; noted in the PR, not fixed.
 
+### Day cycles, A1: a source removed during a build
+- **From the backlog (audit), area A of four parallel sessions:** removing a source, a saved link or the tt-rss account while an edition was being made threw the finished edition away.
+- **Found:** real. A test that removes a feed and a saved link mid-build got "Something went wrong" and no edition: the articles read at the start were gone by the time they were linked into the edition, eight minutes later at most.
+- **Shipped:** the edition is kept. The removed articles are in the book, and the edition lists them by title, as it already did for a source removed after the edition was made.
+- **Review:** nothing blocking. It noted that a removed article's link isn't remembered as delivered, so a feed removed and added straight back could send the same story again. That was already so for a source removed while an edition waited to be sent; left as it is.
+
 ### Today, D1: Substack Notes through tt-rss
 - **From the backlog (device):** tt-rss strips the text of a Note embedded in a Substack post, so the sentence introducing it hung.
 - **Found:** Substack's page shows only a placeholder there too, but carries the whole post, as its feed has it, in a data script (`preloads-json`).
