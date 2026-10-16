@@ -12,6 +12,15 @@ caught, and what got in the way. Newest first. Times are Pacific.
 - **Watching:** two tests that failed CI now and then: a settings test on a DataStore rename (#66, #81) and a source-page test on a closed database (#89). Both now stop what they opened only after the screen is torn down; watching whether that was it.
 - **Waiting on you:** [#18](https://github.com/madCode/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
 
+## Fri 16 Oct
+
+### Overnight cycles, 1: screenshots on a fixed clock
+- **From you:** six cycles or three backlog items tonight, flaky tests and the screenshot clock first; merge Dependabot's two PRs (#229, #230, merged).
+- **Found:** the flaky-DataStore item was already done (#190) and never ticked. The screenshot one was real: two renders two minutes apart differed in 10 of 85 pictures ("Last checked today at 6:53 AM"), and from New Year every article row would have gained ", 2026".
+- **Shipped:** the screens read the time from one clock; `ScreenshotTest` fixes it at a Tuesday morning and hands it to the repositories it builds. Two renders now match, but for three pictures caught mid-animation (an open ⋮ menu's ripple, a row's selection fading in), now in the backlog. The README's screenshots were redrawn.
+- **Review:** found the year in short dates still read the real clock, and the edition's date and "Trying again at" the machine's zone; fixed, with a test across New Year.
+- **Getting started:** this container had no Android SDK and Maven Central answered 429; the cycle log says how it was set up.
+
 ## Fri 9 Oct
 
 ### Podcasts: the end of every piece was cut
