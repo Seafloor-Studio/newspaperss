@@ -11,6 +11,24 @@ For the next cycle: what each one should do differently. What was built is in
 - **A wait you add holds whatever is waiting on it.** The reading list's removal was only
   committed when its snackbar ended; making the snackbar wait made the deletion wait.
 
+### Cycle D5 — build: accessibility metadata for the book
+
+- **Run the real validator, not only the spec**: Ace on a live edition found the heading-order problem the backlog item never named. EPUBCheck is a jar from GitHub releases; Ace installs from npm (`@daisy/ace`) and runs with `ace-puppeteer` and `PUPPETEER_EXECUTABLE_PATH` at the pre-installed Chromium (the default Electron one refuses to run as root).
+- **A break that stays green can mean the fixture never takes that path**: a plain-space alt passed with or without decoding; `&nbsp;` is the form that needed it.
+
+### Cycle D3 — build: a wait before tt-rss hears of a delivery
+
+- **Replaced WorkManager work is pruned, not left as CANCELLED**: `getWorkInfoById` of the old id can be null. Assert "null or cancelled".
+- **Give a delay test the network first** (`setAllConstraintsMet` before the undo), or it passes without the delay because the work was never runnable.
+
+### Cycle A5 (16 Oct) — build: another tt-rss user on the same server
+
+- **"Keep both sides" is wrong for a removed line.** Merging main's shared docs with a script
+  that keeps both halves of each conflict put back backlog items another PR had ticked off.
+  After such a merge, diff BACKLOG.md against main and check each `-`/`+` line by hand.
+- **A reviewer judges the branch it reads, not main.** It flagged a mid-build delete that an
+  earlier PR, already merged, had fixed: merge main before the review on a run of related PRs.
+
 ### Cycle A1 (16 Oct, day run, four sessions) — build: a source removed during a build
 
 - **Four sessions at once:** cycles are numbered by area (A1, B1…) so they don't collide. Work
