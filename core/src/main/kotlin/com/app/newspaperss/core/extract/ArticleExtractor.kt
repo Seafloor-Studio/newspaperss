@@ -114,10 +114,16 @@ class ArticleExtractor(private val http: HttpClient) {
     }
 
     private suspend fun extract(input: ExtractInput, onPage: (PageResult.Fetched) -> Unit, onFeedTeaser: () -> Unit): ExtractedArticle {
-        val feed = input.feedHtml?.takeIf { it.isNotBlank() }
+        var prefetched: HttpResponse? = null
+        val given = input.feedHtml?.takeIf { it.isNotBlank() }
             ?.let { HtmlCleaner.clean(it, input.feedUrl ?: input.url, input.feedTitle) }
             // An image with no text is still content: a webcomic's feed item is often just the comic.
             ?.takeIf { it.wordCount > 0 || it.imageUrls.isNotEmpty() }
+        val feed = given?.let { stripped ->
+            val restored = substackPost(input) { prefetched = it }?.let { HtmlCleaner.clean(it, input.url, input.feedTitle) }
+            // A paid post's page has only the free part, where a subscriber's feed has it all.
+            restored?.takeIf { it.wordCount >= KEEP_FEED_RATIO * stripped.wordCount } ?: stripped
+        }
         if (feed?.teaser == true) onFeedTeaser()
         val feedWords = feed?.wordCount ?: 0
         val feedAuthor = PageExtractor.cleanAuthor(input.feedAuthor)
@@ -136,7 +142,7 @@ class ArticleExtractor(private val http: HttpClient) {
             return fromFeed(feed, null, null)
         }
 
-        return when (val page = fetchPage(input).also { if (it is PageResult.Fetched) onPage(it) }) {
+        return when (val page = fetchPage(input, prefetched).also { if (it is PageResult.Fetched) onPage(it) }) {
             is PageResult.Failed ->
                 if (feed != null) fromFeed(feed, "Couldn't fetch the full article (${page.reason}); showing the feed's version.", null, page.blocked, failure = page.failure)
                 else failed(input, page.reason, page.blocked, page.failure)
@@ -224,8 +230,26 @@ class ArticleExtractor(private val http: HttpClient) {
         }
     }
 
-    private suspend fun fetchPage(input: ExtractInput): PageResult {
+    /**
+     * A Substack post's whole text from its page, when the feed's text had its embeds stripped (see
+     * [SubstackPost]): one page fetch, passed to [onFetched] so the page isn't fetched again.
+     */
+    private suspend fun substackPost(input: ExtractInput, onFetched: (HttpResponse) -> Unit): String? {
+        val html = input.feedHtml ?: return null
+        // A link post's text is the pitch, not the post; PAGE reads the page anyway.
+        if (input.feedUrl != null || input.mode == ContentMode.PAGE || !SubstackPost.stripped(html, input.url)) return null
         val response = try {
+            http.get(input.url)
+        } catch (e: IOException) {
+            return null
+        }
+        onFetched(response)
+        if (unusable(response) != null) return null
+        return SubstackPost.html(response.body)
+    }
+
+    private suspend fun fetchPage(input: ExtractInput, prefetched: HttpResponse? = null): PageResult {
+        val response = prefetched ?: try {
             http.get(input.url)
         } catch (e: IOException) {
             return PageResult.Failed("couldn't connect")
