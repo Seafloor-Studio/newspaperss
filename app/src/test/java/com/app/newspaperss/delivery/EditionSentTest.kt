@@ -7,6 +7,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.OpenEditionActivity
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionStatus
+import com.app.newspaperss.edition.EditionBuilder
+import com.app.newspaperss.edition.EditionSettings
 import com.app.newspaperss.testutil.TestApp
 import com.app.newspaperss.testutil.clearFileProviderCache
 import com.app.newspaperss.testutil.idleUntil
@@ -119,17 +121,39 @@ class EditionSentTest {
     }
 
     @Test
-    fun anEditionAlreadyReleasedIsNotMarkedDeliveredBySendingItLate() {
-        // Its articles went back into a newer edition; delivering this one would use them up there too.
-        val released = edition(EditionStatus.FAILED)
-        val ready = edition(EditionStatus.READY)
+    fun anEditionReleasedWhileItsShareSheetWasOpenIsMarkedSentWhenAnAppIsPicked() {
+        // A newer edition was made meanwhile; the reader still sent this one, so it counts.
+        File(app.filesDir, "editions/r.epub").apply { parentFile!!.mkdirs(); writeText("epub") }
+        val released = runBlocking {
+            db.editions().insert(EditionEntity(title = "Tuesday Morning Edition", status = EditionStatus.FAILED, error = EditionBuilder.NOT_SENT, fileName = "r.epub"))
+        }
+        // Failed for another reason, with no book: there was nothing to send.
+        val failed = edition(EditionStatus.FAILED)
 
+        app.sendBroadcast(Intent(app, EditionSentReceiver::class.java).putExtra(EditionSentReceiver.EXTRA_EDITION_ID, failed))
         app.sendBroadcast(Intent(app, EditionSentReceiver::class.java).putExtra(EditionSentReceiver.EXTRA_EDITION_ID, released))
-        app.sendBroadcast(Intent(app, EditionSentReceiver::class.java).putExtra(EditionSentReceiver.EXTRA_EDITION_ID, ready))
 
-        idleUntil { statusOf(ready) == EditionStatus.DELIVERED }
-        assertEquals(EditionStatus.FAILED, statusOf(released))
-        idleUntil { app.notesRequested == listOf(ready) }
+        idleUntil { statusOf(released) == EditionStatus.DELIVERED }
+        assertEquals(EditionStatus.FAILED, statusOf(failed))
+        idleUntil { app.notesRequested == listOf(released) }
+    }
+
+    @Test
+    fun releasingAnUnsentEditionTakesDownItsReadyNotification() {
+        val ready = edition(EditionStatus.READY)
+        val file = File(app.filesDir, "editions/e.epub").apply { parentFile!!.mkdirs(); writeText("epub") }
+        shadowOf(app).grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+        app.container.notifier.createChannels()
+        app.container.notifier.editionReady(runBlocking { db.editions().byId(ready)!! }, file, openInstead = false)
+        val shown = shadowOf(app.getSystemService(android.app.NotificationManager::class.java))
+        assertEquals(1, shown.allNotifications.size)
+
+        // Made by hand, which has no notification of its own to replace this one; with nothing
+        // to read, the build stops once it has released the unsent one.
+        runBlocking { app.container.editionBuilder.build(EditionSettings()) }
+
+        assertEquals(EditionStatus.FAILED, statusOf(ready))
+        assertEquals("its Send would offer an edition given back", 0, shown.allNotifications.size)
     }
 
     @Test

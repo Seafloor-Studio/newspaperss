@@ -73,6 +73,8 @@ class EditionBuilder(
      * above all, goes in as if they weren't (see [com.app.newspaperss.data.FeedMoves]).
      */
     private val retiring: suspend () -> Set<Long> = { emptySet() },
+    /** An unsent edition was released for this one: its Ready notification would offer it still. */
+    private val onReleased: (editionId: Long) -> Unit = {},
     private val cover: (CoverInfo) -> EpubImage? = { null },
 ) {
     /**
@@ -271,12 +273,14 @@ class EditionBuilder(
     private suspend fun releaseUndelivered() {
         val editions = db.editions()
         for (listed in editions.withStatus(EditionStatus.READY)) {
-            db.withTransaction {
+            val released = db.withTransaction {
                 // Read again inside the transaction: it may have been sent since it was listed.
-                val edition = editions.byId(listed.id)?.takeIf { it.status == EditionStatus.READY } ?: return@withTransaction
+                val edition = editions.byId(listed.id)?.takeIf { it.status == EditionStatus.READY } ?: return@withTransaction false
                 db.articles().release(edition.id)
                 editions.update(edition.copy(status = EditionStatus.FAILED, error = NOT_SENT))
+                true
             }
+            if (released) onReleased(listed.id)
         }
     }
 

@@ -897,6 +897,28 @@ class EditionBuilderTest {
     }
 
     @Test
+    fun aReleasedEditionSentFromItsShareSheetOrByEmailUsesUpItsArticles() = runTest {
+        // A share sheet, a Ready notification or Today's Send left open while a newer one was made.
+        source("a", "a1")
+        val shared = builder.build(EditionSettings()) as BuildResult.Built
+        source("b", "b1")
+        val emailed = builder.build(EditionSettings()) as BuildResult.Built
+        builder.build(EditionSettings())
+        assertEquals(EditionBuilder.NOT_SENT, db.editions().byId(shared.editionId)!!.error)
+        assertEquals(EditionBuilder.NOT_SENT, db.editions().byId(emailed.editionId)!!.error)
+
+        editions.markSent(shared.editionId, sentWith = "com.example.reader")
+        editions.markEmailedToKindle(emailed.editionId)
+
+        assertEquals(EditionStatus.DELIVERED, db.editions().byId(shared.editionId)!!.status)
+        assertEquals(EditionStatus.DELIVERED, db.editions().byId(emailed.editionId)!!.status)
+        assertEquals(ArticleState.DELIVERED, stateOf("a1"))
+        assertEquals(ArticleState.DELIVERED, stateOf("b1"))
+        // So the edition holding them now, never sent, doesn't give them back to go out again.
+        assertTrue(builder.build(EditionSettings()) is BuildResult.NothingNew)
+    }
+
+    @Test
     fun aReleasedEditionCantBeMarkedSentWhileAnotherIsBeingMadeOrWithoutItsBook() = runTest {
         source("a", "a1")
         val first = builder.build(EditionSettings()) as BuildResult.Built
