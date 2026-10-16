@@ -17,6 +17,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.app.newspaperss.settings.Device
 import com.app.newspaperss.settings.KindleEmail
 import com.app.newspaperss.settings.PreviewTextSize
+import com.app.newspaperss.testutil.stopStores
 import com.app.newspaperss.testutil.MAIL_APP
 import com.app.newspaperss.testutil.installApp
 import com.app.newspaperss.testutil.installVoice
@@ -46,9 +47,7 @@ import androidx.compose.runtime.setValue
 import com.app.newspaperss.ui.settings.SettingsViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -95,7 +94,7 @@ class SettingsScreenTest {
         waitFor(if (page == null) "NewspapeRSS" else page.title)
     }
 
-    @After fun stopStore() = runBlocking { storeScope.coroutineContext[Job]!!.cancelAndJoin() }
+    @After fun stopStore() = stopStores(storeScope)
 
     private fun waitFor(text: String) = idleUntil {
         compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()

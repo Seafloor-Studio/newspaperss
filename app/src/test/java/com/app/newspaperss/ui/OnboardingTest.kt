@@ -26,6 +26,7 @@ import com.app.newspaperss.data.SourceKind
 import com.app.newspaperss.data.SourceRepository
 import com.app.newspaperss.data.TtrssAccountStore
 import com.app.newspaperss.data.TtrssRepository
+import com.app.newspaperss.testutil.stopStores
 import com.app.newspaperss.testutil.FakeTtrss
 import com.app.newspaperss.testutil.closeAfter
 import com.app.newspaperss.testutil.testCipher
@@ -59,9 +60,7 @@ import org.junit.After
 import org.junit.Rule
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
@@ -84,7 +83,7 @@ class OnboardingTest {
     private var finished: Settings? = null
     private val accounts by lazy { TtrssAccountStore(PreferenceDataStoreFactory.create(scope = storeScope) { tmp.newFile("ttrss.preferences_pb") }, testCipher()) }
 
-    @After fun stopStores() = runBlocking { storeScope.coroutineContext[Job]!!.cancelAndJoin() }
+    @After fun stopStore() = stopStores(storeScope)
     private val ttrss by lazy { TtrssRepository(db, http, accounts, SourceRepository(db)) }
     private val vm by lazy { OnboardingViewModel(store, SourceRepository(db), FeedFinder(http), ttrss) { finished = it } }
 
