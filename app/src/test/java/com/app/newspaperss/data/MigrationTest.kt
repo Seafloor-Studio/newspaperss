@@ -104,7 +104,7 @@ class MigrationTest {
 
         helper.runMigrationsAndValidate(DB, 3, true, AppDatabase.MIGRATION_2_3).close()
         val room = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java, DB)
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10).allowMainThreadQueries().build()
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11).allowMainThreadQueries().build()
         try {
             runBlocking {
                 assertEquals(7000L, room.articles().byId(4)!!.starredAt?.toEpochMilli())
@@ -349,6 +349,24 @@ class MigrationTest {
                 assertEquals("Quarterly", c.getString(0))
                 assertEquals(1, c.getInt(1))
                 assertTrue(c.isNull(2))
+            }
+        }
+    }
+
+    /** An account from before the switch keeps expiring articles as before: they stay unread in tt-rss. */
+    @Test
+    fun version11LeavesExpiredArticlesUnreadInTtrss() {
+        helper.createDatabase(DB, 10).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, kind, url, title, position, contentMode, contentModeChosen, fullTextStreak, paused, markReadOnServer, addedAt) " +
+                    "VALUES (1, 'TTRSS', 'https://rss.example/api/', 'tt-rss', 0, 'AUTO', 0, 0, 0, 1, 0)",
+            )
+        }
+        helper.runMigrationsAndValidate(DB, 11, true, AppDatabase.MIGRATION_10_11).use { db ->
+            db.query("SELECT markReadOnServer, markExpiredRead FROM sources WHERE id = 1").use { c ->
+                c.moveToFirst()
+                assertEquals(1, c.getInt(0))
+                assertEquals(0, c.getInt(1))
             }
         }
     }

@@ -121,6 +121,9 @@ interface SourceDao {
     @Query("UPDATE sources SET markReadOnServer = :markRead WHERE id = :id")
     suspend fun setMarkReadOnServer(id: Long, markRead: Boolean)
 
+    @Query("UPDATE sources SET markExpiredRead = :markRead WHERE id = :id")
+    suspend fun setMarkExpiredRead(id: Long, markRead: Boolean)
+
     @Query("SELECT * FROM sources WHERE kind = :kind")
     suspend fun ofKind(kind: SourceKind): List<SourceEntity>
 
@@ -240,6 +243,21 @@ interface ArticleDao {
     /** Waiting articles, and starred ones in any state but already in an unsent edition. */
     @Query("SELECT * FROM articles WHERE state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')")
     suspend fun candidates(): List<ArticleEntity>
+
+    /**
+     * [candidates] without their feed text, which a build reads one article at a time with
+     * [feedHtml]: up to 500,000 characters each, for every waiting article, is more than a small
+     * e-reader has to spare.
+     */
+    @Query(
+        """SELECT id, sourceId, guid, url, title, author, published, NULL AS feedHtml, discoveredAt, state, starredAt,
+           originId, originTitle, pageWords, reportedRead, viaUrl, paidOnly, paidSkipped
+           FROM articles WHERE state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')""",
+    )
+    suspend fun buildCandidates(): List<ArticleEntity>
+
+    @Query("SELECT feedHtml FROM articles WHERE id = :id")
+    suspend fun feedHtml(id: Long): String?
 
     /** Starred links not yet in an edition, from sources that aren't paused; a link starred in two sources counts once. */
     @Query(
@@ -512,12 +530,36 @@ interface ArticleDao {
     @Query("UPDATE articles SET state = 'EXPIRED' WHERE sourceId = :sourceId AND state = 'NEW' AND starredAt IS NULL")
     suspend fun expireWaiting(sourceId: Long)
 
-    /** Expires unpicked articles discovered before [before], except reading-list items and stars. */
+    /**
+     * Expires unpicked articles discovered before [before], except reading-list items and stars.
+     * A tt-rss account set to [SourceEntity.markExpiredRead] (and not paused) has them marked read
+     * instead, which its next sync passes on to tt-rss. Only here, by age: leaving a feed out or
+     * changing the category also expire articles, and those stay unread in tt-rss. Old articles
+     * arriving for such an account are marked read by [readOnArrival].
+     */
     @Query(
-        """UPDATE articles SET state = 'EXPIRED' WHERE state = 'NEW' AND starredAt IS NULL AND discoveredAt < :before
+        """UPDATE articles SET state = CASE WHEN sourceId IN ($MARKS_EXPIRED_READ) THEN 'SKIPPED' ELSE 'EXPIRED' END
+           WHERE state = 'NEW' AND starredAt IS NULL AND discoveredAt < :before
            AND sourceId IN (SELECT id FROM sources WHERE kind != 'READING_LIST')""",
     )
     suspend fun expireOlderThan(before: Instant): Int
+
+    /**
+     * Of [guids], just added for a tt-rss account set to [SourceEntity.markExpiredRead], those
+     * published before [before]: marked read as they arrive, as if they had waited their week out
+     * here. Each sync takes a feed's newest few unread, so marking those read brings in the next
+     * older ones; without this a feed never picked would bring its whole backlog through the paper
+     * a few at a time. Only new arrivals: one the reader marked unread keeps its week.
+     */
+    @Query(
+        """UPDATE articles SET state = 'SKIPPED' WHERE sourceId = :sourceId AND guid IN (:guids)
+           AND state = 'NEW' AND starredAt IS NULL AND published < :before""",
+    )
+    suspend fun readOnArrival(sourceId: Long, guids: List<String>, before: Instant)
+
+    /** Of [guids], those a source already has. */
+    @Query("SELECT guid FROM articles WHERE sourceId = :sourceId AND guid IN (:guids)")
+    suspend fun knownGuids(sourceId: Long, guids: List<String>): List<String>
 
     /**
      * Old articles keep their row, whose guid stops a feed offering them again, but not the
@@ -572,6 +614,9 @@ interface ArticleDao {
     )
     suspend fun ttrssUnsentInEdition(editionId: Long): List<ArticleEntity>
 }
+
+/** tt-rss accounts that mark articles read there when they expire here (see [ArticleDao.expireOlderThan]). */
+private const val MARKS_EXPIRED_READ = """SELECT id FROM sources WHERE kind = 'TTRSS' AND paused = 0 AND markReadOnServer = 1 AND markExpiredRead = 1"""
 
 /** Articles in an edition not yet sent: ready, or being made. */
 private const val IN_UNSENT = """SELECT ea.articleId FROM edition_articles ea JOIN editions e ON e.id = ea.editionId

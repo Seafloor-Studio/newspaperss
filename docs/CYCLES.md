@@ -3,7 +3,7 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
-### Cycles B1–B11 (16 Oct) — build: test health and speed
+### Cycles B1–B12 (16 Oct) — build: test health and speed
 
 - **A teardown hook is shared by every test, so a reviewer's "low risk, none found" there needs
   the full suite, not the classes touched.** B1 ran 17 classes green and broke main; three
@@ -14,6 +14,11 @@ For the next cycle: what each one should do differently. What was built is in
   benchmark run then writes nothing. Use `--rerun` and check that the output exists.
 - **The app's full Robolectric suite takes about 5 minutes on 4 cores**, not the 50 the day's
   prompt said, so counting a flake over the whole suite is affordable.
+
+### Cycle D2 — build: mark read in tt-rss when they expire here
+
+- **A change to one article's fate can change what the next sync fetches.** tt-rss sync takes a feed's newest five unread, so marking articles read there pulls in older ones. Ask "what arrives next?" of any change that marks things read on a server.
+- **Check a fake's fixed dates against the test clock**: FakeTtrss dated every article a year before `now`, which only mattered once publication dates did.
 
 ### Cycle D5 — build: accessibility metadata for the book
 
