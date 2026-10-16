@@ -14,6 +14,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Day cycles, A3: a timed edition behind one made by hand
+- **From the backlog (audit):** with **Make one now** tapped offline, the morning's timed edition was dropped when its time came, and the paper then came from the manual run: no Ready notification, no podcast, no retries.
+- **Found:** real. Both share one background job name, and the second to ask was ignored.
+- **Shipped:** a timed edition now takes the place of a manual one that hasn't started. A build already under way is left to finish, and tapping Make while a timed one waits changes nothing.
+- **Review:** nothing blocking. Left: a connection returning in the milliseconds between the check and the switch would stop the manual build (its articles go back, and the timed one makes the paper). The "one already being made" case has no test, since the test WorkManager can't hold a build running.
+
 ### Today, D1: Substack Notes through tt-rss
 - **From the backlog (device):** tt-rss strips the text of a Note embedded in a Substack post, so the sentence introducing it hung.
 - **Found:** Substack's page shows only a placeholder there too, but carries the whole post, as its feed has it, in a data script (`preloads-json`).

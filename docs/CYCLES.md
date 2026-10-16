@@ -3,6 +3,12 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle A3 (16 Oct) — build: a timed edition behind one made by hand
+
+- **The test WorkManager keeps network-constrained work ENQUEUED** until the test driver says
+  otherwise, which is the "waiting for a connection" state for free. Replaced work is pruned at
+  once: `getWorkInfoById` returns null, not CANCELLED.
+
 ### Cycle D1 — build: Substack Notes through tt-rss
 
 Run of 16 Oct, four sessions in parallel; this one (D) owns content and tt-rss.
