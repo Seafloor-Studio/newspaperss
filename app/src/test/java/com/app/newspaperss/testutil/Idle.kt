@@ -1,6 +1,7 @@
 package com.app.newspaperss.testutil
 
 import android.os.Looper
+import kotlinx.coroutines.yield
 import org.robolectric.Shadows.shadowOf
 
 /**
@@ -18,5 +19,20 @@ fun idleUntil(timeoutMs: Long = 30_000, condition: () -> Boolean) {
         if (condition()) return
         check(System.currentTimeMillis() < deadline) { "Condition not met within $timeoutMs ms" }
         Thread.sleep(10)
+    }
+}
+
+/**
+ * [idleUntil] inside `runTest`: also yields between checks, so the coroutines the test launched get
+ * to run, as well as work on other threads and the main looper.
+ */
+suspend fun idleUntilYielding(timeoutMs: Long = 30_000, condition: () -> Boolean) {
+    val deadline = System.currentTimeMillis() + timeoutMs
+    while (true) {
+        shadowOf(Looper.getMainLooper()).idle()
+        if (condition()) return
+        check(System.currentTimeMillis() < deadline) { "Condition not met within $timeoutMs ms" }
+        Thread.sleep(10)
+        yield()
     }
 }
