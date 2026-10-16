@@ -289,9 +289,13 @@ class FeedSync(
         val sources = db.sources()
         return try {
             val starred = client.starredIds(STAR_PAGES)
+            if (!starred.complete) return 0
             val seen = sources.ttrssStars(source.id).toSet()
-            val taking = source.ttrssStarsNoted && starred.complete
-            val new = if (taking) starred.ids.filter { it !in seen }.take(STARS_PER_SYNC) else emptyList()
+            val unseen = starred.ids.filter { it !in seen }
+            // One in an unsent edition can't be starred yet; it's tried again until that edition goes
+            // out or goes back, without holding up the rest.
+            val held = unseen.map { "$TTRSS_GUID_PREFIX$it" }.chunked(500).flatMap { db.articles().inEditionAmong(source.id, it) }.toSet()
+            val new = if (source.ttrssStarsNoted) unseen.filter { "$TTRSS_GUID_PREFIX$it" !in held }.take(STARS_PER_SYNC) else emptyList()
             // Only what was asked for: a server answering with more would add them all, starred.
             val articles = client.articles(new).filter { it.id in new }.map { it to article(source, it, now, starredAt = now) }
             db.withTransaction {
@@ -301,14 +305,14 @@ class FeedSync(
                 val added = db.articles().insertFetched(articles.map { (h, a) -> a to h.link })
                 val guids = articles.map { it.second.guid }
                 guids.chunked(500).forEach { db.articles().starGuids(source.id, it, now) }
-                // One in an unsent edition can't be starred yet; it's tried again until that edition
-                // goes out or goes back.
-                val held = guids.chunked(500).flatMap { db.articles().inEditionAmong(source.id, it) }.toSet()
-                val noting = if (taking) new.filter { "$TTRSS_GUID_PREFIX$it" !in held } else starred.ids
+                // Taken into an edition since the check above: left for the next sync, like the others held.
+                val heldNow = guids.chunked(500).flatMap { db.articles().inEditionAmong(source.id, it) }.toSet()
+                val noting = if (source.ttrssStarsNoted) new.filter { "$TTRSS_GUID_PREFIX$it" !in heldNow } else starred.ids
                 noting.chunked(500).forEach { ids -> sources.addTtrssStars(ids.map { TtrssStarEntity(source.id, it) }) }
                 sources.notedTtrssStars(source.id)
-                // Unstarred there: starring it again sends it again. Only when the list is whole.
-                if (starred.complete) (seen - starred.ids.toSet()).toList().chunked(500).forEach { sources.dropTtrssStars(source.id, it) }
+                // Unstarred there: starring it again sends it again. An unstar while the pages are read
+                // can shift one kept star out of the list and send it once more; rare, and only once.
+                (seen - starred.ids.toSet()).toList().chunked(500).forEach { sources.dropTtrssStars(source.id, it) }
                 added
             }
         } catch (e: TtrssException) {

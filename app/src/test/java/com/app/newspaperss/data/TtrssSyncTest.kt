@@ -887,11 +887,17 @@ class TtrssSyncTest {
         ttrss.setTakeStars(source.id, true)
         server.add(7, "Waiting", feedId = 2, feedTitle = "Example News")
         sync.syncAll()
-        db.openHelper.writableDatabase.execSQL("UPDATE articles SET state = 'IN_EDITION' WHERE guid = 'ttrss:7'")
-        server.starred += 7L
+        // More held than one sync takes, and one that isn't: the held ones don't hold it up.
+        (100L..159L).forEach { server.add(it, "In the edition $it", feedId = 3, feedTitle = "Busy") }
+        db.articles().insertNew((100L..159L).map { ArticleEntity(sourceId = source.id, guid = "ttrss:$it", url = "https://news.example/$it", title = "In the edition $it") })
+        db.openHelper.writableDatabase.execSQL("UPDATE articles SET state = 'IN_EDITION' WHERE guid = 'ttrss:7' OR guid LIKE 'ttrss:1__'")
+        server.add(8, "Starred on the laptop", feedId = 1, feedTitle = "A Blog")
+        server.readThere(8)
+        server.starred += (100L..159L) + listOf(7L, 8L)
         sync.syncAll()
-        suspend fun article() = db.articles().allForSource(source.id).single { it.guid == "ttrss:7" }
+        suspend fun article(guid: String = "ttrss:7") = db.articles().allForSource(source.id).single { it.guid == guid }
         assertNull(article().starredAt)
+        assertEquals(now, article("ttrss:8").starredAt)
 
         // The edition is marked as not sent: its articles wait again.
         db.openHelper.writableDatabase.execSQL("UPDATE articles SET state = 'NEW' WHERE guid = 'ttrss:7'")
