@@ -14,6 +14,11 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Today, D6: leaving tt-rss keeps your feeds
+- **From the backlog (you asked):** **I pick my own sites** deleted the account's feeds with it; the dialog pointed to the OPML export.
+- **Shipped:** the feeds in the paper become phone feeds before signing out, with their article text, cap and paid-post settings; left-out ones come paused. Not one outside the paper's category, one already on the phone, or one without an address yet. A message says how many came and why any didn't. Starred articles still go with the account.
+- **Review:** the paper's feeds were read from a list that goes stale when the category changes (or doesn't exist yet), so leaving now lists them first, waiting up to 20 seconds, and says when it had to use the last list. Feeds come paused and are unpaused only after signing out, so the app killed between can't fetch a feed twice. A phone feed the reader paused stays paused.
+
 ### Day cycles, A1: a source removed during a build
 - **From the backlog (audit), area A of four parallel sessions:** removing a source, a saved link or the tt-rss account while an edition was being made threw the finished edition away.
 - **Found:** real. A test that removes a feed and a saved link mid-build got "Something went wrong" and no edition: the articles read at the start were gone by the time they were linked into the edition, eight minutes later at most.
