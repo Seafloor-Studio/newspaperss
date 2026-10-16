@@ -75,6 +75,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import com.app.newspaperss.ui.components.LocalClock
+import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
@@ -90,7 +94,12 @@ class SourceDetailScreenTest {
 
     private val db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java)
         .allowMainThreadQueries().build()
-    private val repo = SourceRepository(db)
+    // A Tuesday morning: lines like "Failing for 3 days" count days on the screen's clock.
+    private val clock = Clock.fixed(Instant.parse("2026-09-29T07:15:00Z"), ZoneOffset.UTC)
+    private val repo = SourceRepository(db, clock)
+
+    @Composable
+    private fun atClock(content: @Composable () -> Unit) = CompositionLocalProvider(LocalClock provides clock, content = content)
 
     private fun visible(text: String) = compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
 
@@ -105,13 +114,13 @@ class SourceDetailScreenTest {
                 ),
             )
             db.articles().setState(listOf(db.articles().candidates().first { it.guid == "1" }.id), ArticleState.DELIVERED)
-            db.sources().recordFailure(id, Instant.now().minus(Duration.ofDays(3)), "Couldn't reach the site.")
-            db.sources().recordFailure(id, Instant.now(), "Couldn't reach the site.")
+            db.sources().recordFailure(id, clock.instant().minus(Duration.ofDays(3)), "Couldn't reach the site.")
+            db.sources().recordFailure(id, clock.instant(), "Couldn't reach the site.")
             id
         }
         var back = false
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
-        compose.setContent { SourceDetailScreen(vm, onBack = { back = true }) }
+        compose.setContent { atClock { SourceDetailScreen(vm, onBack = { back = true }) } }
         idleUntil { visible("Couldn't reach the site.") }
 
         compose.onNodeWithText("Failing for 3 days", substring = true).assertExists()
@@ -147,7 +156,7 @@ class SourceDetailScreenTest {
         val id = runBlocking { repo.addFeed("https://example.com/feed", "Example") }
         val defaultMax = MutableStateFlow(2)
         val vm = viewModels.add(SourceDetailViewModel(repo, id, defaultMax))
-        compose.setContent { SourceDetailScreen(vm, onBack = {}) }
+        compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
         idleUntil { visible("2 articles from this site, then more if there's room") }
 
         compose.onNodeWithContentDescription("More articles from this site").performClick()
@@ -169,7 +178,7 @@ class SourceDetailScreenTest {
     fun theArticleTextButtonNamesTheSetting() {
         val id = runBlocking { repo.addFeed("https://example.com/feed", "Example") }
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
-        compose.setContent { SourceDetailScreen(vm, onBack = {}) }
+        compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
         idleUntil { visible("Article text: Automatic") }
 
         runBlocking { repo.chooseContentMode(id, PublicationEntity.OWN, ContentMode.PAGE) }
@@ -182,7 +191,7 @@ class SourceDetailScreenTest {
     fun aSiteCanBeHeldToOneArticleEvenWhenTheEditionAllowsOne() {
         val id = runBlocking { repo.addFeed("https://example.com/feed", "Example") }
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
-        compose.setContent { SourceDetailScreen(vm, onBack = {}) }
+        compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
         idleUntil { visible("1 article from this site, then more if there's room") }
 
         compose.onNodeWithContentDescription("Fewer articles from this site").performClick()
@@ -201,7 +210,7 @@ class SourceDetailScreenTest {
         // Beside the words, they squeezed them to a few words a line.
         val (id, _) = sourceWithArticles()
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
-        compose.setContent { SourceDetailScreen(vm, onBack = {}) }
+        compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
         idleUntil { visible("from this site") }
         val words = compose.onNodeWithText("from this site", substring = true).fetchSemanticsNode().boundsInRoot
         val more = compose.onNodeWithContentDescription("More articles from this site").fetchSemanticsNode().boundsInRoot
@@ -222,7 +231,7 @@ class SourceDetailScreenTest {
         val guids = listOf("waiting", "delivered", "unsent") + (1..moreWaiting).map { "more$it" }
         db.articles().insertNew(
             guids.mapIndexed { i, guid ->
-                ArticleEntity(sourceId = id, guid = guid, url = "https://example.com/$guid", title = "Article $guid", discoveredAt = Instant.now().minus(Duration.ofHours(i + 1L)))
+                ArticleEntity(sourceId = id, guid = guid, url = "https://example.com/$guid", title = "Article $guid", discoveredAt = clock.instant().minus(Duration.ofHours(i + 1L)))
             },
         )
         val ids = db.articles().allForSource(id).associate { it.guid to it.id }
@@ -235,7 +244,7 @@ class SourceDetailScreenTest {
 
     private fun show(sourceId: Long): SourceDetailViewModel {
         val vm = viewModels.add(SourceDetailViewModel(repo, sourceId, flowOf(1)))
-        compose.setContent { SourceDetailScreen(vm, onBack = {}) }
+        compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
         idleUntil { visible("Article waiting") }
         return vm
     }
@@ -289,7 +298,7 @@ class SourceDetailScreenTest {
     @Test
     fun readDeliveredAndExpiredRowsLookReadUnlessStarred() {
         fun article(state: ArticleState, starred: Boolean = false) =
-            ArticleEntity(sourceId = 1, guid = "g", url = "https://example.com", title = "t", state = state, starredAt = if (starred) Instant.now() else null)
+            ArticleEntity(sourceId = 1, guid = "g", url = "https://example.com", title = "t", state = state, starredAt = if (starred) clock.instant() else null)
         assertEquals(
             listOf(false, false, true, true, true),
             listOf(ArticleState.NEW, ArticleState.IN_EDITION, ArticleState.SKIPPED, ArticleState.DELIVERED, ArticleState.EXPIRED).map { looksRead(article(it)) },
@@ -447,7 +456,7 @@ class SourceDetailScreenTest {
         var left = false
         compose.setContent {
             back = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
-            SourceDetailScreen(vm, onBack = { left = true })
+            atClock { SourceDetailScreen(vm, onBack = { left = true }) }
         }
         idleUntil { visible("Article waiting") }
 
@@ -474,7 +483,7 @@ class SourceDetailScreenTest {
         val (id, _) = sourceWithArticles(moreWaiting = 1)
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         val restoration = StateRestorationTester(compose)
-        restoration.setContent { SourceDetailScreen(vm, onBack = {}) }
+        restoration.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
         idleUntil { visible("Article waiting") }
         row("Article waiting").performTouchInput { longClick() }
         row("Article more1").performClick()
@@ -512,7 +521,7 @@ class SourceDetailScreenTest {
         val (id, ids) = sourceWithArticles()
         runBlocking {
             repo.setStarred(ids.getValue("delivered"), true)
-            db.editions().insert(EditionEntity(title = "Being made", createdAt = Instant.now()))
+            db.editions().insert(EditionEntity(title = "Being made", createdAt = clock.instant()))
         }
         show(id)
 
@@ -538,7 +547,7 @@ class SourceDetailScreenTest {
     fun aBatchCaughtByABuildStartingChangesNothingAndSaysWhy() {
         val (id, ids) = sourceWithArticles()
         val vm = show(id)
-        runBlocking { db.editions().insert(EditionEntity(title = "Being made", createdAt = Instant.now())) }
+        runBlocking { db.editions().insert(EditionEntity(title = "Being made", createdAt = clock.instant())) }
 
         vm.markRead(listOf(ids.getValue("waiting")))
 
@@ -587,7 +596,7 @@ class SourceDetailScreenTest {
         val takeOut = compose.onNodeWithContentDescription("Take 2 articles out of your next edition")
         takeOut.assertIsEnabled()
 
-        val build = runBlocking { db.editions().insert(EditionEntity(title = "Being made", createdAt = Instant.now())) }
+        val build = runBlocking { db.editions().insert(EditionEntity(title = "Being made", createdAt = clock.instant())) }
         settle { visible(BUILDING_NOTE) }
         takeOut.assertIsNotEnabled()
         runBlocking { db.editions().update(db.editions().byId(build)!!.copy(status = EditionStatus.FAILED)) }
@@ -613,7 +622,7 @@ class SourceDetailScreenTest {
         compose.onNodeWithContentDescription("Put 2 articles in your next edition").performClick()
         settle { visible("2 in your next edition") }
 
-        runBlocking { db.editions().insert(EditionEntity(title = "Being made", createdAt = Instant.now())) }
+        runBlocking { db.editions().insert(EditionEntity(title = "Being made", createdAt = clock.instant())) }
         compose.onNodeWithText("Undo").performClick()
 
         settle { visible("2 articles couldn't be changed back") }
@@ -665,7 +674,7 @@ class SourceDetailScreenTest {
         val (id, ids) = sourceWithArticles()
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         var shown by mutableStateOf(true)
-        compose.setContent { if (shown) SourceDetailScreen(vm, onBack = {}) }
+        compose.setContent { atClock { if (shown) SourceDetailScreen(vm, onBack = {}) } }
         idleUntil { visible("Article waiting") }
 
         row("Article waiting").performTouchInput { longClick() }
@@ -690,11 +699,11 @@ class SourceDetailScreenTest {
         val id = runBlocking { repo.addFeed("https://example.com/feed", "Example") }
         runBlocking {
             db.articles().insertNew(
-                listOf(ArticleEntity(sourceId = id, guid = "old", url = "https://example.com/old", title = "An old essay", published = Instant.parse("2023-03-03T12:00:00Z"), discoveredAt = Instant.now())),
+                listOf(ArticleEntity(sourceId = id, guid = "old", url = "https://example.com/old", title = "An old essay", published = Instant.parse("2023-03-03T12:00:00Z"), discoveredAt = clock.instant())),
             )
         }
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
-        compose.setContent { SourceDetailScreen(vm, onBack = {}) }
+        compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
         idleUntil { visible("An old essay") }
         assertTrue(visible("Mar 3, 2023"))
     }
@@ -702,7 +711,7 @@ class SourceDetailScreenTest {
     @Test
     fun aDateFromTheFutureIsAFeedsMistakeAndRowsGoByTheDateShown() = runBlocking {
         val id = repo.addFeed("https://example.com/feed", "Example")
-        val now = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS)
+        val now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.MILLIS)
         db.articles().insertNew(
             listOf(
                 // Fetched together; one feed lists them oldest first.
