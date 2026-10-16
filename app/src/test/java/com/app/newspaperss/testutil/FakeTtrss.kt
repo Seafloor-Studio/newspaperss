@@ -52,6 +52,8 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
     /** Ids passed to updateArticle to set it again. */
     val markedUnread = mutableListOf<Long>()
     val ops = mutableListOf<String>()
+    /** Each look at every article in the account, by the since_id it gave (null for none). */
+    val postsAskedSince = mutableListOf<Long?>()
     /** An HTTP status to answer every request with, instead of the API's reply. */
     var failWith: Int? = null
     var apiLevel = 18
@@ -158,14 +160,15 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
                     val since = str("since_id")?.toLong() ?: 0
                     val skip = str("skip")?.toInt() ?: 0
                     val withContent = str("show_content") != "false"
-                    // Newest first, as tt-rss sorts them; a higher id is newer here.
+                    if (all && feed == -4 && skip == 0) postsAskedSince += str("since_id")?.toLong()
+                    // Newest first, as tt-rss sorts them, or oldest first if asked; a higher id is newer here.
                     (if (all) unread + read else unread).filter { it.id > since }.filter {
                         when {
                             isCategory -> it.categoryId == feed
                             feed > 0 -> it.feedId == feed
                             else -> true
                         }
-                    }.sortedByDescending { it.id }.drop(skip).take(limit).forEach { item ->
+                    }.sortedBy { if (str("order_by") == "date_reverse") it.id else -it.id }.drop(skip).take(limit).forEach { item ->
                         add(
                             buildJsonObject {
                                 put("id", item.id)

@@ -114,6 +114,20 @@ interface SourceDao {
     @Query("UPDATE publications SET serverError = :error WHERE sourceId = :sourceId AND `key` = :key AND serverError IS NOT :error")
     suspend fun setServerError(sourceId: Long, key: String, error: String?)
 
+    /** [key] posted at [at]: kept if it's newer than what's known. */
+    @Query(
+        """UPDATE publications SET newestPostAt = :at WHERE sourceId = :sourceId AND `key` = :key
+           AND (newestPostAt IS NULL OR newestPostAt < :at)""",
+    )
+    suspend fun posted(sourceId: Long, key: String, at: Instant)
+
+    /** Feeds not watched for posts yet are from [now]. */
+    @Query("UPDATE publications SET watchedSince = :now WHERE sourceId = :sourceId AND watchedSince IS NULL")
+    suspend fun watching(sourceId: Long, now: Instant)
+
+    @Query("UPDATE sources SET ttrssSeenId = :id WHERE id = :sourceId")
+    suspend fun setTtrssSeenId(sourceId: Long, id: Long)
+
     /** tt-rss has fetched these feeds: they have unread articles there. */
     @Query("UPDATE publications SET awaitingFirstFetch = 0 WHERE sourceId = :sourceId AND `key` IN (:keys) AND awaitingFirstFetch = 1")
     suspend fun fetchedByServer(sourceId: Long, keys: List<String>)
