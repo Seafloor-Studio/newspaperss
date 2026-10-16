@@ -30,6 +30,35 @@ Area B of four parallel sessions: the audit's test findings, then two speed item
 - **B12, a race other sessions hit ([#273](https://github.com/madCode/newspaperss/pull/273)):** the source page's Undo test tapped **Mark 1 as read** before the list showed the article waiting again; it now waits for the button.
 - **B11, memory ([#272](https://github.com/madCode/newspaperss/pull/272)):** a build reads each article's feed text as it reaches it. 300 waiting articles of 50,000 characters held 15 MB before, 82 KB after. The review found one rare difference, left on purpose: a source removed mid-build sends its remaining articles from their pages.
 
+### Day cycles, area A, closing
+- **Six audit findings fixed, seven backlog items done** (#249, #255, #256, #257, #261, #262), all merged with CI green: the build and delivery list madCode set for area A, in order. Each was reproduced with a failing test first.
+- **Waiting on you:** nothing new. Two smaller gaps from the reviews are in the backlog: delivered links are shared between tt-rss accounts, and a phone restored from a backup can't tell whose tt-rss articles it holds.
+- **Got in the way:** with four sessions merging, every PR's BACKLOG, DEVLOG and cycle log entries conflicted after each merge, costing a CI run each time. The last four PRs moved theirs here, into one docs PR. Several app tests also failed now and then on CI; session B fixed the causes (#267, #273) and one here (#255).
+- **Next run in this area starts with:** the backlog's audit list is done for build and delivery; what's left there is screens, tests and the two tt-rss gaps above.
+
+### Day cycles, A6: leaving the server as a feed moves
+- **From the backlog (audit):** leaving the server just as a feed move paused a phone feed could leave that feed paused, and hidden, with no server to come from.
+- **Found:** real. A test that leaves at that exact moment left the feed paused.
+- **Shipped (#262):** the move pauses a feed and notes it in one step that leaving waits for, so leaving always finds it and makes it a phone feed again.
+- **Review:** also found the step could be cut in two if the background work was stopped at that moment. It can't now. Left: a disk error writing the move's notes at that step, and Tidy racing Leave for a feed that was paused before it moved; both were already so and both are rare.
+
+### Day cycles, A4: a dead build's book
+- **From the backlog (audit):** a build cut off by the process dying could leave its book (several MB) in the app's storage for good, as nothing pointed to it.
+- **Shipped (#257):** the next build, which already marks such an edition as interrupted, now deletes its book too.
+- **Review:** nothing blocking. It suggested reading the edition again before failing it, in case a stopped build had only just finished; done. Left: titles are unique over two days, not forever, so the same date years later could share a file name; that was already so.
+
+### Day cycles, A3: a timed edition behind one made by hand
+- **From the backlog (audit):** with **Make one now** tapped offline, the morning's timed edition was dropped when its time came, and the paper then came from the manual run: no Ready notification, no podcast, no retries.
+- **Found:** real. Both share one background job name, and the second to ask was ignored.
+- **Shipped (#256):** a timed edition now takes the place of a manual one that hasn't started. A build already under way is left to finish, and tapping Make while a timed one waits changes nothing.
+- **Review:** nothing blocking. Left: a connection returning in the milliseconds between the check and the switch would stop the manual build (its articles go back, and the timed one makes the paper). The "one already being made" case has no test, since the test WorkManager can't hold a build running.
+
+### Day cycles, A2: a late send of a released edition counts
+- **From the backlog (audit, and the UX pass):** an edition released because a newer one was made could still be sent from a share sheet left open, its Ready notification or Today, and that send wasn't recorded, so its articles went out again in the next edition. Its Ready notification also stayed up after it was released.
+- **Found:** both real. Only the edition page's **Mark as sent** handled a released edition.
+- **Shipped (#255):** the share sheet, the notification's Send and Read, email to a Kindle and Today now count such a send as Mark as sent does, while its book is still there. A build releasing an edition takes its Ready notification down. Also a flaky test fixed: Mark as sent's test waited for text a ready edition already shows.
+- **Review:** caught that a send arriving while a build runs still doesn't count (as for Mark as sent, the build may be taking those articles), yet left a "Sent to Kindle" note. The note now only follows a recorded send. Left: the newer edition holding the same articles still offers Send; nothing is lost, as before with Mark as sent.
+
 ### Today, D6: leaving tt-rss keeps your feeds
 - **From the backlog (you asked):** **I pick my own sites** deleted the account's feeds with it; the dialog pointed to the OPML export.
 - **Shipped:** the feeds in the paper become phone feeds before signing out, with their article text, cap and paid-post settings; left-out ones come paused. Not one outside the paper's category, one already on the phone, or one without an address yet. A message says how many came and why any didn't. Starred articles still go with the account.
