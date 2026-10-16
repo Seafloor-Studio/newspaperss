@@ -701,7 +701,9 @@ class EditionBuilderTest {
         val edition = db.editions().byId(built.editionId)!!
         assertEquals(EditionStatus.READY, edition.status)
         assertTrue(editions.fileOf(edition) != null)
-        assertEquals(setOf("a a1", "b b1", "A saved post"), editions.observeArticles(edition.id).first().map { it.title }.toSet())
+        val listed = editions.observeArticles(edition.id).first().associate { it.title to it.articleId }
+        assertEquals(setOf("a a1", "b b1", "A saved post"), listed.keys)
+        assertEquals("only the removed ones lose their article", listOf("a a1"), listed.filterValues { it != null }.keys.toList())
         assertEquals(ArticleState.IN_EDITION, stateOf("a1"))
     }
 
