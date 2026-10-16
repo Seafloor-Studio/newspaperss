@@ -294,10 +294,8 @@ object EpubWriter {
          * articles' own sites give it or not. No conformance claim, which would take an audit.
          */
         fun accessibility(pages: List<Page>): List<Pair<String, String>> {
-            val alts = pages.flatMap { page ->
-                // A space for alt is written as a no-break space's reference; it describes nothing.
-                IMG_ALT.findAll(page.xhtml).map { Parser.unescapeEntities(it.groupValues[1], true).replace('\u00a0', ' ').isNotBlank() }.toList()
-            }
+            // A space for alt is written as a no-break space's reference, which is blank once read.
+            val alts = pages.flatMap { page -> IMG_ALT.findAll(page.xhtml).map { Parser.unescapeEntities(it.groupValues[1], true).isNotBlank() }.toList() }
             val pictures = alts.isNotEmpty()
             val described = pictures && alts.all { it }
             return buildList {

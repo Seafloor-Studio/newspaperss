@@ -240,6 +240,8 @@ class EpubWriterTest {
         val gif = EpubImage("images/a1-0.gif", "image/gif", byteArrayOf(7))
         val moving = write(unsectioned(article(body = "<p><img src=\"images/a1-0.gif\" alt=\"A dancing cat\"></p>", images = listOf(gif))))
         assertEquals(listOf("unknown"), moving.accessibility("accessibilityHazard"))
+        val gifCover = write(doc(EditionSection(null, listOf(article()))).copy(cover = EpubImage("images/cover.gif", "image/gif", byteArrayOf(1))))
+        assertEquals(listOf("unknown"), gifCover.accessibility("accessibilityHazard"))
     }
 
     /** Under the title's h1, a site's headings go down one level at a time, as screen readers expect. */
