@@ -232,12 +232,16 @@ class TtrssRepository(
             // Some devices' Keystore throws runtime exceptions of its own.
             return "Couldn't store the password securely on this phone."
         }
-        val sourceId = sources.addTtrss(account.apiUrl)
         // Category and feed ids belong to each tt-rss user, and this may be another user on the same
         // server. Another login starts from the category asked for (all, unless chosen); its feeds' publications (left out, what the
         // text check learned) aren't, so they're kept for the same user signing in again, after a
         // lost Keystore key say, and go only when the login is another one or was forgotten.
         val sameLogin = previous == (account.apiUrl to account.user)
+        // Another user's articles, stars included, would go in under this one's feed ids: the source
+        // goes with them, as for another server. A new source rather than emptying this one, so a
+        // sync still running for the first user can't add theirs back: its source is gone.
+        if (previous != null && !sameLogin) db.sources().ofKind(SourceKind.TTRSS).forEach { sources.remove(it) }
+        val sourceId = sources.addTtrss(account.apiUrl)
         db.withTransaction {
             val kept = if (keepCategory && sameLogin) db.sources().byId(sourceId) else null
             if (kept != null) {
