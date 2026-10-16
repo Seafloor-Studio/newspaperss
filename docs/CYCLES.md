@@ -3,6 +3,14 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle C2 — build: snackbars in the background
+
+- **`collectAsStateWithLifecycle` already pauses what it reads.** A test of "a message arriving
+  in the background" passed with the fix removed; the gap was only a snackbar already showing.
+  Ask what the screen collects before writing the background case.
+- **A wait you add holds whatever is waiting on it.** The reading list's removal was only
+  committed when its snackbar ended; making the snackbar wait made the deletion wait.
+
 ### Cycle A1 (16 Oct, day run, four sessions) — build: a source removed during a build
 
 - **Four sessions at once:** cycles are numbered by area (A1, B1…) so they don't collide. Work
