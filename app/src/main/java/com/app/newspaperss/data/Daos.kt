@@ -138,6 +138,31 @@ interface SourceDao {
     @Query("UPDATE sources SET markExpiredRead = :markRead WHERE id = :id")
     suspend fun setMarkExpiredRead(id: Long, markRead: Boolean)
 
+    /** Turned on again, the stars there by then are noted afresh. */
+    @Transaction
+    suspend fun setTakeTtrssStars(id: Long, take: Boolean) {
+        takeTtrssStars(id, take)
+        forgetTtrssStars(id)
+    }
+
+    @Query("UPDATE sources SET takeTtrssStars = :take, ttrssStarsNoted = 0 WHERE id = :id")
+    suspend fun takeTtrssStars(id: Long, take: Boolean)
+
+    @Query("UPDATE sources SET ttrssStarsNoted = 1 WHERE id = :id")
+    suspend fun notedTtrssStars(id: Long)
+
+    @Query("SELECT articleId FROM ttrss_stars WHERE sourceId = :sourceId")
+    suspend fun ttrssStars(sourceId: Long): List<Long>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun addTtrssStars(stars: List<TtrssStarEntity>)
+
+    @Query("DELETE FROM ttrss_stars WHERE sourceId = :sourceId AND articleId IN (:ids)")
+    suspend fun dropTtrssStars(sourceId: Long, ids: List<Long>)
+
+    @Query("DELETE FROM ttrss_stars WHERE sourceId = :sourceId")
+    suspend fun forgetTtrssStars(sourceId: Long)
+
     @Query("SELECT * FROM sources WHERE kind = :kind")
     suspend fun ofKind(kind: SourceKind): List<SourceEntity>
 
@@ -445,6 +470,19 @@ interface ArticleDao {
            AND NOT EXISTS (SELECT 1 FROM editions WHERE status = 'BUILDING' AND createdAt > :buildingSince)""",
     )
     suspend fun unstar(id: Long, buildingSince: Instant): Int
+
+    /**
+     * Stars a source's articles by guid, for stars taken from tt-rss. Not one already delivered:
+     * starred there after it went out, it's being kept, not asked for again.
+     */
+    @Query(
+        """UPDATE articles SET starredAt = COALESCE(starredAt, :at) WHERE sourceId = :sourceId AND guid IN (:guids)
+           AND state NOT IN ('IN_EDITION', 'DELIVERED')""",
+    )
+    suspend fun starGuids(sourceId: Long, guids: List<String>, at: Instant)
+
+    @Query("SELECT guid FROM articles WHERE sourceId = :sourceId AND guid IN (:guids) AND state = 'IN_EDITION'")
+    suspend fun inEditionAmong(sourceId: Long, guids: List<String>): List<String>
 
     /** [star] for several articles at once. */
     @Query("UPDATE articles SET starredAt = COALESCE(starredAt, :at) WHERE id IN (:ids) AND state != 'IN_EDITION'")

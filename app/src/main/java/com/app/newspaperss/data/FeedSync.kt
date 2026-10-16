@@ -199,13 +199,7 @@ class FeedSync(
                 db.withTransaction { withUnread.forEach { db.sources().setServerError(source.id, it.id.toString(), it.lastError) } }
                 val unreadFeeds = withUnread.filter { it.id.toString() !in leftOut }
                 val headlines = fromEachFeed(client, unreadFeeds)
-                val articles = headlines.map {
-                    it to ArticleEntity(
-                        sourceId = source.id, guid = "$TTRSS_GUID_PREFIX${it.id}", url = it.link, title = it.title,
-                        author = it.author, published = it.updated?.let(Instant::ofEpochSecond), feedHtml = storable(it.content),
-                        discoveredAt = now, originId = it.feedId, originTitle = it.feedTitle,
-                    ).linkedToStory(siteUrl = null)
-                }
+                val articles = headlines.map { it to article(source, it, now) }
                 if (source.markReadOnServer) syncReadState(client, source, articles, now)
                 val guids = articles.map { it.second.guid }
                 val known = guids.chunked(500).flatMap { db.articles().knownGuids(source.id, it) }.toSet()
@@ -220,7 +214,7 @@ class FeedSync(
                     db.sources().recordSuccess(source.id, now, null, null, source.title)
                     listFeeds(client, source, now)
                     watchPosts(client, source, now)
-                    return added
+                    return added + if (source.takeTtrssStars) takeStars(client, source, now) else 0
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -271,6 +265,60 @@ class FeedSync(
             }
             sources.watching(source.id, now)
             posted.upTo?.let { sources.setTtrssSeenId(source.id, maxOf(it, source.ttrssSeenId ?: 0)) }
+        }
+    }
+
+    private fun article(source: SourceEntity, h: TtrssHeadline, now: Instant, starredAt: Instant? = null) = ArticleEntity(
+        sourceId = source.id, guid = "$TTRSS_GUID_PREFIX${h.id}", url = h.link, title = h.title,
+        author = h.author, published = h.updated?.let(Instant::ofEpochSecond), feedHtml = storable(h.content),
+        discoveredAt = now, originId = h.feedId, originTitle = h.feedTitle, starredAt = starredAt,
+    ).linkedToStory(siteUrl = null)
+
+    /**
+     * Stars the articles newly starred in tt-rss, so they go in the next edition, and returns how
+     * many it added. Each star once ([TtrssStarEntity]): the star stays in tt-rss, which this
+     * never changes. The first look after the option is turned on only notes the stars already
+     * there. From any feed, in the account's category or not, left out or not: a star is asked
+     * for. Best effort, like [watchPosts].
+     *
+     * tt-rss lists stars by the article's date, not when it was starred, so a new star can be
+     * anywhere in the list: it's listed whole, or nothing is taken. Cut short, a kept star never
+     * noted could look new.
+     */
+    private suspend fun takeStars(client: TtrssClient, source: SourceEntity, now: Instant): Int {
+        val sources = db.sources()
+        return try {
+            val starred = client.starredIds(STAR_PAGES)
+            if (!starred.complete) return 0
+            val seen = sources.ttrssStars(source.id).toSet()
+            val unseen = starred.ids.filter { it !in seen }
+            // One in an unsent edition can't be starred yet; it's tried again until that edition goes
+            // out or goes back, without holding up the rest.
+            val held = unseen.map { "$TTRSS_GUID_PREFIX$it" }.chunked(500).flatMap { db.articles().inEditionAmong(source.id, it) }.toSet()
+            val new = if (source.ttrssStarsNoted) unseen.filter { "$TTRSS_GUID_PREFIX$it" !in held }.take(STARS_PER_SYNC) else emptyList()
+            // Only what was asked for: a server answering with more would add them all, starred.
+            val articles = client.articles(new).filter { it.id in new }.map { it to article(source, it, now, starredAt = now) }
+            db.withTransaction {
+                // Turned off, or off and on again, during this sync: what was seen belongs to the old setting.
+                val current = sources.byId(source.id)
+                if (current?.takeTtrssStars != true || current.ttrssStarsNoted != source.ttrssStarsNoted) return@withTransaction 0
+                val added = db.articles().insertFetched(articles.map { (h, a) -> a to h.link })
+                val guids = articles.map { it.second.guid }
+                guids.chunked(500).forEach { db.articles().starGuids(source.id, it, now) }
+                // Taken into an edition since the check above: left for the next sync, like the others held.
+                val heldNow = guids.chunked(500).flatMap { db.articles().inEditionAmong(source.id, it) }.toSet()
+                val noting = if (source.ttrssStarsNoted) new.filter { "$TTRSS_GUID_PREFIX$it" !in heldNow } else starred.ids
+                noting.chunked(500).forEach { ids -> sources.addTtrssStars(ids.map { TtrssStarEntity(source.id, it) }) }
+                sources.notedTtrssStars(source.id)
+                // Unstarred there: starring it again sends it again. An unstar while the pages are read
+                // can shift one kept star out of the list and send it once more; rare, and only once.
+                (seen - starred.ids.toSet()).toList().chunked(500).forEach { sources.dropTtrssStars(source.id, it) }
+                added
+            }
+        } catch (e: TtrssException) {
+            0
+        } catch (e: IOException) {
+            0
         }
     }
 
@@ -331,6 +379,11 @@ class FeedSync(
         /** Pages of 200 articles looked at per sync; more wait for the next. */
         private const val WATCH_PAGES = 5
         private const val FIRST_LOOK_PAGES = 5
+
+        /** Pages of 200 starred articles listed per sync: 10,000 stars, past which none are taken. */
+        private const val STAR_PAGES = 50
+        /** Newly starred articles fetched per sync, with their text; more wait for the next. */
+        private const val STARS_PER_SYNC = 50
 
         /** How long an unpicked article waits, from when it was found, before it expires. */
         val KEEP_WAITING: Duration = Duration.ofDays(7)
