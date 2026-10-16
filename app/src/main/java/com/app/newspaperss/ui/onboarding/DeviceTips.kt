@@ -38,7 +38,7 @@ object DeviceTips {
         val sent = when (device) {
             Device.KINDLE -> if (byEmail) "your mail app opens with it" else "you choose the Kindle app"
             Device.KOBO -> "you choose Dropbox"
-            Device.BOOX -> "you tap Read"
+            Device.BOOX -> "you tap Read, or choose an app after Send"
             Device.POCKETBOOK -> "you choose your email app"
             Device.KOREADER -> "it's saved to your folder, or you choose an app after Send"
             Device.OTHER -> "you choose an app after Send"

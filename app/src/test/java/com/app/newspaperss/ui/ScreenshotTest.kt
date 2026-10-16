@@ -234,6 +234,13 @@ class ScreenshotTest {
         shoot("02-onboarding-device") { OnboardingScreen(vm) }
     }
 
+    /** A Kindle reader sending with the Kindle app: the how-to, and when an edition counts as sent. */
+    @Test
+    fun onboardingDeviceKindleApp() {
+        val vm = onboarding().apply { next(); chooseDevice(Device.KINDLE); useKindleApp() }
+        shoot("02f-onboarding-device-kindle-app", act = { compose.onNodeWithText("counts as sent", substring = true).performScrollTo() }) { OnboardingScreen(vm) }
+    }
+
     @Test
     fun onboardingFeedsFrom() {
         val vm = onboarding().apply { next(); chooseDevice(Device.KOBO); next() }
