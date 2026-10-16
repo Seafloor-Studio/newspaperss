@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -208,6 +209,10 @@ fun ArticlePreviewScreen(
     // the reader would be back at the top of the first article, however many "Next"s ago.
     val place = rememberSaveable(position, saver = PLACE_SAVER) { Place() }
     val context = LocalContext.current
+    // The address asked about, so the question stays up across rotation; asked only about the
+    // page it was asked on.
+    var lookAt by rememberSaveable(position) { mutableStateOf<String?>(null) }
+    link?.takeIf { it.url == lookAt }?.let { SendForALookDialog(it, onDismiss = { lookAt = null }) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -225,6 +230,7 @@ fun ArticlePreviewScreen(
                         }
                     }
                     textSize?.let { TextSizeMenu(it, onTextSize) }
+                    link?.let { l -> MoreMenu(onSendForALook = { lookAt = l.url }) }
                 },
             )
         },
@@ -266,6 +272,17 @@ private fun TextSizeMenu(textSize: PreviewTextSize, onTextSize: (PreviewTextSize
                     trailingIcon = if (size == textSize) { { Icon(Icons.Default.Check, contentDescription = "Current size") } } else null,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun MoreMenu(onSendForALook: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) { Icon(Icons.Default.MoreVert, contentDescription = "More") }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(text = { Text("Send for a look…") }, onClick = { open = false; onSendForALook() })
         }
     }
 }
