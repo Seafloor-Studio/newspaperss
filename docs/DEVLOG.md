@@ -20,6 +20,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 - **Shipped:** the share sheet, the notification's Send and Read, email to a Kindle and Today now count such a send as Mark as sent does, while its book is still there. A build releasing an edition takes its Ready notification down.
 - **Review:** caught that a send arriving while a build runs still doesn't count (as for Mark as sent, the build may be taking those articles), yet left a "Sent to Kindle" note. The note now only follows a recorded send. Left: the newer edition holding the same articles still offers Send; nothing is lost, as before with Mark as sent.
 
+### Day cycles, A5: another tt-rss user on the same server
+- **From the backlog (audit):** signing in as another user on the same tt-rss server kept the first user's waiting and starred articles, filed under feed ids that belong to the first user and may name the second's feeds. A sync running during the switch could add more.
+- **Found:** both real, each with a test (the second switches users in the middle of a sync).
+- **Shipped:** another user on the same server now starts with a fresh tt-rss source, as another server already did, so the first user's articles and stars go with the old one. A sync still running for the first user can't add to a source that's gone. The same user signing in again keeps everything, as before.
+- **Review:** an edition being made during the switch would have failed; #249, merged first, keeps it. Two older gaps went to the backlog: delivered links are shared across accounts, and a phone restored from a backup has no login to compare with.
+
 ### Day cycles, A1: a source removed during a build
 - **From the backlog (audit), area A of four parallel sessions:** removing a source, a saved link or the tt-rss account while an edition was being made threw the finished edition away.
 - **Found:** real. A test that removes a feed and a saved link mid-build got "Something went wrong" and no edition: the articles read at the start were gone by the time they were linked into the edition, eight minutes later at most.
