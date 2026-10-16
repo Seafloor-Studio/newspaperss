@@ -20,6 +20,7 @@ import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.PublicationEntity
 import com.app.newspaperss.data.SourceRepository
 import com.app.newspaperss.testutil.TestApp
+import com.app.newspaperss.testutil.ViewModels
 import com.app.newspaperss.testutil.closeAfter
 import com.app.newspaperss.testutil.idleUntil
 import com.app.newspaperss.ui.sources.SourceDetailScreen
@@ -43,6 +44,7 @@ import java.time.Instant
 class SourceLinksTest {
     @get:Rule(order = 0) val closeDb = closeAfter { db.close() }
     @get:Rule(order = 1) val compose = createComposeRule()
+    @get:Rule(order = 2) val viewModels = ViewModels()
 
     private val app = ApplicationProvider.getApplicationContext<Application>()
     private val db = Room.inMemoryDatabaseBuilder(app, AppDatabase::class.java).allowMainThreadQueries().build()
@@ -63,7 +65,7 @@ class SourceLinksTest {
     }
 
     private fun show(id: Long, key: String = PublicationEntity.OWN, until: String) {
-        val vm = SourceDetailViewModel(repo, id, flowOf(1), key = key)
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1), key = key))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
         idleUntil { compose.waitForIdle(); visible(until) }
     }
