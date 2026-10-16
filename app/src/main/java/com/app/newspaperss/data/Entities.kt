@@ -221,6 +221,12 @@ data class PublicationEntity(
      * when it worked. tt-rss fetches its feeds itself, so without this a dead feed just goes quiet.
      */
     val serverError: String? = null,
+    /**
+     * tt-rss only: when the feed last posted, as far as the app has seen: the newest article a
+     * sync took from it, or what tt-rss said when asked about a feed that seemed quiet. Null
+     * until either.
+     */
+    val newestPostAt: Instant? = null,
 ) {
     companion object {
         /** The key of a source's own feed, and of an article with no [ArticleEntity.originId]. */

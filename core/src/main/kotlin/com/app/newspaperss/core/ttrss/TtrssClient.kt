@@ -241,6 +241,26 @@ class TtrssClient(
         return states
     }
 
+    /**
+     * When [feedId]'s newest article was posted, read or not, in seconds since the epoch; null if
+     * the feed has none. One headline without its text.
+     */
+    suspend fun newestPosted(feedId: Int): Long? {
+        val content = withSession { sid ->
+            post(buildJsonObject {
+                put("sid", sid)
+                put("op", "getHeadlines")
+                put("feed_id", feedId)
+                put("view_mode", "all_articles")
+                put("show_content", false)
+                put("limit", 1)
+                put("order_by", "feed_dates")
+            })
+        }
+        val items = content as? JsonArray ?: throw TtrssException.NotTtrss()
+        return items.firstNotNullOfOrNull { (it as? JsonObject)?.let(::headline)?.updated }
+    }
+
     /** Marks [ids] as read. */
     suspend fun markRead(ids: Collection<Long>) = setUnread(ids, false)
 

@@ -764,6 +764,28 @@ class TtrssSyncTest {
     private val fresh = now.epochSecond
 
     /**
+     * A feed read on the laptop leaves nothing unread here, so the daily list asks tt-rss when a
+     * feed with no recent post here last posted; one that just posted is known from its headlines.
+     */
+    @Test
+    fun aFeedsLastPostIsKnownForTheQuietNote() = runTest {
+        val source = connect()
+        server.feeds[7] = FakeTtrss.Feed("Quarterly Review", "https://quarterly.example/feed")
+        server.feeds[8] = FakeTtrss.Feed("Example News", "https://news.example/feed")
+        val monthAgo = now.minus(Duration.ofDays(30))
+        server.add(70, "An essay", feedId = 7, feedTitle = "Quarterly Review", updated = monthAgo.epochSecond)
+        server.readThere(70)
+        server.add(80, "Today's news", feedId = 8, feedTitle = "Example News", updated = fresh)
+
+        sync.syncAll()
+
+        val publications = db.sources().allPublications().filter { it.sourceId == source.id }.associateBy { it.key }
+        assertEquals(monthAgo, publications.getValue("7").newestPostAt)
+        assertEquals(now, publications.getValue("8").newestPostAt)
+        assertEquals("only the quiet one is asked about", listOf(7), server.newestAsked)
+    }
+
+    /**
      * Asked to, a feed's backlog of old unread articles is marked read as it arrives rather than
      * coming through the paper five at a time: marking the newest five read brings in the next.
      */

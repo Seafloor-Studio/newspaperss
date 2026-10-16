@@ -52,6 +52,8 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
     /** Ids passed to updateArticle to set it again. */
     val markedUnread = mutableListOf<Long>()
     val ops = mutableListOf<String>()
+    /** Feeds asked for their single newest article, read or not. */
+    val newestAsked = mutableListOf<Int>()
     /** An HTTP status to answer every request with, instead of the API's reply. */
     var failWith: Int? = null
     var apiLevel = 18
@@ -158,6 +160,7 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
                     val since = str("since_id")?.toLong() ?: 0
                     val skip = str("skip")?.toInt() ?: 0
                     val withContent = str("show_content") != "false"
+                    if (all && limit == 1) newestAsked += feed
                     // Newest first, as tt-rss sorts them; a higher id is newer here.
                     (if (all) unread + read else unread).filter { it.id > since }.filter {
                         when {

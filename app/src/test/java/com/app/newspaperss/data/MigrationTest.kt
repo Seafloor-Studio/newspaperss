@@ -104,7 +104,7 @@ class MigrationTest {
 
         helper.runMigrationsAndValidate(DB, 3, true, AppDatabase.MIGRATION_2_3).close()
         val room = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java, DB)
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11).allowMainThreadQueries().build()
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12).allowMainThreadQueries().build()
         try {
             runBlocking {
                 assertEquals(7000L, room.articles().byId(4)!!.starredAt?.toEpochMilli())
@@ -367,6 +367,25 @@ class MigrationTest {
                 c.moveToFirst()
                 assertEquals(1, c.getInt(0))
                 assertEquals(0, c.getInt(1))
+            }
+        }
+    }
+
+    /** Feeds from before version 12 haven't been seen posting: no note until a sync or the daily check says. */
+    @Test
+    fun version12KnowsNoFeedsLastPostYet() {
+        helper.createDatabase(DB, 11).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, kind, url, title, position, contentMode, contentModeChosen, fullTextStreak, paused, markReadOnServer, addedAt) " +
+                    "VALUES (1, 'TTRSS', 'https://rss.example/api/', 'tt-rss', 0, 'AUTO', 0, 0, 0, 1, 0)",
+            )
+            db.execSQL("INSERT INTO publications (sourceId, `key`, contentMode, fullTextStreak, title, listed) VALUES (1, '7', 'AUTO', 0, 'Quarterly', 1)")
+        }
+        helper.runMigrationsAndValidate(DB, 12, true, AppDatabase.MIGRATION_11_12).use { db ->
+            db.query("SELECT title, newestPostAt FROM publications WHERE sourceId = 1 AND `key` = '7'").use { c ->
+                c.moveToFirst()
+                assertEquals("Quarterly", c.getString(0))
+                assertTrue(c.isNull(1))
             }
         }
     }

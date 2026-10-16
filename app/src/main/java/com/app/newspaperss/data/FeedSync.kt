@@ -199,6 +199,11 @@ class FeedSync(
                 db.withTransaction { withUnread.forEach { db.sources().setServerError(source.id, it.id.toString(), it.lastError) } }
                 val unreadFeeds = withUnread.filter { it.id.toString() !in leftOut }
                 val headlines = fromEachFeed(client, unreadFeeds)
+                // Unread or not, an article is a post: the feed isn't quiet.
+                val latestPosts = headlines.groupBy { it.feedId }.mapNotNull { (feed, its) ->
+                    its.mapNotNull { it.updated }.maxOrNull()?.let { feed to Instant.ofEpochSecond(it) }
+                }.toMap()
+                recordPosts(source, latestPosts)
                 val articles = headlines.map {
                     it to ArticleEntity(
                         sourceId = source.id, guid = "$TTRSS_GUID_PREFIX${it.id}", url = it.link, title = it.title,
@@ -218,7 +223,7 @@ class FeedSync(
                     CATEGORY_GONE
                 } else {
                     db.sources().recordSuccess(source.id, now, null, null, source.title)
-                    listFeeds(client, source, now)
+                    listFeeds(client, source, now, latestPosts)
                     return added
                 }
             } catch (e: CancellationException) {
@@ -241,9 +246,41 @@ class FeedSync(
     }
 
     /** Lists the account's feeds once a day (see [listTtrssFeeds]). */
-    private suspend fun listFeeds(client: TtrssClient, source: SourceEntity, now: Instant) {
+    private suspend fun listFeeds(client: TtrssClient, source: SourceEntity, now: Instant, latestPosts: Map<String, Instant>) {
         if (source.feedsListedAt?.let { Duration.between(it, now) < LIST_FEEDS_EVERY } == true) return
-        listTtrssFeeds(db, client, source, now)
+        if (!listTtrssFeeds(db, client, source, now)) return
+        // Again: the list may have just made the rows, and a feed that posted needn't be asked.
+        recordPosts(source, latestPosts)
+        checkQuietFeeds(client, source, now)
+    }
+
+    private suspend fun recordPosts(source: SourceEntity, latest: Map<String, Instant>) =
+        latest.forEach { (feed, at) -> db.sources().posted(source.id, feed, at) }
+
+    /**
+     * Asks tt-rss when each feed in the paper that seems quiet last posted: tt-rss's feed list says
+     * when it last fetched a feed, not when the feed last posted, and a sync only sees unread
+     * articles, so one read on the laptop leaves no trace here. Once a day, with the feed list,
+     * and only for feeds not known to have posted lately.
+     */
+    private suspend fun checkQuietFeeds(client: TtrssClient, source: SourceEntity, now: Instant) {
+        val quietSince = now.minus(QUIET_AFTER)
+        val unsure = db.sources().allPublications().filter {
+            it.sourceId == source.id && it.listed && !it.leftOut && it.newestPostAt?.isBefore(quietSince) != false
+        }.take(QUIET_CHECKS)
+        for (feed in unsure) {
+            val id = feed.key.toIntOrNull() ?: continue
+            val posted = try {
+                client.newestPosted(id)
+            } catch (e: TtrssException) {
+                if (e.failsWholeAccount) return
+                continue
+            } catch (e: IOException) {
+                // The server stopped answering: the rest can wait for tomorrow.
+                return
+            }
+            posted?.let { db.sources().posted(source.id, feed.key, Instant.ofEpochSecond(it)) }
+        }
     }
 
     private suspend fun syncList(source: SourceEntity): Int? {
@@ -296,6 +333,12 @@ class FeedSync(
     companion object {
         private val UNTITLED_LOOKUP_FOR: Duration = Duration.ofDays(2)
         private val LIST_FEEDS_EVERY: Duration = Duration.ofDays(1)
+
+        /** A feed in the paper with nothing new for this long says so on Sources. */
+        val QUIET_AFTER: Duration = Duration.ofDays(21)
+
+        /** At most this many feeds asked about each day, so a big account's first day stays short. */
+        private const val QUIET_CHECKS = 100
 
         /** How long an unpicked article waits, from when it was found, before it expires. */
         val KEEP_WAITING: Duration = Duration.ofDays(7)
