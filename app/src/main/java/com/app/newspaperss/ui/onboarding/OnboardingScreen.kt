@@ -269,7 +269,10 @@ private fun SourcesStep(s: OnboardingState, vm: OnboardingViewModel, sources: So
     // As in Sources: a site with no feed isn't a dead end, its page can be read in the paper.
     val page = s.findPage
     if (page != null && readingList != null && !s.searching) {
-        TextButton(onClick = { readingList.save(page, vm::savedInstead) }) { Text("Save this page to your reading list instead") }
+        TextButton(onClick = {
+            vm.savingInstead(page)
+            readingList.save(page) { added -> vm.savedInstead(page, added) }
+        }) { Text("Save this page to your reading list instead") }
     }
     s.found.forEach { feed -> FeedCheck(feed.title, feed.url in s.chosen) { vm.toggleFeed(feed.url) } }
     StarterPacks.all.forEach { pack ->

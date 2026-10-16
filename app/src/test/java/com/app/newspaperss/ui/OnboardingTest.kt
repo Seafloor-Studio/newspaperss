@@ -463,6 +463,22 @@ class OnboardingTest {
     }
 
     @Test
+    fun aSaveAnsweredAfterTheReaderTypedAgainLeavesWhatTheyTyped() {
+        http.page("https://plain.example/essay", "<html><head><title>An essay</title></head><body><p>Words.</p></body></html>")
+        vm.editPasted("plain.example/essay")
+        vm.findPasted()
+        idleUntil { vm.state.value.findPage != null }
+        val page = vm.state.value.findPage!!
+        vm.savingInstead(page)
+        assertNull("no second tap", vm.state.value.findPage)
+
+        vm.editPasted("another.example")
+        vm.savedInstead(page, added = true)
+        assertEquals("another.example", vm.state.value.pasted)
+        assertNull(vm.state.value.findNote)
+    }
+
+    @Test
     fun aPastedWebsiteIsFoundAndChosen() {
         http.page("https://blog.example", "<html><head><link rel=alternate type=application/rss+xml href=/feed title=Blog></head></html>")
         http.page("https://blog.example/feed", rss("Blog"))
