@@ -115,6 +115,26 @@ class ExtractorContentProviderTest {
     }
 
     @Test
+    fun aSavedLinkThatCanNeverBeReadIsReportedOnceAndOneWorthRetryingIsNot() = runTest {
+        val unreadable = mutableListOf<Pair<Long, String>>()
+        val reporting = ExtractorContentProvider(ArticleExtractor(http), http, AndroidImageEncoder(), onUnreadable = { id, why -> unreadable += id to why }) { _, _, _, _ -> }
+        http.page("https://example.com/report.pdf", "%PDF-1.7")
+        http.contentTypes["https://example.com/report.pdf"] = "application/pdf"
+        http.page("https://example.com/gone", "", code = 410)
+        http.page("https://example.com/down", "", code = 503)
+        fun saved(id: Long, url: String) = ArticleEntity(id = id, sourceId = 2, guid = url, url = url, title = "")
+
+        for ((id, url) in listOf(1L to "https://example.com/report.pdf", 2L to "https://example.com/gone", 3L to "https://example.com/down")) {
+            assertEquals(null, reporting.contentFor(saved(id, url), readingList, ImageAllowance(), TextChoice()))
+        }
+
+        assertEquals(listOf(1L to "not a web page", 2L to "error 410"), unreadable)
+        // A feed's article that can't be read still goes in, as before, and isn't reported.
+        assertTrue(reporting.contentFor(saved(4, "https://example.com/report.pdf").copy(sourceId = 1, feedHtml = null), source, ImageAllowance(), TextChoice()) != null)
+        assertEquals(2, unreadable.size)
+    }
+
+    @Test
     fun eachArticleReportsWhatItShowedAboutItsSource() = runTest {
         val auto = source.copy(contentMode = ContentMode.AUTO)
         val words = (1..600).joinToString(" ") { "word$it" }

@@ -62,6 +62,9 @@ interface HttpClient {
     suspend fun postJson(url: String, body: String): HttpResponse
 }
 
+/** A body over [OkHttpHttpClient.MAX_BYTES], and what the server said it was: a video, a big file. */
+class TooLargeException(val contentType: String?) : IOException("Too large to be a feed or an article.")
+
 class OkHttpHttpClient(
     private val client: OkHttpClient = defaultClient(),
 ) : HttpClient {
@@ -95,7 +98,7 @@ class OkHttpHttpClient(
             val source = r.body.source()
             // Someone may paste a link to a video or a huge file; don't read it all into memory.
             val tooLarge = source.request(MAX_BYTES + 1)
-            if (tooLarge && !truncate) throw IOException("Too large to be a feed or an article.")
+            if (tooLarge && !truncate) throw TooLargeException(r.header("Content-Type"))
             val bytes = if (tooLarge) source.readByteArray(MAX_BYTES) else source.readByteArray()
             // Cancelled, not just closed: closing reads the rest to store the whole of it in the
             // cache, more than the cache holds, which would push every other feed out of it.

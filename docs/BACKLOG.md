@@ -69,7 +69,6 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 
 ### Reading list
 - [ ] Send for a look on an e-reader with no browser says so and stops there; copying the form's address would let the reader send it from a phone. And check on a device whether the GitHub app, if installed, takes the link and drops the filled-in fields *(today C1 review)*
-- [ ] Saved links that can never be read (a PDF, a video, a page over 5 MB, a 410) wait silently forever. Show them in the reading list as unreadable, with the reason and a way to open or remove them. Not as "couldn't fetch" pages in the edition: they cost no reading time, so a backlog of them could fill one. Built on `claude/screens-c8` (database version 14), waiting on session D's versions 12 and 13 to merge first
 - [ ] **Your call:** reading times for saved links. Not only links saved before database version 2: no titled link from a Pocket or Instapaper import gets one either, since only untitled links are looked up. The reading time is only the reading list's "10 min read" (editions don't use it). Filling them in costs one background page fetch per link, 20 at a time, so a 3,000-link import means 3,000 fetches. Options: measure every saved link; measure only links saved from now on and leave imports; or leave it. On the morning page
 
 ### Accessibility *(a11y, you asked for it)*
@@ -433,6 +432,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] A saved link that can never be read (not a web page, a 410, too large) says why in the reading list, can still be opened or removed, and editions stop trying it; saving it again looks again (database version 14, #283)
 - [x] Starred in tt-rss goes in the paper: an opt-in, one-way, each star once (today D8, madCode's call on the morning page)
 - [x] A quiet tt-rss feed says so under its row: "Nothing new in 3 weeks" (today D4)
 - [x] **Send for a look**: ⋮ › Send for a look… on an article's preview says the report is a public GitHub issue, then opens GitHub's form with "Extraction: *title*", the address and the app's version filled in (#251)

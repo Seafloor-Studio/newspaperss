@@ -279,9 +279,19 @@ interface ArticleDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertIgnoring(article: ArticleEntity): Long
 
-    /** Waiting articles, and starred ones in any state but already in an unsent edition. */
-    @Query("SELECT * FROM articles WHERE state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')")
+    /**
+     * Waiting articles, and starred ones in any state but already in an unsent edition; not the
+     * saved links that can never be read ([ArticleEntity.unreadable]).
+     */
+    @Query("SELECT * FROM articles WHERE (state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')) AND unreadable IS NULL")
     suspend fun candidates(): List<ArticleEntity>
+
+    /**
+     * Marks a saved link as one that can never be read, and why (see [ArticleEntity.unreadable]);
+     * null clears it. Not one in an edition, which was read after all.
+     */
+    @Query("UPDATE articles SET unreadable = :why WHERE id = :id AND state != 'IN_EDITION'")
+    suspend fun setUnreadable(id: Long, why: String?)
 
     /**
      * [candidates] without their feed text, which a build reads one article at a time with
@@ -290,8 +300,8 @@ interface ArticleDao {
      */
     @Query(
         """SELECT id, sourceId, guid, url, title, author, published, NULL AS feedHtml, discoveredAt, state, starredAt,
-           originId, originTitle, pageWords, reportedRead, viaUrl, paidOnly, paidSkipped
-           FROM articles WHERE state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')""",
+           originId, originTitle, pageWords, reportedRead, viaUrl, paidOnly, paidSkipped, unreadable
+           FROM articles WHERE (state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')) AND unreadable IS NULL""",
     )
     suspend fun buildCandidates(): List<ArticleEntity>
 
@@ -302,7 +312,7 @@ interface ArticleDao {
     @Query(
         """SELECT COUNT(DISTINCT CASE WHEN articles.url != '' THEN articles.url ELSE '#' || articles.id END)
            FROM articles JOIN sources ON sources.id = articles.sourceId
-           WHERE articles.starredAt IS NOT NULL AND articles.state != 'IN_EDITION' AND sources.paused = 0""",
+           WHERE articles.starredAt IS NOT NULL AND articles.state != 'IN_EDITION' AND sources.paused = 0 AND articles.unreadable IS NULL""",
     )
     fun observeStarredWaiting(): Flow<Int>
 

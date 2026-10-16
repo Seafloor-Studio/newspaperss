@@ -104,7 +104,7 @@ class MigrationTest {
 
         helper.runMigrationsAndValidate(DB, 3, true, AppDatabase.MIGRATION_2_3).close()
         val room = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java, DB)
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13).allowMainThreadQueries().build()
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14).allowMainThreadQueries().build()
         try {
             runBlocking {
                 assertEquals(7000L, room.articles().byId(4)!!.starredAt?.toEpochMilli())
@@ -416,6 +416,25 @@ class MigrationTest {
             db.query("SELECT COUNT(*) FROM ttrss_stars").use { c ->
                 c.moveToFirst()
                 assertEquals(0, c.getInt(0))
+            }
+        }
+    }
+
+    /** Saved links from before version 14 are all taken as readable: an edition finds out again. */
+    @Test
+    fun version14KnowsNoLinkIsUnreadableYet() {
+        helper.createDatabase(DB, 13).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, kind, url, title, position, contentMode, contentModeChosen, fullTextStreak, paused, markReadOnServer, addedAt) " +
+                    "VALUES (1, 'READING_LIST', 'newspaperss:reading-list', 'Your reading list', -1, 'PAGE', 0, 0, 0, 1, 0)",
+            )
+            db.execSQL("INSERT INTO articles (id, sourceId, guid, url, title, discoveredAt, state) VALUES (1, 1, 'g', 'https://a.example/report.pdf', 'A report', 0, 'NEW')")
+        }
+        helper.runMigrationsAndValidate(DB, 14, true, AppDatabase.MIGRATION_13_14).use { db ->
+            db.query("SELECT title, unreadable FROM articles WHERE id = 1").use { c ->
+                c.moveToFirst()
+                assertEquals("A report", c.getString(0))
+                assertTrue(c.isNull(1))
             }
         }
     }

@@ -6,6 +6,7 @@ import com.app.newspaperss.core.extract.ExtractInput
 import com.app.newspaperss.core.extract.FullTextCheck
 import com.app.newspaperss.core.extract.FullTextEvidence
 import com.app.newspaperss.core.extract.HtmlCleaner
+import com.app.newspaperss.core.extract.PageFailure
 import com.app.newspaperss.core.images.ArticleImages
 import com.app.newspaperss.core.images.EncodedImage
 import com.app.newspaperss.core.images.ImageAllowance
@@ -32,12 +33,15 @@ import java.io.IOException
  * @param onEvidence receives what each article showed about where its publication's full text is
  *   (null if nothing, which is still passed on for a check, so the check counts as done), with the
  *   article's [TextChoice], for [com.app.newspaperss.data.SourceRepository.recordFullText].
+ * @param onUnreadable told of a saved link whose page can never be read (see
+ *   [com.app.newspaperss.data.ArticleEntity.unreadable]), and why.
  */
 class ExtractorContentProvider(
     private val extractor: ArticleExtractor,
     private val http: HttpClient,
     private val encoder: ImageEncoder,
     private val onPaidOnly: suspend (articleId: Long, skipped: Boolean) -> Unit = { _, _ -> },
+    private val onUnreadable: suspend (articleId: Long, why: String) -> Unit = { _, _ -> },
     private val onEvidence: suspend (sourceId: Long, originId: String?, FullTextEvidence?, TextChoice) -> Unit,
 ) : ArticleContentProvider {
     // Downloads overlap but decoding doesn't: a decoded photo can take tens of MB of heap.
@@ -62,7 +66,11 @@ class ExtractorContentProvider(
         val extracted = if (checking && evidence?.mode != ContentMode.PAGE) extractor.extract(input) else fetched
         // A feed article that can't be read still goes in, so a broken feed gets noticed. A link the
         // reader saved on purpose waits for the next edition instead of being used up as a stub.
-        if (source.kind == SourceKind.READING_LIST && extracted.wordCount == 0) return null
+        if (source.kind == SourceKind.READING_LIST && extracted.wordCount == 0) {
+            // Unless it never will be: then it stops waiting, and the reading list says why.
+            if (extracted.pageFailure == PageFailure.PERMANENT) onUnreadable(article.id, extracted.pageFailureReason ?: "it can't be read")
+            return null
+        }
         if (extracted.nothingFree) {
             // A star asks for this article whatever it turns out to be, and one found before and
             // still here was let in or brought back by the reader: only a first find is skipped.

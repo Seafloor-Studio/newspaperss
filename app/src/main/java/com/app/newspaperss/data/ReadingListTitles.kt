@@ -18,13 +18,21 @@ class ReadingListTitles(private val db: AppDatabase, private val http: HttpClien
         var unreachable = false
         for (id in articleIds) {
             val article = db.articles().byId(id) ?: continue
-            if (article.state != ArticleState.NEW || (article.title.isNotEmpty() && article.pageWords != null)) continue
+            // One marked unreadable is looked at again: saving it again asks for that.
+            if (article.state != ArticleState.NEW || (article.title.isNotEmpty() && article.pageWords != null && article.unreadable == null)) continue
+            val readingList = db.sources().byId(article.sourceId)?.kind == SourceKind.READING_LIST
             val page = try {
                 http.get(article.url)
             } catch (e: IOException) {
-                unreachable = true
+                val why = ArticleExtractor.permanentFailure(e)
+                if (why == null) unreachable = true else if (readingList && why != article.unreadable) db.articles().setUnreadable(id, why)
                 continue
             }
+            // A PDF, a video or a page gone for good: said in the reading list now, rather than
+            // found out by an edition and then waiting for ever.
+            val why = ArticleExtractor.permanentFailure(page)
+            if (readingList && why != article.unreadable) db.articles().setUnreadable(id, why)
+            if (why != null) continue
             if (!page.isSuccessful || page.contentType?.contains("html", ignoreCase = true) == false) continue
             // Its title ("Client Challenge") would stick as the headline, and the edition prefers a stored title.
             if (ArticleExtractor.isBotCheck(page.body)) continue
