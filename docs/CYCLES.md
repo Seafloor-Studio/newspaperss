@@ -7,6 +7,11 @@ For the next cycle: what each one should do differently. What was built is in
 
 - **Settings screens are shot by `ScreenshotTest` (07i–07l)**: a change to the tt-rss options or the leave dialog needs before and after pairs.
 
+### Cycle D5 — build: accessibility metadata for the book
+
+- **Run the real validator, not only the spec**: Ace on a live edition found the heading-order problem the backlog item never named. EPUBCheck is a jar from GitHub releases; Ace installs from npm (`@daisy/ace`) and runs with `ace-puppeteer` and `PUPPETEER_EXECUTABLE_PATH` at the pre-installed Chromium (the default Electron one refuses to run as root).
+- **A break that stays green can mean the fixture never takes that path**: a plain-space alt passed with or without decoding; `&nbsp;` is the form that needed it.
+
 ### Cycle D3 — build: a wait before tt-rss hears of a delivery
 
 - **Replaced WorkManager work is pruned, not left as CANCELLED**: `getWorkInfoById` of the old id can be null. Assert "null or cancelled".

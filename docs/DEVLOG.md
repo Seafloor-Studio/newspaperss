@@ -19,6 +19,13 @@ caught, and what got in the way. Newest first. Times are Pacific.
 - **Shipped:** the feeds in the paper become phone feeds before signing out, with their article text, cap and paid-post settings; left-out ones come paused. Not one outside the paper's category, one already on the phone, or one without an address yet. A message says how many came and why any didn't. Starred articles still go with the account.
 - **Review:** the paper's feeds were read from a list that goes stale when the category changes (or doesn't exist yet), so leaving now lists them first, waiting up to 20 seconds, and says when it had to use the last list. Feeds come paused and are unpaused only after signing out, so the app killed between can't fetch a feed twice. A phone feed the reader paused stays paused.
 
+### Today, D5: the book says what it offers a screen reader
+- **From the backlog (a11y):** EPUB Accessibility 1.1 metadata and alt text carried through.
+- **Found:** alt text already reached the book. Ace by DAISY on a live edition found what the metadata item didn't name: article headings skipping levels (a site's h3 straight under the title), 7 of them in 14 articles, and the contents list without its ARIA role.
+- **Shipped:** the metadata (what the book needs and offers; pictures count as described only when every one has alt text), headings re-leveled under each article's title, `role="doc-toc"`. A live edition passes EPUBCheck 5.2.1 (0 messages) and Ace 1.3.2 (0 violations).
+- **Review:** "no hazards" now only when every picture is a still JPEG; a custom `<img-zoom>` element and a no-break-space alt no longer count; right-to-left subheads are right-aligned.
+- **Left:** a screen reader on a device, and Ace on an edition with pictures (backlog).
+
 ### Today, D3: a quick "Mark as not sent" stays off tt-rss
 - **From the backlog (personas):** sending to the wrong app and marking the edition as not sent flipped its articles read, then unread, on the server.
 - **Shipped:** the marking waits two minutes (WorkManager's initial delay). A Mark as not sent in that time replaces it, so tt-rss isn't told either way.
