@@ -49,9 +49,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import androidx.lifecycle.SavedStateHandle
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
@@ -115,6 +117,28 @@ class FeedsFromTest {
         fields[1].performTextInput(server.user)
         fields[2].performTextInput(password)
         compose.onNodeWithText("Sign in").performClick()
+    }
+
+    /** What Android keeps of a screen's SavedStateHandle when it ends the app, read back as a new one. */
+    private fun afterProcessDeath(saved: SavedStateHandle) = SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) })
+
+    @Test
+    fun theSignInsAddressAndUsernameSurviveAndroidEndingTheAppButNotThePassword() {
+        val saved = SavedStateHandle()
+        val first = FeedsFromViewModel(store, ttrss, saved = saved) {}
+        first.openSignIn()
+        idleUntil { first.form.value != null }
+        first.editSignIn(first.form.value!!.copy(address = "rss.example.com/tt-rss", user = "reader", password = "secret"))
+        idleUntil { "reader" in saved.keys().map { saved.get<Any?>(it) } }
+        assertFalse("never the password", "secret" in saved.keys().map { saved.get<Any?>(it) })
+
+        val settingsVm = SettingsViewModel(store, ttrss.observeStatus()) {}
+        val restored = FeedsFromViewModel(store, ttrss, saved = afterProcessDeath(saved)) {}
+        compose.setContent { SettingsPageScreen(settingsVm, SettingsPage.FEEDS, onBack = {}, feedsFrom = restored) }
+        waitFor("Server address")
+        compose.onNode(hasSetTextAction() and hasText("rss.example.com/tt-rss")).assertExists()
+        compose.onNode(hasSetTextAction() and hasText("reader")).assertExists()
+        assertEquals("", restored.form.value?.password)
     }
 
     @Test

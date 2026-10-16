@@ -50,6 +50,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import androidx.lifecycle.SavedStateHandle
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
@@ -127,6 +128,25 @@ class ServerAddTest {
         compose.onNode(hasContentDescription("Category, ", substring = true)).performClick()
         compose.onNodeWithText(category).performClick()
         compose.onNodeWithText("Done").performClick()
+    }
+
+    @Test
+    fun anAddressTypedIntoAddASiteSurvivesAndroidEndingTheApp() {
+        val saved = SavedStateHandle()
+        val first = SourcesViewModel(sources, FeedFinder(http), saved = saved) {}
+        first.openAdd()
+        first.editInput("science.example")
+        idleUntil { "science.example" in saved.keys().map { saved.get<Any?>(it) } }
+
+        // What Android keeps of it, read back by the new process's view model.
+        val restored = SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) })
+        val vm = SourcesViewModel(sources, FeedFinder(http), saved = restored) {}
+        compose.setContent { SourcesScreen(vm) }
+        idleUntil { compose.waitForIdle(); compose.onAllNodes(hasSetTextAction() and hasText("science.example")).fetchSemanticsNodes().isNotEmpty() }
+
+        // Closing the dialog lets it go, so it isn't back the next time.
+        vm.closeAdd()
+        idleUntil { restored.keys().none { restored.get<Any?>(it) == "science.example" } }
     }
 
     @Test
