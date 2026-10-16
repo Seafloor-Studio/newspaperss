@@ -18,6 +18,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] Restored onto a new phone, the database comes back without the tt-rss login (it's left out of backups), so whoever signs in next keeps the waiting and starred articles, as the same user would. Ask on sign-in whether it's the same account? *(review, 16 Oct)*
 - [ ] A timed edition is dropped while a manual one waits for a connection (`EditionWorker` enqueues with KEEP, checked), and the manual run then has no Ready notification, podcast or retries
 - [ ] An EPUB written by a build the process died during is never deleted: `failInterrupted` marks it FAILED without removing the file, which has no `fileName` yet (checked)
+- [ ] Leaving the server as a feed move finishes can leave a phone feed paused: the move's check and the pause aren't one step (a window of milliseconds)
 - [ ] Sources' and the reading list's snackbars are shown while the app is in the background, so a tt-rss subscribe's answer and its Undo can time out unseen. Confirm on a device first
 - [ ] Typed text in Settings' tt-rss sign-in and the Add a site dialog is lost if Android kills the app while it's in the background (onboarding keeps it with a SavedStateHandle)
 - [ ] Rotation drops Listen's "Finish X first?" and contents dialogs and the category step of Add a site and Move feeds (`remember`, not `rememberSaveable`)
@@ -444,7 +445,6 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
-- [x] Leaving the server just as a feed is moved leaves it a phone feed, not paused with no server to come from: the move's check and the pause are one step with leaving (audit, 16 Oct)
 - [x] tt-rss: an opt-in "Mark read when they expire here"; an old backlog drains on arrival instead of coming through the paper (today D2)
 - [x] Book: EPUB Accessibility 1.1 metadata, alt text counted honestly, article headings that never skip a level, the contents list's role; EPUBCheck and Ace pass (today D5)
 - [x] tt-rss marks delivered articles read a couple of minutes after delivery, so a quick Mark as not sent usually never reaches it (today D3)

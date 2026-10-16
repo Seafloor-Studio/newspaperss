@@ -14,12 +14,6 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
-### Day cycles, A6: leaving the server as a feed moves
-- **From the backlog (audit):** leaving the server just as a feed move paused a phone feed could leave that feed paused, and hidden, with no server to come from.
-- **Found:** real. A test that leaves at that exact moment left the feed paused.
-- **Shipped:** the move pauses a feed and notes it in one step that leaving waits for, so leaving always finds it and makes it a phone feed again.
-- **Review:** also found the step could be cut in two if the background work was stopped at that moment. It can't now. Left: a disk error writing the move's notes at that step, and Tidy racing Leave for a feed that was paused before it moved; both were already so and both are rare.
-
 ### Today, D2: articles that expire here can be read in tt-rss too
 - **From the backlog (personas):** articles that waited their week out here stayed unread in tt-rss.
 - **Shipped:** **Mark read when they expire here**, a switch under Sync read status (off by default, shown only with read sync on). Waiting out the week then counts as marked read, which the next sync passes to tt-rss. Leaving a feed out or changing the category still leaves articles unread there. Database version 11.
