@@ -78,6 +78,12 @@ data class OnboardingState(
     val pasted: String = "",
     val searching: Boolean = false,
     val findError: String? = null,
+    /** The page of a site with no feed, which can go to the reading list instead. */
+    val findPage: String? = null,
+    /** What became of the last site added, when it's not a feed to tick: saved to the reading list. */
+    val findNote: String? = null,
+    /** The page being saved to the reading list, its button gone so a second tap can't save it again. */
+    val savingPage: String? = null,
     val minutes: Int = 30,
     val scheduleEnabled: Boolean = true,
     val time: LocalTime = LocalTime.of(6, 30),
@@ -306,14 +312,26 @@ class OnboardingViewModel(
         s.copy(chosen = if (s.chosen.containsAll(urls)) s.chosen - urls else s.chosen + urls)
     }
 
-    fun editPasted(text: String) = _state.update { it.copy(pasted = text, findError = null) }
+    fun editPasted(text: String) = _state.update { it.copy(pasted = text, findError = null, findPage = null, findNote = null, savingPage = null) }
+
+    /** Saving [page], the page with no feed, to the reading list instead. */
+    fun savingInstead(page: String) = _state.update { it.copy(findPage = null, savingPage = page) }
+
+    /**
+     * [page] went to the reading list; [added] is false if it was there already. Ignored if the
+     * reader has typed or searched since, which this would otherwise clear.
+     */
+    fun savedInstead(page: String, added: Boolean) = _state.update {
+        if (it.savingPage != page) it
+        else it.copy(pasted = "", findError = null, savingPage = null, findNote = if (added) "Saved to your reading list" else "It's already in your reading list")
+    }
 
     fun findPasted() {
         val input = state.value.pasted.takeIf { it.isNotBlank() } ?: return
-        _state.update { it.copy(searching = true, findError = null) }
+        _state.update { it.copy(searching = true, findError = null, findPage = null, findNote = null, savingPage = null) }
         viewModelScope.launch {
             when (val result = finder.find(input)) {
-                is FindResult.NotFound -> _state.update { it.copy(searching = false, findError = result.reason) }
+                is FindResult.NotFound -> _state.update { it.copy(searching = false, findError = result.reason, findPage = result.page) }
                 is FindResult.Found -> _state.update { s ->
                     val feeds = result.feeds.map { StarterFeed(it.title ?: SourceRepository.hostOf(it.url), it.url) }
                     // Several feeds on one site: pick the first, show the rest to tick.

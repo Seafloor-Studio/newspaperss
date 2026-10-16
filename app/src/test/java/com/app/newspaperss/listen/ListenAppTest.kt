@@ -51,6 +51,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
@@ -172,6 +173,77 @@ class ListenAppTest {
         player.pause()
         idleUntil { compose.onAllNodesWithText("Resume · 3 min left").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Resume · 3 min left").assertIsDisplayed()
+    }
+
+    @Test
+    fun yesterdaysPaperQuestionSurvivesTheScreenBeingRecreated() {
+        val yesterday = edition("Wednesday Morning Edition", lagos)
+        val today = edition()
+        progress.set(yesterday, ListenPosition(0, 1))
+        val vm = EditionDetailViewModel(repo, today, EditionNotes(db, File(app.filesDir, "notes"))) {}
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = {}) }
+        idleUntil { compose.onAllNodesWithText("Listen · about 9 min").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Listen · about 9 min").performClick()
+        idleUntil { compose.onAllNodesWithText("Finish Wednesday Morning Edition first?").fetchSemanticsNodes().isNotEmpty() }
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        idleUntil { compose.onAllNodesWithText("Finish Wednesday Morning Edition first?").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Finish it").performClick()
+        idleUntil { player.state.value.script != null }
+        assertEquals(yesterday, player.state.value.editionId)
+    }
+
+    @Test
+    fun yesterdaysPaperFinishedMeanwhileIsNotAskedAboutAgainOnRestore() {
+        val yesterday = edition("Wednesday Morning Edition", lagos)
+        val today = edition()
+        progress.set(yesterday, ListenPosition(0, 1))
+        val vm = EditionDetailViewModel(repo, today, EditionNotes(db, File(app.filesDir, "notes"))) {}
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = {}) }
+        idleUntil { compose.onAllNodesWithText("Listen · about 9 min").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Listen · about 9 min").performClick()
+        idleUntil { compose.onAllNodesWithText("Finish Wednesday Morning Edition first?").fetchSemanticsNodes().isNotEmpty() }
+
+        // Finished on another screen, or its file pruned, while the app was away.
+        progress.finish(yesterday)
+        restoration.emulateSavedInstanceStateRestore()
+
+        idleUntil { compose.onAllNodesWithText("Finish Wednesday Morning Edition first?").fetchSemanticsNodes().isEmpty() }
+    }
+
+    @Test
+    fun theContentsDontComeBackOverAPlayerWithNothingInIt() {
+        startAndWait(edition())
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent { ListenScreen(player, onBack = {}) }
+        compose.onNodeWithContentDescription("Contents").performClick()
+        compose.onNodeWithText("Thursday Morning Edition").assertIsDisplayed()
+
+        // As after Android ended the app: the screen comes back, the player starts empty.
+        player.stop()
+        idleUntil { player.state.value.pages.isEmpty() }
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.waitForIdle()
+        compose.onNodeWithText("Close").assertDoesNotExist()
+    }
+
+    @Test
+    fun theOpenContentsSurviveTheScreenBeingRecreated() {
+        startAndWait(edition())
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent { ListenScreen(player, onBack = {}) }
+        compose.onNodeWithContentDescription("Contents").performClick()
+        compose.onNodeWithText("Thursday Morning Edition").assertIsDisplayed()
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.onNodeWithText("Thursday Morning Edition").assertIsDisplayed()
+        compose.onNodeWithText("Close").performClick()
+        compose.onNodeWithText("Thursday Morning Edition").assertDoesNotExist()
     }
 
     @Test

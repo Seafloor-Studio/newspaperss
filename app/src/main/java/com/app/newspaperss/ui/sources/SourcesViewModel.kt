@@ -136,6 +136,8 @@ sealed interface AddState {
         val categories: List<TtrssCategory>? = null,
         val chosen: Int = UNCATEGORIZED_ID,
         val error: String? = null,
+        /** The category list is open in place of the step. Here, not in the screen, so it goes with the step. */
+        val picking: Boolean = false,
     ) : AddState
 
     /** Waiting for tt-rss's answer, which can take half a minute; closing the dialog doesn't stop it. */
@@ -315,7 +317,13 @@ class SourcesViewModel(
         val categories = pickerCategories((loaded as? TtrssRepository.Categories.Loaded)?.categories.orEmpty())
         val ids = categories.map { it.id }.toSet()
         val chosen = listOfNotNull(settings?.current()?.lastCategoryId, screen.value?.server?.account?.ttrssCategoryId).firstOrNull { it in ids } ?: UNCATEGORIZED_ID
-        _add.value = AddState.Subscribing(feed, page, categories, chosen, (loaded as? TtrssRepository.Categories.Failed)?.message)
+        _add.value = AddState.Subscribing(feed, page, categories, chosen, (loaded as? TtrssRepository.Categories.Failed)?.message, picking = (add.value as? AddState.Subscribing)?.picking == true)
+    }
+
+    /** Opens or closes the category list of the Subscribe step. */
+    fun pickCategory(open: Boolean) {
+        val s = add.value as? AddState.Subscribing ?: return
+        _add.value = s.copy(picking = open)
     }
 
     fun chooseCategory(id: Int) {
