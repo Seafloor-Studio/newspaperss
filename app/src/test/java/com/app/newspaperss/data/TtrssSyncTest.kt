@@ -764,14 +764,15 @@ class TtrssSyncTest {
     private val fresh = now.epochSecond
 
     /**
-     * A feed read on the laptop leaves nothing unread here, so the daily list asks tt-rss when a
-     * feed with no recent post here last posted; one that just posted is known from its headlines.
+     * Each sync looks at every article since the last, read or not, so a feed read on the laptop
+     * is still known to post; the first looks back over the newest few hundred.
      */
     @Test
-    fun aFeedsLastPostIsKnownForTheQuietNote() = runTest {
+    fun eachFeedsLastPostIsKnownReadOrNot() = runTest {
         val source = connect()
         server.feeds[7] = FakeTtrss.Feed("Quarterly Review", "https://quarterly.example/feed")
         server.feeds[8] = FakeTtrss.Feed("Example News", "https://news.example/feed")
+        server.feeds[9] = FakeTtrss.Feed("Gone Quiet", "https://quiet.example/feed")
         val monthAgo = now.minus(Duration.ofDays(30))
         server.add(70, "An essay", feedId = 7, feedTitle = "Quarterly Review", updated = monthAgo.epochSecond)
         server.readThere(70)
@@ -779,10 +780,19 @@ class TtrssSyncTest {
 
         sync.syncAll()
 
-        val publications = db.sources().allPublications().filter { it.sourceId == source.id }.associateBy { it.key }
-        assertEquals(monthAgo, publications.getValue("7").newestPostAt)
-        assertEquals(now, publications.getValue("8").newestPostAt)
-        assertEquals("only the quiet one is asked about", listOf(7), server.newestAsked)
+        suspend fun publication(key: String) = db.sources().allPublications().single { it.sourceId == source.id && it.key == key }
+        assertEquals("read in tt-rss, still a post", monthAgo, publication("7").newestPostAt)
+        assertEquals(now, publication("8").newestPostAt)
+        assertNull("nothing left in tt-rss to date it by", publication("9").newestPostAt)
+        assertEquals("watched from now", now, publication("9").watchedSince)
+
+        // Later, the quiet one posts and it's read at once on the laptop: the next sync still sees it.
+        val later = FeedSync(db, http, Clock.fixed(now.plus(Duration.ofDays(1)), ZoneOffset.UTC), Duration.ofDays(7), accounts)
+        server.add(90, "Back again", feedId = 9, feedTitle = "Gone Quiet", updated = now.plus(Duration.ofHours(20)).epochSecond)
+        server.readThere(90)
+        later.syncAll()
+        assertEquals(now.plus(Duration.ofHours(20)), publication("9").newestPostAt)
+        assertEquals("only what's new is asked for", listOf<Long?>(null, 80L), server.postsAskedSince)
     }
 
     /**

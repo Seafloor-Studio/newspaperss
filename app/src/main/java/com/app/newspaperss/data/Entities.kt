@@ -58,6 +58,8 @@ data class SourceEntity(
      * marked read, here and so on the server, rather than expiring.
      */
     @ColumnInfo(defaultValue = "0") val markExpiredRead: Boolean = false,
+    /** tt-rss only: the newest article id [FeedSync] has looked at for posts, read or not. */
+    val ttrssSeenId: Long? = null,
     /**
      * tt-rss only: when the full list of the account's feeds last filled in its publications
      * ([PublicationEntity.listed]); null before the first, and after the category changes.
@@ -221,12 +223,10 @@ data class PublicationEntity(
      * when it worked. tt-rss fetches its feeds itself, so without this a dead feed just goes quiet.
      */
     val serverError: String? = null,
-    /**
-     * tt-rss only: when the feed last posted, as far as the app has seen: the newest article a
-     * sync took from it, or what tt-rss said when asked about a feed that seemed quiet. Null
-     * until either.
-     */
+    /** tt-rss only: when the feed last posted, of the articles the app has seen there, read or not. */
     val newestPostAt: Instant? = null,
+    /** tt-rss only: when the app started watching the feed post, for one with no post seen since. */
+    val watchedSince: Instant? = null,
 ) {
     companion object {
         /** The key of a source's own feed, and of an article with no [ArticleEntity.originId]. */

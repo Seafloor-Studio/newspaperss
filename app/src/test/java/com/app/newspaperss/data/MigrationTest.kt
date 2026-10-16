@@ -382,10 +382,15 @@ class MigrationTest {
             db.execSQL("INSERT INTO publications (sourceId, `key`, contentMode, fullTextStreak, title, listed) VALUES (1, '7', 'AUTO', 0, 'Quarterly', 1)")
         }
         helper.runMigrationsAndValidate(DB, 12, true, AppDatabase.MIGRATION_11_12).use { db ->
-            db.query("SELECT title, newestPostAt FROM publications WHERE sourceId = 1 AND `key` = '7'").use { c ->
+            db.query("SELECT title, newestPostAt, watchedSince FROM publications WHERE sourceId = 1 AND `key` = '7'").use { c ->
                 c.moveToFirst()
                 assertEquals("Quarterly", c.getString(0))
                 assertTrue(c.isNull(1))
+                assertTrue("watched from the first sync after", c.isNull(2))
+            }
+            db.query("SELECT ttrssSeenId FROM sources WHERE id = 1").use { c ->
+                c.moveToFirst()
+                assertTrue("the first sync looks back", c.isNull(0))
             }
         }
     }

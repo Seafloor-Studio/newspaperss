@@ -556,8 +556,9 @@ internal fun feedNote(feed: FeedChoice, now: Instant): String? {
     return listOfNotNull(
         SERVER_CANT_FETCH.takeIf { p?.serverError != null },
         WAITING_FOR_FIRST_FETCH.takeIf { p?.awaitingFirstFetch == true && p.serverError == null },
-        // Not when tt-rss can't fetch it or hasn't yet: that line says why already.
-        p?.newestPostAt?.takeIf { p.serverError == null && !p.awaitingFirstFetch }?.let { quietLine(it, now) },
+        // Not when tt-rss can't fetch it or hasn't yet: that line says why already. With no post
+        // seen, from when the app started watching: tt-rss may have deleted the last one.
+        (p?.newestPostAt ?: p?.watchedSince)?.takeIf { p?.serverError == null && p?.awaitingFirstFetch != true }?.let { quietLine(it, now) },
         when (p?.chosenMode) {
             ContentMode.FEED -> "Feed's text"
             ContentMode.PAGE -> "Full page"

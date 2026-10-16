@@ -406,6 +406,12 @@ class TtrssFeedsTest {
         assertEquals("Nothing new in 8 weeks", posted(59))
         assertEquals("Nothing new in 2 months", posted(60))
         assertEquals("tt-rss couldn't fetch it last time", posted(90, serverError = "HTTP Code: 404"))
+        // Nothing seen since the app started watching it, four weeks ago.
+        assertEquals("Nothing new in 4 weeks", feedNote(feed(PublicationEntity(1, "7", watchedSince = now.minus(Duration.ofDays(28)))), now))
+        // A post seen counts, however recent the watching.
+        assertNull(feedNote(feed(PublicationEntity(1, "7", newestPostAt = now.minus(Duration.ofDays(2)), watchedSince = now.minus(Duration.ofDays(60)))), now))
+        // A feed tt-rss hasn't fetched yet has its own line.
+        assertEquals("Not fetched by tt-rss yet", feedNote(feed(PublicationEntity(1, "7", awaitingFirstFetch = true, watchedSince = now.minus(Duration.ofDays(28)))), now))
         assertTrue(sameFeed("https://www.Example.com/feed/", "http://example.com/feed"))
         assertFalse(sameFeed("https://example.com/feed", "https://example.com/rss"))
     }

@@ -234,6 +234,8 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_11_12 = object : Migration(11, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE publications ADD COLUMN newestPostAt INTEGER")
+                db.execSQL("ALTER TABLE publications ADD COLUMN watchedSince INTEGER")
+                db.execSQL("ALTER TABLE sources ADD COLUMN ttrssSeenId INTEGER")
             }
         }
 
