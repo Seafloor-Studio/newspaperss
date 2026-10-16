@@ -265,6 +265,29 @@ class HtmlCleanerTest {
         assertEquals(body, clean("$body\n<h2>Read next</h2>\n$links\n"))
     }
 
+    /** Le Monde's "Lire aussi", Der Spiegel's "Mehr zum Thema", El País's "Lee también": the same furniture in other languages. */
+    @Test
+    fun furnitureInFrenchGermanAndSpanishGoesToo() {
+        val body = "<p>" + "Des mots de cet article. ".repeat(30) + "</p>"
+        val links = "<ul><li><a href=\"https://example.com/a\">Article A</a></li><li><a href=\"https://example.com/b\">Article B</a></li></ul>"
+        val headings = listOf(
+            "Lire aussi", "À lire aussi", "Lire aussi\u00a0:", "Sur le même sujet", "Les plus lus",
+            "Mehr zum Thema", "Das könnte Sie auch interessieren", "Meistgelesen",
+            "Lee también", "Te puede interesar", "Noticias relacionadas", "Lo más leído",
+        )
+        for (heading in headings) assertEquals(heading, body, clean("$body<h2>$heading</h2>$links"))
+        val lines = listOf(
+            "Lire aussi | Le gouvernement présente son budget", "À LIRE AUSSI\u00a0: Les élections européennes",
+            "Lesen Sie auch: Die Bahn streikt wieder", "Lee también: El Gobierno aprueba los presupuestos",
+        )
+        for (line in lines) assertEquals(line, body, clean("$body<p>$line</p>"))
+        // A heading the extractor left without its links, over the article's next paragraph.
+        assertEquals(body + body, clean("$body<h2>Lire aussi</h2>$body"))
+        // A sentence that only starts the same way is the article's.
+        val sentence = "Lire aussi les lettres de sa mère, publiées après sa mort, change tout ce que nous savions de lui."
+        assertEquals("<p>$sentence</p>", clean("<p>$sentence</p>"))
+    }
+
     @Test
     fun screenReaderTextThatLabelsAnIconLinkStays() {
         assertEquals(

@@ -873,17 +873,24 @@ object HtmlCleaner {
     private val SMALL_CAPS = setOf("small-caps", "smallcaps")
     private val SMALL_CAPS_STYLE = Regex("font-variant(-caps)?\\s*:\\s*(all-)?small-caps", RegexOption.IGNORE_CASE)
     // Headings that name a site's box of links, never a section of the article itself. "Related" and
-    // "Further reading" aren't here: authors use them for their own references.
+    // "Further reading" aren't here: authors use them for their own references. French, German and
+    // Spanish ones are matched in any article, not by its language: a whole heading can't be mistaken
+    // across languages, and a page often doesn't say its language. French puts a space before a colon.
     private val FURNITURE_HEADING = Regex(
-        "recommended( (stories|articles|reading|for you))?|read (next|more)|you (may|might) also like|" +
+        "(recommended( (stories|articles|reading|for you))?|read (next|more)|you (may|might) also like|" +
             "most (read|popular)|more( (stories|picks|posts|articles|essays|reads))? (on|from) .{1,40}|" +
-            "related (stories|articles|coverage|posts|content)",
+            "related (stories|articles|coverage|posts|content)|" +
+            "(à )?lire (aussi|également)|sur le même sujet|les plus lus|articles (similaires|recommandés)|" +
+            "mehr zum thema|das könnte (sie|dich) auch interessieren|meistgelesen(e artikel)?|lesen sie auch|ähnliche artikel|" +
+            "le[ea] también|(también )?(te|le) puede interesar|(noticias|artículos) relacionad[oa]s|lo más leído)[\\s\u00a0\u202f]*:?",
         RegexOption.IGNORE_CASE,
     )
     // The ones no article uses for a section of its own paragraphs ("More on the method" can be), so they
     // go even when the extractor dropped their links and left them over the article's next paragraph.
     private val LONE_FURNITURE_HEADING = Regex(
-        "recommended( (stories|articles|reading|for you))?|read next|you (may|might) also like|most (read|popular)",
+        "(recommended( (stories|articles|reading|for you))?|read next|you (may|might) also like|most (read|popular)|" +
+            "(à )?lire (aussi|également)|les plus lus|das könnte (sie|dich) auch interessieren|meistgelesen(e artikel)?|" +
+            "lesen sie auch|le[ea] también|(también )?(te|le) puede interesar|lo más leído)[\\s\u00a0\u202f]*:?",
         RegexOption.IGNORE_CASE,
     )
     private val CONTENT_TAGS = setOf("ul", "ol", "dl", "table")
@@ -918,7 +925,7 @@ object HtmlCleaner {
         "^(listen to (this|the) (article|essay|story|episode)|\\d+[ -]min(ute)?s? (read|listen)|share (this|on)\\b|" +
             "advertisement$|sign up (for|to)\\b|subscribe (to|now|today)\\b|read more:|related:|recommended:|" +
             "click here to\\b|follow us on\\b|skip past newsletter|after newsletter promotion|(add|leave|post) a comment:?$|" +
-            "newsletter$)",
+            "newsletter$|(à )?lire (aussi|également)\\b|lesen sie auch\\b|mehr zum thema:|le[ea] también\\b|(te|le) puede interesar:)",
         RegexOption.IGNORE_CASE,
     )
 
