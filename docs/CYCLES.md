@@ -11,6 +11,11 @@ For the next cycle: what each one should do differently. What was built is in
 - **JUnit XML, not the console, says what failed:** `-q` prints "N tests completed, M failed" only
   on failure; read each testcase from the XML.
 
+### Cycle D3 — build: a wait before tt-rss hears of a delivery
+
+- **Replaced WorkManager work is pruned, not left as CANCELLED**: `getWorkInfoById` of the old id can be null. Assert "null or cancelled".
+- **Give a delay test the network first** (`setAllConstraintsMet` before the undo), or it passes without the delay because the work was never runnable.
+
 ### Cycle A5 (16 Oct) — build: another tt-rss user on the same server
 
 - **"Keep both sides" is wrong for a removed line.** Merging main's shared docs with a script
