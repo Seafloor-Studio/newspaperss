@@ -94,8 +94,9 @@ fun TodayScreen(viewModel: TodayViewModel, today: LocalDate = LocalDate.now(Loca
         newerBuild?.let { build ->
             item(key = "newerBuild") {
                 val download = {
-                    if (!openInBrowser(context, DebugUpdates.DOWNLOAD)) {
-                        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Download link", DebugUpdates.DOWNLOAD))
+                    val link = DebugUpdates.downloadFor(android.os.Build.SUPPORTED_ABIS)
+                    if (!openInBrowser(context, link)) {
+                        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Download link", link))
                         Toast.makeText(context, "No browser here. The download link is copied", Toast.LENGTH_LONG).show()
                     }
                 }

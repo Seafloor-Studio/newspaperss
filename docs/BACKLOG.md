@@ -15,7 +15,6 @@ Grouped by part of the app. The tag says where each item came from: *device* (yo
 Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "checked" means read against the code, not yet reproduced.
 - [ ] Another tt-rss user, or another server, still meets the first one's delivered links: `delivered_urls` is shared, so a story the first user received is skipped for the second, and marked read on their server. Small, but partners often follow the same blogs. Forget the delivered links that came only from the old source when it goes? *(review, 16 Oct)*
 - [ ] Restored onto a new phone, the database comes back without the tt-rss login (it's left out of backups), so whoever signs in next keeps the waiting and starred articles, as the same user would. Ask on sign-in whether it's the same account? *(review, 16 Oct)*
-- [ ] Coverage counts the pictures `ScreenshotTest` draws (85 tests, 4 assertions) as tested code. Proposed in [#269](https://github.com/madCode/newspaperss/pull/269), your call: the screenshots run as their own task, which Kover doesn't measure; coverage goes from 94.73% to 94.32%
 - [ ] About 100 view models built directly in tests (Today, Settings, Sources…) are still never stopped, as the source page's were; `testutil/ViewModels` stops them, so adopt it as those tests are touched *(today B3)*
 - [ ] `PodcastSettingsTest.choosingToReadLiveDuringTheDownloadStopsIt` timed out once in six full runs, at its 30 s wait for the settings screen to load, on a machine running other builds. Watch it *(today B9)*
 - [ ] CLAUDE.md says its shared sections match claude-playground's; several rules have drifted (tests "waits for the condition", the review's background-work bullet, the PR template, "merge only when asked"). Your call whether to bring them across
@@ -87,10 +86,6 @@ A full pass over the app and the book, not just spot fixes:
 ### Performance *(resources)*
 - [ ] A floor device: Android 8, 2 GB RAM, slow CPU and storage (a 2018 budget phone or an older Boox). Measure on an emulator with that profile how long a 30-minute edition takes, peak memory, whether timed editions still arrive under Doze, and whether long lists and the preview stay smooth; set budgets from the numbers *(you asked)*
 - [ ] A feed's title, link, guid and author are stored uncapped: a hostile feed (a `data:` link, a megabyte title) could still make a row too big for the 2 MB Android reads it through. Cap them as feed text now is *(review)*
-- [ ] A smaller APK *(you asked)*. It went from 20–40 MB to 94 MB with the podcast, because sherpa-onnx's native code is in it twice, stored uncompressed: about 32 MB for arm64-v8a and 36 MB for x86_64. Three ways, with what each costs:
-  - **One APK per ABI** (preferred): about 57 MB for a phone, and nothing stops working. The cost: two files on the release page, CI and the `latest-debug` publish adjusted, and F-Droid's build recipe given the split.
-  - **Drop x86_64**: one APK of about 57 MB, but no podcast on emulators and x86 Chromebooks. First check whether the device tests' emulator needs it.
-  - **Compress the native code** (`useLegacyPackaging`): about 50 MB to download, but Android unpacks a copy on install, so it takes more room on the phone than now.
 
 ### Recurring reviews *(audit)*
 Whole-codebase passes for what a review of one PR can't see. Each follows the audit's pattern: fresh-eyes reviewers, each finding checked, a PR per area.
@@ -432,6 +427,8 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] Coverage no longer counts what `ScreenshotTest` draws: the screenshots run as their own task, which Kover doesn't measure; coverage went from 94.73% to 94.32% (#269, your call: merged)
+- [x] A smaller APK: one per ABI, as you chose. A phone's release APK is 50.6 MB (arm64) instead of 86.8 MB; older 32-bit e-readers get an 18.6 MB one without the podcast voice; Play's bundle is unchanged (today B13)
 - [x] A saved link that can never be read (not a web page, a 410, too large) says why in the reading list, can still be opened or removed, and editions stop trying it; saving it again looks again (database version 14, #283)
 - [x] Starred in tt-rss goes in the paper: an opt-in, one-way, each star once (today D8, madCode's call on the morning page)
 - [x] A quiet tt-rss feed says so under its row: "Nothing new in 3 weeks" (today D4)

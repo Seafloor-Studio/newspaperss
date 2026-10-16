@@ -106,18 +106,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          mv app-debug.apk newspapeRSS-debug.apk
+          # One APK per ABI. The fixed link is arm64's, which phones and recent e-readers run;
+          # the others keep their ABI in the name.
+          for abi in armeabi-v7a x86 x86_64; do mv "app-$abi-debug.apk" "newspapeRSS-debug-$abi.apk"; done
+          mv app-arm64-v8a-debug.apk newspapeRSS-debug.apk
           build="${{ github.run_number }}"
           short="${GITHUB_SHA::7}"
           # The same build under a numbered name, so a download can't be mistaken for an older one.
           numbered="newspapeRSS-debug-$build.apk"
           cp newspapeRSS-debug.apk "$numbered"
           title="Debug build $build · $short · $(date -u '+%b %-d')"
-          notes="Build $build from main ($short), $(date -u '+%Y-%m-%d %H:%M') UTC. Installs beside a release build as com.app.newspaperss.debug; its version is 0.1.0-debug.$build+$short (Settings, at the bottom)."
+          notes="Build $build from main ($short), $(date -u '+%Y-%m-%d %H:%M') UTC. Installs beside a release build as com.app.newspaperss.debug; its version is 0.1.0-debug.$build+$short (Settings, at the bottom). newspapeRSS-debug.apk is for arm64, most phones and e-readers; an older 32-bit e-reader needs the armeabi-v7a one, which has no podcast voice."
           # Updated in place, so the fixed link never 404s between builds. Title, notes and tag
           # follow each build: otherwise the page keeps the first build's date and commit.
           if gh release view latest-debug > /dev/null 2>&1; then
-            gh release upload latest-debug newspapeRSS-debug.apk "$numbered" --clobber
+            gh release upload latest-debug newspapeRSS-debug.apk newspapeRSS-debug-armeabi-v7a.apk newspapeRSS-debug-x86.apk newspapeRSS-debug-x86_64.apk "$numbered" --clobber
             gh api -X PATCH "repos/$GH_REPO/git/refs/tags/latest-debug" -f sha="$GITHUB_SHA" -F force=true > /dev/null
             gh release edit latest-debug --title "$title" --notes "$notes"
             # Only the newest numbered copy stays.
@@ -125,6 +128,6 @@ jobs:
               | { grep -E '^newspapeRSS-debug-[0-9]+\.apk$' || true; } | { grep -vx "$numbered" || true; } \
               | while read -r old; do gh release delete-asset latest-debug "$old" -y; done
           else
-            gh release create latest-debug newspapeRSS-debug.apk "$numbered" --prerelease --target "$GITHUB_SHA" \
+            gh release create latest-debug newspapeRSS-debug.apk newspapeRSS-debug-armeabi-v7a.apk newspapeRSS-debug-x86.apk newspapeRSS-debug-x86_64.apk "$numbered" --prerelease --target "$GITHUB_SHA" \
               --title "$title" --notes "$notes"
           fi
