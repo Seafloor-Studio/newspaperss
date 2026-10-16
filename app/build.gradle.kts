@@ -198,7 +198,7 @@ androidComponents {
         variant.outputs.forEach { output ->
             val abi = output.filters.singleOrNull { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }?.identifier
                 ?: return@forEach
-            val base = debugRun ?: output.versionCode.get() ?: 1
+            val base = debugRun ?: output.versionCode.orNull ?: 1
             output.versionCode.set(base * 10 + ABI_CODES.getValue(abi))
         }
     }

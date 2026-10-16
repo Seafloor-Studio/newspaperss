@@ -49,11 +49,22 @@ class DebugUpdates(
     companion object {
         val INTERVAL_MILLIS = TimeUnit.HOURS.toMillis(3)
         const val RELEASE_API = "https://api.github.com/repos/madCode/newspaperss/releases/tags/latest-debug"
-        const val DOWNLOAD = "https://github.com/madCode/newspaperss/releases/download/latest-debug/newspapeRSS-debug.apk"
+        private const val DOWNLOADS = "https://github.com/madCode/newspaperss/releases/download/latest-debug/"
+        // CI publishes one APK per ABI; the fixed name is arm64's (see build-and-test.yml).
+        private val OTHER_ABIS = setOf("armeabi-v7a", "x86", "x86_64")
+
+        /**
+         * The newest debug build for a device whose ABIs, best first, are [abis]
+         * (`Build.SUPPORTED_ABIS`): another ABI's APK won't install.
+         */
+        fun downloadFor(abis: Array<String>): String {
+            val abi = abis.firstOrNull { it == "arm64-v8a" || it in OTHER_ABIS }
+            return DOWNLOADS + if (abi == null || abi == "arm64-v8a") "newspapeRSS-debug.apk" else "newspapeRSS-debug-$abi.apk"
+        }
         private const val CHECKED = "checked"
         private const val LATEST = "latest"
 
-        // CI names each build's file after its run number, beside the fixed name DOWNLOAD links to.
+        // CI names each build's file after its run number, beside the fixed name downloadFor links to.
         private val BUILD_FILE = Regex("""newspapeRSS-debug-(\d+)\.apk""")
         private val BUILD_IN_VERSION = Regex("""-debug\.(\d+)""")
 

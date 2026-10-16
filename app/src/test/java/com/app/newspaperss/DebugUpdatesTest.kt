@@ -8,6 +8,7 @@ import com.app.newspaperss.testutil.TestApp
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -103,5 +104,24 @@ class DebugUpdatesTest {
         assertEquals(0, asked)
         assertNull(updates.newer.value)
         assertEquals(464, DebugUpdates.buildOf("0.1.0-debug.464+012eb32"))
+    }
+
+    /** Each device is sent an APK it can install, and every one is a file CI publishes. */
+    @Test
+    fun theDownloadIsTheApkForTheDevicesOwnAbi() {
+        val phone = DebugUpdates.downloadFor(arrayOf("arm64-v8a", "armeabi-v7a", "armeabi"))
+        val olderEReader = DebugUpdates.downloadFor(arrayOf("armeabi-v7a", "armeabi"))
+        val emulator = DebugUpdates.downloadFor(arrayOf("x86_64", "x86", "arm64-v8a"))
+        assertEquals("https://github.com/madCode/newspaperss/releases/download/latest-debug/newspapeRSS-debug.apk", phone)
+        assertEquals("https://github.com/madCode/newspaperss/releases/download/latest-debug/newspapeRSS-debug-armeabi-v7a.apk", olderEReader)
+        assertEquals("https://github.com/madCode/newspaperss/releases/download/latest-debug/newspapeRSS-debug-x86_64.apk", emulator)
+
+        // The names CI uploads to latest-debug, so a renamed file can't leave a link to nothing.
+        val published = java.io.File("../.github/workflows/build-and-test.yml").readText()
+            .lines().single { "gh release upload latest-debug" in it }
+        for (link in listOf(phone, olderEReader, emulator, DebugUpdates.downloadFor(arrayOf("x86")))) {
+            val name = link.substringAfterLast('/')
+            assertTrue("$name is uploaded", Regex("""(^|\s)${Regex.escape(name)}(\s|$)""").containsMatchIn(published))
+        }
     }
 }
