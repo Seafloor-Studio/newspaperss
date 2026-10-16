@@ -115,7 +115,7 @@ class SubstackPostTest {
     fun aPicturesStrippedButtonIsntANote() {
         val other = File(dir.parentFile, "www.slowboring.com-cracks-in-the-republican-coalition")
         val text = GZIPInputStream(File(other, "ttrss.html.gz").inputStream()).use { it.readBytes().toString(Charsets.UTF_8) }
-        assertTrue("it has one", Regex("""</picture>\s*<div>\s*</div>""").containsMatchIn(text))
+        assertTrue("it has one", Regex("""</picture>\s*<div>\s*<div>\s*</div>""").containsMatchIn(text))
         assertFalse(SubstackPost.stripped(text, "https://www.slowboring.com/p/cracks-in-the-republican-coalition"))
     }
 }
