@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.io.File
+import java.io.FileNotFoundException
 import java.io.IOException
 import java.util.Locale
 import java.util.UUID
@@ -226,7 +227,13 @@ class PodcastStore(val dir: File) {
         dir.listFiles { file -> file.name.endsWith(".$PART") }?.forEach { it.delete() }
     }
 
-    private fun read(editionId: Long, name: String): String? = File(folder(editionId), name).takeIf { it.exists() }?.readText()
+    // Not checked with exists() first: the readers aren't synchronized, so a delete can land between
+    // the check and the read, and the screen showing the podcast would throw.
+    private fun read(editionId: Long, name: String): String? = try {
+        File(folder(editionId), name).readText()
+    } catch (_: FileNotFoundException) {
+        null
+    }
 
     /** Does nothing once [editionId]'s folder is deleted, so nothing finishing late brings it back. */
     private fun write(editionId: Long, name: String, text: String) {
