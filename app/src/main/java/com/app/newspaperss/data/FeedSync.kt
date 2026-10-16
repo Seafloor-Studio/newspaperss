@@ -258,7 +258,7 @@ class FeedSync(
                                     sourceId = source.id, guid = it.url, url = withoutTracking(it.url, LinkPosts.siteNames(list.pageUrl)),
                                     title = it.title.orEmpty(),
                                     // The teaser is what the edition shows if the page can't be fetched.
-                                    feedHtml = it.summary?.let { s -> "<p>${Entities.escape(s)}</p>" }, discoveredAt = now,
+                                    feedHtml = storable(it.summary?.let { s -> "<p>${Entities.escape(s)}</p>" }), discoveredAt = now,
                                 ) to it.url
                             },
                         ).also { db.articles().keepNewest(source.id, listKeep) }

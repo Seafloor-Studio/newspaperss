@@ -207,7 +207,13 @@ abstract class AppDatabase : RoomDatabase() {
                     buildList { while (c.moveToNext()) add(c.getLong(0) to c.getInt(1)) }
                 }
                 for ((id, length) in oversized) {
-                    val text = StringBuilder()
+                    // Too big for its pictures to be all of it, and too big to read into a small
+                    // e-reader's memory: the migration would run out at every launch.
+                    if (length > OVERSIZED_UNREAD) {
+                        db.execSQL("UPDATE articles SET feedHtml = NULL WHERE id = ?", arrayOf<Any>(id))
+                        continue
+                    }
+                    val text = StringBuilder(length)
                     for (start in 1..length step OVERSIZED_PIECE) {
                         db.query("SELECT substr(feedHtml, ?, ?) FROM articles WHERE id = ?", arrayOf<Any>(start, OVERSIZED_PIECE, id)).use { c ->
                             if (c.moveToFirst()) text.append(c.getString(0))
@@ -219,6 +225,7 @@ abstract class AppDatabase : RoomDatabase() {
         }
         // Characters per piece: at four bytes each, well inside the window.
         private const val OVERSIZED_PIECE = 200_000
+        private const val OVERSIZED_UNREAD = 5_000_000
 
         fun open(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "newspaperss.db")
