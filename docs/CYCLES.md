@@ -3,6 +3,11 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Area D, closing
+
+- **Shared docs in every PR cost a CI round each time another session merged.** #274 went green four times and was refused three of them for a conflict in BACKLOG, DEVLOG or CYCLES. With four sessions, each session's docs in one closing PR, or merging the moment CI is green, would have saved about an hour and a half.
+- **Two sessions bumping the database on the same day work if they say so early.** C asked before opening; D kept 13, C took 14 on top of D's branch.
+
 ### Cycle D8 — build: starred in tt-rss goes in the paper
 
 - **Ask how a list is ordered before capping it.** tt-rss sorts stars by the article's date, not when they were starred, so "the newest 1,000" isn't "the most recent stars". Both reviews' worst findings came from that one assumption.

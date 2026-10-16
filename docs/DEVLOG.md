@@ -14,6 +14,11 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Today, area D (tt-rss, extraction, the book), closing
+- **Every item on the list done but one:** #242 (docs: the heart to Not doing), #243 (Substack posts whole via tt-rss), #252 (mark-read waits a couple of minutes after a delivery), #254 (the book's accessibility metadata, headings that never skip a level), #259 (mark read when they expire), #265 (leaving tt-rss brings your feeds along), #274 (a quiet tt-rss feed says so), and #281 (starred in tt-rss goes in the paper, madCode's call this morning), all with CI green. #268 fixed a test that failed now and then.
+- **Item 7, Webtoons, parked:** built and measured on `claude/today-d-c7`; the backlog item says what must change first (a strip taken whole or not at all, no silent cut, smaller panels).
+- **Nothing waiting on you from this area.** Database versions: 12 (#274), 13 (#281); session C takes 14.
+
 ### Today, D8: starred in tt-rss goes in the paper
 - **madCode's call on the morning page:** one-way and opt-in, as recommended.
 - **Shipped:** a switch under tt-rss in Settings › Where your feeds live, off by default. On, what you star in tt-rss goes in your next edition, once each; the star stays in tt-rss. Stars already there when it's turned on are kept stars and stay out. Seen stars are kept apart from articles (`ttrss_stars`), so a star kept for months isn't sent again; unstarred and starred again in tt-rss, it is. Database version 13.
