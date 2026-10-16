@@ -1,5 +1,6 @@
 package com.app.newspaperss.ui.settings
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.newspaperss.core.ttrss.TtrssCategory
@@ -50,6 +51,11 @@ class FeedsFromViewModel(
     private val ttrss: TtrssRepository,
     private val moves: FeedMoves? = null,
     sources: SourceRepository? = null,
+    /**
+     * Keeps the sign-in's address and username if Android ends the app in the background. Never
+     * the password, as in onboarding.
+     */
+    private val saved: SavedStateHandle = SavedStateHandle(),
     private val onSourcesChanged: () -> Unit = {},
 ) : ViewModel() {
     /** Moving phone feeds into tt-rss; null where that isn't offered. */
@@ -71,10 +77,19 @@ class FeedsFromViewModel(
         FeedsFromState(s.feedsFrom(hasServer = status.source != null), status)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    private val _form = MutableStateFlow<TtrssForm?>(null)
+    private val _form = MutableStateFlow(saved.get<String>(SIGN_IN_ADDRESS)?.let { TtrssForm(address = it, user = saved[SIGN_IN_USER] ?: "") })
     /** The sign-in form while it's open, in place of the page. */
     val form: StateFlow<TtrssForm?> = _form.asStateFlow()
     private var signingIn: Job? = null
+
+    init {
+        viewModelScope.launch {
+            _form.collect { form ->
+                saved[SIGN_IN_ADDRESS] = form?.address
+                saved[SIGN_IN_USER] = form?.user
+            }
+        }
+    }
 
     /** Filled in from the saved login, so signing in again is the password alone. */
     fun openSignIn() {
@@ -254,3 +269,6 @@ class FeedsFromViewModel(
         if (brought.noAddress > 0) add("${plural(brought.noAddress, "feed")} had no address yet: add ${if (brought.noAddress == 1) "it" else "them"} in Sources.")
     }.joinToString(" ")
 }
+
+private const val SIGN_IN_ADDRESS = "feedsFrom.signIn.address"
+private const val SIGN_IN_USER = "feedsFrom.signIn.user"

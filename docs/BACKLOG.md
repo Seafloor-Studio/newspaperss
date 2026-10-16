@@ -19,8 +19,9 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] Typed text in Settings' tt-rss sign-in and the Add a site dialog is lost if Android kills the app while it's in the background (onboarding keeps it with a SavedStateHandle)
 - [ ] Rotation drops Listen's "Finish X first?" and contents dialogs and the category step of Add a site and Move feeds (`remember`, not `rememberSaveable`)
 - [ ] Stop making and Delete podcast run on the screen's scope without `NonCancellable`, unlike Make beside them (checked)
-- [ ] Tests: the app's own DataStores (`preferencesDataStore`) are shared by every Robolectric test and never reset or stopped, the same hazard #190 fixed elsewhere; the drain before cancelling a test DataStore is in `PodcastSettingsTest` only; three copied wait loops time out after 5 s against `idleUntil`'s 30 s, and `OnboardingTest` uses `compose.waitUntil(5_000)` for an import (checked); `SourceDetailViewModel`s built directly in tests are never cancelled; the app's FakeHttp can't return a cut-short feed; `SourceDetailScreenTest` reads the real clock; `NotesWorkerTest` can't fail on what it names; a race in `PodcastMakerTest`'s fake can hide the bug it guards
-- [ ] Coverage counts the pictures `ScreenshotTest` draws (85 tests, 4 assertions) as tested code
+- [ ] Coverage counts the pictures `ScreenshotTest` draws (85 tests, 4 assertions) as tested code. Proposed in [#269](https://github.com/madCode/newspaperss/pull/269), your call: the screenshots run as their own task, which Kover doesn't measure; coverage goes from 94.73% to 94.32%
+- [ ] About 100 view models built directly in tests (Today, Settings, Sources…) are still never stopped, as the source page's were; `testutil/ViewModels` stops them, so adopt it as those tests are touched *(today B3)*
+- [ ] `PodcastSettingsTest.choosingToReadLiveDuringTheDownloadStopsIt` timed out once in six full runs, at its 30 s wait for the settings screen to load, on a machine running other builds. Watch it *(today B9)*
 - [ ] CLAUDE.md says its shared sections match claude-playground's; several rules have drifted (tests "waits for the condition", the review's background-work bullet, the PR template, "merge only when asked"). Your call whether to bring them across
 - Next audit of this kind: after 30–40 more cycles, or before a release
 
@@ -92,9 +93,7 @@ A full pass over the app and the book, not just spot fixes:
 
 ### Performance *(resources)*
 - [ ] A floor device: Android 8, 2 GB RAM, slow CPU and storage (a 2018 budget phone or an older Boox). Measure on an emulator with that profile how long a 30-minute edition takes, peak memory, whether timed editions still arrive under Doze, and whether long lists and the preview stay smooth; set budgets from the numbers *(you asked)*
-- [ ] Load build candidates without feedHtml; fetch it per article. Its worst case is now bounded (feed text is capped at 500,000 characters), so this is about memory on a big backlog, not a crash
 - [ ] A feed's title, link, guid and author are stored uncapped: a hostile feed (a `data:` link, a megabyte title) could still make a row too big for the 2 MB Android reads it through. Cap them as feed text now is *(review)*
-- [ ] EPUB zip: buffered output, JPEGs stored uncompressed
 - [ ] A smaller APK *(you asked)*. It went from 20–40 MB to 94 MB with the podcast, because sherpa-onnx's native code is in it twice, stored uncompressed: about 32 MB for arm64-v8a and 36 MB for x86_64. Three ways, with what each costs:
   - **One APK per ABI** (preferred): about 57 MB for a phone, and nothing stops working. The cost: two files on the release page, CI and the `latest-debug` publish adjusted, and F-Droid's build recipe given the split.
   - **Drop x86_64**: one APK of about 57 MB, but no podcast on emulators and x86 Chromebooks. First check whether the device tests' emulator needs it.
@@ -106,7 +105,7 @@ Whole-codebase passes for what a review of one PR can't see. Each follows the au
 - [ ] **Architecture and test health** (last: 16 Oct, cycle 6 of that run; its findings are at the top of Next), every 30–40 cycles or before a release: duplication and code that has grown complicated, how features fit together (what one feature deletes that another still uses), tests that can never fail, waits that flake under load, and copied test helpers
 
 ### Tech debt
-- [ ] Three screenshots still differ from one render to the next: the two with an open ⋮ menu (`05f`, `05g`) catch the button's ripple part way, and `06c` the selected row's colour fading in. Advancing the test's animation clock before the capture didn't settle them; the menus are windows of their own, likely on a frame clock the test doesn't drive
+- [ ] Listen sometimes stops at the paragraph instead of scrolling down to the sentence being read: its fine scroll needs the paragraph's text layout, which may not be recorded yet when the scroll runs. Seen as `11d-listen-larger-text` differing between two renders; likely on a phone too *(today B7)*
 
 ### Later
 - [ ] Send the email itself (SMTP, an app password), so a Kindle edition arrives with no tap and from a chosen account; email delivery through the mail app is done (#123)
@@ -441,6 +440,10 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 ## Done
 
 - [x] A quiet tt-rss feed says so under its row: "Nothing new in 3 weeks" (today D4)
+- [x] A build reads each article's feed text when it reaches it, rather than every waiting article's at once: 300 articles of 50,000 characters held 15 MB before, 82 KB after (today B11)
+- [x] Editions with pictures are written about three times faster: pictures go into the book stored, not compressed again, through a buffered stream (today B8)
+- [x] Screenshots are drawn without ripples, so two renders match (today B7)
+- [x] Test health from the 16 Oct audit: each test's app has its own settings, tt-rss and feed-move stores, stopped at teardown; one way to stop a test store; one shared wait in place of three 5-second loops; source-page view models stopped at a test's end; a cut-short feed through FeedSync; `SourceDetailScreenTest` on a fixed clock; `NotesWorkerTest` able to fail; `PodcastMakerTest`'s fake counting atomically (today B1–B6, B9)
 - [x] An edition released because a newer one was made counts as sent when it is sent anyway, from a share sheet, its notification or Today, as Mark as sent already did, so its articles don't go out again; and its Ready notification comes down when it is released (audit and UX pass, 16 Oct)
 - [x] A timed edition takes the place of one made by hand that is still waiting for a connection, rather than being dropped, so the paper comes with its Ready notification, podcast and retries (audit, 16 Oct)
 - [x] The book of a build the process died during is deleted when the next build finds it, rather than staying in the app's storage for good (audit, 16 Oct)
