@@ -30,6 +30,11 @@ Area B of four parallel sessions: the audit's test findings, then two speed item
 - **B12, a race other sessions hit ([#273](https://github.com/madCode/newspaperss/pull/273)):** the source page's Undo test tapped **Mark 1 as read** before the list showed the article waiting again; it now waits for the button.
 - **B11, memory ([#272](https://github.com/madCode/newspaperss/pull/272)):** a build reads each article's feed text as it reaches it. 300 waiting articles of 50,000 characters held 15 MB before, 82 KB after. The review found one rare difference, left on purpose: a source removed mid-build sends its remaining articles from their pages.
 
+### Today, D6: leaving tt-rss keeps your feeds
+- **From the backlog (you asked):** **I pick my own sites** deleted the account's feeds with it; the dialog pointed to the OPML export.
+- **Shipped:** the feeds in the paper become phone feeds before signing out, with their article text, cap and paid-post settings; left-out ones come paused. Not one outside the paper's category, one already on the phone, or one without an address yet. A message says how many came and why any didn't. Starred articles still go with the account.
+- **Review:** the paper's feeds were read from a list that goes stale when the category changes (or doesn't exist yet), so leaving now lists them first, waiting up to 20 seconds, and says when it had to use the last list. Feeds come paused and are unpaused only after signing out, so the app killed between can't fetch a feed twice. A phone feed the reader paused stays paused.
+
 ### Today, D2: articles that expire here can be read in tt-rss too
 - **From the backlog (personas):** articles that waited their week out here stayed unread in tt-rss.
 - **Shipped:** **Mark read when they expire here**, a switch under Sync read status (off by default, shown only with read sync on). Waiting out the week then counts as marked read, which the next sync passes to tt-rss. Leaving a feed out or changing the category still leaves articles unread there. Database version 11.

@@ -15,6 +15,10 @@ For the next cycle: what each one should do differently. What was built is in
 - **The app's full Robolectric suite takes about 5 minutes on 4 cores**, not the 50 the day's
   prompt said, so counting a flake over the whole suite is affordable.
 
+### Cycle D6 — build: feeds come home from tt-rss
+
+- **Settings screens are shot by `ScreenshotTest` (07i–07l)**: a change to the tt-rss options or the leave dialog needs before and after pairs.
+
 ### Cycle D2 — build: mark read in tt-rss when they expire here
 
 - **A change to one article's fate can change what the next sync fetches.** tt-rss sync takes a feed's newest five unread, so marking articles read there pulls in older ones. Ask "what arrives next?" of any change that marks things read on a server.
