@@ -616,7 +616,7 @@ back to the banner (`FeedMoves.giveUp`).
 - `:app`: Robolectric and Compose UI tests against a real Room database,
   plus `MigrationTest` for schema steps.
 - CI (`.github/workflows/build-and-test.yml`) runs `./gradlew build` and
-  Kover's 93% line-coverage check, then publishes the debug APK.
+  Kover's 93% line-coverage check, then publishes the debug APKs, one per ABI.
 - Device tests (`.github/workflows/device-tests.yml`) run on an emulator
   when delivery or the screens change, handing an edition to `:epubsink`.
 - A daily job (`.github/workflows/live-check.yml`) reads each curated
