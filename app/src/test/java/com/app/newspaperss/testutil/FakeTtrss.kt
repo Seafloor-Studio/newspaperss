@@ -49,6 +49,8 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
     val categories = mutableMapOf(0 to "Uncategorized")
     /** Articles the reader has starred in tt-rss, by id. */
     val starred = mutableSetOf<Long>()
+    /** Sent with every getArticle reply, asked for or not, as a broken or hostile server might. */
+    val unaskedArticles = mutableListOf<Item>()
     /** Ids passed to updateArticle to clear the unread flag. */
     val markedRead = mutableListOf<Long>()
     /** Ids passed to updateArticle to set it again. */
@@ -191,7 +193,7 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
             "getArticle" -> ok(
                 buildJsonArray {
                     val ids = str("article_id")!!.split(",").map { it.toLong() }
-                    (unread + read).filter { it.id in ids }.forEach { item ->
+                    ((unread + read).filter { it.id in ids } + unaskedArticles).forEach { item ->
                         add(
                             buildJsonObject {
                                 put("id", item.id); put("title", item.title); put("link", item.link); put("content", item.content)

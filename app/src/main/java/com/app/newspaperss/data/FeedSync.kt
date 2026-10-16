@@ -280,21 +280,31 @@ class FeedSync(
      * never changes. The first look after the option is turned on only notes the stars already
      * there. From any feed, in the account's category or not, left out or not: a star is asked
      * for. Best effort, like [watchPosts].
+     *
+     * tt-rss lists stars by the article's date, not when it was starred, so a new star can be
+     * anywhere in the list: it's listed whole, or nothing is taken. Cut short, a kept star never
+     * noted could look new.
      */
     private suspend fun takeStars(client: TtrssClient, source: SourceEntity, now: Instant): Int {
         val sources = db.sources()
         return try {
             val starred = client.starredIds(STAR_PAGES)
             val seen = sources.ttrssStars(source.id).toSet()
-            val new = if (source.ttrssStarsNoted) starred.ids.filter { it !in seen }.take(STARS_PER_SYNC) else emptyList()
-            val articles = client.articles(new).map { it to article(source, it, now, starredAt = now) }
+            val taking = source.ttrssStarsNoted && starred.complete
+            val new = if (taking) starred.ids.filter { it !in seen }.take(STARS_PER_SYNC) else emptyList()
+            // Only what was asked for: a server answering with more would add them all, starred.
+            val articles = client.articles(new).filter { it.id in new }.map { it to article(source, it, now, starredAt = now) }
             db.withTransaction {
                 // Turned off, or off and on again, during this sync: what was seen belongs to the old setting.
                 val current = sources.byId(source.id)
                 if (current?.takeTtrssStars != true || current.ttrssStarsNoted != source.ttrssStarsNoted) return@withTransaction 0
                 val added = db.articles().insertFetched(articles.map { (h, a) -> a to h.link })
-                articles.map { it.second.guid }.chunked(500).forEach { db.articles().starGuids(source.id, it, now) }
-                val noting = if (source.ttrssStarsNoted) new else starred.ids
+                val guids = articles.map { it.second.guid }
+                guids.chunked(500).forEach { db.articles().starGuids(source.id, it, now) }
+                // One in an unsent edition can't be starred yet; it's tried again until that edition
+                // goes out or goes back.
+                val held = guids.chunked(500).flatMap { db.articles().inEditionAmong(source.id, it) }.toSet()
+                val noting = if (taking) new.filter { "$TTRSS_GUID_PREFIX$it" !in held } else starred.ids
                 noting.chunked(500).forEach { ids -> sources.addTtrssStars(ids.map { TtrssStarEntity(source.id, it) }) }
                 sources.notedTtrssStars(source.id)
                 // Unstarred there: starring it again sends it again. Only when the list is whole.
@@ -366,8 +376,8 @@ class FeedSync(
         private const val WATCH_PAGES = 5
         private const val FIRST_LOOK_PAGES = 5
 
-        /** Pages of 200 starred articles listed per sync. */
-        private const val STAR_PAGES = 5
+        /** Pages of 200 starred articles listed per sync: 10,000 stars, past which none are taken. */
+        private const val STAR_PAGES = 50
         /** Newly starred articles fetched per sync, with their text; more wait for the next. */
         private const val STARS_PER_SYNC = 50
 

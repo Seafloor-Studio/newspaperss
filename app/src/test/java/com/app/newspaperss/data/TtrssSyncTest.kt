@@ -868,6 +868,50 @@ class TtrssSyncTest {
         assertEquals(now, article("ttrss:7").starredAt)
     }
 
+    /** tt-rss lists stars by the article's date: a new star on an old article comes last, behind every kept one. */
+    @Test
+    fun aNewStarOnAnOldArticleIsFoundBehindManyKeptOnes() = runTest {
+        val source = connect()
+        (1L..1300L).forEach { server.add(it, "Article $it", feedId = 1, feedTitle = "A Blog"); server.readThere(it) }
+        server.starred += (2L..1300L)
+        ttrss.setTakeStars(source.id, true)
+        sync.syncAll()
+        server.starred += 1L
+        sync.syncAll()
+        assertEquals(listOf("ttrss:1"), db.articles().allForSource(source.id).filter { it.starredAt != null }.map { it.guid })
+    }
+
+    @Test
+    fun aStarOnAnArticleInAnUnsentEditionGoesInOnceItComesBack() = runTest {
+        val source = connect()
+        ttrss.setTakeStars(source.id, true)
+        server.add(7, "Waiting", feedId = 2, feedTitle = "Example News")
+        sync.syncAll()
+        db.openHelper.writableDatabase.execSQL("UPDATE articles SET state = 'IN_EDITION' WHERE guid = 'ttrss:7'")
+        server.starred += 7L
+        sync.syncAll()
+        suspend fun article() = db.articles().allForSource(source.id).single { it.guid == "ttrss:7" }
+        assertNull(article().starredAt)
+
+        // The edition is marked as not sent: its articles wait again.
+        db.openHelper.writableDatabase.execSQL("UPDATE articles SET state = 'NEW' WHERE guid = 'ttrss:7'")
+        sync.syncAll()
+        assertEquals(now, article().starredAt)
+    }
+
+    @Test
+    fun aServerCanOnlyStarWhatWasStarred() = runTest {
+        val source = connect()
+        ttrss.setTakeStars(source.id, true)
+        sync.syncAll()
+        server.add(6, "Starred", feedId = 1, feedTitle = "A Blog")
+        server.readThere(6)
+        server.starred += 6L
+        server.unaskedArticles += FakeTtrss.Item(66, "Never starred", feedId = 1, feedTitle = "A Blog")
+        sync.syncAll()
+        assertEquals(listOf("ttrss:6"), db.articles().allForSource(source.id).map { it.guid })
+    }
+
     @Test
     fun starsStayInTtrssUnlessAskedAndTurningItOnAgainStartsFromThen() = runTest {
         val source = connect()

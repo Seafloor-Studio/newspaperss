@@ -375,7 +375,11 @@ phone restarts.
     - From any feed, left out or outside the category: a star is asked for.
       Not an article already delivered: starred after it went out, it's
       being kept.
-    - Each sync lists up to 1,000 stars and takes up to 50 new ones.
+    - tt-rss lists stars by the article's date, not when it was starred, so
+      each sync lists them all, up to 10,000; past that, none are taken.
+      It takes up to 50 new ones a sync.
+    - One in an edition not yet sent is starred once that edition goes back
+      (Mark as not sent, or replaced by a new one).
   - **Sync read status with tt-rss** (on by default) keeps read and unread
     the same in both, the newest change winning. tt-rss doesn't say when a
     flag changed, so each sync works it out from what changed since the

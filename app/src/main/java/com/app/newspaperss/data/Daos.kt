@@ -466,6 +466,9 @@ interface ArticleDao {
     )
     suspend fun starGuids(sourceId: Long, guids: List<String>, at: Instant)
 
+    @Query("SELECT guid FROM articles WHERE sourceId = :sourceId AND guid IN (:guids) AND state = 'IN_EDITION'")
+    suspend fun inEditionAmong(sourceId: Long, guids: List<String>): List<String>
+
     /** [star] for several articles at once. */
     @Query("UPDATE articles SET starredAt = COALESCE(starredAt, :at) WHERE id IN (:ids) AND state != 'IN_EDITION'")
     suspend fun starAll(ids: Collection<Long>, at: Instant): Int
