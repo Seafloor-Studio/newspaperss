@@ -49,14 +49,15 @@ class PodcastMakerTest {
     /** Everything said, in order, and in which voice. */
     private val said: MutableList<String> = java.util.Collections.synchronizedList(mutableListOf())
     private val voices: MutableList<PodcastVoice> = java.util.Collections.synchronizedList(mutableListOf())
-    private var released = 0
+    private val released = java.util.concurrent.atomic.AtomicInteger()
     /** Called after each line is said, to stop or change things part way. */
     private var afterLine: (String) -> Unit = {}
 
     /** A Kokoro making ten samples a character, at 1000 a second. */
     private val engine = { voice: PodcastVoice ->
         voices += voice
-        mostLoaded = maxOf(mostLoaded, loaded.incrementAndGet())
+        // Atomic: two engines loaded at once on two threads, each could keep the other's count from showing.
+        mostLoaded.accumulateAndGet(loaded.incrementAndGet(), ::maxOf)
         object : PodcastEngine {
             override fun speak(text: String): Speech {
                 if (slow) Thread.sleep(5)
@@ -67,13 +68,13 @@ class PodcastMakerTest {
                 return Speech(FloatArray(if (text == silentFor) 0 else text.length * 10), RATE)
             }
             override fun release() {
-                released++
+                released.incrementAndGet()
                 loaded.decrementAndGet()
             }
         }
     }
     private val loaded = java.util.concurrent.atomic.AtomicInteger()
-    private var mostLoaded = 0
+    private val mostLoaded = java.util.concurrent.atomic.AtomicInteger()
     private var slow = false
     private var diskFull = false
     private var clock = 0L
@@ -157,7 +158,7 @@ class PodcastMakerTest {
         val samples = piece.audio.readText().toInt()
         assertTrue("the breaths are in the audio too", samples > said.take(5).sumOf { it.length * 10 })
         assertEquals(listOf(PodcastVoice.HEART), voices)
-        assertEquals(1, released)
+        assertEquals(1, released.get())
     }
 
     @Test
@@ -246,7 +247,7 @@ class PodcastMakerTest {
         assertEquals(PodcastVoice.GEORGE, store.voice(second))
         // Newest first, in its voice; then the older in its own.
         assertEquals(listOf(PodcastVoice.GEORGE, PodcastVoice.HEART), voices)
-        assertEquals(2, released)
+        assertEquals(2, released.get())
     }
 
     @Test
@@ -524,7 +525,7 @@ class PodcastMakerTest {
             val runs = List(2) { async { maker.makeAll() } }
             runs.forEach { it.await() }
         }
-        assertEquals(1, mostLoaded)
+        assertEquals(1, mostLoaded.get())
         assertTrue(store.finished(id))
     }
 
