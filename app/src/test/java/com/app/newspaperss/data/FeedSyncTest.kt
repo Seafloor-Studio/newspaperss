@@ -116,6 +116,31 @@ class FeedSyncTest {
         assertNull("too long even then: the page is fetched instead", stored["long"])
     }
 
+    /** A feed over the size limit comes back cut short: its whole items are read, the cut one isn't. */
+    @Test
+    fun aFeedCutShortAddsItsWholeItems() = runTest {
+        val id = repo.addFeed(url, "Archive")
+        val feed = rss("Archive", "1" to "One", "2" to "Two", "3" to "Three")
+        http.page(url, feed.substring(0, feed.indexOf("Body of Three")))
+        http.cutShort += url
+
+        assertEquals(SyncResult(newArticles = 2, failedSources = 0, sources = 1), sync.syncAll())
+        assertEquals(setOf("One", "Two"), db.articles().candidates().map { it.title }.toSet())
+        assertNull(db.sources().byId(id)!!.lastError)
+    }
+
+    /** One that can't be read in part says it's too large, rather than that the site has moved. */
+    @Test
+    fun aFeedCutShortThatListsItsOldestFirstSaysItsTooLarge() = runTest {
+        val id = repo.addFeed(url, "Archive")
+        fun item(n: Int) = "<item><title>Post $n</title><link>https://example.com/$n</link><pubDate>0$n Oct 2026 10:00:00 GMT</pubDate></item>"
+        http.page(url, "<rss version=\"2.0\"><channel><title>Archive</title>${(1..4).joinToString("") { item(it) }}<item><title>Po")
+        http.cutShort += url
+
+        assertEquals(1, sync.syncAll().failedSources)
+        assertEquals("This feed is too large to read. It lists its oldest posts first, so its new ones are past what can be read.", db.sources().byId(id)!!.lastError)
+    }
+
     @Test
     fun pausedSourcesAreNotFetched() = runTest {
         val id = repo.addFeed(url, "Blog")
