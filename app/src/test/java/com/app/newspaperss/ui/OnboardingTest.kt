@@ -441,6 +441,28 @@ class OnboardingTest {
     }
 
     @Test
+    fun aSiteWithNoFeedCanGoToTheReadingListInstead() {
+        http.page("https://plain.example/essay", "<html><head><title>An essay</title></head><body><p>Words.</p></body></html>")
+        val readingList = com.app.newspaperss.data.ReadingListRepository(db)
+        val readingVm = com.app.newspaperss.ui.readinglist.ReadingListViewModel(readingList)
+        compose.setContent { OnboardingScreen(vm, readingList = readingVm) }
+        click("Get started")
+        scrollAndClick("Kobo")
+        click("Next")
+        choosePhone()
+
+        compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("plain.example/essay")
+        click("Add")
+        idleUntil { compose.waitForIdle(); visible("Save this page to your reading list instead") }
+        scrollAndClick("Save this page to your reading list instead")
+
+        idleUntil { compose.waitForIdle(); visible("Saved to your reading list") }
+        assertEquals(listOf("https://plain.example/essay"), runBlocking { db.articles().allForSource(readingList.sourceId()) }.map { it.url })
+        assertFalse("the dead end is gone", visible("Save this page to your reading list instead"))
+        assertEquals("", vm.state.value.pasted)
+    }
+
+    @Test
     fun aPastedWebsiteIsFoundAndChosen() {
         http.page("https://blog.example", "<html><head><link rel=alternate type=application/rss+xml href=/feed title=Blog></head></html>")
         http.page("https://blog.example/feed", rss("Blog"))

@@ -277,6 +277,19 @@ class ScreenshotTest {
         idleUntil { state.value.step == Step.SOURCES }
     }
 
+    /** A site with no feed: its page can go to the reading list instead. */
+    @Test
+    fun onboardingNoFeed() {
+        val http = FakeHttp().apply { page("https://example.com/essay", "<html><head><title>An essay</title></head><body><p>Words.</p></body></html>") }
+        val vm = onboardingOnThePhone(OnboardingViewModel(store, SourceRepository(db, clock), FeedFinder(http)) {}).apply {
+            editPasted("example.com/essay"); findPasted()
+        }
+        val readingList = com.app.newspaperss.ui.readinglist.ReadingListViewModel(com.app.newspaperss.data.ReadingListRepository(db, clock))
+        shoot("03f-onboarding-no-feed", ready = { vm.state.value.findPage != null }, act = {
+            compose.onNodeWithText("Save this page to your reading list instead").performScrollTo()
+        }) { OnboardingScreen(vm, readingList = readingList) }
+    }
+
     @Test
     fun onboardingSources() {
         val vm = onboardingOnThePhone(onboarding()).apply { togglePack(StarterPacks.all[1].name) }
