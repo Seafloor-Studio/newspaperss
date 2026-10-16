@@ -743,6 +743,20 @@ class EditionBuilderTest {
         assertEquals(EditionBuilder.INTERRUPTED, edition.error)
     }
 
+    @Test
+    fun theBookOfAnEditionLeftBuildingByADeadProcessIsDeleted() = runTest {
+        // Written just before the process died, before the edition could point to it.
+        val title = "Monday Evening Edition, Sep 28"
+        db.editions().insert(EditionEntity(title = title, status = EditionStatus.BUILDING))
+        val orphan = java.io.File(tmp.root, com.app.newspaperss.delivery.FolderDelivery.fileName(title)).apply { writeText("epub") }
+        source("a", "a1")
+
+        val built = builder.build(EditionSettings()) as BuildResult.Built
+
+        assertFalse(orphan.exists())
+        assertTrue("the new edition's own book stays", editions.fileOf(db.editions().byId(built.editionId)!!) != null)
+    }
+
     /** A tt-rss account's source with articles given as guid to (feed id, feed title). */
     private suspend fun ttrss(vararg articles: Pair<String, Pair<String, String>>): Long {
         val id = sources.addTtrss("https://rss.example.com/api/")

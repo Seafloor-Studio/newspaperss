@@ -299,6 +299,9 @@ class EditionBuilder(
      */
     private suspend fun failInterrupted() {
         for (edition in db.editions().withStatus(EditionStatus.BUILDING)) {
+            // It may have written its book before dying: found by its title, as [fail] finds it,
+            // since the edition only gets its fileName once finished.
+            File(editionsDir, fileNameOf(edition.title)).delete()
             db.editions().update(edition.copy(status = EditionStatus.FAILED, error = INTERRUPTED))
         }
     }
