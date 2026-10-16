@@ -717,7 +717,8 @@ whose Kindle and KOReader answers ask for more on the same page).
       your reading list**, or **Add Arts & Letters Daily** when the site is
       one of the curated lists, which stay on the phone.
     - If the dialog was closed, the answer comes as a snackbar when Sources
-      is open.
+      is open and on screen: one that arrives, or is showing, while the app
+      is in the background waits for it to come back, Undo and all.
     - The ⋮ menu has **Where your feeds live** instead of OPML import:
       feeds are added in tt-rss, which imports OPML itself. **Export your
       sites (OPML)** stays: the tt-rss feeds as last listed, each in a
@@ -728,7 +729,8 @@ whose Kindle and KOReader answers ask for more on the same page).
   the next edition. Import and export as a Markdown
   checklist (compatible with the library); Pocket and Instapaper exports
   import too. **✕** removes a link at once, with **Undo** in a snackbar, since
-  removing is routine and a confirm would only be tapped through.
+  removing is routine and a confirm would only be tapped through. Leaving
+  the screen or the app settles a removal still waiting for Undo.
 - **Settings** is a summary: one row per page, each with a line saying
   how it's set now ("About 30 minutes · 1 per source · take turns",
   "Ready by 6:30 AM, weekdays", "Kindle · emailed to …", "Off"), then the

@@ -192,6 +192,29 @@ class ServerAddTest {
     }
 
     @Test
+    fun anAnswerThatArrivesWhileTheAppIsAwayIsShownWithItsUndoOnItsReturn() {
+        signedIn()
+        val vm = SourcesViewModel(sources, FeedFinder(http), ttrss, settings = settings, subscriptions = subscriptions) {}
+        val owner = Owner()
+        compose.setContent { CompositionLocalProvider(LocalLifecycleOwner provides owner) { SourcesScreen(vm) } }
+        idleUntil { compose.waitForIdle(); vm.screen.value?.server != null }
+        add("science.example")
+        pick("Science")
+        // Tapped as the app leaves: tt-rss answers while it's away.
+        compose.runOnUiThread { owner.registry.currentState = Lifecycle.State.CREATED }
+        compose.onNodeWithText("Subscribe").performClick()
+        idleUntil { server.subscribed.isNotEmpty() }
+        compose.mainClock.advanceTimeBy(60_000)
+        compose.waitForIdle()
+        assertFalse(visible("Added to your tt-rss, in Science."))
+
+        compose.runOnUiThread { owner.registry.currentState = Lifecycle.State.RESUMED }
+        waitFor("Added to your tt-rss, in Science.")
+        compose.onNodeWithText("Undo").performClick()
+        waitFor("Took Science Weekly out of your tt-rss.")
+    }
+
+    @Test
     fun theNextSiteOffersTheCategoryLastUsed() {
         signedIn()
         val vm = show()

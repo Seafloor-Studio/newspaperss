@@ -121,7 +121,7 @@ class ReadingListScreenTest {
     }
 
     @Test
-    fun anUndoOnScreenWhenTheAppLeavesIsOfferedAgainOnItsReturnNotTimedOutUnseen() {
+    fun aRemovalWaitingForUndoIsSettledWhenTheAppGoesToTheBackground() {
         val list = app.container.readingList
         runBlocking { list.save("https://b.example/long-read", "A long read") }
         val vm = ReadingListViewModel(list)
@@ -131,16 +131,13 @@ class ReadingListScreenTest {
         compose.onNodeWithContentDescription("Remove A long read").performClick()
         waitFor("Removed “A long read”")
 
+        // Not left waiting: an edition made meanwhile would take it, and a killed app would bring it back.
         compose.runOnUiThread { owner.registry.currentState = Lifecycle.State.CREATED }
-        // Far longer than a Long snackbar shows for.
-        compose.mainClock.advanceTimeBy(60_000)
-        compose.waitForIdle()
-        assertEquals("still waiting for the reader", "A long read", vm.removed.value?.title)
+        idleUntil { runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.isEmpty() }
+        assertEquals(null, vm.removed.value)
 
         compose.runOnUiThread { owner.registry.currentState = Lifecycle.State.RESUMED }
-        waitFor("Removed “A long read”")
-        compose.onNodeWithText("Undo").performClick()
-        waitFor("A long read")
-        assertEquals(1, runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.size)
+        compose.waitForIdle()
+        compose.onNodeWithText("Undo").assertDoesNotExist()
     }
 }

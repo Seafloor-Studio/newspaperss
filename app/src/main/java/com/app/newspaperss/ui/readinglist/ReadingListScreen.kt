@@ -2,6 +2,8 @@ package com.app.newspaperss.ui.readinglist
 
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.Lifecycle
 import com.app.newspaperss.ui.components.showWhileStarted
 import com.app.newspaperss.ui.components.LocalClock
 import com.app.newspaperss.ui.components.openInBrowser
@@ -89,6 +91,11 @@ fun ReadingListScreen(viewModel: ReadingListViewModel, onBack: () -> Unit) {
     // waiting removal on the way out too, but not on rotation, which shows the Undo again.
     DisposableEffect(Unit) {
         onDispose { if ((context as? Activity)?.isChangingConfigurations != true) viewModel.commitRemove() }
+    }
+    // And when the app goes to the background: a removal still waiting there would go into an
+    // edition made meanwhile, and come back if Android ends the app before it returns.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        if ((context as? Activity)?.isChangingConfigurations != true) viewModel.commitRemove()
     }
     val removed by viewModel.removed.collectAsStateWithLifecycle()
     LaunchedEffect(removed) {
