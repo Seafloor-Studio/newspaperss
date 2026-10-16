@@ -85,7 +85,8 @@ A full pass over the app and the book, not just spot fixes:
 
 ### Performance *(resources)*
 - [ ] A floor device: Android 8, 2 GB RAM, slow CPU and storage (a 2018 budget phone or an older Boox). Measure on an emulator with that profile how long a 30-minute edition takes, peak memory, whether timed editions still arrive under Doze, and whether long lists and the preview stay smooth; set budgets from the numbers *(you asked)*
-- [ ] Load build candidates without feedHtml; fetch it per article
+- [ ] Load build candidates without feedHtml; fetch it per article. Its worst case is now bounded (feed text is capped at 500,000 characters), so this is about memory on a big backlog, not a crash
+- [ ] A feed's title, link, guid and author are stored uncapped: a hostile feed (a `data:` link, a megabyte title) could still make a row too big for the 2 MB Android reads it through. Cap them as feed text now is *(review)*
 - [ ] EPUB zip: buffered output, JPEGs stored uncompressed
 - [ ] A smaller APK *(you asked)*. It went from 20–40 MB to 94 MB with the podcast, because sherpa-onnx's native code is in it twice, stored uncompressed: about 32 MB for arm64-v8a and 36 MB for x86_64. Three ways, with what each costs:
   - **One APK per ABI** (preferred): about 57 MB for a phone, and nothing stops working. The cost: two files on the release page, CI and the `latest-debug` publish adjusted, and F-Droid's build recipe given the split.
@@ -429,6 +430,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] One feed item too big for Android to read back (a picture inlined as text) no longer stops every edition: feed text is capped when stored, and rows stored before are shrunk once, keeping a post's words (database version 10)
 - [x] Audio, video without a poster, and other sites' players (Spotify, SoundCloud, Pocket Casts…) leave a line where they were, linking to the file or the player, instead of vanishing under their lead-in
 - [x] Page cleanup takes out French, German and Spanish furniture too: "Lire aussi", "Mehr zum Thema", "Lee también" and the like, as headings over a box of links and as cross-link lines, Le Monde's long ones included
 - [x] A bot check served instead of a feed (SiteGround answers with a 202 and a captcha page) says the site turned the app away, when adding the site and on a source already added, rather than "not a feed" or "it may have moved"

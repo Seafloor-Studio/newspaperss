@@ -3,6 +3,14 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle 5 — build: feed text too big to read back
+
+- **"Is it still real?" can find something bigger.** Checking the memory item, a throwaway test
+  with one 3 MB row showed every edition failing. Probing the worst input first is cheap.
+- **Fix stored data where it's written, and heal old rows once in a migration**, not on every
+  read path: a heal that runs later than the first reader leaves that reader broken.
+- **Warnings are errors in this build** (`arrayOf` inferring an intersection type failed it).
+
 ### Cycle 4 — build: a line where a player was
 
 - **Check that a test run produced fresh results before reading them.** A compile error left the
