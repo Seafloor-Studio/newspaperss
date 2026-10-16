@@ -261,15 +261,18 @@ interface ArticleDao {
     @Query("SELECT * FROM articles WHERE (state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')) AND unreadable IS NULL")
     suspend fun candidates(): List<ArticleEntity>
 
-    /** Marks a saved link as one that can never be read, and why (see [ArticleEntity.unreadable]). */
-    @Query("UPDATE articles SET unreadable = :why WHERE id = :id")
-    suspend fun setUnreadable(id: Long, why: String)
+    /**
+     * Marks a saved link still waiting as one that can never be read, and why (see
+     * [ArticleEntity.unreadable]); null clears it. Not one an edition has taken meanwhile.
+     */
+    @Query("UPDATE articles SET unreadable = :why WHERE id = :id AND state = 'NEW'")
+    suspend fun setUnreadable(id: Long, why: String?)
 
     /** Starred links not yet in an edition, from sources that aren't paused; a link starred in two sources counts once. */
     @Query(
         """SELECT COUNT(DISTINCT CASE WHEN articles.url != '' THEN articles.url ELSE '#' || articles.id END)
            FROM articles JOIN sources ON sources.id = articles.sourceId
-           WHERE articles.starredAt IS NOT NULL AND articles.state != 'IN_EDITION' AND sources.paused = 0""",
+           WHERE articles.starredAt IS NOT NULL AND articles.state != 'IN_EDITION' AND sources.paused = 0 AND articles.unreadable IS NULL""",
     )
     fun observeStarredWaiting(): Flow<Int>
 

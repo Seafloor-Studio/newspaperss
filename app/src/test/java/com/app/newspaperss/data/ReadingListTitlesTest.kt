@@ -5,6 +5,7 @@ import com.app.newspaperss.testutil.DbRule
 import com.app.newspaperss.testutil.FakeHttp
 import com.app.newspaperss.testutil.TestApp
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -106,5 +107,51 @@ class ReadingListTitlesTest {
         assertEquals("not a web page", saved.getValue("https://a.example/report.pdf").unreadable)
         assertEquals("a server having a bad day may answer next time", null, saved.getValue("https://a.example/down").unreadable)
         assertEquals("editions leave it out", listOf("https://a.example/down"), db.articles().candidates().map { it.url })
+        assertEquals("nor counted as waiting", 1, list.observeWaiting().first())
+    }
+
+    @Test
+    fun aVideoTooLargeToDownloadAndAGonePageAreMarkedToo() = runTest {
+        http.tooLarge["https://a.example/talk.mp4"] = "video/mp4"
+        list.save("https://a.example/talk.mp4")
+        http.page("https://a.example/removed", "", code = 410)
+        list.save("https://a.example/removed")
+
+        assertTrue("nothing to try again later", titles.fetch(untitled))
+
+        val saved = db.articles().allForSource(list.sourceId()).associateBy { it.url }
+        assertEquals("not a web page", saved.getValue("https://a.example/talk.mp4").unreadable)
+        assertEquals("error 410", saved.getValue("https://a.example/removed").unreadable)
+    }
+
+    @Test
+    fun savingItAgainLooksAgainAndAPageThatNowReadsIsBackInThePaper() = runTest {
+        http.page("https://a.example/report", "%PDF-1.7")
+        http.contentTypes["https://a.example/report"] = "application/pdf"
+        list.save("https://a.example/report")
+        titles.fetch(untitled)
+        untitled.clear()
+
+        // Fixed by the site since: an article after all.
+        http.contentTypes.remove("https://a.example/report")
+        http.page("https://a.example/report", page("The report"))
+        assertTrue("taken as saved, not \"already on your list\"", list.save("https://a.example/report"))
+        titles.fetch(untitled)
+
+        val saved = db.articles().allForSource(list.sourceId()).single()
+        assertEquals(null, saved.unreadable)
+        assertEquals(listOf("https://a.example/report"), db.articles().candidates().map { it.url })
+    }
+
+    @Test
+    fun aCuratedListsPickIsNeverMarked() = runTest {
+        val curated = db.sources().insert(SourceEntity(kind = SourceKind.LIST, url = "https://aldaily.example/", title = "A list"))
+        val pick = db.articles().insertIgnoring(ArticleEntity(sourceId = curated, guid = "p", url = "https://a.example/paper.pdf", title = ""))
+        http.page("https://a.example/paper.pdf", "%PDF-1.7")
+        http.contentTypes["https://a.example/paper.pdf"] = "application/pdf"
+
+        titles.fetch(listOf(pick))
+
+        assertEquals(null, db.articles().byId(pick)!!.unreadable)
     }
 }

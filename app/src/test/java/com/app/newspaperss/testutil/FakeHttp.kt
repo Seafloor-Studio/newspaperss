@@ -36,8 +36,12 @@ class FakeHttp : HttpClient {
         return HttpResponse(code, url, "application/json", reply)
     }
 
+    /** Urls whose body is over the client's limit, by the Content-Type they claim, as [get] throws for them. */
+    val tooLarge = mutableMapOf<String, String?>()
+
     override suspend fun get(url: String): HttpResponse {
         if (url in unreachable) throw IOException("unreachable")
+        if (url in tooLarge) throw com.app.newspaperss.core.net.TooLargeException(tooLarge[url])
         beforeResponse(url)
         val (code, body) = pages[url] ?: (404 to "")
         return HttpResponse(code, url, contentTypes[url], body)

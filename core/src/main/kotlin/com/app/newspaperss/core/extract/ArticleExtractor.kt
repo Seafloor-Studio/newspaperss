@@ -3,6 +3,7 @@ package com.app.newspaperss.core.extract
 import com.app.newspaperss.core.ReadingTime
 import com.app.newspaperss.core.feed.LinkPosts
 import com.app.newspaperss.core.net.ErrorAnswers
+import com.app.newspaperss.core.net.TooLargeException
 import com.app.newspaperss.core.net.HttpClient
 import com.app.newspaperss.core.net.HttpResponse
 import org.jsoup.Jsoup
@@ -257,6 +258,7 @@ class ArticleExtractor(private val http: HttpClient) {
         val response = try {
             prefetched?.getOrThrow() ?: http.get(input.url)
         } catch (e: IOException) {
+            permanentFailure(e)?.let { return PageResult.Failed(it, permanent = true) }
             return PageResult.Failed("couldn't connect")
         }
         unusable(response)?.let { return it }
@@ -406,12 +408,21 @@ class ArticleExtractor(private val http: HttpClient) {
          */
         fun permanentFailure(response: HttpResponse): String? {
             if (!response.isSuccessful) return "error ${response.code}".takeIf { response.code in GONE_STATUS_CODES }
-            val type = response.contentType?.lowercase()
-            if (type != null && "html" !in type && "xml" !in type) return "not a web page"
+            if (!isPage(response.contentType)) return "not a web page"
             // Parsed, a page takes several times its size in memory, and Readability copies it. Real
             // articles are well under this; the feed's text is the better bet for anything bigger.
             if (response.body.length > MAX_PAGE_CHARS) return "the page is too large"
             return null
+        }
+
+        /** [permanentFailure] for a fetch that failed: a file too large to read, which no edition ever will. */
+        fun permanentFailure(e: IOException): String? =
+            (e as? TooLargeException)?.let { if (isPage(it.contentType)) "the page is too large" else "not a web page" }
+
+        // Unsaid counts as a page: plenty of servers don't say.
+        private fun isPage(contentType: String?): Boolean {
+            val type = contentType?.lowercase() ?: return true
+            return "html" in type || "xml" in type
         }
 
         /** Feed content with at least this many words is taken as the full text in [ContentMode.AUTO]. */
