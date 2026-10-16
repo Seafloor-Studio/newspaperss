@@ -787,6 +787,23 @@ class EditionBuilderTest {
         assertTrue("the new edition's own book stays", editions.fileOf(db.editions().byId(built.editionId)!!) != null)
     }
 
+    @Test
+    fun eachArticleIsMadeFromItsOwnFeedText() = runTest {
+        val id = sources.addFeed("https://a.example/feed", "a")
+        db.articles().insertNew(
+            listOf("a1", "a2").map { g -> ArticleEntity(sourceId = id, guid = g, url = "https://a.example/$g", title = g, feedHtml = "<p>Feed text of $g.</p>") },
+        )
+        val given = mutableMapOf<String, String?>()
+        val recording = ArticleContentProvider { a, _, _, _ ->
+            given[a.guid] = a.feedHtml
+            ArticleContent(a.title, null, a.feedHtml ?: "<p>none</p>", wordCount = 200)
+        }
+
+        EditionBuilder(db, recording, tmp.root, clock, { ZoneOffset.UTC }).build(EditionSettings())
+
+        assertEquals(mapOf("a1" to "<p>Feed text of a1.</p>", "a2" to "<p>Feed text of a2.</p>"), given)
+    }
+
     /** A tt-rss account's source with articles given as guid to (feed id, feed title). */
     private suspend fun ttrss(vararg articles: Pair<String, Pair<String, String>>): Long {
         val id = sources.addTtrss("https://rss.example.com/api/")

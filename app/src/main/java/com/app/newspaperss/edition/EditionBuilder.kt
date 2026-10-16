@@ -109,7 +109,7 @@ class EditionBuilder(
             // A star is the reader asking for that article, even from a feed they left out.
             val publications = db.sources().allPublications()
             val leftOut = publications.filter { it.leftOut }.map { publicationOf(it.sourceId, it.key) }.toSet()
-            val articles = db.articles().candidates()
+            val articles = db.articles().buildCandidates()
                 .filter { it.sourceId in sourcesById && (it.starredAt != null || publicationOf(it) !in leftOut) }
                 .sortedBy { it.starredAt == null }
                 .distinctBy { it.url.ifBlank { "#${it.id}" } }
@@ -169,11 +169,13 @@ class EditionBuilder(
         val texts = TextChoices(publications, clock.instant().atZone(zone).toLocalDate().toEpochDay())
         val picked = EditionPlanner.fill<Pair<ArticleEntity, ArticleContent>>(ordered, rules, { minutesOf(it.second) }) { c ->
             if (deadline != null && kept > 0 && !clock.instant().isBefore(deadline)) return@fill null
-            val article = byId.getValue(c.id.toLong())
-            val source = sourcesById.getValue(article.sourceId)
-            tried += article.id
+            val listed = byId.getValue(c.id.toLong())
+            val source = sourcesById.getValue(listed.sourceId)
+            tried += listed.id
             val result = try {
-                content.contentFor(article, source, allowance, texts.choose(article, source))?.let { article to it }
+                // Its feed text, read now and let go once its content is made: see buildCandidates.
+                val article = listed.copy(feedHtml = db.articles().feedHtml(listed.id))
+                content.contentFor(article, source, allowance, texts.choose(article, source))?.let { listed to it }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

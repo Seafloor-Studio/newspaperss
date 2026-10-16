@@ -14,11 +14,6 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
-### Day cycles, A4: a dead build's book
-- **From the backlog (audit):** a build cut off by the process dying could leave its book (several MB) in the app's storage for good, as nothing pointed to it.
-- **Shipped:** the next build, which already marks such an edition as interrupted, now deletes its book too.
-- **Review:** nothing blocking. It suggested reading the edition again before failing it, in case a stopped build had only just finished; done. Left: titles are unique over two days, not forever, so the same date years later could share a file name; that was already so.
-
 ### Today, D2: articles that expire here can be read in tt-rss too
 - **From the backlog (personas):** articles that waited their week out here stayed unread in tt-rss.
 - **Shipped:** **Mark read when they expire here**, a switch under Sync read status (off by default, shown only with read sync on). Waiting out the week then counts as marked read, which the next sync passes to tt-rss. Leaving a feed out or changing the category still leaves articles unread there. Database version 11.
