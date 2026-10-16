@@ -61,7 +61,8 @@ class SubstackPostTest {
     @Test
     fun theFeedsOwnTextNeedsNoPage() = runTest {
         val http = FakeHttp(mapOf(url to page(feed)))
-        assertTrue(extract(http, feed).html.contains(noteText))
+        // An empty block of its own doesn't make it look stripped.
+        assertTrue(extract(http, "$feed<div></div>").html.contains(noteText))
         assertTrue("its Note was there all along", http.requested.isEmpty())
     }
 
