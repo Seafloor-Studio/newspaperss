@@ -783,6 +783,23 @@ class TtrssSyncTest {
         assertEquals((1L..8L).toList(), server.markedRead.sorted())
     }
 
+    /** One the reader marks unread keeps its week, however old: only arriving counts. */
+    @Test
+    fun anOldArticleMarkedUnreadHereStaysWaiting() = runTest {
+        val source = connect()
+        ttrss.setMarkExpiredRead(source.id, true)
+        server.add(10, "An old essay", feedId = 1, feedTitle = "Slow Blog", updated = now.minus(Duration.ofDays(30)).epochSecond)
+        sync.syncAll()
+        val article = db.articles().allForSource(source.id).single()
+        assertEquals(ArticleState.SKIPPED, article.state)
+
+        sources.toggleRead(article.id)
+        sync.syncAll()
+        sync.syncAll()
+
+        assertEquals(ArticleState.NEW, db.articles().byId(article.id)!!.state)
+    }
+
     /** A paused account's articles expire as usual, rather than going out as read when it resumes. */
     @Test
     fun aPausedAccountsArticlesExpireAsUsual() = runTest {

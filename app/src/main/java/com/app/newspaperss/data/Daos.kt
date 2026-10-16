@@ -515,20 +515,32 @@ interface ArticleDao {
      * Expires unpicked articles discovered before [before], except reading-list items and stars.
      * A tt-rss account set to [SourceEntity.markExpiredRead] (and not paused) has them marked read
      * instead, which its next sync passes on to tt-rss. Only here, by age: leaving a feed out or
-     * changing the category also expire articles, and those stay unread in tt-rss.
-     *
-     * For such an account an article also counts by when it was published: each sync takes a
-     * feed's newest few unread, so marking those read brings in the next older ones, and a feed
-     * never picked would bring its whole backlog through the paper a few at a time. Marked read on
-     * arrival, the backlog drains out of tt-rss without showing up here.
+     * changing the category also expire articles, and those stay unread in tt-rss. Old articles
+     * arriving for such an account are marked read by [readOnArrival].
      */
     @Query(
         """UPDATE articles SET state = CASE WHEN sourceId IN ($MARKS_EXPIRED_READ) THEN 'SKIPPED' ELSE 'EXPIRED' END
-           WHERE state = 'NEW' AND starredAt IS NULL
-           AND (discoveredAt < :before OR (published < :before AND sourceId IN ($MARKS_EXPIRED_READ)))
+           WHERE state = 'NEW' AND starredAt IS NULL AND discoveredAt < :before
            AND sourceId IN (SELECT id FROM sources WHERE kind != 'READING_LIST')""",
     )
     suspend fun expireOlderThan(before: Instant): Int
+
+    /**
+     * Of [guids], just added for a tt-rss account set to [SourceEntity.markExpiredRead], those
+     * published before [before]: marked read as they arrive, as if they had waited their week out
+     * here. Each sync takes a feed's newest few unread, so marking those read brings in the next
+     * older ones; without this a feed never picked would bring its whole backlog through the paper
+     * a few at a time. Only new arrivals: one the reader marked unread keeps its week.
+     */
+    @Query(
+        """UPDATE articles SET state = 'SKIPPED' WHERE sourceId = :sourceId AND guid IN (:guids)
+           AND state = 'NEW' AND starredAt IS NULL AND published < :before""",
+    )
+    suspend fun readOnArrival(sourceId: Long, guids: List<String>, before: Instant)
+
+    /** Of [guids], those a source already has. */
+    @Query("SELECT guid FROM articles WHERE sourceId = :sourceId AND guid IN (:guids)")
+    suspend fun knownGuids(sourceId: Long, guids: List<String>): List<String>
 
     /**
      * Old articles keep their row, whose guid stops a feed offering them again, but not the

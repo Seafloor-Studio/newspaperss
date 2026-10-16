@@ -376,7 +376,9 @@ phone restarts.
       edition is marked read rather than expiring, so the next sync marks
       it read in tt-rss too. One published more than a week ago is marked
       read as it arrives: otherwise a never-picked feed's backlog would come
-      through five at a time as each five went. It shows as "Read". Only by
+      through five at a time as each five went (a feed that dates its new
+      posts in the past loses them this way). Marked unread, it waits its
+      week like any other. It shows as "Read". Only by
       age, and not while the account is paused: leaving a feed out or
       changing the category also drop waiting articles, and those stay
       unread there.
