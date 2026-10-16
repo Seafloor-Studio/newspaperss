@@ -17,7 +17,7 @@ class Converters {
 
 @Database(
     entities = [SourceEntity::class, ArticleEntity::class, EditionEntity::class, EditionArticleEntity::class, DeliveredUrlEntity::class, PublicationEntity::class],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -193,8 +193,42 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Feed text stored too big to read back, before [FeedSync.storable] capped it: Android
+         * reads a row through a 2 MB window, and one row over it fails every query loading it,
+         * an edition's and a source's page included. Read in pieces that fit the window and
+         * stored as a new row would be, keeping a post's words when an inlined picture was the
+         * bulk. Picked by characters, which SQLite counts without reading the row through the
+         * window; a lower bar than the cap, as one character can take four bytes.
+         */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val oversized = db.query("SELECT id, length(feedHtml) FROM articles WHERE length(feedHtml) > ?", arrayOf<Any>(FeedSync.MAX_FEED_HTML_CHARS * 2 / 3)).use { c ->
+                    buildList { while (c.moveToNext()) add(c.getLong(0) to c.getInt(1)) }
+                }
+                for ((id, length) in oversized) {
+                    // Too big for its pictures to be all of it, and too big to read into a small
+                    // e-reader's memory: the migration would run out at every launch.
+                    if (length > OVERSIZED_UNREAD) {
+                        db.execSQL("UPDATE articles SET feedHtml = NULL WHERE id = ?", arrayOf<Any>(id))
+                        continue
+                    }
+                    val text = StringBuilder(length)
+                    for (start in 1..length step OVERSIZED_PIECE) {
+                        db.query("SELECT substr(feedHtml, ?, ?) FROM articles WHERE id = ?", arrayOf<Any>(start, OVERSIZED_PIECE, id)).use { c ->
+                            if (c.moveToFirst()) text.append(c.getString(0))
+                        }
+                    }
+                    db.execSQL("UPDATE articles SET feedHtml = ? WHERE id = ?", arrayOf<Any?>(FeedSync.storable(text.toString()), id))
+                }
+            }
+        }
+        // Characters per piece: at four bytes each, well inside the window.
+        private const val OVERSIZED_PIECE = 200_000
+        private const val OVERSIZED_UNREAD = 5_000_000
+
         fun open(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "newspaperss.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9).build()
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10).build()
     }
 }
