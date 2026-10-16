@@ -3,6 +3,14 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle A2 (16 Oct) — build: a late send of a released edition counts
+
+- **A scripted break can hit more than the line meant:** `sed` on a line ending also matched
+  `markSentByHand`, so an older test went red too. Count the lines a break changes
+  (`git diff --stat`) before reading the result.
+- **JUnit XML, not the console, says what failed:** `-q` prints "N tests completed, M failed" only
+  on failure; read each testcase from the XML.
+
 ### Cycle D1 — build: Substack Notes through tt-rss
 
 Run of 16 Oct, four sessions in parallel; this one (D) owns content and tt-rss.
