@@ -68,7 +68,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 
 ### Reading list
 - [ ] Send for a look on an e-reader with no browser says so and stops there; copying the form's address would let the reader send it from a phone. And check on a device whether the GitHub app, if installed, takes the link and drops the filled-in fields *(today C1 review)*
-- [ ] **Your call:** reading times for saved links. Not only links saved before database version 2: no titled link from a Pocket or Instapaper import gets one either, since only untitled links are looked up. The reading time is only the reading list's "10 min read" (editions don't use it). Filling them in costs one background page fetch per link, 20 at a time, so a 3,000-link import means 3,000 fetches. Options: measure every saved link; measure only links saved from now on and leave imports; or leave it. On the morning page
+- [ ] **Approved:** give every saved link a reading time, slowly. Links saved before database version 2 and titled Pocket or Instapaper imports have none, so the reading list shows "10 min read" on some rows and nothing on others. Measure them in the background a few dozen a day, only on Wi-Fi while charging, until none are left; new links are measured as now. `ReadingListTitles.fetch` already measures a titled link whose `pageWords` is null: what's missing is a periodic job that hands it the next batch. Keep the label; feed articles stay without one. *(morning page, 16 Oct)*
 
 ### Accessibility *(a11y, you asked for it)*
 A full pass over the app and the book, not just spot fixes:
