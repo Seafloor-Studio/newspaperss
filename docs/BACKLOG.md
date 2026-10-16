@@ -14,12 +14,14 @@ Grouped by part of the app. The tag says where each item came from: *device* (yo
 ### From the 16 Oct audit *(audit)*
 Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "checked" means read against the code, not yet reproduced.
 - [ ] **Sending an edition a newer build has already released does nothing, and its articles go out again** (checked). The notification's Send and Read, the share sheet's report and Today's Send all mark sent only if READY, without the "or released, with no build running" case `markSentByHand` has; and releasing an edition leaves its Ready notification up
-- [ ] Signing in as another user on the same tt-rss server keeps the first user's waiting and starred articles, credited to feed ids that may be the new user's; a sync running during the switch can add more
+- [ ] Another tt-rss user, or another server, still meets the first one's delivered links: `delivered_urls` is shared, so a story the first user received is skipped for the second, and marked read on their server. Small, but partners often follow the same blogs. Forget the delivered links that came only from the old source when it goes? *(review, 16 Oct)*
+- [ ] Restored onto a new phone, the database comes back without the tt-rss login (it's left out of backups), so whoever signs in next keeps the waiting and starred articles, as the same user would. Ask on sign-in whether it's the same account? *(review, 16 Oct)*
 - [ ] A timed edition is dropped while a manual one waits for a connection (`EditionWorker` enqueues with KEEP, checked), and the manual run then has no Ready notification, podcast or retries
 - [ ] An EPUB written by a build the process died during is never deleted: `failInterrupted` marks it FAILED without removing the file, which has no `fileName` yet (checked)
 - [ ] Leaving the server as a feed move finishes can leave a phone feed paused: the move's check and the pause aren't one step (a window of milliseconds)
 - [ ] Sources' and the reading list's snackbars are shown while the app is in the background, so a tt-rss subscribe's answer and its Undo can time out unseen. Confirm on a device first
 - [ ] Typed text in Settings' tt-rss sign-in and the Add a site dialog is lost if Android kills the app while it's in the background (onboarding keeps it with a SavedStateHandle)
+- [ ] Rotation drops Listen's "Finish X first?" and contents dialogs and the category step of Add a site and Move feeds (`remember`, not `rememberSaveable`)
 - [ ] Stop making and Delete podcast run on the screen's scope without `NonCancellable`, unlike Make beside them (checked)
 - [ ] Tests: the app's own DataStores (`preferencesDataStore`) are shared by every Robolectric test and never reset or stopped, the same hazard #190 fixed elsewhere; the drain before cancelling a test DataStore is in `PodcastSettingsTest` only; three copied wait loops time out after 5 s against `idleUntil`'s 30 s, and `OnboardingTest` uses `compose.waitUntil(5_000)` for an import (checked); `SourceDetailViewModel`s built directly in tests are never cancelled; the app's FakeHttp can't return a cut-short feed; `SourceDetailScreenTest` reads the real clock; `NotesWorkerTest` can't fail on what it names; a race in `PodcastMakerTest`'s fake can hide the bug it guards
 - [ ] Coverage counts the pictures `ScreenshotTest` draws (85 tests, 4 assertions) as tested code
@@ -58,7 +60,6 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] **Your call:** should tt-rss's star feed the ☆? Recommended: an opt-in, one-way "Starred in tt-rss goes in my next edition" setting, not a two-way sync, since the ☆ clears on delivery and syncing that back would unstar articles in tt-rss. On the morning page
 - [ ] Moving off tt-rss: **I pick my own sites** brings the feeds along as phone feeds, the reverse of moving phone feeds in. The daily feed list already has each feed's address, title and category. Feeds in the paper come with their settings (cap, article text, skip paid posts), left-out ones stay left out, and a feed already on the phone or without an address yet is skipped and said so. Open: whether starred articles come too (today they go with the account). About a cycle. Until then the leave dialog points to tt-rss's OPML export *(you asked)*
 - [ ] Articles that expire in the app stay unread in tt-rss: an opt-in "mark read when they expire here"
-- [ ] Delay tt-rss mark-read a little after sharing, so a quick "Mark as not sent" doesn't flip articles read and then unread again on the server
 - [ ] Read/unread, after trying the toggle *(you asked)*. The status mark on a source's page now marks read and unread, reaching tt-rss at the next sync. If the two toggles don't feel right on the phone, the one-button cycle (option A in the mockups) is the alternative
 - [ ] Read sync: an article marked unread in tt-rss further back than its feed's newest five unread only comes back here once it's among them. Ask tt-rss about delivered articles directly if that turns out to matter
 
@@ -83,7 +84,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 ### Accessibility *(a11y, you asked for it)*
 A full pass over the app and the book, not just spot fixes:
 - [ ] App: TalkBack walk-through of every screen (labels, headings, focus order), font scale at 200%, display size, touch targets ≥ 48dp, contrast in light and dark, e-ink readability, nothing carried by colour or animation alone. Confirm the new live regions with TalkBack on a device
-- [ ] Book: EPUB Accessibility 1.1 metadata (`schema:accessMode`, `accessibilityFeature`, `accessibilitySummary`), image alt text carried through, reading order checked with a screen reader
+- [ ] Book: reading order with a screen reader on a device. The metadata, alt text and heading levels are done, and Ace by DAISY passes a live edition (D5); that run had no pictures, so try one with them *(a11y)*
 - [ ] Tooling: Compose accessibility checks in the Robolectric tests, Accessibility Scanner on a device, Ace by DAISY on a live edition
 - [ ] Generate alt text for pictures that have none *(you asked)*. Many feeds' images arrive without a description, so a screen reader (and Listen) says nothing or a file name. Do it when the edition is built, so the book gets it too, and on the phone, so nothing leaves it. Cheapest first, stopping at the first that gives something:
   - The article's own alt text or caption (free, every phone). Never replace it
@@ -443,7 +444,9 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
-- [x] Rotation keeps Listen's "Finish X first?" and contents, and the category list of Add a site and Move feeds; after Android ends the app, a restored question is checked again and the category list goes with its dialog (today C3)
+- [x] Book: EPUB Accessibility 1.1 metadata, alt text counted honestly, article headings that never skip a level, the contents list's role; EPUBCheck and Ace pass (today D5)
+- [x] tt-rss marks delivered articles read a couple of minutes after delivery, so a quick Mark as not sent usually never reaches it (today D3)
+- [x] Signing in as another user on the same tt-rss server starts without the first user's articles and stars, as signing in to another server does, and a sync still running for the first user can't add theirs back (audit, 16 Oct)
 - [x] Removing a source, a saved link or the tt-rss account while an edition is being made no longer throws the finished edition away: the removed articles stay in the book and are listed by title, as a removed source's past ones are (audit, 16 Oct)
 - [x] Substack Notes in posts from tt-rss come back: the post is read from its page's data, one fetch, only where a Note was (today D1)
 - [x] Tapping a notification brings back the app as it was rather than starting it afresh (audit, 16 Oct)

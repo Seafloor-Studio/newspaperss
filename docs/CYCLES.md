@@ -3,14 +3,23 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
-### Cycle C3 — build: rotation
+### Cycle D5 — build: accessibility metadata for the book
 
-- **Never copy whole files across branches cut from different mains.** `git checkout other -- file`
-  wrote an older test file over #245's teardown. Carry a change as a patch (`git diff base other
-  -- file | git apply -3`), and diff each file against main before committing.
-- **Saved UI state outlives the view model it describes.** After process death, a saved flag for a
-  dialog the view model no longer has comes back the next time it opens. Keep it with the state
-  it belongs to.
+- **Run the real validator, not only the spec**: Ace on a live edition found the heading-order problem the backlog item never named. EPUBCheck is a jar from GitHub releases; Ace installs from npm (`@daisy/ace`) and runs with `ace-puppeteer` and `PUPPETEER_EXECUTABLE_PATH` at the pre-installed Chromium (the default Electron one refuses to run as root).
+- **A break that stays green can mean the fixture never takes that path**: a plain-space alt passed with or without decoding; `&nbsp;` is the form that needed it.
+
+### Cycle D3 — build: a wait before tt-rss hears of a delivery
+
+- **Replaced WorkManager work is pruned, not left as CANCELLED**: `getWorkInfoById` of the old id can be null. Assert "null or cancelled".
+- **Give a delay test the network first** (`setAllConstraintsMet` before the undo), or it passes without the delay because the work was never runnable.
+
+### Cycle A5 (16 Oct) — build: another tt-rss user on the same server
+
+- **"Keep both sides" is wrong for a removed line.** Merging main's shared docs with a script
+  that keeps both halves of each conflict put back backlog items another PR had ticked off.
+  After such a merge, diff BACKLOG.md against main and check each `-`/`+` line by hand.
+- **A reviewer judges the branch it reads, not main.** It flagged a mid-build delete that an
+  earlier PR, already merged, had fixed: merge main before the review on a run of related PRs.
 
 ### Cycle A1 (16 Oct, day run, four sessions) — build: a source removed during a build
 
