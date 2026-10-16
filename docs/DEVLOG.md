@@ -14,6 +14,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Overnight cycles, 2: a bot check isn't "not a feed"
+- **From the backlog (sweep):** a host's bot check answering a feed with a 202 and a captcha page.
+- **Found:** real, through the app's own code: a source said "We can't get new articles from this site any more. It may have moved; try adding it again", and adding the site said "No feed found". Adding it again would meet the same check.
+- **Shipped:** both now say the site turned NewspapeRSS away with a bot check, and to try again later, as a 403 does. SiteGround's captcha joins the bot checks the app knows, which also helps article pages.
+- **Review:** found the first version too eager: a small site behind Cloudflare carries its challenge script on every page and would have been refused while adding, and a real JSON Feed with sorted keys could have been called a bot check. Both now ask only once the feed couldn't be found or read; tests cover each.
+
 ### Overnight cycles, 1: screenshots on a fixed clock
 - **From you:** six cycles or three backlog items tonight, flaky tests and the screenshot clock first; merge Dependabot's two PRs (#229, #230, merged).
 - **Found:** the flaky-DataStore item was already done (#190) and never ticked. The screenshot one was real: two renders two minutes apart differed in 10 of 85 pictures ("Last checked today at 6:53 AM"), and from New Year every article row would have gained ", 2026".

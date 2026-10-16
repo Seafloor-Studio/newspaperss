@@ -1,5 +1,6 @@
 package com.app.newspaperss.data
 
+import com.app.newspaperss.core.extract.ArticleExtractor
 import com.app.newspaperss.core.feed.FeedParseException
 import com.app.newspaperss.core.feed.FeedParser
 import com.app.newspaperss.core.feed.FeedTooLargeException
@@ -66,9 +67,11 @@ class FeedSync(
         if (source.kind == SourceKind.TTRSS) return syncTtrss(source)
         if (source.kind == SourceKind.LIST) return syncList(source)
         val now = clock.instant()
+        var body: String? = null
         val error = try {
             val response = http.getFeed(source.url)
             if (response.isSuccessful) {
+                body = response.body
                 val feed = FeedParser.parse(response.body, response.finalUrl, response.truncated)
                 val added = db.articles().insertFetched(
                     feed.items.map {
@@ -90,7 +93,10 @@ class FeedSync(
         } catch (e: FeedTooLargeException) {
             e.message ?: "This feed is too large to read."
         } catch (e: FeedParseException) {
-            "We can't get new articles from this site any more. It may have moved; try adding it again."
+            // Asked only once the parser has given up, so a feed that merely mentions a bot check
+            // (a post about Cloudflare) still reads.
+            if (body?.let(ArticleExtractor::isBotCheck) == true) ErrorAnswers.botCheck()
+            else "We can't get new articles from this site any more. It may have moved; try adding it again."
         } catch (e: SQLiteConstraintException) {
             // The source was removed while it was being fetched.
             return null

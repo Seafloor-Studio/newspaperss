@@ -29,4 +29,12 @@ object ErrorAnswers {
             else -> "$site answered with error $code."
         }
     }
+
+    /**
+     * A bot check answered instead of the feed, which can come with a success code (SiteGround's
+     * is a 202): a refusal like a 403. It covers the whole site, so another of its addresses
+     * would meet it too.
+     */
+    fun botCheck(address: String? = null): String =
+        "${address ?: "The site"} turned NewspapeRSS away with a bot check. Some sites block apps: try again later."
 }
