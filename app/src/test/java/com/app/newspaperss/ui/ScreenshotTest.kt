@@ -897,6 +897,17 @@ class ScreenshotTest {
     }
 
     @Test
+    @Config(qualifiers = "w411dp-h1100dp-xxhdpi")
+    fun sourcesWithAQuietTtrssFeed() {
+        val vm = serverSources()
+        runBlocking {
+            val account = db.sources().ofKind(com.app.newspaperss.data.SourceKind.TTRSS).single().id
+            db.sources().posted(account, "2", clock.instant().minus(java.time.Duration.ofDays(30)))
+        }
+        shoot("08r-sources-server-feed-quiet", ready = { vm.screen.value?.server != null && vm.folded.value != null }) { SourcesScreen(vm) }
+    }
+
+    @Test
     fun ttrssFeedPageLeftOut() {
         val vm = feedPage("7")
         shoot("08d-ttrss-feed-left-out", ready = { vm.detail.value?.text?.leftOut == true }) { SourceDetailScreen(vm, onBack = {}) }
