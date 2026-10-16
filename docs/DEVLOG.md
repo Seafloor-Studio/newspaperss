@@ -14,6 +14,11 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Day cycles, A4: a dead build's book
+- **From the backlog (audit):** a build cut off by the process dying could leave its book (several MB) in the app's storage for good, as nothing pointed to it.
+- **Shipped:** the next build, which already marks such an edition as interrupted, now deletes its book too.
+- **Review:** nothing blocking. It suggested reading the edition again before failing it, in case a stopped build had only just finished; done. Left: titles are unique over two days, not forever, so the same date years later could share a file name; that was already so.
+
 ### Today, D1: Substack Notes through tt-rss
 - **From the backlog (device):** tt-rss strips the text of a Note embedded in a Substack post, so the sentence introducing it hung.
 - **Found:** Substack's page shows only a placeholder there too, but carries the whole post, as its feed has it, in a data script (`preloads-json`).
