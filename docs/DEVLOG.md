@@ -60,6 +60,17 @@ caught, and what got in the way. Newest first. Times are Pacific.
 - **For you:** the `extraction` label doesn't exist yet; GitHub only applies a label from the form for people who can label issues, so the title's "Extraction:" is what marks the rest. The `handle-issues` skill (shared from claude-playground) doesn't mention these issues yet; as a bug report they're fixed the usual way.
 - **Left:** no browser is a dead end; whether the GitHub app takes the link and loses the fields wants a look on a device. Both in the backlog.
 
+### Today, B13: a smaller APK
+- **From you:** one APK per ABI, chosen on the morning page.
+- **Shipped:** four APKs instead of one. Release builds:
+  - arm64-v8a, for phones and recent e-readers: 50.6 MB, down from 86.8 MB.
+  - x86_64: 54.8 MB.
+  - armeabi-v7a, for older 32-bit e-readers: 18.6 MB, without the podcast voice, as before.
+  - x86: 18.6 MB.
+- **Version codes:** each APK's is `versionCode * 10` plus 1 to 4, with 64-bit last, so a device is offered the highest it runs. The release workflow attaches all four, the latest-debug page has each, and F-Droid's draft recipe builds each.
+- **Review:** the app's "newer build" link always fetched the arm64 file, which a 32-bit e-reader can't install; it now picks the device's own, and a test checks each name against what CI uploads. Play's bundle takes the first APK's code, `versionCode * 10 + 1`, which still rises, and RELEASING says so.
+- **Left:** whether F-Droid wants a changelog per ABI code, to check at the first submission.
+
 ### Today, B: test health and speed (B1–B12)
 Area B of four parallel sessions: the audit's test findings, then two speed items. All merged with CI green except #269, which is your call.
 - **B1, each test's own stores ([#245](https://github.com/madCode/newspaperss/pull/245)):** the app's settings, tt-rss and feed-move stores were made once per test run, so a setting one test wrote was read by the next (shown with two ordered tests). Each test's app now has its own, stopped at teardown. **It broke main for about an hour:** stopping them ran what a test had left queued, a screen's query of its closed database, and the error failed the next test (3 of 7 main builds). The first review had named the risk. Fixed in **B9 ([#267](https://github.com/madCode/newspaperss/pull/267))**: the stores stop off the main thread first. Then 5 of 6 full local runs were clean; the sixth timed out elsewhere under load.

@@ -89,10 +89,6 @@ A full pass over the app and the book, not just spot fixes:
 ### Performance *(resources)*
 - [ ] A floor device: Android 8, 2 GB RAM, slow CPU and storage (a 2018 budget phone or an older Boox). Measure on an emulator with that profile how long a 30-minute edition takes, peak memory, whether timed editions still arrive under Doze, and whether long lists and the preview stay smooth; set budgets from the numbers *(you asked)*
 - [ ] A feed's title, link, guid and author are stored uncapped: a hostile feed (a `data:` link, a megabyte title) could still make a row too big for the 2 MB Android reads it through. Cap them as feed text now is *(review)*
-- [ ] A smaller APK *(you asked)*. It went from 20–40 MB to 94 MB with the podcast, because sherpa-onnx's native code is in it twice, stored uncompressed: about 32 MB for arm64-v8a and 36 MB for x86_64. Three ways, with what each costs:
-  - **One APK per ABI** (preferred): about 57 MB for a phone, and nothing stops working. The cost: two files on the release page, CI and the `latest-debug` publish adjusted, and F-Droid's build recipe given the split.
-  - **Drop x86_64**: one APK of about 57 MB, but no podcast on emulators and x86 Chromebooks. First check whether the device tests' emulator needs it.
-  - **Compress the native code** (`useLegacyPackaging`): about 50 MB to download, but Android unpacks a copy on install, so it takes more room on the phone than now.
 
 ### Recurring reviews *(audit)*
 Whole-codebase passes for what a review of one PR can't see. Each follows the audit's pattern: fresh-eyes reviewers, each finding checked, a PR per area.
@@ -434,6 +430,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] A smaller APK: one per ABI, as you chose. A phone's release APK is 50.6 MB (arm64) instead of 86.8 MB; older 32-bit e-readers get an 18.6 MB one without the podcast voice; Play's bundle is unchanged (today B13)
 - [x] A quiet tt-rss feed says so under its row: "Nothing new in 3 weeks" (today D4)
 - [x] **Send for a look**: ⋮ › Send for a look… on an article's preview says the report is a public GitHub issue, then opens GitHub's form with "Extraction: *title*", the address and the app's version filled in (#251)
 - [x] A snackbar on screen as the app goes to the background is shown again in full on its return, Undo and all, on Sources, the reading list, a source's page, Settings and an edition's page; a reading-list removal waiting for Undo is settled then rather than left in the database (#258)
