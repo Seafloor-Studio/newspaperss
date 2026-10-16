@@ -382,6 +382,7 @@ exported to `app/schemas/`, and each version step has a `Migration`.
 erDiagram
     sources ||--o{ articles : "has (cascade delete)"
     sources ||--o{ publications : "carries (cascade delete)"
+    sources ||--o{ ttrss_stars : "has seen (cascade delete)"
     editions ||--o{ edition_articles : "contains (cascade delete)"
     articles |o--o{ edition_articles : "set null on delete"
     sources {
@@ -391,6 +392,7 @@ erDiagram
         enum contentMode "PAGE for kinds with no feed text"
         bool paused
         instant feedsListedAt "tt-rss: last full feed list"
+        bool takeTtrssStars "tt-rss: stars there go in the paper"
     }
     publications {
         long sourceId PK
@@ -437,6 +439,10 @@ erDiagram
     delivered_urls {
         string url PK
         instant deliveredAt
+    }
+    ttrss_stars {
+        long sourceId PK
+        long articleId PK "a tt-rss star already taken, or kept"
     }
 ```
 

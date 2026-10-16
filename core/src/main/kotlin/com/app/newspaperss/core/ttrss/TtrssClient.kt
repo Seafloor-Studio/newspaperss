@@ -19,6 +19,9 @@ data class TtrssPost(val id: Long, val feedId: String, val updated: Long?)
 /** What [TtrssClient.postedSince] found, and the id to look from next time: null if it found nothing. */
 data class TtrssPosted(val posts: List<TtrssPost>, val upTo: Long?)
 
+/** The reader's starred articles, by id, and whether that's all of them. */
+data class TtrssStarred(val ids: List<Long>, val complete: Boolean)
+
 /** One unread article as tt-rss's getHeadlines reports it. */
 data class TtrssHeadline(
     val id: Long,
@@ -291,6 +294,42 @@ class TtrssClient(
         return TtrssPosted(posts, if (sinceId == null) posts.maxOfOrNull { it.id } else posts.lastOrNull()?.id)
     }
 
+    /** The ids of the reader's starred articles, read or not: up to [pages] pages of [MAX_LIMIT]. */
+    suspend fun starredIds(pages: Int): TtrssStarred {
+        val ids = mutableListOf<Long>()
+        for (page in 0 until pages) {
+            val content = withSession { sid ->
+                post(buildJsonObject {
+                    put("sid", sid)
+                    put("op", "getHeadlines")
+                    put("feed_id", STARRED)
+                    put("view_mode", "all_articles")
+                    put("show_content", false)
+                    put("limit", MAX_LIMIT)
+                    put("skip", page * MAX_LIMIT)
+                })
+            }
+            val items = content as? JsonArray ?: throw TtrssException.NotTtrss()
+            items.mapNotNullTo(ids) { ((it as? JsonObject)?.get("id") as? JsonPrimitive)?.let { id -> id.longOrNull ?: id.contentOrNull?.toLongOrNull() } }
+            if (items.size < MAX_LIMIT) return TtrssStarred(ids, complete = true)
+        }
+        return TtrssStarred(ids, complete = false)
+    }
+
+    /** These articles with their text, read or not; one tt-rss no longer has is left out. */
+    suspend fun articles(ids: Collection<Long>): List<TtrssHeadline> {
+        if (ids.isEmpty()) return emptyList()
+        val content = withSession { sid ->
+            post(buildJsonObject {
+                put("sid", sid)
+                put("op", "getArticle")
+                put("article_id", ids.joinToString(","))
+            })
+        }
+        val items = content as? JsonArray ?: throw TtrssException.NotTtrss()
+        return items.mapNotNull { (it as? JsonObject)?.let(::headline) }
+    }
+
     /** Marks [ids] as read. */
     suspend fun markRead(ids: Collection<Long>) = setUnread(ids, false)
 
@@ -445,6 +484,8 @@ class TtrssClient(
 
     companion object {
         const val ALL_ARTICLES = -4
+        /** tt-rss's virtual feed of starred articles. */
+        private const val STARRED = -1
         /** getFeeds' "every feed, without tt-rss's virtual ones". */
         private const val ALL_FEEDS = -3
         const val MAX_LIMIT = 200

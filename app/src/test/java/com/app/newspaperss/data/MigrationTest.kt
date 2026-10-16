@@ -104,7 +104,7 @@ class MigrationTest {
 
         helper.runMigrationsAndValidate(DB, 3, true, AppDatabase.MIGRATION_2_3).close()
         val room = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java, DB)
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12).allowMainThreadQueries().build()
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13).allowMainThreadQueries().build()
         try {
             runBlocking {
                 assertEquals(7000L, room.articles().byId(4)!!.starredAt?.toEpochMilli())
@@ -391,6 +391,31 @@ class MigrationTest {
             db.query("SELECT ttrssSeenId FROM sources WHERE id = 1").use { c ->
                 c.moveToFirst()
                 assertTrue("the first sync looks back", c.isNull(0))
+            }
+        }
+    }
+
+    /** An account from before version 13 doesn't take its tt-rss stars until asked; removing it removes the stars it saw. */
+    @Test
+    fun version13TakesNoStarsUntilAsked() {
+        helper.createDatabase(DB, 12).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, kind, url, title, position, contentMode, contentModeChosen, fullTextStreak, paused, markReadOnServer, addedAt) " +
+                    "VALUES (1, 'TTRSS', 'https://rss.example/api/', 'tt-rss', 0, 'AUTO', 0, 0, 0, 1, 0)",
+            )
+        }
+        helper.runMigrationsAndValidate(DB, 13, true, AppDatabase.MIGRATION_12_13).use { db ->
+            db.query("SELECT takeTtrssStars, ttrssStarsNoted FROM sources WHERE id = 1").use { c ->
+                c.moveToFirst()
+                assertEquals(0, c.getInt(0))
+                assertEquals(0, c.getInt(1))
+            }
+            db.execSQL("PRAGMA foreign_keys = ON")
+            db.execSQL("INSERT INTO ttrss_stars (sourceId, articleId) VALUES (1, 42)")
+            db.execSQL("DELETE FROM sources WHERE id = 1")
+            db.query("SELECT COUNT(*) FROM ttrss_stars").use { c ->
+                c.moveToFirst()
+                assertEquals(0, c.getInt(0))
             }
         }
     }
