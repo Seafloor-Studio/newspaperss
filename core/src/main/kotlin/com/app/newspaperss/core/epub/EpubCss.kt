@@ -51,6 +51,7 @@ div.reflection { border-top: 1px solid; border-bottom: 1px solid; padding: 0.8em
 div.reflection p { text-align: left; margin: 0 0 0.4em 0; }
 p.reflection-label { font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.12em; }
 p.end-imprint { text-align: center; font-size: 0.8em; margin-top: 3em; }
-h1[dir="rtl"], ol.contents li[dir="rtl"], div[dir="rtl"] figcaption { text-align: right; }
+h1[dir="rtl"], ol.contents li[dir="rtl"], div[dir="rtl"] figcaption,
+div[dir="rtl"] h2, div[dir="rtl"] h3, div[dir="rtl"] h4, div[dir="rtl"] h5, div[dir="rtl"] h6 { text-align: right; }
 div[dir="rtl"] blockquote { margin: 1em 3% 1em 0; padding-left: 0; padding-right: 4%; border-left: 0; border-right: 2px solid; }
 """

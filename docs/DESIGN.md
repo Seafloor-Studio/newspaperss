@@ -209,6 +209,11 @@ module so it's all unit-tested without Android.
     totals and a question to think about, one of a short list of open
     questions that suit any paper ("What surprised you?"). It usually differs from
     one edition to the next, and the notes file shows the same one;
+  - for screen readers: EPUB Accessibility 1.1's metadata (what the book
+    needs and offers; pictures count as described only when every one has
+    the alt text its site gave), each article's headings going down one
+    level at a time under its title, and images keeping their alt text.
+    It passes EPUBCheck and Ace by DAISY;
   - styles Kindle's conversion keeps: plain class selectors, relative
     sizes, no side margins, headings aligned explicitly;
   - images as JPEG up to 1200px, about 15 MB in all including the cover, up
@@ -357,8 +362,10 @@ phone restarts.
   the phone in both. It's chosen in onboarding and changed in Settings.
 - **tt-rss:** each sync takes up to five unread articles from every feed, so a
   feed that posts monthly isn't crowded out by busy ones. Articles are marked
-  read on the server once delivered (and unread again if the edition is
-  marked as not sent). One category can be taken instead of all unread,
+  read on the server a couple of minutes or more after delivery (and unread
+  again if the edition is marked as not sent), so a send to the wrong app,
+  marked as not sent straight away, usually never reaches tt-rss. A sync in
+  those minutes still marks a delivered link read. One category can be taken instead of all unread,
   chosen in Settings › Where your feeds live; a new account starts
   with all. tt-rss's own stars
   aren't synced: there a star usually means "keep this", not "for tomorrow".
@@ -387,8 +394,9 @@ phone restarts.
     articles. A feed left out isn't fetched, and its waiting articles go
     too, except starred ones. It stays in tt-rss and on the Left out list,
     so it can come back. Signing in as another user clears
-    every feed's settings: feed ids belong to each tt-rss user. The same
-    user signing in again keeps them.
+    every feed's settings and the first user's articles, stars included,
+    as signing in to another server does: feed ids belong to each tt-rss
+    user. The same user signing in again keeps them.
   - **Start fresh** ("Back after a break?" in Settings › Where your feeds
     live), after a
     confirmation, marks everything that reached tt-rss more than two weeks

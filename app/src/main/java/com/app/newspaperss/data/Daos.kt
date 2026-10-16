@@ -255,6 +255,10 @@ interface ArticleDao {
     @Query("SELECT * FROM articles WHERE id IN (:ids)")
     suspend fun byIds(ids: Collection<Long>): List<ArticleEntity>
 
+    /** Which of [ids] are still here: without their rows, which carry the feed's text. */
+    @Query("SELECT id FROM articles WHERE id IN (:ids)")
+    suspend fun stillHere(ids: Collection<Long>): List<Long>
+
     @Query("SELECT * FROM articles WHERE sourceId = :sourceId ORDER BY discoveredAt DESC, id DESC")
     fun observeAllForSource(sourceId: Long): Flow<List<ArticleEntity>>
 
