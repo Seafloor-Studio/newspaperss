@@ -603,6 +603,23 @@ class ScreenshotTest {
         }
     }
 
+    /** The reading list: links with their reading time, and one that can never go in the paper. */
+    @Test
+    fun readingList() {
+        val list = com.app.newspaperss.data.ReadingListRepository(db, clock)
+        runBlocking {
+            list.save("https://example.com/2026/the-quiet-return-of-the-night-train", "The quiet return of the night train")
+            list.save("https://example.org/essays/on-walking", "On walking")
+            list.save("https://example.net/files/annual-report.pdf", "Annual report 2025")
+            val saved = db.articles().allForSource(list.sourceId()).associateBy { it.title }
+            db.articles().setPageWords(saved.getValue("The quiet return of the night train").id, 1900)
+            db.articles().setPageWords(saved.getValue("On walking").id, 3400)
+            db.articles().setUnreadable(saved.getValue("Annual report 2025").id, "not a web page")
+        }
+        val vm = com.app.newspaperss.ui.readinglist.ReadingListViewModel(list)
+        shoot("09a-reading-list", ready = { vm.items.value?.size == 3 }) { com.app.newspaperss.ui.readinglist.ReadingListScreen(vm, onBack = {}) }
+    }
+
     @Test
     fun sources() {
         val repo = SourceRepository(db, clock)
