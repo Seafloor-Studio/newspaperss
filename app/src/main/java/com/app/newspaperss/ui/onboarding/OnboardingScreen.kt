@@ -41,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -180,6 +181,7 @@ private fun DeviceStep(s: OnboardingState, vm: OnboardingViewModel) {
         return
     }
     Text(DeviceTips.tip(device), modifier = Modifier.padding(top = 16.dp), style = MaterialTheme.typography.bodyMedium)
+    Delivered(DeviceTips.delivered(device))
     if (device == Device.KINDLE) {
         TextButton(onClick = vm::useKindleEmail, contentPadding = PaddingValues(end = 12.dp)) { Text("Email it to your Kindle instead") }
     }
@@ -198,6 +200,11 @@ private fun DeviceStep(s: OnboardingState, vm: OnboardingViewModel) {
 }
 
 @Composable
+private fun Delivered(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+}
+
+@Composable
 private fun KindleEmailSetup(s: OnboardingState, vm: OnboardingViewModel) {
     HorizontalDivider(Modifier.padding(vertical = 16.dp))
     Text("Send it straight to your Kindle", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
@@ -205,8 +212,10 @@ private fun KindleEmailSetup(s: OnboardingState, vm: OnboardingViewModel) {
         "Each Kindle has its own email address. Editions emailed there arrive on it by themselves. " +
             "When an edition is ready, Send opens your mail app with everything filled in; you tap Send.",
         style = MaterialTheme.typography.bodyMedium,
-        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+        modifier = Modifier.padding(top = 4.dp),
     )
+    Delivered(DeviceTips.delivered(Device.KINDLE, byEmail = true))
+    Spacer(Modifier.height(12.dp))
     KindleEmailFields(
         address = s.kindleEmail,
         onAddress = vm::editKindleEmail,
