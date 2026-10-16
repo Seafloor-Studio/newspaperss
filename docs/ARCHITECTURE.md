@@ -8,7 +8,8 @@ How the code is built. What the app does, and why, is in
 
 ## Modules
 
-Two Gradle modules (`settings.gradle.kts`):
+Two Gradle modules (`settings.gradle.kts`), and a third, `:epubsink`, a
+test-only app the device tests hand an edition to:
 
 - **`:core`** is plain Kotlin on the JVM. It knows nothing about Android,
   Room or WorkManager: it takes values in and gives values back, so it's
@@ -85,12 +86,13 @@ Entry points from outside the app (`app/src/main/AndroidManifest.xml`):
 |---|---|
 | `MainActivity` | The app. |
 | `ShareActivity` | Share target: saves a link to the reading list and closes. |
-| `OpenEditionActivity` | The notification's **Open** (Boox): opens the EPUB and marks it sent. |
+| `OpenEditionActivity` | The notification's **Read** (Boox): opens the EPUB and marks it sent. |
 | `SendEditionActivity` | The notification's **Send** with email to a Kindle: opens the mail app and marks it sent. |
 | `EditionSentReceiver` | The share sheet reports which app was picked: marks the edition sent. |
 | `ClockChangeReceiver` | Time or time zone changed: re-arms the edition timer. |
 | `FileProvider` | Hands EPUB and notes files to other apps by `content://` URI. |
 | `ListenService` | Keeps an edition playing aloud with the screen off; Android's media controls talk to it. |
+| `StopPodcastReceiver` | The "Making the podcast" notification's **Stop**: stops making podcasts, keeping what's made. |
 
 ## Making an edition
 
@@ -203,7 +205,7 @@ Articles are only used up in `EditionRepository.markDelivered`
 flowchart LR
     folder["EditionRun: folder copy succeeded"] --> md
     share["EditionSentReceiver: app picked in share sheet"] --> ms
-    open["OpenEditionActivity / Open button (Boox)"] --> ms
+    open["OpenEditionActivity / Read button (Boox)"] --> ms
     email["SendEditionActivity / Send button: mail app opened"] --> me
     me["markEmailedToKindle: only if still READY"] --> md
     sent["Mark as sent (Today, Edition)"] --> ms
@@ -614,6 +616,8 @@ back to the banner (`FeedMoves.giveUp`).
 - `:app`: Robolectric and Compose UI tests against a real Room database,
   plus `MigrationTest` for schema steps.
 - CI (`.github/workflows/build-and-test.yml`) runs `./gradlew build` and
-  Kover's 90% line-coverage check, then publishes the debug APK.
+  Kover's 93% line-coverage check, then publishes the debug APK.
+- Device tests (`.github/workflows/device-tests.yml`) run on an emulator
+  when delivery or the screens change, handing an edition to `:epubsink`.
 - A daily job (`.github/workflows/live-check.yml`) reads each curated
   list's live page, so a site redesign shows up before it reaches a phone.

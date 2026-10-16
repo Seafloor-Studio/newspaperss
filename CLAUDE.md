@@ -15,14 +15,17 @@ changed and why.
 - `:app`: Android, Jetpack Compose, Room, WorkManager, DataStore. Manual
   DI through `AppContainer`. Test with Robolectric and Compose UI tests
   against a real Room database.
+- `:epubsink`: a test-only app that receives an edition, so the device
+  tests can prove it reaches another app's process.
 
 ## Commands
 
     ./gradlew :core:test                 # fast JVM tests
     ./gradlew :app:testDebugUnitTest     # Robolectric tests
     ./gradlew build                      # everything CI runs
+    ./gradlew :epubsink:installDebug :app:connectedDebugAndroidTest   # device tests (emulator)
     ./gradlew koverHtmlReport            # coverage: build/reports/kover/html
-    ./gradlew koverVerify                # fails below 90% line coverage (CI runs it)
+    ./gradlew koverVerify                # fails below 93% line coverage (CI runs it)
 
 JDK 21 and the Android SDK (compileSdk 37) are required.
 
@@ -31,9 +34,10 @@ Migration with a `MigrationTest` case, and committing the new schema JSON
 in `app/schemas`. CI publishes main's debug APK to the `latest-debug`
 release; its version name carries the CI run and commit.
 
-Delivery ends in another app's hands, so the part past the hand-off can only
-be checked by a person: [docs/DELIVERY-CHECKS.md](docs/DELIVERY-CHECKS.md) says
-how, and a change to delivery or the EPUB wants it run. Adding a test that
+Delivery ends in another app's hands. The device tests prove the file reaches
+another app's process; what that app does with it can only be checked by a
+person: [docs/DELIVERY-CHECKS.md](docs/DELIVERY-CHECKS.md) says how, and a
+change to delivery or the EPUB wants it run. Adding a test that
 asserts the intent again raises coverage without covering anything.
 
 The sections from Privacy to Pull requests are shared with the projects in

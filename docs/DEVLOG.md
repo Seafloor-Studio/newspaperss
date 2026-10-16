@@ -8,8 +8,8 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Status
 
-- **Lately:** Listen (an edition read aloud, #162), a four-cycle architecture audit (#163 onward), and the edition card and its buttons made simpler (#156, #157).
-- **Watching:** two tests that failed CI now and then: a settings test on a DataStore rename (#66, #81) and a source-page test on a closed database (#89). Both now stop what they opened only after the screen is torn down; watching whether that was it.
+- **Lately:** six overnight cycles on 16 Oct (#234–#239): screenshots on a fixed clock, bot checks, other-language furniture, players, oversized feed items, and an architecture and test health audit.
+- **Watching:** two tests that failed CI now and then: a settings test on a DataStore rename (#66, #81) and a source-page test on a closed database (#89). The 16 Oct audit found likely causes for both (the app's own DataStores shared across tests; view models never cancelled); they're at the top of the backlog.
 - **Waiting on you:** [#18](https://github.com/madCode/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
 
 ## Fri 16 Oct
