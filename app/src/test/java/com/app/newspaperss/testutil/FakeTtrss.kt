@@ -21,7 +21,7 @@ fun testCipher() = AesGcmCipher { SecretKeySpec(ByteArray(32) { it.toByte() }, "
  * articles read as the real API does.
  */
 class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt-rss/api/") {
-    data class Item(val id: Long, val title: String, val feedId: Int, val feedTitle: String, val content: String = "<p>Text of $title.</p>", val categoryId: Int = 0, val link: String = "https://news.example/$id")
+    data class Item(val id: Long, val title: String, val feedId: Int, val feedTitle: String, val content: String = "<p>Text of $title.</p>", val categoryId: Int = 0, val link: String = "https://news.example/$id", val updated: Long = 1_759_125_600L)
 
     var user = "reader"
     var password = "secret"
@@ -77,8 +77,9 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
     private var sessions = 0
     private val live = mutableSetOf<String>()
 
-    fun add(id: Long, title: String, feedId: Int, feedTitle: String, categoryId: Int = 0) {
-        unread += Item(id, title, feedId, feedTitle, categoryId = categoryId)
+    /** [updated] is when it was published, in epoch seconds. */
+    fun add(id: Long, title: String, feedId: Int, feedTitle: String, categoryId: Int = 0, updated: Long = 1_759_125_600L) {
+        unread += Item(id, title, feedId, feedTitle, categoryId = categoryId, updated = updated)
     }
 
     /** The reader reads [id] in tt-rss itself. */
@@ -172,7 +173,7 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
                                 put("link", item.link)
                                 if (withContent) put("content", item.content)
                                 put("author", "")
-                                put("updated", 1_759_125_600L)
+                                put("updated", item.updated)
                                 put("feed_id", item.feedId)
                                 put("feed_title", item.feedTitle)
                                 put("unread", item in unread)

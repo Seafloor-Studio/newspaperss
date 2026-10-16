@@ -54,6 +54,11 @@ class ReadingListViewModel(
         return true
     }
 
+    /** Saves [url], a page with no feed; [onDone] says whether it was new to the list. */
+    fun save(url: String, onDone: (added: Boolean) -> Unit) {
+        viewModelScope.launch { onDone(list.save(url)) }
+    }
+
     fun remove(article: ArticleEntity) {
         // One removal waits at a time: a second one settles the first.
         _removed.value?.let(::delete)

@@ -14,6 +14,17 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Today, D6: leaving tt-rss keeps your feeds
+- **From the backlog (you asked):** **I pick my own sites** deleted the account's feeds with it; the dialog pointed to the OPML export.
+- **Shipped:** the feeds in the paper become phone feeds before signing out, with their article text, cap and paid-post settings; left-out ones come paused. Not one outside the paper's category, one already on the phone, or one without an address yet. A message says how many came and why any didn't. Starred articles still go with the account.
+- **Review:** the paper's feeds were read from a list that goes stale when the category changes (or doesn't exist yet), so leaving now lists them first, waiting up to 20 seconds, and says when it had to use the last list. Feeds come paused and are unpaused only after signing out, so the app killed between can't fetch a feed twice. A phone feed the reader paused stays paused.
+
+### Today, D2: articles that expire here can be read in tt-rss too
+- **From the backlog (personas):** articles that waited their week out here stayed unread in tt-rss.
+- **Shipped:** **Mark read when they expire here**, a switch under Sync read status (off by default, shown only with read sync on). Waiting out the week then counts as marked read, which the next sync passes to tt-rss. Leaving a feed out or changing the category still leaves articles unread there. Database version 11.
+- **Review:** the first version emptied tt-rss's backlog through the paper: each sync takes a feed's newest five unread, so marking five read brought in the next five, months old, each with a fresh week. Now a newly arrived article published over a week ago is marked read at once; a second look caught that the first version of that also undid a reader's own mark-unread. A paused account's articles expire as before rather than going out as read on resume.
+- **Left:** such articles show as "Read" on a source's page, not "Not picked". Another user signing in on the same server inherits the switch (as with the rest of the account's settings; the audit's item covers it).
+
 ### Today, D5: the book says what it offers a screen reader
 - **From the backlog (a11y):** EPUB Accessibility 1.1 metadata and alt text carried through.
 - **Found:** alt text already reached the book. Ace by DAISY on a live edition found what the metadata item didn't name: article headings skipping levels (a site's h3 straight under the title), 7 of them in 14 articles, and the contents list without its ARIA role.

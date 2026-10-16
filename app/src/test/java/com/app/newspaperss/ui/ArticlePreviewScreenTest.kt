@@ -33,6 +33,9 @@ import com.app.newspaperss.ui.edition.bookResponse
 import com.app.newspaperss.ui.edition.BOOK_ORIGIN
 import com.app.newspaperss.ui.edition.bookPage
 import com.app.newspaperss.ui.edition.withNextLine
+import com.app.newspaperss.ui.edition.lookIssueUrl
+import com.app.newspaperss.ui.edition.ArticleLink
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import android.content.Intent
 import org.robolectric.Shadows.shadowOf
 import org.junit.Assert.assertTrue
@@ -327,6 +330,82 @@ class ArticlePreviewScreenTest {
         compose.waitForIdle()
         compose.onNodeWithContentDescription("Text size").assertExists()
         compose.onNodeWithContentDescription("Share link").assertDoesNotExist()
+        compose.onNodeWithContentDescription("More").assertDoesNotExist()
+    }
+
+    private fun askForALook() {
+        idleUntil { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("More").performClick()
+        compose.onNodeWithText("Send for a look…").performClick()
+    }
+
+    @Test
+    fun sendForALookSaysTheIssueIsPublicBeforeOpeningGithubsFormFilledIn() {
+        val file = oneArticleEdition(url = "https://www.a.example/2026/a-story?ref=feed&x=1")
+        compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "Shown title", onBack = {}) }
+        askForALook()
+
+        compose.onNodeWithText("public issue on GitHub", substring = true).assertIsDisplayed()
+        assertEquals("nothing opens before the reader agrees", null, shadowOf(compose.activity).peekNextStartedActivity())
+
+        compose.onNodeWithText("Open GitHub").performClick()
+        val opened = shadowOf(compose.activity).nextStartedActivity
+        assertEquals(Intent.ACTION_VIEW, opened.action)
+        val form = opened.data!!
+        assertEquals("https://github.com/madCode/newspaperss/issues/new", "${form.scheme}://${form.host}${form.path}")
+        assertEquals("Extraction: A story", form.getQueryParameter("title"))
+        val body = form.getQueryParameter("body")!!
+        assertTrue(body, body.contains("Article: https://www.a.example/2026/a-story?ref=feed&x=1\n"))
+        assertTrue(body, body.contains("App version: "))
+        compose.onNodeWithText("public issue on GitHub", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun cancellingSendForALookOpensNothing() {
+        val file = oneArticleEdition()
+        compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "A story", onBack = {}) }
+        askForALook()
+        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithText("public issue on GitHub", substring = true).assertDoesNotExist()
+        assertEquals(null, shadowOf(compose.activity).peekNextStartedActivity())
+    }
+
+    @Test
+    fun theSendForALookQuestionSurvivesTheScreenBeingRecreated() {
+        val file = oneArticleEdition()
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "A story", onBack = {}) }
+        askForALook()
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        idleUntil { compose.onAllNodesWithText("public issue on GitHub", substring = true).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test
+    fun aVeryLongArticleAddressIsLeftForTheReaderToPasteRatherThanOverfillingTheForm() {
+        val long = "https://a.example/" + "x".repeat(9_000)
+        val form = android.net.Uri.parse(lookIssueUrl(ArticleLink("T".repeat(300), long), "1.0"))
+        val body = form.getQueryParameter("body")!!
+        assertFalse(body.contains(long))
+        assertTrue(body.contains("please paste it here"))
+        assertTrue(form.getQueryParameter("title")!!.length <= "Extraction: ".length + 120)
+        assertTrue(form.toString().length <= 8_000)
+    }
+
+    @Test
+    fun theFormsLimitIsOnItsEncodedLengthAndATitleIsCutOnWholeCharacters() {
+        // Short enough written out, but each %XX becomes %25XX in the form's address.
+        val encoded = "https://a.example/" + "%E6%97%A5".repeat(480)
+        val title = "日本".repeat(59) + "😀🙂x"
+        val form = android.net.Uri.parse(lookIssueUrl(ArticleLink(title, encoded), "1.0"))
+        assertTrue(form.toString().length <= 8_000)
+        assertTrue(form.getQueryParameter("body")!!.contains("please paste it here"))
+        val shown = form.getQueryParameter("title")!!.removePrefix("Extraction: ")
+        assertEquals("日本".repeat(59) + "😀…", shown)
+
+        val short = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", "https://a.example/" + "%E6%97%A5".repeat(10)), "1.0"))
+        assertTrue("a short encoded address is kept", short.getQueryParameter("body")!!.contains("%E6%97%A5"))
     }
 
     private fun sharedLink(): Pair<String?, String?> {
