@@ -70,7 +70,7 @@ class ExtractorContentProvider(
             onPaidOnly(article.id, skip)
             if (skip) return null
         }
-        val encoded = download(ArticleImages.wanted(extracted.imageUrls), refererFor(article.url), images)
+        val encoded = download(ArticleImages.wanted(extracted.imageUrls, extracted.imageLimit), refererFor(article.url), images)
         val embedded = ArticleImages.embed(extracted.html, "a${article.id}", encoded)
         return ArticleContent(
             title = extracted.title,

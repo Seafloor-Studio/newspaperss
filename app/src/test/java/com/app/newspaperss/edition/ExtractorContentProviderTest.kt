@@ -65,6 +65,25 @@ class ExtractorContentProviderTest {
         assertFalse("SVG URLs aren't downloaded", "https://cdn.example/diagram.svg" in http.bytesRequests)
     }
 
+    /** A comic strip's panels are the article: all of them come, past the cap on an article's pictures. */
+    @Test
+    fun aWebtoonsEpisodeKeepsEveryPanel() = runTest {
+        val episode = "https://www.webtoons.com/en/romance/a-series/episode-9/viewer?title_no=1&episode_no=9"
+        val panels = (1..30).map { "https://webtoon-phinf.example/p$it.png?type=q90" }
+        panels.forEach { http.files[it] = "image/png" to transparentPng(400, 600) }
+        http.page(
+            episode,
+            "<html><body><div id=\"_imageList\">" +
+                panels.joinToString("") { "<img src=\"https://static.example/bg.png\" class=\"_images\" data-url=\"$it\">" } +
+                "</div><p>Sign in to comment.</p></body></html>",
+        )
+        val strip = ArticleEntity(id = 7, sourceId = 1, guid = "e9", url = episode, title = "Episode 9", feedHtml = null)
+
+        val content = provider.contentFor(strip, source.copy(contentMode = ContentMode.AUTO), ImageAllowance(), TextChoice())!!
+
+        assertEquals(30, content.images.size)
+    }
+
     @Test
     fun atMostFourImagesDownloadAtOnce() = runTest {
         var inFlight = 0
