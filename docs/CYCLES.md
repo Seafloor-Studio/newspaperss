@@ -39,6 +39,51 @@ For the next cycle: what each one should do differently. What was built is in
 - **Run end check:** no emulator was started; nothing left running. The two extra worktrees in
   `/home/user` (wt-a, wt-b) are removed at the end.
 
+### Cycle C6 — build: typed text kept when Android ends the app
+
+Run of 16 Oct, four sessions in parallel; this one (C) owns the screens. Baseline: a fresh cloud
+container, no emulator.
+- **Learned again, as in A2–A6: shared logs go in one docs PR at the end of a parallel run.** C1
+  conflicted three times before it could merge. Two areas learning it makes it a rule: it belongs
+  in the cycles skill's parallel-run notes (claude-playground, madCode's call).
+- **Merging main into a PR can merge two new tests into one spot** (two `@Test`s inserted before
+  the same anchor). Read the conflict, don't keep-both it blindly.
+- **Run end check:** nothing left running in the container; no emulator was started.
+
+### Cycle C5 — build: a Kindle how-to, and what counts as sent
+
+- **Text that states what the code does gets reviewed against the code**, for every context it
+  is shown in: one line read right in setup and wrong in Settings, where another delivery applies.
+
+### Cycle C4 — build: onboarding's no-feed dead end
+
+- **A button that starts async work goes away (or disables) in the tap**, and the answer checks
+  it still belongs. Sources did this; the copy in onboarding didn't until the review.
+
+### Cycle C3 — build: rotation
+
+- **Never copy whole files across branches cut from different mains.** `git checkout other -- file`
+  wrote an older test file over #245's teardown. Carry a change as a patch (`git diff base other
+  -- file | git apply -3`), and diff each file against main before committing.
+- **Saved UI state outlives the view model it describes.** After process death, a saved flag for a
+  dialog the view model no longer has comes back the next time it opens. Keep it with the state
+  it belongs to.
+
+### Cycle C2 — build: snackbars in the background
+
+- **`collectAsStateWithLifecycle` already pauses what it reads.** A test of "a message arriving
+  in the background" passed with the fix removed; the gap was only a snackbar already showing.
+  Ask what the screen collects before writing the background case.
+- **A wait you add holds whatever is waiting on it.** The reading list's removal was only
+  committed when its snackbar ended; making the snackbar wait made the deletion wait.
+
+### Cycle C1 — build: Send for a look
+
+- **A limit on a URL is a limit on the encoded URL.** Capping raw characters let a non-Latin
+  address through at twice the length; measure what is sent.
+- **Falsify with a break that changes the outcome for the test's input**: a raw cap of 4,000
+  stayed green because the test's address was over both; check the break crosses the input.
+
 ### Cycle D6 — build: feeds come home from tt-rss
 
 - **Settings screens are shot by `ScreenshotTest` (07i–07l)**: a change to the tt-rss options or the leave dialog needs before and after pairs.

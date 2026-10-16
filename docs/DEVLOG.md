@@ -10,7 +10,7 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 - **Lately:** six overnight cycles on 16 Oct (#234–#239): screenshots on a fixed clock, bot checks, other-language furniture, players, oversized feed items, and an architecture and test health audit.
 - **Watching:** `PodcastSettingsTest` timed out once in six full runs under load (backlog). The older settings and source-page flakes' likely causes were fixed on 16 Oct (#245, #246); neither reproduced locally in 10 runs before, so they're watched rather than counted. #245 itself made main's tests fail now and then for about an hour, until #267.
-- **Waiting on you:** [#18](https://github.com/madCode/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
+- **Waiting on you:** reading times for saved links (a call on the morning page; titled imports have none either); the `extraction` label for Send for a look. [#18](https://github.com/madCode/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
 
 ## Fri 16 Oct
 
@@ -19,6 +19,46 @@ caught, and what got in the way. Newest first. Times are Pacific.
 - **Shipped:** "Nothing new in N weeks" (months past two) under a feed's row once it has gone three weeks without posting. Each sync takes one look at every article tt-rss got since the last, read or not, without their text (up to 1,000, oldest first; the rest wait for the next sync), since a feed read on the laptop leaves nothing unread here. A feed with nothing seen counts from when the app started watching it. Database version 12.
 - **The review changed the design:** the first version asked each feed for its newest article once a day; that missed purged articles, starved big accounts and slowed the edition's sync. A second look found that a look cut short dropped older articles for good; it now goes on from where it stopped.
 - **Item 7, Webtoons, built and measured, not shipped:** branch `claude/today-d-c7`. See the backlog item for what the review found.
+
+### Today, area C (screens), closing
+- **Six PRs merged, seven of the nine items done** (#251, #258, #264, #266, #270, #276), all with CI green, plus one item checked and found not to be a bug (Stop making and Delete podcast). #271 was a test fix #268 had already made, so it was closed.
+- **Item 6, saved links that can never be read, is built and reviewed twice** (branch `claude/screens-c8`). It adds database version 14, after session D's 12 and 13, so it opens once those merge.
+- **Your call:** item 7, reading times for saved links. See the backlog's *Your call* line: it isn't only links from before version 2; every titled link from a Pocket or Instapaper import has none either, and filling them in costs one page fetch each.
+- **For you:** the `extraction` label for Send for a look doesn't exist yet. The `handle-issues` skill (shared from claude-playground) doesn't mention those issues; as extraction bug reports they're fixed the usual way.
+
+### Today, C6 (#276): typed text kept when Android ends the app
+- **From the audit:** an address typed into Add a site, or into Settings' tt-rss sign-in, was lost if Android ended the app in the background (say, while looking the site up in a browser). Onboarding already kept its own.
+- **Shipped:** both come back where they were: the Add dialog open with the address, the sign-in with its address and username, never the password.
+- **Review:** nothing serious; it found no test that a closed sign-in isn't restored, now added. A restored step comes back as the address alone, to search again.
+
+### Today, C5 (#270): a Kindle how-to, and what counts as sent
+- **From the backlog (personas):** a short Kindle how-to, and per device what counts as "delivered".
+- **Shipped:** the Kindle tip now starts with the Kindle app on the same Amazon account and ends with where the edition shows up (Library › Docs). Under each device's tip, in setup and in Settings under Send it myself, a quieter line says when the app takes an edition as sent (choosing the Kindle app or Dropbox, sending it to the mail app, Read on a Boox, saving to the folder), that its articles won't come again, and to use "Didn't arrive? Mark as not sent" if it never arrives.
+- **Review:** checked each line against the delivery code. It caught KOReader's line naming a folder under Send it myself, where none is in use, and two loose phrasings; fixed, with a test.
+
+### Today, C4 (#266): no dead end in setup
+- **From the backlog (personas):** a site with no feed, pasted during setup, ended at "No feed found"; Sources already offered the reading list instead.
+- **Shipped:** setup offers **Save this page to your reading list instead** under the error. Saved, the field clears and says so, and the link is enough to go on.
+- **Review:** caught a double tap saving twice (and saying "already in your reading list"), and a late answer clearing what the reader had typed since; the tap now hides the button and only its own answer counts, with a test. Left: TalkBack doesn't announce a search's "No feed found" (it's the field's error text), as before.
+
+### Today, C3 (#264): turning the phone closed dialogs
+- **From the audit:** Listen's "Finish X first?" and its contents, and the category list of Add a site and of Move feeds, closed (or stepped back) when the phone turned.
+- **Shipped:** they stay. The two questions are saved with the screen; the category list's open state now lives with the dialog's own state in the view model.
+- **Review:** caught what saving brings back after Android ends the app in the background: a category list reopening the next time the dialog opened (and swallowing a Back), the contents over an empty player, and "Finish X first?" for an edition finished or pruned since. Each fixed, with a test. It also caught that copying test files across from an older branch had undone #245's teardown; restored.
+
+### Today, C2 (#258): an Undo that timed out unseen
+- **From the audit:** Sources' and the reading list's snackbars counted down while the app was in the background.
+- **Found:** real for a snackbar already on screen as the app leaves: its time ran out unseen, Undo with it. One arriving in the background already waited (the screens read it only while on screen). The same held on a source's page, Settings and an edition's page.
+- **Shipped:** those five screens show a snackbar only while the app is on screen, and show one cut short again in full on its return.
+- **Review:** caught that waiting would leave a removed reading-list link in the database while the app was away, where an overnight edition would take it and a killed app would bring it back. Leaving the app now settles that removal, as leaving the screen already did.
+- **Also checked:** "Stop making and Delete podcast without `NonCancellable`" isn't a bug: both are blocking writes launched straight onto a background thread, so leaving can't cut them short. Ticked with the reason.
+
+### Today, C1 (#251): Send this article for a look
+- **From you (morning page):** build the approved proposal.
+- **Shipped:** an article's preview has a ⋮ in its top bar (only for an article with a web link) with **Send for a look…**. It says first that what's sent becomes a public GitHub issue with the article's address and the app's version, then opens GitHub's new-issue form in the browser filled in: "Extraction: *title*", the address, the version, and a line to say what looks wrong. The question stays up across rotation; with no browser it says so.
+- **Review:** found the form could still be too long once encoded (a non-Latin or already percent-encoded address), and a long title could be cut through an emoji; both fixed, with a test. The ⋮ costs the title some room at 2× font ("The quie…" becomes "The q…").
+- **For you:** the `extraction` label doesn't exist yet; GitHub only applies a label from the form for people who can label issues, so the title's "Extraction:" is what marks the rest. The `handle-issues` skill (shared from claude-playground) doesn't mention these issues yet; as a bug report they're fixed the usual way.
+- **Left:** no browser is a dead end; whether the GitHub app takes the link and loses the fields wants a look on a device. Both in the backlog.
 
 ### Today, B: test health and speed (B1–B12)
 Area B of four parallel sessions: the audit's test findings, then two speed items. All merged with CI green except #269, which is your call.
