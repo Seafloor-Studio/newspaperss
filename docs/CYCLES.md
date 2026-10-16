@@ -3,6 +3,15 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle 3 — build: furniture in French, German and Spanish
+
+- **Ask the reviewer to run the code, not only read it.** It compiled the regexes into a small
+  harness and tested real strings, which is what found the misses and the false positives.
+- **A test passing for the wrong reason:** the "starts the same way" sentence stayed only
+  because it was over the 12-word cap. When a rule has two conditions, test each one alone.
+- **Scripted breaks need a count check that matches the file** (three occurrences, not four);
+  a break that doesn't apply leaves the test green and proves nothing.
+
 ### Cycle 2 — build: a bot check served instead of a feed
 
 - **Check new detection where the old code gives up, not before it.** The first version tested
