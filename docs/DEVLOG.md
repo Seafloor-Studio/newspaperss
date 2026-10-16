@@ -14,6 +14,13 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Overnight cycles, 3: "Lire aussi" and friends
+- **From the backlog (live):** page cleanup's furniture patterns were English only, so "Lire aussi", "Mehr zum Thema" and "Lee también" stayed in French, German and Spanish articles.
+- **Found:** real: a "Lire aussi" box with its links came through the cleaner untouched.
+- **Shipped:** the same furniture in those three languages goes: headings over a short box of links ("Sur le même sujet", "Das könnte Sie auch interessieren", "Noticias relacionadas"…), and cross-link lines ("Lire aussi | …", "Lesen Sie auch: …"), however long the headline. Matched in every article rather than by its language: a whole heading can't be mistaken across languages, and pages often don't say theirs.
+- **Review:** caught that Le Monde's long cross-links would have left a stray "| headline", that a list item or heading opening with "Lire aussi" would have gone, and several common spellings and headings missed ("A LIRE AUSSI", "Más información"). All fixed, each with a test.
+- **Left:** a lone "Les plus lus" or "Meistgelesen" heading goes even over a paragraph, the same small risk "Most read" already carries in English.
+
 ### Overnight cycles, 2: a bot check isn't "not a feed"
 - **From the backlog (sweep):** a host's bot check answering a feed with a 202 and a captcha page.
 - **Found:** real, through the app's own code: a source said "We can't get new articles from this site any more. It may have moved; try adding it again", and adding the site said "No feed found". Adding it again would meet the same check.

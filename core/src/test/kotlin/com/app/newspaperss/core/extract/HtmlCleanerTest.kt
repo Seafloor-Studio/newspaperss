@@ -265,6 +265,43 @@ class HtmlCleanerTest {
         assertEquals(body, clean("$body\n<h2>Read next</h2>\n$links\n"))
     }
 
+    /** Le Monde's "Lire aussi", Der Spiegel's "Mehr zum Thema", El País's "Lee también": the same furniture in other languages. */
+    @Test
+    fun furnitureInFrenchGermanAndSpanishGoesToo() {
+        val body = "<p>" + "Des mots de cet article. ".repeat(30) + "</p>"
+        val links = "<ul><li><a href=\"https://example.com/a\">Article A</a></li><li><a href=\"https://example.com/b\">Article B</a></li></ul>"
+        val headings = listOf(
+            "Lire aussi", "À lire aussi", "Lire aussi\u00a0:", "Sur le même sujet", "Les plus lus",
+            "Mehr zum Thema", "Das könnte Sie auch interessieren", "Meistgelesen",
+            "Lee también", "Te puede interesar", "Noticias relacionadas", "Lo más leído",
+            "A LIRE AUSSI", "Die meistgelesenen Artikel", "Das könnte Ihnen auch gefallen", "Más información", "Lo más visto",
+        )
+        for (heading in headings) assertEquals(heading, body, clean("$body<h2>$heading</h2>$links"))
+        val lines = listOf(
+            "Lire aussi | Le gouvernement présente son budget", "À LIRE AUSSI\u00a0: Les élections européennes",
+            "Lesen Sie auch: Die Bahn streikt wieder", "Lee también: El Gobierno aprueba los presupuestos",
+            "A lire aussi\u2009: Les retraites", "También te puede interesar: La sequía",
+        )
+        for (line in lines) assertEquals(line, body, clean("$body<p>$line</p>"))
+        // Le Monde's run past the word cap, "Article réservé à nos abonnés" inside the link.
+        val long = "<p><span>Lire aussi</span> | <a href=\"https://example.com/b\">Article réservé à nos abonnés " +
+            "Les négociations sur le budget reprennent à l’Assemblée nationale cette semaine</a></p>"
+        assertEquals(body, clean(body + long))
+        // A heading the extractor left without its links, over the article's next paragraph.
+        for (heading in listOf("Les plus lus", "Meistgelesen", "Lo más leído")) assertEquals(heading, body + body, clean("$body<h2>$heading</h2>$body"))
+        // A sentence, list item or section that only starts the same way is the article's.
+        val sentence = "Lire aussi les lettres de sa mère, publiées après sa mort, change tout ce que nous savions de lui."
+        assertEquals("<p>$sentence</p>", clean("<p>$sentence</p>"))
+        val tips = "<ul><li>Lire aussi des bandes dessinées</li><li>Lee también en voz alta</li></ul>"
+        assertEquals(body + tips, clean(body + tips))
+        val section = "<h3>Lire aussi la presse étrangère</h3><p>Elle voit ce que nous ne voyons pas.</p>"
+        assertEquals(body + section, clean(body + section))
+        // An essay's own long reading list keeps its heading, as in English.
+        val items = (1..12).joinToString("") { "<li><a href=\"https://example.com/$it\">Un long et beau titre de livre numéro $it</a></li>" }
+        val reading = "<h2>Lire aussi</h2><ul>$items</ul>"
+        assertEquals(reading, Jsoup.parse(clean("<p>Une courte introduction.</p>$reading")).select("h2, ul").outerHtml().replace("\n", "").replace(Regex(">\\s+<"), "><"))
+    }
+
     @Test
     fun screenReaderTextThatLabelsAnIconLinkStays() {
         assertEquals(
