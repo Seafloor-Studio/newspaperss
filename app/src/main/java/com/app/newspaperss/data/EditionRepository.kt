@@ -51,15 +51,17 @@ class EditionRepository(
     fun fileOf(edition: EditionEntity): File? = edition.fileName?.let { File(editionsDir, it) }?.takeIf { it.exists() }
 
     /**
-     * The reader handed a ready edition to an app. An edition already delivered, or released
-     * because it wasn't sent in time, is left alone: its articles may be in a newer one now.
+     * The reader handed an edition to an app: a ready one, or one released as not sent whose
+     * Send was still to hand (a share sheet left open, a notification, Today), as
+     * [markSentByHand] says.
      *
      * @param sentWith the package of the app picked in the share sheet, if it said.
      */
     suspend fun markSent(id: Long, sentWith: String? = null) {
-        markDelivered(id, onlyIfReady = true)
-        // After markDelivered, which clears the note: a Send again with Kindle is noted too.
-        if (sentWith != null) kindleSends.record(id, sentWith)
+        markDelivered(id, onlyIfReady = true, orNotSent = true)
+        // After markDelivered, which clears the note: a Send again with Kindle is noted too. Not
+        // for a send it didn't record (a released one, while a build runs), with nothing sent to wait for.
+        if (sentWith != null && delivered(id)) kindleSends.record(id, sentWith)
     }
 
     /**
@@ -81,9 +83,11 @@ class EditionRepository(
      * it was sent; see [markSent].
      */
     suspend fun markEmailedToKindle(id: Long) {
-        markDelivered(id, onlyIfReady = true)
-        kindleSends.record(id, KindleSend.EMAIL)
+        markDelivered(id, onlyIfReady = true, orNotSent = true)
+        if (delivered(id)) kindleSends.record(id, KindleSend.EMAIL)
     }
+
+    private suspend fun delivered(id: Long) = db.editions().byId(id)?.status == EditionStatus.DELIVERED
 
     /** Delivery succeeded: only now are the edition's articles used up. */
     suspend fun markDelivered(id: Long, onlyIfReady: Boolean = false, orNotSent: Boolean = false) {
