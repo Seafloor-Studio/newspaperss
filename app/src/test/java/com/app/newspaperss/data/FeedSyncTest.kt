@@ -94,6 +94,11 @@ class FeedSyncTest {
         http.page(url, rss("Blog", "1" to "What Cloudflare's /cdn-cgi/challenge-platform/ does"))
         assertEquals(1, sync.syncAll().newArticles)
         assertNull(db.sources().byId(id)!!.lastError)
+
+        // Even one the quick "is it a feed?" look misses: a JSON Feed written with its keys sorted.
+        http.page(url, """{"items":[{"id":"2","title":"Enable JavaScript and cookies to continue, and other walls","url":"https://example.com/2"}],"title":"Blog","version":"https://jsonfeed.org/version/1.1"}""")
+        assertEquals(1, sync.syncAll().newArticles)
+        assertNull(db.sources().byId(id)!!.lastError)
     }
 
     @Test

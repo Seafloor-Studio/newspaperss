@@ -158,9 +158,16 @@ class FeedFinderTest {
             override suspend fun getFeed(url: String) = get(url)
         }
         assertEquals(
-            "https://hosted.example/feed turned NewspapeRSS away with a bot check. Some sites block apps: try its feed or RSS link if it lists one, or try again later.",
+            "https://hosted.example/feed turned NewspapeRSS away with a bot check. Some sites block apps: try again later.",
             (FeedFinder(http).find("hosted.example/feed") as FindResult.NotFound).reason,
         )
+
+        // A small site behind Cloudflare carries its challenge-platform script on every page, and
+        // still advertises its feed.
+        val page = """<html><head><link rel="alternate" type="application/rss+xml" href="https://small.example/index.xml"></head>""" +
+            """<body><p>A post.</p><script>(function(){var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';})();</script></body></html>"""
+        val found = FeedFinder(FakeHttp(mapOf("https://small.example" to page))).find("small.example") as FindResult.Found
+        assertEquals("https://small.example/index.xml", found.feeds.single().url)
     }
 
     @Test
