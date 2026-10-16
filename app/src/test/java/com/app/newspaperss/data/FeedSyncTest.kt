@@ -8,7 +8,6 @@ import com.app.newspaperss.testutil.rss
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -115,13 +114,6 @@ class FeedSyncTest {
         val stored = db.articles().candidates().associate { it.guid to it.feedHtml }
         assertEquals("the inlined picture goes, the words stay", words + "<img src=\"\">", stored["pictured"])
         assertNull("too long even then: the page is fetched instead", stored["long"])
-
-        // A row stored too big before is forgotten at the next sync, and reads again.
-        val old = db.articles().candidates().first { it.guid == "long" }
-        db.openHelper.writableDatabase.execSQL("UPDATE articles SET feedHtml = ? WHERE id = ?", arrayOf<Any>("x".repeat(3_000_000), old.id))
-        assertTrue("it can't be read back", runCatching { db.articles().candidates() }.isFailure)
-        sync.syncAll()
-        assertNull(db.articles().candidates().first { it.guid == "long" }.feedHtml)
     }
 
     @Test

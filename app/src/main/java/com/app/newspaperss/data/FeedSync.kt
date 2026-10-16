@@ -56,7 +56,7 @@ class FeedSync(
         val results = feeds.map { source -> async { limit.withPermit { sync(source) } } }.awaitAll()
         db.articles().expireOlderThan(clock.instant().minus(keepFor))
         db.articles().forgetDeliveredBefore(clock.instant().minus(REMEMBER_DELIVERED))
-        val trimmed = db.articles().dropOldFeedHtml(clock.instant().minus(KEEP_FEED_TEXT)) + db.articles().forgetOversizedFeedHtml(MAX_FEED_HTML_CHARS)
+        val trimmed = db.articles().dropOldFeedHtml(clock.instant().minus(KEEP_FEED_TEXT))
         // Freed pages stay in the file until a VACUUM, and Auto Backup copies the file (25 MB quota).
         if (trimmed >= VACUUM_AFTER) runCatching { db.openHelper.writableDatabase.execSQL("VACUUM") }
         SyncResult(results.sumOf { it ?: 0 }, results.count { it == null }, feeds.size)

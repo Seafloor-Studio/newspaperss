@@ -391,6 +391,9 @@ phone restarts.
 - **Housekeeping.** Only the newest 14 editions keep their EPUB on the
   phone (ready ones always do). An article's feed text is dropped a month
   after it's delivered or expires; its row stays, so it's never re-offered.
+  Feed text is kept to 500,000 characters, well under the 2 MB Android
+  reads a row through: a bigger item loses its inlined pictures, or else
+  its text, and its page is fetched instead.
 - **Deleting an edition** removes its file and contents but keeps its title
   reserved, since Send to Kindle would drop a repeat. A ready edition's
   articles go back to the pool; a delivered one's stay used.
