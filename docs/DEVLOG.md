@@ -14,6 +14,13 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Today, D1: Substack Notes through tt-rss
+- **From the backlog (device):** tt-rss strips the text of a Note embedded in a Substack post, so the sentence introducing it hung.
+- **Found:** Substack's page shows only a placeholder there too, but carries the whole post, as its feed has it, in a data script (`preloads-json`).
+- **Shipped:** a Substack post from tt-rss with an empty block where a Note was is read from its page's data instead: one page fetch, and the Note comes back as a quote. Checked on a live post.
+- **Review:** paid previews lost their "paid" mark, and a subscriber's full text could be cut to the page's free part when the paywall sat late. Both fixed: an excerpt is never restored, and the page's post must be at least as long. The first trigger also fetched almost every Substack post (a picture's stripped zoom button leaves an empty block too); now only where a Note goes.
+- **Left:** a Note after a heading or list, or a Substack post read from its page, still loses it (backlog).
+
 ### The 16 Oct run, closing
 - **Six cycles, five backlog items done** (screenshot clock, bot check, furniture, players, and the oversized items found on the way), one stale item ticked (#190), Dependabot's #229 and #230 merged. All merged with CI green.
 - **Waiting on you:** CLAUDE.md's drift from claude-playground's shared rules; a delivery check on a device for #237 (players in the book); the environment's setup script, so a new session has the Android SDK and Maven Central's mirror (the lines are in the 16 Oct session).
