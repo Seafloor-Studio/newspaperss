@@ -380,6 +380,17 @@ phone restarts.
       it's among that feed's newest five unread.
     - Changed on both sides between two syncs: the change made here wins.
     - Off, nothing flows either way: tt-rss and the app keep their own.
+    - **Mark read when they expire here** (off by default, shown with read
+      sync on): an article that waits its week out without going in an
+      edition is marked read rather than expiring, so the next sync marks
+      it read in tt-rss too. One published more than a week ago is marked
+      read as it arrives: otherwise a never-picked feed's backlog would come
+      through five at a time as each five went (a feed that dates its new
+      posts in the past loses them this way). Marked unread, it waits its
+      week like any other. It shows as "Read". Only by
+      age, and not while the account is paused: leaving a feed out or
+      changing the category also drop waiting articles, and those stay
+      unread there.
   - **The feed list.** Once a day a sync asks tt-rss for every feed the
     account takes articles from (in its category, if it has one), read ones
     too, with each feed's name, address and category. Until the first list,

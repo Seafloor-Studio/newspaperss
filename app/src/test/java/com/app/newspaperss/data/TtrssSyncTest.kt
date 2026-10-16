@@ -794,6 +794,114 @@ class TtrssSyncTest {
         assertEquals("not sent again", listOf(10L), server.markedRead)
     }
 
+    private val fresh = now.epochSecond
+
+    /**
+     * Asked to, a feed's backlog of old unread articles is marked read as it arrives rather than
+     * coming through the paper five at a time: marking the newest five read brings in the next.
+     */
+    @Test
+    fun aNeverPickedFeedsOldBacklogDrainsWithoutReachingThePaper() = runTest {
+        val source = connect()
+        ttrss.setMarkExpiredRead(source.id, true)
+        val monthAgo = now.minus(Duration.ofDays(30)).epochSecond
+        (1L..8L).forEach { server.add(it, "Old $it", feedId = 1, feedTitle = "Slow Blog", updated = monthAgo) }
+        server.add(20, "New today", feedId = 2, feedTitle = "Example News", updated = fresh)
+
+        // Each sync reads the headlines before sending what was marked read, so a five takes two syncs.
+        repeat(4) {
+            sync.syncAll()
+            assertEquals("only the new one ever waits", listOf("New today"), db.articles().allForSource(source.id).filter { it.state == ArticleState.NEW }.map { it.title })
+        }
+        assertEquals((1L..8L).toList(), server.markedRead.sorted())
+    }
+
+    /** One the reader marks unread keeps its week, however old: only arriving counts. */
+    @Test
+    fun anOldArticleMarkedUnreadHereStaysWaiting() = runTest {
+        val source = connect()
+        ttrss.setMarkExpiredRead(source.id, true)
+        server.add(10, "An old essay", feedId = 1, feedTitle = "Slow Blog", updated = now.minus(Duration.ofDays(30)).epochSecond)
+        sync.syncAll()
+        val article = db.articles().allForSource(source.id).single()
+        assertEquals(ArticleState.SKIPPED, article.state)
+
+        sources.toggleRead(article.id)
+        sync.syncAll()
+        sync.syncAll()
+
+        assertEquals(ArticleState.NEW, db.articles().byId(article.id)!!.state)
+    }
+
+    /** A paused account's articles expire as usual, rather than going out as read when it resumes. */
+    @Test
+    fun aPausedAccountsArticlesExpireAsUsual() = runTest {
+        val source = connect()
+        ttrss.setMarkExpiredRead(source.id, true)
+        server.add(10, "Never picked", feedId = 1, feedTitle = "Example News", updated = fresh)
+        sync.syncAll()
+        sources.setPaused(source.id, true)
+        FeedSync(db, http, Clock.fixed(now.plus(Duration.ofDays(8)), ZoneOffset.UTC), Duration.ofDays(7), accounts).syncAll()
+
+        assertEquals(ArticleState.EXPIRED, db.articles().allForSource(source.id).single().state)
+    }
+
+    /** Asked to, an article that waited its week out here is read in tt-rss too; otherwise it stays unread there. */
+    @Test
+    fun anArticleThatExpiresHereIsMarkedReadInTtrssOnlyWhenAsked() = runTest {
+        val source = connect()
+        server.add(10, "Never picked", feedId = 1, feedTitle = "Example News", updated = fresh)
+        sync.syncAll()
+        val later = FeedSync(db, http, Clock.fixed(now.plus(Duration.ofDays(8)), ZoneOffset.UTC), Duration.ofDays(7), accounts)
+
+        later.syncAll()
+        later.syncAll()
+        assertEquals(ArticleState.EXPIRED, db.articles().allForSource(source.id).single().state)
+        assertTrue("left unread by default", server.markedRead.isEmpty())
+
+        server.add(11, "Also never picked", feedId = 1, feedTitle = "Example News", updated = fresh)
+        sync.syncAll()
+        ttrss.setMarkExpiredRead(source.id, true)
+        later.syncAll()
+        assertEquals(ArticleState.SKIPPED, db.articles().allForSource(source.id).single { it.guid == "ttrss:11" }.state)
+        later.syncAll()
+        assertEquals("the one that expired since", listOf(11L), server.markedRead)
+    }
+
+    /** Only waiting out its week counts: a category change also expires articles, and those stay unread in tt-rss. */
+    @Test
+    fun articlesExpiredByAChangeOfCategoryStayUnreadInTtrss() = runTest {
+        val source = connect()
+        ttrss.setMarkExpiredRead(source.id, true)
+        server.categories[5] = "Tech"
+        server.add(11, "Recipe", feedId = 2, feedTitle = "Food", categoryId = 0, updated = fresh)
+        sync.syncAll()
+        val tech = (ttrss.categories() as TtrssRepository.Categories.Loaded).categories.single { it.title == "Tech" }
+        ttrss.chooseCategory(source.id, tech)
+        val later = FeedSync(db, http, Clock.fixed(now.plus(Duration.ofDays(8)), ZoneOffset.UTC), Duration.ofDays(7), accounts)
+
+        later.syncAll()
+        later.syncAll()
+
+        assertEquals(ArticleState.EXPIRED, db.articles().allForSource(source.id).single().state)
+        assertTrue(server.markedRead.isEmpty())
+    }
+
+    /** With read sync off, nothing reaches tt-rss, whatever the expiry switch says. */
+    @Test
+    fun anAccountNotSyncingReadStatusLeavesExpiredArticlesAlone() = runTest {
+        val source = connect()
+        ttrss.setMarkExpiredRead(source.id, true)
+        ttrss.setMarkRead(source.id, false)
+        server.add(10, "Never picked", feedId = 1, feedTitle = "Example News", updated = fresh)
+        sync.syncAll()
+        val later = FeedSync(db, http, Clock.fixed(now.plus(Duration.ofDays(8)), ZoneOffset.UTC), Duration.ofDays(7), accounts)
+
+        later.syncAll()
+
+        assertEquals(ArticleState.EXPIRED, db.articles().allForSource(source.id).single().state)
+    }
+
     @Test
     fun anAccountSetToLeaveArticlesUnreadIsntToldWhatWasMarkedRead() = runTest {
         val source = connect()
