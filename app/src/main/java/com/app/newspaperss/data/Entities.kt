@@ -54,6 +54,11 @@ data class SourceEntity(
     /** tt-rss only: mark delivered articles read on the server. */
     val markReadOnServer: Boolean = true,
     /**
+     * tt-rss only, with [markReadOnServer]: an article that waits here past its keep window is
+     * marked read, here and so on the server, rather than expiring.
+     */
+    @ColumnInfo(defaultValue = "0") val markExpiredRead: Boolean = false,
+    /**
      * tt-rss only: when the full list of the account's feeds last filled in its publications
      * ([PublicationEntity.listed]); null before the first, and after the category changes.
      */

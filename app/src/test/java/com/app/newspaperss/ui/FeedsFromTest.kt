@@ -214,9 +214,15 @@ class FeedsFromTest {
         idleUntil { compose.waitForIdle(); syncs == 1 && visible("Ideas") }
         assertEquals(4, runBlocking { db.sources().byId(id)!!.ttrssCategoryId })
 
+        compose.onNodeWithText("Mark read when they expire here").performScrollTo().performClick()
+        waitFor("are marked read in tt-rss too")
+        assertEquals(true, runBlocking { db.sources().byId(id)!!.markExpiredRead })
+
         compose.onNodeWithText("Sync read status with tt-rss").performScrollTo().performClick()
         waitFor("keep their own read and unread")
         assertEquals(false, runBlocking { db.sources().byId(id)!!.markReadOnServer })
+        // Without read sync it would do nothing, so it isn't offered.
+        compose.onNodeWithText("Mark read when they expire here").assertDoesNotExist()
     }
 
     @Test

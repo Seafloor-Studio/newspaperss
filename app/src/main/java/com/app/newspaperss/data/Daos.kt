@@ -121,6 +121,9 @@ interface SourceDao {
     @Query("UPDATE sources SET markReadOnServer = :markRead WHERE id = :id")
     suspend fun setMarkReadOnServer(id: Long, markRead: Boolean)
 
+    @Query("UPDATE sources SET markExpiredRead = :markRead WHERE id = :id")
+    suspend fun setMarkExpiredRead(id: Long, markRead: Boolean)
+
     @Query("SELECT * FROM sources WHERE kind = :kind")
     suspend fun ofKind(kind: SourceKind): List<SourceEntity>
 
@@ -508,9 +511,16 @@ interface ArticleDao {
     @Query("UPDATE articles SET state = 'EXPIRED' WHERE sourceId = :sourceId AND state = 'NEW' AND starredAt IS NULL")
     suspend fun expireWaiting(sourceId: Long)
 
-    /** Expires unpicked articles discovered before [before], except reading-list items and stars. */
+    /**
+     * Expires unpicked articles discovered before [before], except reading-list items and stars.
+     * A tt-rss account set to [SourceEntity.markExpiredRead] has them marked read instead, which
+     * its next sync passes on to tt-rss. Only here, by age: leaving a feed out or changing the
+     * category also expire articles, and those stay unread in tt-rss.
+     */
     @Query(
-        """UPDATE articles SET state = 'EXPIRED' WHERE state = 'NEW' AND starredAt IS NULL AND discoveredAt < :before
+        """UPDATE articles SET state = CASE WHEN sourceId IN (
+               SELECT id FROM sources WHERE kind = 'TTRSS' AND markReadOnServer = 1 AND markExpiredRead = 1) THEN 'SKIPPED' ELSE 'EXPIRED' END
+           WHERE state = 'NEW' AND starredAt IS NULL AND discoveredAt < :before
            AND sourceId IN (SELECT id FROM sources WHERE kind != 'READING_LIST')""",
     )
     suspend fun expireOlderThan(before: Instant): Int
