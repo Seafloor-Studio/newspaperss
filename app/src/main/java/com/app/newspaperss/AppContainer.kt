@@ -1,6 +1,11 @@
 package com.app.newspaperss
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import com.app.newspaperss.data.feedMovesData
+import com.app.newspaperss.data.ttrssData
+import com.app.newspaperss.settings.settingsData
 import com.app.newspaperss.core.extract.ArticleExtractor
 import com.app.newspaperss.core.feed.FeedFinder
 import com.app.newspaperss.core.net.HttpClient
@@ -94,6 +99,11 @@ class AppContainer(
     private val newKokoroDownload: (KokoroInstall) -> KokoroDownload =
         { KokoroDownload(OkHttpClient.Builder().readTimeout(1, TimeUnit.MINUTES).build(), it) },
     installedBuild: Int? = DebugUpdates.buildOf(runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()),
+    // Process-wide, made once from the first context: a test passes its own so nothing it stores
+    // reaches the next test, or writes into a folder that test has already deleted.
+    settingsData: DataStore<Preferences> = context.settingsData,
+    ttrssData: DataStore<Preferences> = context.ttrssData,
+    feedMovesData: DataStore<Preferences> = context.feedMovesData,
 ) {
     private val editionsDir = File(context.filesDir, "editions")
     /** For work that must outlive the screen that started it, like saving a shared link. */
@@ -117,16 +127,16 @@ class AppContainer(
         },
     )
     val feedFinder = FeedFinder(http)
-    private val ttrssAccounts = TtrssAccountStore(context, cipher)
+    private val ttrssAccounts = TtrssAccountStore(ttrssData, cipher)
     val ttrss = TtrssRepository(db, http, ttrssAccounts, sources)
     val ttrssSubscriptions = TtrssSubscriptions(ttrss, appScope)
-    val feedMoves = FeedMoves(context, db, ttrss, moveFeeds)
+    val feedMoves = FeedMoves(feedMovesData, db, ttrss, schedule = moveFeeds)
     val feedSync = FeedSync(db, http, ttrssAccounts = ttrssAccounts, onUntitled = fetchReadingListTitles)
     private val content = ExtractorContentProvider(ArticleExtractor(http), http, AndroidImageEncoder(), onPaidOnly = sources::markPaidOnly) { sourceId, originId, evidence, text ->
         sources.recordFullText(sourceId, originId, evidence, text.check, text.day)
     }
     val editionBuilder = EditionBuilder(db, content, editionsDir, cover = CoverRenderer()::render, retiring = feedMoves::retiringIds, onReleased = notifier::dismissFor)
-    val settings = SettingsStore(context)
+    val settings = SettingsStore(settingsData)
     val debugUpdates = DebugUpdates(http, context.getSharedPreferences("debug-updates", Context.MODE_PRIVATE), installedBuild)
     val editionNotes = EditionNotes(db, File(context.filesDir, "notes"))
     private val folderDelivery = FolderDelivery(context.contentResolver)

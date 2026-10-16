@@ -3,6 +3,14 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle D1 — build: Substack Notes through tt-rss
+
+Run of 16 Oct, four sessions in parallel; this one (D) owns content and tt-rss.
+- **Count how often a new fetch fires over the corpus before shipping it.** The first trigger
+  matched 10 of 11 Substack posts, only 2 with a Note; a corpus count found it in a minute.
+- **A falsification harness that greps XML across lines prints nothing**: parse the results
+  (a few lines of Python with ElementTree) and print "NO RESULTS" when there are none.
+
 ### Cycle 6 — audit: architecture and test health
 
 - **One cycle can run the pass but not fix it**: three reviewers found 20-odd findings, a dozen

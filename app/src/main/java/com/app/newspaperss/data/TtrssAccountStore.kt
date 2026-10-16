@@ -32,15 +32,13 @@ sealed interface StoredAccount {
 }
 
 // Excluded from backups (backup_rules.xml): the password's key stays in this phone's Keystore.
-private val Context.ttrssStore by preferencesDataStore(
+internal val Context.ttrssData by preferencesDataStore(
     name = "ttrss",
     corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
 )
 
 /** The tt-rss account: address and username in DataStore, the password sealed by [cipher]. */
 class TtrssAccountStore(private val store: DataStore<Preferences>, private val cipher: SecretCipher) {
-    constructor(context: Context, cipher: SecretCipher) : this(context.ttrssStore, cipher)
-
     private object Keys {
         val url = stringPreferencesKey("api_url")
         val user = stringPreferencesKey("user")
