@@ -1,5 +1,6 @@
 package com.app.newspaperss.testutil
 
+import android.os.Looper
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
@@ -7,7 +8,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import org.junit.rules.ExternalResource
 import java.io.File
@@ -39,7 +39,22 @@ class TestDataStores : ExternalResource() {
     fun file(name: String): File = File(dir, "$name.preferences_pb")
 
     override fun after() {
-        runBlocking { scope.coroutineContext[Job]!!.cancelAndJoin() }
+        stopStores(scope)
         dir.deleteRecursively()
     }
+}
+
+/**
+ * Cancels the scope DataStores were made on and returns once their writes have stopped, so their
+ * folder can be deleted.
+ *
+ * A DataStore runs an update's transform in the caller's context. If a screen's tap started that
+ * update, the store's last write waits on the main thread, so blocking the main thread to join it
+ * would hang; under Robolectric the main looper keeps running until the scope has finished.
+ */
+fun stopStores(scope: CoroutineScope) {
+    val job = scope.coroutineContext[Job]!!
+    job.cancel()
+    val onMainLooper = runCatching { Looper.getMainLooper().thread == Thread.currentThread() }.getOrDefault(false)
+    if (onMainLooper) idleUntil { job.isCompleted } else runBlocking { job.join() }
 }

@@ -1,5 +1,6 @@
 package com.app.newspaperss.testutil
 
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.room.Room
 import com.app.newspaperss.AppContainer
 import com.app.newspaperss.NewspaperssApp
@@ -7,12 +8,18 @@ import com.app.newspaperss.data.AppDatabase
 import com.app.newspaperss.core.listen.KokoroFile
 import com.app.newspaperss.listen.KokoroDownload
 import com.app.newspaperss.listen.KokoroInstall
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import okhttp3.OkHttpClient
 import java.io.File
 
 /**
  * The app with an in-memory database, a fake network, a software cipher in place of the
  * Android Keystore (Robolectric has none) and no background work.
+ *
+ * Its DataStores are this test's own, in its files folder, and stop when Robolectric terminates
+ * the app at the end of the test, before that folder is deleted.
  */
 class TestApp : NewspaperssApp() {
     val http = FakeHttp()
@@ -37,6 +44,9 @@ class TestApp : NewspaperssApp() {
     val kokoroDir: File by lazy { File(cacheDir, "kokoro-test").apply { mkdirs() } }
     val kokoroInstall by lazy { KokoroInstall(kokoroDir) { kokoroFiles } }
 
+    private val storeScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private fun store(name: String) = PreferenceDataStoreFactory.create(scope = storeScope) { File(filesDir, "datastore/$name.preferences_pb") }
+
     override fun createContainer() = AppContainer(
         this,
         http = http,
@@ -52,7 +62,15 @@ class TestApp : NewspaperssApp() {
         newKokoroDownload = { install -> KokoroDownload(OkHttpClient(), install, kokoroBaseUrl) },
         // CI's own builds carry a build number: tests shouldn't depend on whether they run there.
         installedBuild = null,
+        settingsData = store("settings"),
+        ttrssData = store("ttrss"),
+        feedMovesData = store("feed_moves"),
     )
 
     override fun scheduleWork() {}
+
+    override fun onTerminate() {
+        stopStores(storeScope)
+        super.onTerminate()
+    }
 }
