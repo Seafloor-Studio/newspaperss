@@ -25,7 +25,6 @@ Grouped by part of the app. The tag says where each item came from: *device* (yo
 - [ ] Webtoons: episodes are one long strip of dozens of lazy images (`data-url`), beyond the 20-image cap, and its mobile site hides the feed. Support strips properly *(device)*
 
 ### The book
-- [ ] Audio players, and video players other than YouTube and Vimeo (which become a still and a link), vanish without a trace, leaving a lead-in line or a heading over nothing. Put a line where each was *(live)*
 - [ ] EPUB design, round 2: the cover image and a look on real devices (Kindle, Kobo, KOReader) *(device)*
 - [ ] Substack Notes embedded in posts that come through tt-rss: tt-rss strips the Note's text, so the sentence introducing it hangs. Fetching the post's page would bring it back (the full post is in the page's data), at one page fetch per Substack article *(device)*
 
@@ -430,6 +429,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] Audio, video without a poster, and other sites' players (Spotify, SoundCloud, Pocket Casts…) leave a line where they were, linking to the file or the player, instead of vanishing under their lead-in
 - [x] Page cleanup takes out French, German and Spanish furniture too: "Lire aussi", "Mehr zum Thema", "Lee también" and the like, as headings over a box of links and as cross-link lines, Le Monde's long ones included
 - [x] A bot check served instead of a feed (SiteGround answers with a 202 and a captcha page) says the site turned the app away, when adding the site and on a source already added, rather than "not a feed" or "it may have moved"
 - [x] Screenshots render the same on any day and at any time: the screens read the time from one clock, which `ScreenshotTest` fixes at a Tuesday morning, and the README's pictures were redrawn from it

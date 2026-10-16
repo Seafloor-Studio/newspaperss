@@ -364,12 +364,53 @@ class HtmlCleanerTest {
     @Test
     fun aVideoBecomesItsPosterAndAPlayerALink() {
         val video = clean("""<figure><video src="/v.mp4" poster="/v.jpg"></video><figcaption>The robot prison</figcaption></figure><p>$longText</p>""")
-        assertTrue(video, video.contains("""<figure><img src="https://example.com/v.jpg" alt="Video" /><figcaption>The robot prison</figcaption></figure>"""))
+        assertTrue(video, video.contains("""<figure><img src="https://example.com/v.jpg" alt="Video" /><figcaption>The robot prison</figcaption></figure><p><a href="https://example.com/v.mp4">Watch the video</a></p>"""))
         val player = clean("""<iframe src="https://www.youtube.com/embed/6PkAr_RKzlY?feature=oembed" title="How I grew a newsletter"></iframe><p>$longText</p>""")
         assertTrue(player, player.contains("""<a href="https://www.youtube.com/watch?v=6PkAr_RKzlY"><img src="https://i.ytimg.com/vi/6PkAr_RKzlY/hqdefault.jpg" alt="How I grew a newsletter" /></a>"""))
         assertTrue(player, player.contains("""<p><a href="https://www.youtube.com/watch?v=6PkAr_RKzlY">Watch on YouTube: How I grew a newsletter</a></p>"""))
         assertTrue(clean("""<iframe src="https://player.vimeo.com/video/123456"></iframe><p>$longText</p>""").contains("""<a href="https://vimeo.com/123456">Watch on Vimeo</a>"""))
         assertFalse("other players still go", clean("""<iframe src="https://ads.example.com/x"></iframe><p>$longText</p>""").contains("iframe"))
+    }
+
+    /** A player the e-reader can't play leaves a line where it was, so a lead-in or heading isn't left over nothing. */
+    @Test
+    fun otherPlayersLeaveALineWhereTheyWere() {
+        fun line(html: String) = clean("<p>Hear it for yourself:</p>$html<p>$longText</p>")
+        assertTrue(line("<audio controls src=\"/ep1.mp3\"></audio>").contains("<p><a href=\"https://example.com/ep1.mp3\">Listen to the audio</a></p>"))
+        assertTrue(line("<audio controls><source src=\"https://cdn.example.com/ep1.mp3\" type=\"audio/mpeg\"></audio>").contains("<p><a href=\"https://cdn.example.com/ep1.mp3\">Listen to the audio</a></p>"))
+        assertTrue(line("<video controls src=\"/clip.mp4\"></video>").contains("<p><a href=\"https://example.com/clip.mp4\">Watch the video</a></p>"))
+        assertTrue(
+            line("<iframe src=\"https://open.spotify.com/embed/episode/4rOoJ6Egrf8K2IrywzwOMk\" title=\"The episode\"></iframe>")
+                .contains("<p><a href=\"https://open.spotify.com/episode/4rOoJ6Egrf8K2IrywzwOMk\">Listen on Spotify: The episode</a></p>"),
+        )
+        assertTrue(line("<iframe src=\"https://www.dailymotion.com/embed/video/x8abc12\"></iframe>").contains(">Watch on Dailymotion</a></p>"))
+        // Inside a paragraph, as WordPress puts embeds, the line goes after it.
+        assertTrue(line("<p><iframe src=\"https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/123\"></iframe></p>").contains(">Listen on SoundCloud</a></p>"))
+        // With nowhere to send the reader, the line says where the player is.
+        assertTrue(line("<audio controls></audio>").contains("<p>There's audio here: listen on the original page.</p>"))
+        assertTrue("only web links", line("<audio controls src=\"javascript:alert(1)\"></audio>").contains("<p>There's audio here: listen on the original page.</p>"))
+        assertFalse("an ad or a map isn't a player", clean("<iframe src=\"https://ads.example.com/x\"></iframe><p>$longText</p>").contains("original page"))
+        // Longreads ends a piece with "Listen to the full conversation below." over Pocket Casts' player.
+        assertTrue(line("<iframe src=\"https://pca.st/embed/9c994ugm\" title=\"The conversation\"></iframe>").contains("<p><a href=\"https://pca.st/embed/9c994ugm\">Listen on Pocket Casts: The conversation</a></p>"))
+        assertTrue(line("<iframe src=\"https://www.youtube.com/embed/videoseries?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG\"></iframe>").contains("<a href=\"https://www.youtube.com/playlist?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG\">Watch on YouTube</a>"))
+        assertTrue(line("<iframe src=\"https://open.spotify.com/embed-podcast/episode/4rOoJ6Egrf8K2IrywzwOMk\"></iframe>").contains("href=\"https://open.spotify.com/episode/4rOoJ6Egrf8K2IrywzwOMk\""))
+        // A link the cleaner would refuse later says where the player is instead.
+        assertTrue(line("<audio controls src='https://example.com/a\".mp3'></audio>").contains("<p>There's audio here: listen on the original page.</p>"))
+        // A video with a poster frame keeps its picture and gains its link; an empty poster is no poster.
+        val poster = line("<video controls poster=\"/still.jpg\" src=\"/clip.mp4\"></video>")
+        assertTrue(poster, poster.contains("<img src=\"https://example.com/still.jpg\" alt=\"Video\" /><p><a href=\"https://example.com/clip.mp4\">Watch the video</a></p>"))
+        assertTrue(line("<video controls poster=\"\" src=\"/clip.mp4\"></video>").contains(">Watch the video</a></p>"))
+        // Today's GIFs are looping muted videos, and audio with no controls isn't on the page: neither leaves a line.
+        assertFalse(line("<video autoplay loop muted playsinline src=\"/loop.mp4\"></video><audio src=\"/bg.mp3\"></audio>").contains("<a href"))
+        // Several in one paragraph keep their order, and a heading or link holding one stays valid.
+        val two = line("<p>Two clips: <audio controls src=\"/one.mp3\"></audio> <audio controls src=\"/two.mp3\"></audio></p>")
+        assertTrue(two, two.indexOf("one.mp3") in 0 until two.indexOf("two.mp3"))
+        for (holder in listOf("<h2>Listen <audio controls src=\"/a.mp3\"></audio></h2>", "<a href=\"/ep\"><audio controls src=\"/a.mp3\"></audio></a>", "<div><em><audio controls src=\"/a.mp3\"></audio></em></div>")) {
+            val html = line(holder)
+            assertTrue(html, Jsoup.parse(html).select("h2 p, a p, a a, em p, p p").isEmpty() && html.contains(">Listen to the audio</a></p>"))
+        }
+        // The lines aren't the article's words: a player alone is still an empty item.
+        assertEquals(0, HtmlCleaner.clean("<audio controls src=\"/a.mp3\"></audio><iframe src=\"https://pca.st/embed/x\"></iframe>", base).wordCount)
     }
 
     /** tt-rss passes no iframes on: the caption left behind becomes a paragraph rather than captioning nothing. */

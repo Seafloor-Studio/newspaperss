@@ -3,6 +3,14 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle 4 — build: a line where a player was
+
+- **Check that a test run produced fresh results before reading them.** A compile error left the
+  previous run's XML in place, and a "failure" was read from it. Delete the results folder first,
+  and in falsification loops treat "no results" as broken, not red.
+- **Adding output inside a pipeline affects everything downstream**: word counts, emptiness and
+  title rules. Before adding text to an article, list what reads the cleaned HTML and its counts.
+
 ### Cycle 3 — build: furniture in French, German and Spanish
 
 - **Ask the reviewer to run the code, not only read it.** It compiled the regexes into a small

@@ -107,10 +107,15 @@ module so it's all unit-tested without Android.
   ("Skipped: a paid post") and isn't fetched again. Starring it or marking it unread asks for it, so it goes
   in. An edition whose every new article was skipped is nothing new, not
   a failure.
-- **Embeds.** A video can't play in a book: a video's poster frame stands
+- **Embeds.** A player can't play in a book: a video's poster frame stands
   in for it, and a YouTube or Vimeo player becomes a link to the video
-  (with YouTube's thumbnail). tt-rss passes no players on, so a caption
-  left without its video becomes a plain paragraph.
+  (with YouTube's thumbnail). Any other audio or video, or a known audio
+  or video site's player (Spotify, SoundCloud, Pocket Casts…), leaves a
+  line where it was ("Listen on Spotify"), so a lead-in isn't left over
+  nothing. These lines don't count as the article's words. Looping muted
+  videos (today's GIFs) and other sites' iframes go. tt-rss passes no
+  players on, so a caption left without its video becomes a plain
+  paragraph.
 - **Link posts.** Some feeds mostly pitch stories on other sites
   (Longreads' picks: a few paragraphs, then "Read the story" at
   `equator.org/…?src=longreads`). A feed or tt-rss item counts as a link

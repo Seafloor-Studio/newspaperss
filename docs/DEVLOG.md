@@ -14,6 +14,13 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Overnight cycles, 4: a line where a player was
+- **From the backlog (live):** audio players, and video players other than YouTube and Vimeo, vanished, leaving a lead-in ("Hear it for yourself:") over nothing.
+- **Found:** real: `<audio>`, a video with no poster frame and other sites' players were simply removed.
+- **Shipped:** each leaves a line where it was: "Listen to the audio" or "Watch the video" linking to the file, "Listen on Spotify: …" for a known site's player, or "There's audio here: listen on the original page." when there's nothing to link to. A video with a poster frame keeps its picture and now also links to its file. Looping muted videos (today's GIFs) and audio with no controls stay out, as before.
+- **Review:** the reviewer ran the code against 30-odd cases and found plenty: the repo's own Longreads sample still lost its Pocket Casts player; a player alone stopped reading as an empty item, which would have changed when a page is fetched; a player inside a heading or link made invalid XHTML; several in a paragraph came out reversed; a link the cleaner refuses later lost its link. All fixed, each with a test.
+- **Left:** players loaded by script (`data-src`, or only in `<noscript>`) still go, as YouTube's always have. Listen reads the lines aloud ("Listen to the audio"), which a listener can't act on. Worth running the delivery check on a real device, since articles in the book change.
+
 ### Overnight cycles, 3: "Lire aussi" and friends
 - **From the backlog (live):** page cleanup's furniture patterns were English only, so "Lire aussi", "Mehr zum Thema" and "Lee también" stayed in French, German and Spanish articles.
 - **Found:** real: a "Lire aussi" box with its links came through the cleaner untouched.
