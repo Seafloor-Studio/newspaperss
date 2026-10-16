@@ -19,6 +19,30 @@ caught, and what got in the way. Newest first. Times are Pacific.
 - **Shipped:** the next build, which already marks such an edition as interrupted, now deletes its book too.
 - **Review:** nothing blocking. It suggested reading the edition again before failing it, in case a stopped build had only just finished; done. Left: titles are unique over two days, not forever, so the same date years later could share a file name; that was already so.
 
+### Today, D5: the book says what it offers a screen reader
+- **From the backlog (a11y):** EPUB Accessibility 1.1 metadata and alt text carried through.
+- **Found:** alt text already reached the book. Ace by DAISY on a live edition found what the metadata item didn't name: article headings skipping levels (a site's h3 straight under the title), 7 of them in 14 articles, and the contents list without its ARIA role.
+- **Shipped:** the metadata (what the book needs and offers; pictures count as described only when every one has alt text), headings re-leveled under each article's title, `role="doc-toc"`. A live edition passes EPUBCheck 5.2.1 (0 messages) and Ace 1.3.2 (0 violations).
+- **Review:** "no hazards" now only when every picture is a still JPEG; a custom `<img-zoom>` element and a no-break-space alt no longer count; right-to-left subheads are right-aligned.
+- **Left:** a screen reader on a device, and Ace on an edition with pictures (backlog).
+
+### Today, D3: a quick "Mark as not sent" stays off tt-rss
+- **From the backlog (personas):** sending to the wrong app and marking the edition as not sent flipped its articles read, then unread, on the server.
+- **Shipped:** the marking waits two minutes (WorkManager's initial delay). A Mark as not sent in that time replaces it, so tt-rss isn't told either way.
+- **Review:** a sync inside the two minutes still marks delivered links read, and Doze can stretch the wait, so DESIGN says "a couple of minutes or more" and "usually". A rare path (an article tt-rss has unread but the app thinks it confirmed read, synced in the window) can bring it back for one more edition; noted in the PR, not fixed.
+
+### Day cycles, A5: another tt-rss user on the same server
+- **From the backlog (audit):** signing in as another user on the same tt-rss server kept the first user's waiting and starred articles, filed under feed ids that belong to the first user and may name the second's feeds. A sync running during the switch could add more.
+- **Found:** both real, each with a test (the second switches users in the middle of a sync).
+- **Shipped:** another user on the same server now starts with a fresh tt-rss source, as another server already did, so the first user's articles and stars go with the old one. A sync still running for the first user can't add to a source that's gone. The same user signing in again keeps everything, as before.
+- **Review:** an edition being made during the switch would have failed; #249, merged first, keeps it. Two older gaps went to the backlog: delivered links are shared across accounts, and a phone restored from a backup has no login to compare with.
+
+### Day cycles, A1: a source removed during a build
+- **From the backlog (audit), area A of four parallel sessions:** removing a source, a saved link or the tt-rss account while an edition was being made threw the finished edition away.
+- **Found:** real. A test that removes a feed and a saved link mid-build got "Something went wrong" and no edition: the articles read at the start were gone by the time they were linked into the edition, eight minutes later at most.
+- **Shipped:** the edition is kept. The removed articles are in the book, and the edition lists them by title, as it already did for a source removed after the edition was made.
+- **Review:** nothing blocking. It noted that a removed article's link isn't remembered as delivered, so a feed removed and added straight back could send the same story again. That was already so for a source removed while an edition waited to be sent; left as it is.
+
 ### Today, D1: Substack Notes through tt-rss
 - **From the backlog (device):** tt-rss strips the text of a Note embedded in a Substack post, so the sentence introducing it hung.
 - **Found:** Substack's page shows only a placeholder there too, but carries the whole post, as its feed has it, in a data script (`preloads-json`).

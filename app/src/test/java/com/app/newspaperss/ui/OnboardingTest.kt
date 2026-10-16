@@ -411,12 +411,12 @@ class OnboardingTest {
 
         val resolver = ApplicationProvider.getApplicationContext<android.content.Context>().contentResolver
         sourcesVm.importOpml(resolver, android.net.Uri.fromFile(tmp.newFile("empty.opml").apply { writeText("<opml version=\"2.0\"><body/></opml>") }))
-        compose.waitUntil(5_000) { compose.onAllNodes(hasText("No sites in that file", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        idleUntil { compose.waitForIdle(); visible("No sites in that file") }
         val opml = tmp.newFile("feeds.opml").apply {
             writeText("""<opml version="2.0"><body><outline type="rss" text="A" xmlUrl="https://a.example/feed"/><outline type="rss" text="B" xmlUrl="https://b.example/feed"/></body></opml>""")
         }
         sourcesVm.importOpml(resolver, android.net.Uri.fromFile(opml))
-        compose.waitUntil(5_000) { compose.onAllNodes(hasText("2 sources added", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        idleUntil { compose.waitForIdle(); visible("2 sources added") }
 
         click("Next")
         click("Make my first edition")
