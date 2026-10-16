@@ -220,7 +220,7 @@ class EpubWriterTest {
         // Not an image, though its name starts like one.
         val zoom = article(title = "Third", body = "<p>Text.</p><img-zoom alt=\"\"></img-zoom>")
         assertTrue("alternativeText" in write(unsectioned(described, zoom)).accessibility("accessibilityFeature"))
-        val spaced = article(title = "Fourth", body = "<p>Text.</p><figure><img src=\"images/a2-0.jpg\" alt=\" \"></figure>", images = listOf(chart))
+        val spaced = article(title = "Fourth", body = "<p>Text.</p><figure><img src=\"images/a2-0.jpg\" alt=\"&nbsp;\"></figure>", images = listOf(chart))
         assertFalse("a space describes nothing", "alternativeText" in write(unsectioned(described, spaced)).accessibility("accessibilityFeature"))
 
         val some = write(unsectioned(described, bare))
