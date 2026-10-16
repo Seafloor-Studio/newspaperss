@@ -234,6 +234,13 @@ class ScreenshotTest {
         shoot("02-onboarding-device") { OnboardingScreen(vm) }
     }
 
+    /** A Kindle reader sending with the Kindle app: the how-to, and when an edition counts as sent. */
+    @Test
+    fun onboardingDeviceKindleApp() {
+        val vm = onboarding().apply { next(); chooseDevice(Device.KINDLE); useKindleApp() }
+        shoot("02f-onboarding-device-kindle-app", act = { compose.onNodeWithText("counts as sent", substring = true).performScrollTo() }) { OnboardingScreen(vm) }
+    }
+
     @Test
     fun onboardingFeedsFrom() {
         val vm = onboarding().apply { next(); chooseDevice(Device.KOBO); next() }
@@ -278,6 +285,19 @@ class ScreenshotTest {
         next(); chooseDevice(Device.KINDLE); editKindleEmail("name_abc123@kindle.com"); next()
         answer(FeedsAnswer.SITES)
         idleUntil { state.value.step == Step.SOURCES }
+    }
+
+    /** A site with no feed: its page can go to the reading list instead. */
+    @Test
+    fun onboardingNoFeed() {
+        val http = FakeHttp().apply { page("https://example.com/essay", "<html><head><title>An essay</title></head><body><p>Words.</p></body></html>") }
+        val vm = onboardingOnThePhone(OnboardingViewModel(store, SourceRepository(db, clock), FeedFinder(http)) {}).apply {
+            editPasted("example.com/essay"); findPasted()
+        }
+        val readingList = com.app.newspaperss.ui.readinglist.ReadingListViewModel(com.app.newspaperss.data.ReadingListRepository(db, clock))
+        shoot("03f-onboarding-no-feed", ready = { vm.state.value.findPage != null }, act = {
+            compose.onNodeWithText("Save this page to your reading list instead").performScrollTo()
+        }) { OnboardingScreen(vm, readingList = readingList) }
     }
 
     @Test

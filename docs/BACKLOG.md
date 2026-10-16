@@ -13,33 +13,24 @@ Grouped by part of the app. The tag says where each item came from: *device* (yo
 
 ### From the 16 Oct audit *(audit)*
 Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "checked" means read against the code, not yet reproduced.
-- [ ] **Sending an edition a newer build has already released does nothing, and its articles go out again** (checked). The notification's Send and Read, the share sheet's report and Today's Send all mark sent only if READY, without the "or released, with no build running" case `markSentByHand` has; and releasing an edition leaves its Ready notification up
 - [ ] Another tt-rss user, or another server, still meets the first one's delivered links: `delivered_urls` is shared, so a story the first user received is skipped for the second, and marked read on their server. Small, but partners often follow the same blogs. Forget the delivered links that came only from the old source when it goes? *(review, 16 Oct)*
 - [ ] Restored onto a new phone, the database comes back without the tt-rss login (it's left out of backups), so whoever signs in next keeps the waiting and starred articles, as the same user would. Ask on sign-in whether it's the same account? *(review, 16 Oct)*
-- [ ] A timed edition is dropped while a manual one waits for a connection (`EditionWorker` enqueues with KEEP, checked), and the manual run then has no Ready notification, podcast or retries
-- [ ] An EPUB written by a build the process died during is never deleted: `failInterrupted` marks it FAILED without removing the file, which has no `fileName` yet (checked)
-- [ ] Leaving the server as a feed move finishes can leave a phone feed paused: the move's check and the pause aren't one step (a window of milliseconds)
-- [ ] Sources' and the reading list's snackbars are shown while the app is in the background, so a tt-rss subscribe's answer and its Undo can time out unseen. Confirm on a device first
-- [ ] Typed text in Settings' tt-rss sign-in and the Add a site dialog is lost if Android kills the app while it's in the background (onboarding keeps it with a SavedStateHandle)
-- [ ] Rotation drops Listen's "Finish X first?" and contents dialogs and the category step of Add a site and Move feeds (`remember`, not `rememberSaveable`)
-- [ ] Stop making and Delete podcast run on the screen's scope without `NonCancellable`, unlike Make beside them (checked)
-- [ ] Tests: the app's own DataStores (`preferencesDataStore`) are shared by every Robolectric test and never reset or stopped, the same hazard #190 fixed elsewhere; the drain before cancelling a test DataStore is in `PodcastSettingsTest` only; three copied wait loops time out after 5 s against `idleUntil`'s 30 s, and `OnboardingTest` uses `compose.waitUntil(5_000)` for an import (checked); `SourceDetailViewModel`s built directly in tests are never cancelled; the app's FakeHttp can't return a cut-short feed; `SourceDetailScreenTest` reads the real clock; `NotesWorkerTest` can't fail on what it names; a race in `PodcastMakerTest`'s fake can hide the bug it guards
-- [ ] Coverage counts the pictures `ScreenshotTest` draws (85 tests, 4 assertions) as tested code
+- [ ] Coverage counts the pictures `ScreenshotTest` draws (85 tests, 4 assertions) as tested code. Proposed in [#269](https://github.com/madCode/newspaperss/pull/269), your call: the screenshots run as their own task, which Kover doesn't measure; coverage goes from 94.73% to 94.32%
+- [ ] About 100 view models built directly in tests (Today, Settings, Sources…) are still never stopped, as the source page's were; `testutil/ViewModels` stops them, so adopt it as those tests are touched *(today B3)*
+- [ ] `PodcastSettingsTest.choosingToReadLiveDuringTheDownloadStopsIt` timed out once in six full runs, at its 30 s wait for the settings screen to load, on a machine running other builds. Watch it *(today B9)*
 - [ ] CLAUDE.md says its shared sections match claude-playground's; several rules have drifted (tests "waits for the condition", the review's background-work bullet, the PR template, "merge only when asked"). Your call whether to bring them across
 - Next audit of this kind: after 30–40 more cycles, or before a release
 
 ### Onboarding and setup
-- [ ] A short Kindle how-to: same Amazon account, pick the device in Send to Kindle, Library › Docs *(personas)*
-- [ ] Explain per device what counts as "delivered" *(personas)*
 
 ### Sources and fetching
 - [ ] **Platform pass** *(you asked)*: a test corpus of real posts from the big blog and newsletter platforms, from their own feeds and through tt-rss, checked for footnotes, embeds, captions, paywall teasers and link posts; what breaks gets fixed and the corpus keeps it fixed (`PlatformCorpusTest`). Round 1 covered Substack, Ghost, WordPress, Medium, Blogger, Buttondown and Micro.blog; round 2 added a magazine with its own site (New Left Review), Stratechery and a MemberPress site, found by running `extractionSweep` over a real reading list and over `tools/sweep-feeds.opml`, public feeds picked for variety (news, other languages and scripts, static sites, microblogs). Run that list again before a change to extraction. Still to add: Tumblr (it answers 429 to the collector), beehiiv, posts with galleries, tweets and Bluesky embeds, and more footnote styles
 - [x] **Show tt-rss's own feed errors** *(you asked)*: tt-rss's `last_error` for each feed, on the feed's row and page and named in a banner on Sources
-- [ ] **Proposal: "Send this article for a look"** *(you asked)*. On an article's page in the app, a link that opens GitHub's new-issue form with the article's address, the app's version and an `extraction` label filled in, for the daily issue check to pick up: it compares the result with the page, fixes what's wrong and adds the page to the corpus. No GitHub sign-in inside the app; the browser does that. It must say first that the issue, and so the link, is public. Waiting for your go-ahead
 - [ ] Paywalled and summary-only sites: warn when a site is added; keep stubs from eating the budget; drop metered sites from starter packs *(personas)*
 - [x] A feed over 10 MB was refused as too large: some static sites (a Hugo `index.xml`) put every post they ever wrote in one feed. Now it's read up to 10 MB, keeping the whole items before the cut *(sweep)*
 - [ ] "No feed found" in onboarding: offer the reading list there too (done in Sources) *(personas)*
 - [ ] Webtoons: episodes are one long strip of 84–140 lazily loaded panels (a phone is sent to m.webtoons.com, which lists them in a script; the desktop viewer has them in `data-url`), beyond the 20-image cap. Built and measured on `claude/today-d-c7` (D7), not shipped. Before it can ship: the image budget must take a strip whole or not at all (today it is shared and greedy, so a strip gets gaps mid-episode and starves later articles); no cap that cuts an ending silently; ask for `?type=opti` (PNG panels ignore `q90`: 800 KB vs 300 KB); drop the feed's two thumbnail panels, which otherwise repeat after the strip; panels contiguous in the book (no figure margins), with alt text. Re-encoded, an episode is about 6–9 MB *(device)*
+- [ ] Webtoons: episodes are one long strip of dozens of lazy images (`data-url`), beyond the 20-image cap, and its mobile site hides the feed. Support strips properly *(device)*
 
 ### The book
 - [ ] EPUB design, round 2: the cover image and a look on real devices (Kindle, Kobo, KOReader) *(device)*
@@ -65,7 +56,6 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] Read sync: an article marked unread in tt-rss further back than its feed's newest five unread only comes back here once it's among them. Ask tt-rss about delivered articles directly if that turns out to matter
 
 ### From the UX pass *(ux)*
-- [ ] An edition released because another was made by hand keeps its Ready notification (with Send) until the next timed one replaces it
 - [ ] Boox: consider turning off ripples on e-ink (they cause partial refreshes); Boox's own refresh modes may make it moot
 
 ### Today
@@ -79,8 +69,9 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
   - Live with the current card first; the masthead's date could go either way, since the edition's title has it
 
 ### Reading list
-- [ ] Saved links that can never be read (a PDF, a video, a page over 5 MB, a 410) wait silently forever. Show them in the reading list as unreadable, with the reason and a way to open or remove them. Not as "couldn't fetch" pages in the edition: they cost no reading time, so a backlog of them could fill one
-- [ ] Links saved before database version 2 with a title never get a reading time (no backfill)
+- [ ] Send for a look on an e-reader with no browser says so and stops there; copying the form's address would let the reader send it from a phone. And check on a device whether the GitHub app, if installed, takes the link and drops the filled-in fields *(today C1 review)*
+- [ ] Saved links that can never be read (a PDF, a video, a page over 5 MB, a 410) wait silently forever. Show them in the reading list as unreadable, with the reason and a way to open or remove them. Not as "couldn't fetch" pages in the edition: they cost no reading time, so a backlog of them could fill one. Built on `claude/screens-c8` (database version 14), waiting on session D's versions 12 and 13 to merge first
+- [ ] **Your call:** reading times for saved links. Not only links saved before database version 2: no titled link from a Pocket or Instapaper import gets one either, since only untitled links are looked up. The reading time is only the reading list's "10 min read" (editions don't use it). Filling them in costs one background page fetch per link, 20 at a time, so a 3,000-link import means 3,000 fetches. Options: measure every saved link; measure only links saved from now on and leave imports; or leave it. On the morning page
 
 ### Accessibility *(a11y, you asked for it)*
 A full pass over the app and the book, not just spot fixes:
@@ -97,9 +88,7 @@ A full pass over the app and the book, not just spot fixes:
 
 ### Performance *(resources)*
 - [ ] A floor device: Android 8, 2 GB RAM, slow CPU and storage (a 2018 budget phone or an older Boox). Measure on an emulator with that profile how long a 30-minute edition takes, peak memory, whether timed editions still arrive under Doze, and whether long lists and the preview stay smooth; set budgets from the numbers *(you asked)*
-- [ ] Load build candidates without feedHtml; fetch it per article. Its worst case is now bounded (feed text is capped at 500,000 characters), so this is about memory on a big backlog, not a crash
 - [ ] A feed's title, link, guid and author are stored uncapped: a hostile feed (a `data:` link, a megabyte title) could still make a row too big for the 2 MB Android reads it through. Cap them as feed text now is *(review)*
-- [ ] EPUB zip: buffered output, JPEGs stored uncompressed
 - [ ] A smaller APK *(you asked)*. It went from 20–40 MB to 94 MB with the podcast, because sherpa-onnx's native code is in it twice, stored uncompressed: about 32 MB for arm64-v8a and 36 MB for x86_64. Three ways, with what each costs:
   - **One APK per ABI** (preferred): about 57 MB for a phone, and nothing stops working. The cost: two files on the release page, CI and the `latest-debug` publish adjusted, and F-Droid's build recipe given the split.
   - **Drop x86_64**: one APK of about 57 MB, but no podcast on emulators and x86 Chromebooks. First check whether the device tests' emulator needs it.
@@ -111,7 +100,7 @@ Whole-codebase passes for what a review of one PR can't see. Each follows the au
 - [ ] **Architecture and test health** (last: 16 Oct, cycle 6 of that run; its findings are at the top of Next), every 30–40 cycles or before a release: duplication and code that has grown complicated, how features fit together (what one feature deletes that another still uses), tests that can never fail, waits that flake under load, and copied test helpers
 
 ### Tech debt
-- [ ] Three screenshots still differ from one render to the next: the two with an open ⋮ menu (`05f`, `05g`) catch the button's ripple part way, and `06c` the selected row's colour fading in. Advancing the test's animation clock before the capture didn't settle them; the menus are windows of their own, likely on a frame clock the test doesn't drive
+- [ ] Listen sometimes stops at the paragraph instead of scrolling down to the sentence being read: its fine scroll needs the paragraph's text layout, which may not be recorded yet when the scroll runs. Seen as `11d-listen-larger-text` differing between two renders; likely on a phone too *(today B7)*
 
 ### Later
 - [ ] Send the email itself (SMTP, an app password), so a Kindle edition arrives with no tap and from a chosen account; email delivery through the mail app is done (#123)
@@ -446,6 +435,21 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 ## Done
 
 - [x] A quiet tt-rss feed says so under its row: "Nothing new in 3 weeks" (today D4)
+- [x] **Send for a look**: ⋮ › Send for a look… on an article's preview says the report is a public GitHub issue, then opens GitHub's form with "Extraction: *title*", the address and the app's version filled in (#251)
+- [x] A snackbar on screen as the app goes to the background is shown again in full on its return, Undo and all, on Sources, the reading list, a source's page, Settings and an edition's page; a reading-list removal waiting for Undo is settled then rather than left in the database (#258)
+- [x] ~~Stop making and Delete podcast run on the screen's scope without `NonCancellable`~~: checked, not a bug. Both are blocking file writes launched straight onto `Dispatchers.IO`, so leaving the page can't cut them short once tapped; `NonCancellable` only matters for a suspending call like Make's (#258)
+- [x] Rotation keeps Listen's "Finish X first?" and contents, and the category list of Add a site and Move feeds; after Android ends the app, a restored question is checked again and the category list goes with its dialog (#264)
+- [x] "No feed found" in onboarding offers to save the page to the reading list instead, as Sources does (#266)
+- [x] A short Kindle how-to in setup (the Kindle app on the same Amazon account, then Library › Docs), and per device, in setup and under Send it myself, when an edition counts as sent and what to do if it never arrives (#270)
+- [x] Typed text in Add a site and Settings' tt-rss sign-in survives Android ending the app; never the password (#276)
+- [x] A build reads each article's feed text when it reaches it, rather than every waiting article's at once: 300 articles of 50,000 characters held 15 MB before, 82 KB after (today B11)
+- [x] Editions with pictures are written about three times faster: pictures go into the book stored, not compressed again, through a buffered stream (today B8)
+- [x] Screenshots are drawn without ripples, so two renders match (today B7)
+- [x] Test health from the 16 Oct audit: each test's app has its own settings, tt-rss and feed-move stores, stopped at teardown; one way to stop a test store; one shared wait in place of three 5-second loops; source-page view models stopped at a test's end; a cut-short feed through FeedSync; `SourceDetailScreenTest` on a fixed clock; `NotesWorkerTest` able to fail; `PodcastMakerTest`'s fake counting atomically (today B1–B6, B9)
+- [x] An edition released because a newer one was made counts as sent when it is sent anyway, from a share sheet, its notification or Today, as Mark as sent already did, so its articles don't go out again; and its Ready notification comes down when it is released (audit and UX pass, 16 Oct)
+- [x] A timed edition takes the place of one made by hand that is still waiting for a connection, rather than being dropped, so the paper comes with its Ready notification, podcast and retries (audit, 16 Oct)
+- [x] The book of a build the process died during is deleted when the next build finds it, rather than staying in the app's storage for good (audit, 16 Oct)
+- [x] Leaving the server just as a feed is moved leaves it a phone feed, not paused with no server to come from: the move's check and the pause are one step with leaving (audit, 16 Oct)
 - [x] Moving off tt-rss brings the paper's feeds along as phone feeds, with their settings (today D6)
 - [x] tt-rss: an opt-in "Mark read when they expire here"; an old backlog drains on arrival instead of coming through the paper (today D2)
 - [x] Book: EPUB Accessibility 1.1 metadata, alt text counted honestly, article headings that never skip a level, the contents list's role; EPUBCheck and Ace pass (today D5)

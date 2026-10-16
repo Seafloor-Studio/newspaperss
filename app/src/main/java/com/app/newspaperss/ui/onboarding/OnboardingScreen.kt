@@ -41,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +53,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -180,6 +182,7 @@ private fun DeviceStep(s: OnboardingState, vm: OnboardingViewModel) {
         return
     }
     Text(DeviceTips.tip(device), modifier = Modifier.padding(top = 16.dp), style = MaterialTheme.typography.bodyMedium)
+    Delivered(DeviceTips.delivered(device))
     if (device == Device.KINDLE) {
         TextButton(onClick = vm::useKindleEmail, contentPadding = PaddingValues(end = 12.dp)) { Text("Email it to your Kindle instead") }
     }
@@ -198,6 +201,11 @@ private fun DeviceStep(s: OnboardingState, vm: OnboardingViewModel) {
 }
 
 @Composable
+private fun Delivered(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+}
+
+@Composable
 private fun KindleEmailSetup(s: OnboardingState, vm: OnboardingViewModel) {
     HorizontalDivider(Modifier.padding(vertical = 16.dp))
     Text("Send it straight to your Kindle", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
@@ -205,8 +213,10 @@ private fun KindleEmailSetup(s: OnboardingState, vm: OnboardingViewModel) {
         "Each Kindle has its own email address. Editions emailed there arrive on it by themselves. " +
             "When an edition is ready, Send opens your mail app with everything filled in; you tap Send.",
         style = MaterialTheme.typography.bodyMedium,
-        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+        modifier = Modifier.padding(top = 4.dp),
     )
+    Delivered(DeviceTips.delivered(Device.KINDLE, byEmail = true))
+    Spacer(Modifier.height(12.dp))
     KindleEmailFields(
         address = s.kindleEmail,
         onAddress = vm::editKindleEmail,
@@ -262,8 +272,16 @@ private fun SourcesStep(s: OnboardingState, vm: OnboardingViewModel, sources: So
     // The status is always composed and only its text changes, so TalkBack announces it; the
     // button stays put rather than being swapped out from under focus.
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-        Text(if (s.searching) "Checking…" else "", Modifier.padding(horizontal = 12.dp).semantics { liveRegion = LiveRegionMode.Polite })
+        Text(if (s.searching) "Checking…" else s.findNote.orEmpty(), textAlign = TextAlign.End, modifier = Modifier.weight(1f).padding(horizontal = 12.dp).semantics { liveRegion = LiveRegionMode.Polite })
         OutlinedButton(onClick = vm::findPasted, enabled = !s.searching && s.pasted.isNotBlank()) { Text("Add") }
+    }
+    // As in Sources: a site with no feed isn't a dead end, its page can be read in the paper.
+    val page = s.findPage
+    if (page != null && readingList != null && !s.searching) {
+        TextButton(onClick = {
+            vm.savingInstead(page)
+            readingList.save(page) { added -> vm.savedInstead(page, added) }
+        }) { Text("Save this page to your reading list instead") }
     }
     s.found.forEach { feed -> FeedCheck(feed.title, feed.url in s.chosen) { vm.toggleFeed(feed.url) } }
     StarterPacks.all.forEach { pack ->

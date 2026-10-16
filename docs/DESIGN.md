@@ -240,6 +240,9 @@ module so it's all unit-tested without Android.
   Today's next-edition line and in the speed check's verdict.
 - **Feeds sync right before each build,** and in the background every 12
   hours when the battery isn't low.
+- **One build at a time.** A timed edition takes the place of one made by
+  hand that is still waiting for a connection, so it comes with its Ready
+  notification, podcast and retries; one already being made is left to finish.
 - **No edition is never silent.** A timed run with nothing new sends a quiet
   "No new edition"; if every source failed, it's retried twice, then reported
   as a failure pointing to Sources. A build waiting for a connection says so.
@@ -290,11 +293,13 @@ in the share sheet (Android reports the choice back, from the notification
 too); opening the mail app to email it to a Kindle; or **Read** on a Boox. **Mark as sent** covers any other route, and
 **Send again** (in a sent edition's ⋮ menu) is there if a send didn't arrive. An edition still "ready"
 when the next one is built was never sent: it's marked not sent and its
-articles go back, keeping their stars, before the new one is planned.
-Its page still offers **Mark as sent** while its file is here, for one
-sent some other way: its articles are used up, even any taken into the
-newer edition since. It's hidden while an edition is being made, which
-may be taking those articles.
+articles go back, keeping their stars, before the new one is planned,
+and its Ready notification comes down. Its page still offers **Mark as
+sent** while its file is here, for one sent some other way, and a send
+from a share sheet or Send left open counts too: its articles are used
+up, even any taken into the newer edition since. Neither counts while an
+edition is being made, which may be taking those articles; Mark as sent,
+hidden meanwhile, records it afterwards.
 
 **Send to Kindle is slow.** A book can take a few minutes to reach a
 Kindle, so for half an hour after a send the edition (on Today and its own
@@ -446,7 +451,11 @@ phone restarts.
    one that looks like an email address, and an address not at kindle.com
    or kindle.cn gets a warning), the mail app to send with, and a reminder
    to approve the sending address on Amazon. **Use the Kindle app
-   instead** shares to the Kindle app.
+   instead** shares to the Kindle app, with a short how-to: the Kindle app
+   on the same Amazon account, the form's device and "Add to your library",
+   and Library › Docs on the Kindle. Under each device's tip (and in
+   Settings under **Send it myself**) a line says when an edition counts as
+   sent and that **Didn't arrive? Mark as not sent** undoes it.
 3. **Where do your feeds live now?** Three cards; tapping one answers and
    moves on, with no Next:
    - **I'll pick some sites** ("Newspapers, magazines, blogs, newsletters.
@@ -472,7 +481,8 @@ phone restarts.
    step below, which the import counts towards. The result survives the app
    being closed in the picker.
 5. **With this phone, pick your sources:** starter packs of well-known
-   public feeds; paste any website (the app finds its feed); import an OPML
+   public feeds; paste any website (the app finds its feed, or, with none,
+   offers to save the page to the reading list instead); import an OPML
    file (its folders are ignored: the paper has no sections); or import
    saved links from Pocket or Instapaper, which alone are enough to start.
 6. **With a server, sign in**, then see what's there: the address,

@@ -73,6 +73,8 @@ class EditionBuilder(
      * above all, goes in as if they weren't (see [com.app.newspaperss.data.FeedMoves]).
      */
     private val retiring: suspend () -> Set<Long> = { emptySet() },
+    /** An unsent edition was released for this one: its Ready notification would offer it still. */
+    private val onReleased: (editionId: Long) -> Unit = {},
     private val cover: (CoverInfo) -> EpubImage? = { null },
 ) {
     /**
@@ -277,12 +279,14 @@ class EditionBuilder(
     private suspend fun releaseUndelivered() {
         val editions = db.editions()
         for (listed in editions.withStatus(EditionStatus.READY)) {
-            db.withTransaction {
+            val released = db.withTransaction {
                 // Read again inside the transaction: it may have been sent since it was listed.
-                val edition = editions.byId(listed.id)?.takeIf { it.status == EditionStatus.READY } ?: return@withTransaction
+                val edition = editions.byId(listed.id)?.takeIf { it.status == EditionStatus.READY } ?: return@withTransaction false
                 db.articles().release(edition.id)
                 editions.update(edition.copy(status = EditionStatus.FAILED, error = NOT_SENT))
+                true
             }
+            if (released) onReleased(listed.id)
         }
     }
 
@@ -304,8 +308,15 @@ class EditionBuilder(
      * one still running.
      */
     private suspend fun failInterrupted() {
-        for (edition in db.editions().withStatus(EditionStatus.BUILDING)) {
-            db.editions().update(edition.copy(status = EditionStatus.FAILED, error = INTERRUPTED))
+        for (listed in db.editions().withStatus(EditionStatus.BUILDING)) {
+            // Read again inside the transaction: a stopped worker's build may only just have finished.
+            val edition = db.withTransaction {
+                db.editions().byId(listed.id)?.takeIf { it.status == EditionStatus.BUILDING }
+                    ?.also { db.editions().update(it.copy(status = EditionStatus.FAILED, error = INTERRUPTED)) }
+            } ?: continue
+            // It may have written its book before dying: found by its title, as [fail] finds it,
+            // since the edition only gets its fileName once finished.
+            File(editionsDir, fileNameOf(edition.title)).delete()
         }
     }
 

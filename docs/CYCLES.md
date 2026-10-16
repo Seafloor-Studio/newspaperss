@@ -12,6 +12,78 @@ For the next cycle: what each one should do differently. What was built is in
 
 - **Measure the real thing at scale before building on a cap.** Episodes run 84–140 panels, not the 60 assumed; the image budget is shared and greedy, so a strip gets gaps mid-episode. "Built it, measured it, not shipping it" was the right call, and the branch keeps the work.
 
+### Cycles B1–B12 (16 Oct) — build: test health and speed
+
+- **A teardown hook is shared by every test, so a reviewer's "low risk, none found" there needs
+  the full suite, not the classes touched.** B1 ran 17 classes green and broke main; three
+  full runs (about 5 minutes each here) would have shown it. Before merging a change to
+  `TestApp`, `testutil` rules or teardown, run the whole `:app:testDebugUnitTest` at least
+  twice.
+- **Gradle's build cache can answer a test task without running it**, and a screenshot or
+  benchmark run then writes nothing. Use `--rerun` and check that the output exists.
+- **The app's full Robolectric suite takes about 5 minutes on 4 cores**, not the 50 the day's
+  prompt said, so counting a flake over the whole suite is affordable.
+
+### Cycles A2–A6 (16 Oct) — build: the rest of area A's audit list
+
+- **With parallel sessions, keep shared docs out of code PRs.** Every merge to main put each open
+  PR's BACKLOG, DEVLOG and cycle log entries in conflict, and each fix cost a CI run. Put a
+  run's entries in one docs PR after its code PRs merge, and turn on auto-merge for the code PRs.
+  This is now how area A closes; worth a line in the cycles skill if it holds for the other areas.
+- **A "keep both" merge script is wrong for a removed line.** It put back backlog items another PR
+  had ticked off. After any scripted merge, diff BACKLOG.md against main and read each line.
+- **A test that waits for text can pass before the change it checks.** "Sent" matched "Sent it
+  another way?". Wait for the condition itself (the database), as CLAUDE.md says.
+- **The test WorkManager keeps network-constrained work ENQUEUED**, which is "waiting for a
+  connection" for free. Replaced work is pruned at once: `getWorkInfoById` returns null.
+- **Run end check:** no emulator was started; nothing left running. The two extra worktrees in
+  `/home/user` (wt-a, wt-b) are removed at the end.
+
+### Cycle C6 — build: typed text kept when Android ends the app
+
+Run of 16 Oct, four sessions in parallel; this one (C) owns the screens. Baseline: a fresh cloud
+container, no emulator.
+- **Learned again, as in A2–A6: shared logs go in one docs PR at the end of a parallel run.** C1
+  conflicted three times before it could merge. Two areas learning it makes it a rule: it belongs
+  in the cycles skill's parallel-run notes (claude-playground, madCode's call).
+- **Merging main into a PR can merge two new tests into one spot** (two `@Test`s inserted before
+  the same anchor). Read the conflict, don't keep-both it blindly.
+- **Run end check:** nothing left running in the container; no emulator was started.
+
+### Cycle C5 — build: a Kindle how-to, and what counts as sent
+
+- **Text that states what the code does gets reviewed against the code**, for every context it
+  is shown in: one line read right in setup and wrong in Settings, where another delivery applies.
+
+### Cycle C4 — build: onboarding's no-feed dead end
+
+- **A button that starts async work goes away (or disables) in the tap**, and the answer checks
+  it still belongs. Sources did this; the copy in onboarding didn't until the review.
+
+### Cycle C3 — build: rotation
+
+- **Never copy whole files across branches cut from different mains.** `git checkout other -- file`
+  wrote an older test file over #245's teardown. Carry a change as a patch (`git diff base other
+  -- file | git apply -3`), and diff each file against main before committing.
+- **Saved UI state outlives the view model it describes.** After process death, a saved flag for a
+  dialog the view model no longer has comes back the next time it opens. Keep it with the state
+  it belongs to.
+
+### Cycle C2 — build: snackbars in the background
+
+- **`collectAsStateWithLifecycle` already pauses what it reads.** A test of "a message arriving
+  in the background" passed with the fix removed; the gap was only a snackbar already showing.
+  Ask what the screen collects before writing the background case.
+- **A wait you add holds whatever is waiting on it.** The reading list's removal was only
+  committed when its snackbar ended; making the snackbar wait made the deletion wait.
+
+### Cycle C1 — build: Send for a look
+
+- **A limit on a URL is a limit on the encoded URL.** Capping raw characters let a non-Latin
+  address through at twice the length; measure what is sent.
+- **Falsify with a break that changes the outcome for the test's input**: a raw cap of 4,000
+  stayed green because the test's address was over both; check the break crosses the input.
+
 ### Cycle D6 — build: feeds come home from tt-rss
 
 - **Settings screens are shot by `ScreenshotTest` (07i–07l)**: a change to the tt-rss options or the leave dialog needs before and after pairs.

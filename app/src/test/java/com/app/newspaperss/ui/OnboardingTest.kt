@@ -159,6 +159,23 @@ class OnboardingTest {
     }
 
     @Test
+    fun setupSaysHowAKindleGetsItsEditionAndWhenOneCountsAsSent() {
+        compose.setContent { OnboardingScreen(vm) }
+        click("Get started")
+        scrollAndClick("Kindle")
+        compose.onNodeWithText("counts as sent once you send it to your mail app", substring = true).performScrollTo().assertExists()
+
+        scrollAndClick("Use the Kindle app instead")
+        compose.onNodeWithText("same Amazon account as your Kindle", substring = true).performScrollTo().assertExists()
+        compose.onNodeWithText("Library \u203a Docs", substring = true).assertExists()
+        compose.onNodeWithText("counts as sent once you choose the Kindle app", substring = true).performScrollTo().assertExists()
+        compose.onNodeWithText("Didn't arrive? Mark as not sent", substring = true).assertExists()
+
+        scrollAndClick("Kobo")
+        compose.onNodeWithText("counts as sent once you choose Dropbox", substring = true).performScrollTo().assertExists()
+    }
+
+    @Test
     fun aKindleReaderCanUseTheKindleAppInstead() {
         compose.setContent { OnboardingScreen(vm) }
         click("Get started")
@@ -438,6 +455,44 @@ class OnboardingTest {
         vm.next()
         assertEquals(Step.SOURCES, vm.state.value.step)
         assertFalse(vm.state.value.canContinue)
+    }
+
+    @Test
+    fun aSiteWithNoFeedCanGoToTheReadingListInstead() {
+        http.page("https://plain.example/essay", "<html><head><title>An essay</title></head><body><p>Words.</p></body></html>")
+        val readingList = com.app.newspaperss.data.ReadingListRepository(db)
+        val readingVm = com.app.newspaperss.ui.readinglist.ReadingListViewModel(readingList)
+        compose.setContent { OnboardingScreen(vm, readingList = readingVm) }
+        click("Get started")
+        scrollAndClick("Kobo")
+        click("Next")
+        choosePhone()
+
+        compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("plain.example/essay")
+        click("Add")
+        idleUntil { compose.waitForIdle(); visible("Save this page to your reading list instead") }
+        scrollAndClick("Save this page to your reading list instead")
+
+        idleUntil { compose.waitForIdle(); visible("Saved to your reading list") }
+        assertEquals(listOf("https://plain.example/essay"), runBlocking { db.articles().allForSource(readingList.sourceId()) }.map { it.url })
+        assertFalse("the dead end is gone", visible("Save this page to your reading list instead"))
+        assertEquals("", vm.state.value.pasted)
+    }
+
+    @Test
+    fun aSaveAnsweredAfterTheReaderTypedAgainLeavesWhatTheyTyped() {
+        http.page("https://plain.example/essay", "<html><head><title>An essay</title></head><body><p>Words.</p></body></html>")
+        vm.editPasted("plain.example/essay")
+        vm.findPasted()
+        idleUntil { vm.state.value.findPage != null }
+        val page = vm.state.value.findPage!!
+        vm.savingInstead(page)
+        assertNull("no second tap", vm.state.value.findPage)
+
+        vm.editPasted("another.example")
+        vm.savedInstead(page, added = true)
+        assertEquals("another.example", vm.state.value.pasted)
+        assertNull(vm.state.value.findNote)
     }
 
     @Test
