@@ -117,6 +117,7 @@ class FeedsFromViewModel(
         }
     }
 
+    private var leavingNow = false
     private val _leaving = MutableStateFlow(false)
     /** The dialog that says what switching to this phone does, before it's done. */
     val leaving: StateFlow<Boolean> = _leaving.asStateFlow()
@@ -138,20 +139,32 @@ class FeedsFromViewModel(
 
     fun cancelLeaving() { _leaving.value = false }
 
-    /** Signs out of tt-rss and removes its source and articles; the setup is this phone after. */
+    /**
+     * Brings the account's feeds onto the phone, then signs out of tt-rss and removes its source
+     * and articles; the setup is this phone after.
+     */
     fun leave() {
         _leaving.value = false
+        // The feed list can take a while; a second tap meanwhile would find no account and say so.
+        if (leavingNow) return
+        leavingNow = true
         // Not cancelled by leaving the page straight after: the reader asked for this phone.
         // Signed out first: if the app dies between, it's the server setup with no account,
         // which says so; the other way round would leave a phone setup still fetching tt-rss.
         _offer.value = null
         viewModelScope.launch {
             withContext(NonCancellable) {
-                // Moved feeds still kept for their stars are phone feeds again: with no server
-                // to come from, they'd otherwise stay hidden until deleted.
-                moves?.restore()
+                val brought = ttrss.bringFeedsHome()
                 ttrss.signOut()
                 settings.update { it.copy(feedsFrom = FeedsFrom.PHONE) }
+                // Moved feeds still kept for their stars are phone feeds again: with no server
+                // to come from, they'd otherwise stay hidden until deleted. After signing out,
+                // like the feeds brought home, so none is fetched from both at once.
+                moves?.restore()
+                ttrss.resumeBroughtHome(brought)
+                _notice.value = broughtHomeNotice(brought)
+                leavingNow = false
+                onSourcesChanged()
             }
         }
     }
@@ -214,7 +227,7 @@ class FeedsFromViewModel(
     val startingFresh: StateFlow<Boolean> = _startingFresh.asStateFlow()
 
     private val _notice = MutableStateFlow<String?>(null)
-    /** What Start fresh did, or why it didn't. The screen shows it once and calls [noticeShown]. */
+    /** What Start fresh or leaving tt-rss did, or why not. The screen shows it once and calls [noticeShown]. */
     val notice: StateFlow<String?> = _notice.asStateFlow()
 
     fun noticeShown() { _notice.value = null }
@@ -238,4 +251,11 @@ class FeedsFromViewModel(
             }
         }
     }
+
+    private fun broughtHomeNotice(brought: TtrssRepository.BroughtHome): String = buildList {
+        add(if (brought.added == 0) "No new feeds came from tt-rss." else "${plural(brought.added, "feed")} from tt-rss ${if (brought.added == 1) "is" else "are"} on this phone now.")
+        if (brought.alreadyHere > 0) add("${brought.alreadyHere} ${if (brought.alreadyHere == 1) "was" else "were"} here already.")
+        if (brought.fromOldList) add("tt-rss didn't answer, so these are the feeds as it last listed them.")
+        if (brought.noAddress > 0) add("${plural(brought.noAddress, "feed")} had no address yet: add ${if (brought.noAddress == 1) "it" else "them"} in Sources.")
+    }.joinToString(" ")
 }

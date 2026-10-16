@@ -591,6 +591,20 @@ class ScreenshotTest {
         }
     }
 
+    /** Send for a look: what it says before anything is sent. */
+    @Test
+    fun articlePreviewSendForALook() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "The quiet return of the night train", sourceTitle = "The Example Review", url = "https://example.com/night-train", bodyHtml = "<p>Sleeper services are coming back.</p>", minutes = 4.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05e-article-preview-look", ready = { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }, act = {
+            compose.onNodeWithContentDescription("More").performClick()
+            compose.onNodeWithText("Send for a look…").performClick()
+        }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {})
+        }
+    }
+
     /** The top bar at twice the font size: the title stays on one line beside Back and Share. */
     @Test
     @Config(fontScale = 2f)

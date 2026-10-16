@@ -129,8 +129,8 @@ class PodcastLineTest {
         // Nothing's gone until it's confirmed.
         assertNotNull(store.voice(7))
         compose.onNodeWithText("Delete").performClick()
-        idleUntil { store.voice(7) == null }
-        assertEquals(0L, store.bytes(7))
+        // The folder goes file by file, on another thread: the voice can be gone before the audio.
+        idleUntil { store.voice(7) == null && store.bytes(7) == 0L }
         waitFor("No podcast for this edition yet")
     }
 

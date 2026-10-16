@@ -545,7 +545,11 @@ whose Kindle and KOReader answers ask for more on the same page).
   **Share** in the top bar sends the article's original link to Android's share sheet;
   it's hidden when an article has no web link. Selected text shared from the
   page carries that link too, on its own line under the quote, with the
-  article's title as the subject. Large pictures that stand
+  article's title as the subject. **Send for a look…** in the top bar's ⋮ (also
+  only with a web link) is for an article that came out wrong: it first says the
+  report is a public GitHub issue, then opens GitHub's new-issue form in the
+  browser with "Extraction: *title*", the article's address and the app's version
+  filled in, for the issue check to compare with the page. Large pictures that stand
   alone fill the width (small ones keep their size), and the page can be
   pinched to zoom into a comic. **Notes** exports a Markdown file for a
   notes app: front matter
@@ -758,7 +762,8 @@ whose Kindle and KOReader answers ask for more on the same page).
       your reading list**, or **Add Arts & Letters Daily** when the site is
       one of the curated lists, which stay on the phone.
     - If the dialog was closed, the answer comes as a snackbar when Sources
-      is open.
+      is open and on screen: one that arrives, or is showing, while the app
+      is in the background waits for it to come back, Undo and all.
     - The ⋮ menu has **Where your feeds live** instead of OPML import:
       feeds are added in tt-rss, which imports OPML itself. **Export your
       sites (OPML)** stays: the tt-rss feeds as last listed, each in a
@@ -769,7 +774,8 @@ whose Kindle and KOReader answers ask for more on the same page).
   the next edition. Import and export as a Markdown
   checklist (compatible with the library); Pocket and Instapaper exports
   import too. **✕** removes a link at once, with **Undo** in a snackbar, since
-  removing is routine and a confirm would only be tapped through.
+  removing is routine and a confirm would only be tapped through. Leaving
+  the screen or the app settles a removal still waiting for Undo.
 - **Settings** is a summary: one row per page, each with a line saying
   how it's set now ("About 30 minutes · 1 per source · take turns",
   "Ready by 6:30 AM, weekdays", "Kindle · emailed to …", "Off"), then the
@@ -858,10 +864,13 @@ whose Kindle and KOReader answers ask for more on the same page).
     phone feeds, the page offers the move at once: "Signed in. 58 feeds in
     7 categories. Move your 8 phone feeds to tt-rss?", **Move 8** (the same
     sheet as Sources) or **Not now** (the banner on Sources stays). **I pick my own sites** asks first ("Pick your own sites instead?"), saying
-    what happens: NewspapeRSS signs out and deletes all tt-rss data here
-    (articles, stars and feed settings); past editions stay; nothing
-    changes in tt-rss; the feeds don't come along, so it points to
-    Sources' OPML export, to save first and import after.
+    what happens: the feeds in the paper come along as phone feeds, with
+    their settings (article text, cap, paid posts), left-out ones paused;
+    NewspapeRSS signs out and deletes its tt-rss articles and stars; past
+    editions stay; nothing changes in tt-rss. Not a feed outside the
+    paper's category, one already on the phone (by address, give or take
+    "www." and a slash), or one the daily list hasn't given an address yet;
+    a message after says how many came and why any didn't.
     Feeds moved to tt-rss and still kept for their stars become phone feeds
     again, and a move under way stops.
     With a server, the page also has the account: its address, who's
