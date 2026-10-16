@@ -352,8 +352,9 @@ phone restarts.
   the phone in both. It's chosen in onboarding and changed in Settings.
 - **tt-rss:** each sync takes up to five unread articles from every feed, so a
   feed that posts monthly isn't crowded out by busy ones. Articles are marked
-  read on the server once delivered (and unread again if the edition is
-  marked as not sent). One category can be taken instead of all unread,
+  read on the server two minutes after delivery (and unread again if the
+  edition is marked as not sent): a send to the wrong app, marked as not sent
+  straight away, never reaches tt-rss. One category can be taken instead of all unread,
   chosen in Settings › Where your feeds live; a new account starts
   with all. tt-rss's own stars
   aren't synced: there a star usually means "keep this", not "for tomorrow".
