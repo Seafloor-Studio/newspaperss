@@ -16,6 +16,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] **Sending an edition a newer build has already released does nothing, and its articles go out again** (checked). The notification's Send and Read, the share sheet's report and Today's Send all mark sent only if READY, without the "or released, with no build running" case `markSentByHand` has; and releasing an edition leaves its Ready notification up
 - [ ] Another tt-rss user, or another server, still meets the first one's delivered links: `delivered_urls` is shared, so a story the first user received is skipped for the second, and marked read on their server. Small, but partners often follow the same blogs. Forget the delivered links that came only from the old source when it goes? *(review, 16 Oct)*
 - [ ] Restored onto a new phone, the database comes back without the tt-rss login (it's left out of backups), so whoever signs in next keeps the waiting and starred articles, as the same user would. Ask on sign-in whether it's the same account? *(review, 16 Oct)*
+- [ ] A timed edition is dropped while a manual one waits for a connection (`EditionWorker` enqueues with KEEP, checked), and the manual run then has no Ready notification, podcast or retries
 - [ ] An EPUB written by a build the process died during is never deleted: `failInterrupted` marks it FAILED without removing the file, which has no `fileName` yet (checked)
 - [ ] Leaving the server as a feed move finishes can leave a phone feed paused: the move's check and the pause aren't one step (a window of milliseconds)
 - [ ] Sources' and the reading list's snackbars are shown while the app is in the background, so a tt-rss subscribe's answer and its Undo can time out unseen. Confirm on a device first
@@ -444,7 +445,6 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
-- [x] A timed edition takes the place of one made by hand that is still waiting for a connection, rather than being dropped, so the paper comes with its Ready notification, podcast and retries (audit, 16 Oct)
 - [x] tt-rss: an opt-in "Mark read when they expire here"; an old backlog drains on arrival instead of coming through the paper (today D2)
 - [x] Book: EPUB Accessibility 1.1 metadata, alt text counted honestly, article headings that never skip a level, the contents list's role; EPUBCheck and Ace pass (today D5)
 - [x] tt-rss marks delivered articles read a couple of minutes after delivery, so a quick Mark as not sent usually never reaches it (today D3)

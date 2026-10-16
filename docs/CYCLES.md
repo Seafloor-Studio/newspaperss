@@ -3,12 +3,6 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
-### Cycle A3 (16 Oct) — build: a timed edition behind one made by hand
-
-- **The test WorkManager keeps network-constrained work ENQUEUED** until the test driver says
-  otherwise, which is the "waiting for a connection" state for free. Replaced work is pruned at
-  once: `getWorkInfoById` returns null, not CANCELLED.
-
 ### Cycle D2 — build: mark read in tt-rss when they expire here
 
 - **A change to one article's fate can change what the next sync fetches.** tt-rss sync takes a feed's newest five unread, so marking articles read there pulls in older ones. Ask "what arrives next?" of any change that marks things read on a server.
