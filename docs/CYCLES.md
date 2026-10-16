@@ -11,6 +11,14 @@ Run of 16 Oct, four sessions in parallel; this one (C) owns the screens.
 - **Falsify with a break that changes the outcome for the test's input**: a raw cap of 4,000
   stayed green because the test's address was over both; check the break crosses the input.
 
+### Cycle A1 (16 Oct, day run, four sessions) — build: a source removed during a build
+
+- **Four sessions at once:** cycles are numbered by area (A1, B1…) so they don't collide. Work
+  on the next item in a second `git worktree` while a reviewer reads the first, so the tree it
+  reads stays still.
+- **The first Gradle run in a fresh container takes about 5 minutes** for one test; later runs
+  about 1. Start it early, in the background, and read the code meanwhile.
+
 ### Cycle D1 — build: Substack Notes through tt-rss
 
 Run of 16 Oct, four sessions in parallel; this one (D) owns content and tt-rss.
