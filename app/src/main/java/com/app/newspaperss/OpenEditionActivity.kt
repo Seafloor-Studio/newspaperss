@@ -9,7 +9,7 @@ import java.io.File
 import kotlinx.coroutines.launch
 
 /**
- * The "ready" notification's Open, for readers who read on this device (a Boox): opens the
+ * The "ready" notification's Read, for readers who read on this device (a Boox): opens the
  * edition and counts that as delivered, which a plain view intent from the notification can't.
  */
 class OpenEditionActivity : Activity() {

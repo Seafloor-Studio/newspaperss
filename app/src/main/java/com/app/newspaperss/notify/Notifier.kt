@@ -147,8 +147,10 @@ class Notifier(private val context: Context) : EditionNotifier {
         manager.notify(id, builder.setSmallIcon(R.drawable.ic_notification).setContentIntent(open()).setAutoCancel(true).build())
     }
 
+    // SINGLE_TOP too: CLEAR_TOP alone finishes the open app and starts it afresh, losing the
+    // screen the reader was on and anything open on it.
     private fun open() = PendingIntent.getActivity(
-        context, 0, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        context, 0, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
         PendingIntent.FLAG_IMMUTABLE,
     )
 

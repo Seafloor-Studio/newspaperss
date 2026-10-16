@@ -11,6 +11,23 @@ Grouped by part of the app. The tag says where each item came from: *device* (yo
 *live* (building real editions), *a11y* (the accessibility audit), *ux* (the Day 3 UX pass),
 *audit* (the architecture audit, #163–#166).
 
+### From the 16 Oct audit *(audit)*
+Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "checked" means read against the code, not yet reproduced.
+- [ ] **Removing a source, a saved link or the tt-rss account while an edition is being made throws the finished edition away** (checked). The build reads its articles at the start and links them into the edition at the end, up to 8 minutes later; a deleted one fails the `edition_articles` foreign key, and `fail()` deletes the EPUB. Nothing holds deletes during a build the way Mark as read and unstarring are held. Reproduce with a test first
+- [ ] **Sending an edition a newer build has already released does nothing, and its articles go out again** (checked). The notification's Send and Read, the share sheet's report and Today's Send all mark sent only if READY, without the "or released, with no build running" case `markSentByHand` has; and releasing an edition leaves its Ready notification up
+- [ ] Signing in as another user on the same tt-rss server keeps the first user's waiting and starred articles, credited to feed ids that may be the new user's; a sync running during the switch can add more
+- [ ] A timed edition is dropped while a manual one waits for a connection (`EditionWorker` enqueues with KEEP, checked), and the manual run then has no Ready notification, podcast or retries
+- [ ] An EPUB written by a build the process died during is never deleted: `failInterrupted` marks it FAILED without removing the file, which has no `fileName` yet (checked)
+- [ ] Leaving the server as a feed move finishes can leave a phone feed paused: the move's check and the pause aren't one step (a window of milliseconds)
+- [ ] Sources' and the reading list's snackbars are shown while the app is in the background, so a tt-rss subscribe's answer and its Undo can time out unseen. Confirm on a device first
+- [ ] Typed text in Settings' tt-rss sign-in and the Add a site dialog is lost if Android kills the app while it's in the background (onboarding keeps it with a SavedStateHandle)
+- [ ] Rotation drops Listen's "Finish X first?" and contents dialogs and the category step of Add a site and Move feeds (`remember`, not `rememberSaveable`)
+- [ ] Stop making and Delete podcast run on the screen's scope without `NonCancellable`, unlike Make beside them (checked)
+- [ ] Tests: the app's own DataStores (`preferencesDataStore`) are shared by every Robolectric test and never reset or stopped, the same hazard #190 fixed elsewhere; the drain before cancelling a test DataStore is in `PodcastSettingsTest` only; three copied wait loops time out after 5 s against `idleUntil`'s 30 s, and `OnboardingTest` uses `compose.waitUntil(5_000)` for an import (checked); `SourceDetailViewModel`s built directly in tests are never cancelled; the app's FakeHttp can't return a cut-short feed; `SourceDetailScreenTest` reads the real clock; `NotesWorkerTest` can't fail on what it names; a race in `PodcastMakerTest`'s fake can hide the bug it guards
+- [ ] Coverage counts the pictures `ScreenshotTest` draws (85 tests, 4 assertions) as tested code
+- [ ] CLAUDE.md says its shared sections match claude-playground's; several rules have drifted (tests "waits for the condition", the review's background-work bullet, the PR template, "merge only when asked"). Your call whether to bring them across
+- Next audit of this kind: after 30–40 more cycles, or before a release
+
 ### Onboarding and setup
 - [ ] A short Kindle how-to: same Amazon account, pick the device in Send to Kindle, Library › Docs *(personas)*
 - [ ] Explain per device what counts as "delivered" *(personas)*
@@ -96,7 +113,7 @@ A full pass over the app and the book, not just spot fixes:
 ### Recurring reviews *(audit)*
 Whole-codebase passes for what a review of one PR can't see. Each follows the audit's pattern: fresh-eyes reviewers, each finding checked, a PR per area.
 - [ ] **Security and supply chain**, before each release or every 20–30 cycles: hostile feeds and pages (entity expansion, slow regexes, huge inputs), links and intents that leave the app, what CI's jobs can write, signing keys, and pinned actions and dependencies
-- [ ] **Architecture and test health**, every 30–40 cycles or before a release: duplication and code that has grown complicated, how features fit together (what one feature deletes that another still uses), tests that can never fail, waits that flake under load, and copied test helpers
+- [ ] **Architecture and test health** (last: 16 Oct, cycle 6 of that run; its findings are at the top of Next), every 30–40 cycles or before a release: duplication and code that has grown complicated, how features fit together (what one feature deletes that another still uses), tests that can never fail, waits that flake under load, and copied test helpers
 
 ### Tech debt
 - [ ] Three screenshots still differ from one render to the next: the two with an open ⋮ menu (`05f`, `05g`) catch the button's ripple part way, and `06c` the selected row's colour fading in. Advancing the test's animation clock before the capture didn't settle them; the menus are windows of their own, likely on a frame clock the test doesn't drive
@@ -430,6 +447,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] Tapping a notification brings back the app as it was rather than starting it afresh (audit, 16 Oct)
 - [x] One feed item too big for Android to read back (a picture inlined as text) no longer stops every edition: feed text is capped when stored, and rows stored before are shrunk once, keeping a post's words (database version 10)
 - [x] Audio, video without a poster, and other sites' players (Spotify, SoundCloud, Pocket Casts…) leave a line where they were, linking to the file or the player, instead of vanishing under their lead-in
 - [x] Page cleanup takes out French, German and Spanish furniture too: "Lire aussi", "Mehr zum Thema", "Lee también" and the like, as headings over a box of links and as cross-link lines, Le Monde's long ones included

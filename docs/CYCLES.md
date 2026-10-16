@@ -3,6 +3,14 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle 6 — audit: architecture and test health
+
+- **One cycle can run the pass but not fix it**: three reviewers found 20-odd findings, a dozen
+  real. Fix what's small and clear, check the rest against the code, and put them at the top of
+  the backlog in order; the next run takes them one per cycle.
+- **Run end check:** nothing left running in the container (no emulator was started); the
+  screenshots worktree in the scratchpad was removed.
+
 ### Cycle 5 — build: feed text too big to read back
 
 - **"Is it still real?" can find something bigger.** Checking the memory item, a throwaway test

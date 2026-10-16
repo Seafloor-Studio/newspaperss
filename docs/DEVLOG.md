@@ -8,11 +8,22 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Status
 
-- **Lately:** Listen (an edition read aloud, #162), a four-cycle architecture audit (#163 onward), and the edition card and its buttons made simpler (#156, #157).
-- **Watching:** two tests that failed CI now and then: a settings test on a DataStore rename (#66, #81) and a source-page test on a closed database (#89). Both now stop what they opened only after the screen is torn down; watching whether that was it.
+- **Lately:** six overnight cycles on 16 Oct (#234–#239): screenshots on a fixed clock, bot checks, other-language furniture, players, oversized feed items, and an architecture and test health audit.
+- **Watching:** two tests that failed CI now and then: a settings test on a DataStore rename (#66, #81) and a source-page test on a closed database (#89). The 16 Oct audit found likely causes for both (the app's own DataStores shared across tests; view models never cancelled); they're at the top of the backlog.
 - **Waiting on you:** [#18](https://github.com/madCode/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
 
 ## Fri 16 Oct
+
+### The 16 Oct run, closing
+- **Six cycles, five backlog items done** (screenshot clock, bot check, furniture, players, and the oversized items found on the way), one stale item ticked (#190), Dependabot's #229 and #230 merged. All merged with CI green.
+- **Waiting on you:** CLAUDE.md's drift from claude-playground's shared rules; a delivery check on a device for #237 (players in the book); the environment's setup script, so a new session has the Android SDK and Maven Central's mirror (the lines are in the 16 Oct session).
+- **Next run starts with:** the audit's top findings, first the build that a delete throws away, then the edition sent but not marked sent.
+
+### Overnight cycles, 6: architecture and test health audit
+- **Due:** the recurring pass, last done in #163–#166. Three fresh-eyes reviewers, one area each: how features fit together, test health, and lifecycle with the docs.
+- **Fixed now:** tapping any notification while the app was open finished it and started it afresh, losing the screen the reader was on (the intent lacked `SINGLE_TOP`). Docs: the coverage floor is 93%, not 90%; the Boox button is **Read**; DESIGN no longer describes the gone "Feeds in your paper" checklist; `:epubsink` and the device tests are in CLAUDE.md and ARCHITECTURE.
+- **Found, in the backlog (top of Next):** the most serious is that removing a source or saved link while an edition is being made throws the finished edition away; also an edition released by a newer one can be sent without being marked sent, so its articles go out again. Thirteen findings in all, each checked against the code, several needing a cycle of their own.
+- **Your call:** CLAUDE.md's shared sections have drifted from claude-playground's.
 
 ### Overnight cycles, 5: one big item stopped every edition
 - **From the backlog (resources), then a finding:** "load build candidates without their feed text" turned up something worse while checking it. Android reads a database row through a 2 MB window, and nothing capped a feed item's text. One item over it (a post with a picture inlined as text, in a feed the app reads up to 10 MB) made the edition fail with "Something went wrong" every time until the article expired, or forever if starred, and could crash a source's page.

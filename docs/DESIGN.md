@@ -381,8 +381,7 @@ phone restarts.
     it back, its article text and cap, and its own recent
     articles. A feed left out isn't fetched, and its waiting articles go
     too, except starred ones. It stays in tt-rss and on the Left out list,
-    so it can come back. **Feeds in your paper** on the account's page
-    is the same choice as a checklist. Signing in as another user clears
+    so it can come back. Signing in as another user clears
     every feed's settings: feed ids belong to each tt-rss user. The same
     user signing in again keeps them.
   - **Start fresh** ("Back after a break?" in Settings › Where your feeds
