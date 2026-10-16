@@ -20,32 +20,35 @@ import com.app.newspaperss.ui.components.openInBrowser
 
 private const val NEW_ISSUE = "https://github.com/madCode/newspaperss/issues/new"
 
-// GitHub's form takes its fields from the address, and an address much past 8,000 characters is
-// refused; a title is cut well before that, and an article's address is kept whole or left out.
+// GitHub's form takes its fields from the address, and refuses one much past 8,000 characters
+// once encoded: a CJK character takes 9, and an address already percent-encoded triples.
 private const val MAX_TITLE = 120
-private const val MAX_ARTICLE_URL = 4_000
+private const val MAX_FORM = 8_000
 
 /**
  * The address of GitHub's new-issue form, filled in for the daily issue check to compare the
  * article in the book with its page. The `extraction` label is asked for too, though GitHub keeps
  * it only for people who can label this repository's issues; the title's "Extraction:" is what
- * marks it for everyone else.
+ * marks it for everyone else. An article address that would make the form too long is left for
+ * the reader to paste.
  */
 internal fun lookIssueUrl(link: ArticleLink, appVersion: String): String {
-    val title = link.title.ifBlank { Uri.parse(link.url).host.orEmpty() }.let { if (it.length > MAX_TITLE) it.take(MAX_TITLE - 1).trimEnd() + "…" else it }
-    val address = link.url.takeIf { it.length <= MAX_ARTICLE_URL } ?: "(too long to fill in: please paste it here)"
-    val body = """
-        |Article: $address
-        |App version: $appVersion
-        |
-        |What looks wrong (optional; a missing picture, text that shouldn't be there, the article cut short):
-        |
-    """.trimMargin()
-    return Uri.parse(NEW_ISSUE).buildUpon()
+    val title = link.title.ifBlank { Uri.parse(link.url).host.orEmpty() }.let { t ->
+        // By whole characters, so an emoji isn't cut in half.
+        if (t.codePointCount(0, t.length) > MAX_TITLE) t.substring(0, t.offsetByCodePoints(0, MAX_TITLE - 1)).trimEnd() + "…" else t
+    }
+    fun form(address: String) = Uri.parse(NEW_ISSUE).buildUpon()
         .appendQueryParameter("title", "Extraction: $title")
         .appendQueryParameter("labels", "extraction")
-        .appendQueryParameter("body", body)
+        .appendQueryParameter("body", """
+            |Article: $address
+            |App version: $appVersion
+            |
+            |What looks wrong (optional; a missing picture, text that shouldn't be there, the article cut short):
+            |
+        """.trimMargin())
         .build().toString()
+    return form(link.url).takeIf { it.length <= MAX_FORM } ?: form("(too long to fill in: please paste it here)")
 }
 
 /**

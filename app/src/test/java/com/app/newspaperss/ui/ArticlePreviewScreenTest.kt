@@ -384,13 +384,28 @@ class ArticlePreviewScreenTest {
 
     @Test
     fun aVeryLongArticleAddressIsLeftForTheReaderToPasteRatherThanOverfillingTheForm() {
-        val long = "https://a.example/" + "x".repeat(5_000)
+        val long = "https://a.example/" + "x".repeat(9_000)
         val form = android.net.Uri.parse(lookIssueUrl(ArticleLink("T".repeat(300), long), "1.0"))
         val body = form.getQueryParameter("body")!!
         assertFalse(body.contains(long))
         assertTrue(body.contains("please paste it here"))
         assertTrue(form.getQueryParameter("title")!!.length <= "Extraction: ".length + 120)
-        assertTrue(form.toString().length < 8_000)
+        assertTrue(form.toString().length <= 8_000)
+    }
+
+    @Test
+    fun theFormsLimitIsOnItsEncodedLengthAndATitleIsCutOnWholeCharacters() {
+        // Short enough written out, but each %XX becomes %25XX in the form's address.
+        val encoded = "https://a.example/" + "%E6%97%A5".repeat(480)
+        val title = "日本".repeat(59) + "😀🙂x"
+        val form = android.net.Uri.parse(lookIssueUrl(ArticleLink(title, encoded), "1.0"))
+        assertTrue(form.toString().length <= 8_000)
+        assertTrue(form.getQueryParameter("body")!!.contains("please paste it here"))
+        val shown = form.getQueryParameter("title")!!.removePrefix("Extraction: ")
+        assertEquals("日本".repeat(59) + "😀…", shown)
+
+        val short = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", "https://a.example/" + "%E6%97%A5".repeat(10)), "1.0"))
+        assertTrue("a short encoded address is kept", short.getQueryParameter("body")!!.contains("%E6%97%A5"))
     }
 
     private fun sharedLink(): Pair<String?, String?> {
