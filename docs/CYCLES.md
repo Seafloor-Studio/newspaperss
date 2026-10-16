@@ -3,6 +3,15 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle C3 — build: rotation
+
+- **Never copy whole files across branches cut from different mains.** `git checkout other -- file`
+  wrote an older test file over #245's teardown. Carry a change as a patch (`git diff base other
+  -- file | git apply -3`), and diff each file against main before committing.
+- **Saved UI state outlives the view model it describes.** After process death, a saved flag for a
+  dialog the view model no longer has comes back the next time it opens. Keep it with the state
+  it belongs to.
+
 ### Cycle A1 (16 Oct, day run, four sessions) — build: a source removed during a build
 
 - **Four sessions at once:** cycles are numbered by area (A1, B1…) so they don't collide. Work

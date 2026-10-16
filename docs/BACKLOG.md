@@ -20,7 +20,6 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] Leaving the server as a feed move finishes can leave a phone feed paused: the move's check and the pause aren't one step (a window of milliseconds)
 - [ ] Sources' and the reading list's snackbars are shown while the app is in the background, so a tt-rss subscribe's answer and its Undo can time out unseen. Confirm on a device first
 - [ ] Typed text in Settings' tt-rss sign-in and the Add a site dialog is lost if Android kills the app while it's in the background (onboarding keeps it with a SavedStateHandle)
-- [ ] Rotation drops Listen's "Finish X first?" and contents dialogs and the category step of Add a site and Move feeds (`remember`, not `rememberSaveable`)
 - [ ] Stop making and Delete podcast run on the screen's scope without `NonCancellable`, unlike Make beside them (checked)
 - [ ] Tests: the app's own DataStores (`preferencesDataStore`) are shared by every Robolectric test and never reset or stopped, the same hazard #190 fixed elsewhere; the drain before cancelling a test DataStore is in `PodcastSettingsTest` only; three copied wait loops time out after 5 s against `idleUntil`'s 30 s, and `OnboardingTest` uses `compose.waitUntil(5_000)` for an import (checked); `SourceDetailViewModel`s built directly in tests are never cancelled; the app's FakeHttp can't return a cut-short feed; `SourceDetailScreenTest` reads the real clock; `NotesWorkerTest` can't fail on what it names; a race in `PodcastMakerTest`'s fake can hide the bug it guards
 - [ ] Coverage counts the pictures `ScreenshotTest` draws (85 tests, 4 assertions) as tested code
@@ -444,6 +443,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] Rotation keeps Listen's "Finish X first?" and contents, and the category list of Add a site and Move feeds; after Android ends the app, a restored question is checked again and the category list goes with its dialog (today C3)
 - [x] Removing a source, a saved link or the tt-rss account while an edition is being made no longer throws the finished edition away: the removed articles stay in the book and are listed by title, as a removed source's past ones are (audit, 16 Oct)
 - [x] Substack Notes in posts from tt-rss come back: the post is read from its page's data, one fetch, only where a Note was (today D1)
 - [x] Tapping a notification brings back the app as it was rather than starting it afresh (audit, 16 Oct)

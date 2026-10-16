@@ -14,6 +14,11 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Today, C3: turning the phone closed dialogs
+- **From the audit:** Listen's "Finish X first?" and its contents, and the category list of Add a site and of Move feeds, closed (or stepped back) when the phone turned.
+- **Shipped:** they stay. The two questions are saved with the screen; the category list's open state now lives with the dialog's own state in the view model.
+- **Review:** caught what saving brings back after Android ends the app in the background: a category list reopening the next time the dialog opened (and swallowing a Back), the contents over an empty player, and "Finish X first?" for an edition finished or pruned since. Each fixed, with a test. It also caught that copying test files across from an older branch had undone #245's teardown; restored.
+
 ### Day cycles, A1: a source removed during a build
 - **From the backlog (audit), area A of four parallel sessions:** removing a source, a saved link or the tt-rss account while an edition was being made threw the finished edition away.
 - **Found:** real. A test that removes a feed and a saved link mid-build got "Something went wrong" and no edition: the articles read at the start were gone by the time they were linked into the edition, eight minutes later at most.
