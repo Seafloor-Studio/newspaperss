@@ -224,6 +224,14 @@ class SettingsScreenTest {
     }
 
     @Test
+    fun sendingByHandSaysWhenAnEditionCountsAsSentWithoutAFolder() {
+        show(SettingsPage.DELIVERY)
+        runBlocking { store.update { it.copy(device = Device.KOREADER, delivery = DeliveryMethod.SHARE) } }
+        waitFor("counts as sent once you choose an app after Send")
+        assertTrue("no folder in use to save to", compose.onAllNodes(hasText("saved to your folder", substring = true)).fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
     fun theReaderTipIsAboutSharingSoOnlySharingShowsIt() {
         show(SettingsPage.DELIVERY)
         runBlocking { store.update { it.copy(device = Device.KINDLE, delivery = DeliveryMethod.SHARE) } }

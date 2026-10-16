@@ -159,6 +159,23 @@ class OnboardingTest {
     }
 
     @Test
+    fun setupSaysHowAKindleGetsItsEditionAndWhenOneCountsAsSent() {
+        compose.setContent { OnboardingScreen(vm) }
+        click("Get started")
+        scrollAndClick("Kindle")
+        compose.onNodeWithText("counts as sent once you send it to your mail app", substring = true).performScrollTo().assertExists()
+
+        scrollAndClick("Use the Kindle app instead")
+        compose.onNodeWithText("same Amazon account as your Kindle", substring = true).performScrollTo().assertExists()
+        compose.onNodeWithText("Library \u203a Docs", substring = true).assertExists()
+        compose.onNodeWithText("counts as sent once you choose the Kindle app", substring = true).performScrollTo().assertExists()
+        compose.onNodeWithText("Didn't arrive? Mark as not sent", substring = true).assertExists()
+
+        scrollAndClick("Kobo")
+        compose.onNodeWithText("counts as sent once you choose Dropbox", substring = true).performScrollTo().assertExists()
+    }
+
+    @Test
     fun aKindleReaderCanUseTheKindleAppInstead() {
         compose.setContent { OnboardingScreen(vm) }
         click("Get started")
