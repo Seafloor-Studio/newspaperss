@@ -2,6 +2,7 @@ package com.app.newspaperss.ui.today
 
 import android.content.ClipboardManager
 import android.content.ClipData
+import com.app.newspaperss.ui.components.LocalClock
 import com.app.newspaperss.ui.edition.articlesAndMinutes
 import com.app.newspaperss.ui.edition.minutesLabel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -72,7 +73,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 @Composable
-fun TodayScreen(viewModel: TodayViewModel, today: LocalDate = LocalDate.now(), newerBuild: Int? = null, onOpenEdition: (Long) -> Unit = {}) {
+fun TodayScreen(viewModel: TodayViewModel, today: LocalDate = LocalDate.now(LocalClock.current), newerBuild: Int? = null, onOpenEdition: (Long) -> Unit = {}) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     fun launch(intent: android.content.Intent): Boolean = try {

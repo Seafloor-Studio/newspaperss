@@ -2,6 +2,7 @@ package com.app.newspaperss.ui.onboarding
 
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.key
+import com.app.newspaperss.ui.components.LocalClock
 import com.app.newspaperss.ui.components.keepFolderAccess
 import android.Manifest
 import android.app.TimePickerDialog
@@ -146,7 +147,7 @@ private fun Title(text: String) =
 
 @Composable
 private fun Welcome() {
-    Masthead(LocalDate.now(), Modifier.fillMaxWidth().padding(bottom = 32.dp))
+    Masthead(LocalDate.now(LocalClock.current), Modifier.fillMaxWidth().padding(bottom = 32.dp))
     Text("Your own newspaper, on your e-reader.", style = MaterialTheme.typography.headlineSmall)
     listOf(
         "You choose the sources. No algorithm decides what you see.",
