@@ -42,8 +42,8 @@ asserts the intent again raises coverage without covering anything.
 
 The sections from Privacy to Pull requests are shared with the projects in
 [claude-playground](https://github.com/madCode/claude-playground/blob/main/CLAUDE.md),
-whose root CLAUDE.md has the same rules for any project. A change to one
-belongs in the other too.
+whose root CLAUDE.md has the same rules for any project; here they're
+worded for this app. A change to a shared rule belongs in both.
 
 ## Privacy
 
@@ -78,8 +78,11 @@ commit message. Public API KDoc stays accurate when signatures change.
 ## Tests
 
 A test should be able to catch a plausible regression. Test behaviour, not
-structure. Don't feed code inputs it can never receive. When a change has
-no behaviour to test, say so in the PR instead of inventing a test.
+structure. Don't feed code inputs it can never receive, or write a test
+only to lift coverage. A test that waits for the screen, the database or a
+worker waits for the condition (`idleUntil`), not a fixed time or a short
+deadline. When a change has no behaviour to test, say so in the PR instead
+of inventing a test.
 
 ## Documentation
 
@@ -95,13 +98,22 @@ Docs are for people: keep them readable, current and short.
 
 ## Pull requests
 
+Several small PRs beat one large one. The description follows
+`.github/pull_request_template.md`: what changed, how it was tested (the
+commands run and what they showed, not just "tests pass"), what the review
+found. Merge only when asked, and only with CI green.
+
 Before opening a PR that changes behaviour, have a fresh-eyes subagent
 review the diff. Point it at the risky parts:
 
 - How the change interacts with other features touching the same data,
   including whatever else deletes or replaces that data.
-- Sync and delivery, removal and re-adding, cancellation.
-- Rotation, and the app being killed and restored.
+- Sync, delivery and other background work: cancellation, retries, removal
+  and re-adding, two runs at once (a timed and a manual edition, a delete
+  during a build).
+- Rotation, and the app being killed and restored: what's on screen,
+  dialogs, typed text, and actions that must happen once.
+  `StateRestorationTester` tests the last in Compose.
 - Feeds, pages and links as untrusted input: a hostile feed, a link that
   isn't to the web.
 - Other locales: non-Latin digits, international domain names, pages in
@@ -110,7 +122,9 @@ review the diff. Point it at the risky parts:
   Android screens.
 
 Ask for concrete findings only: file:line and a failure scenario, most
-severe first, no edits. Verify each finding before acting on it, and say
+severe first, no edits. Ask for bugs and gaps against what the change is
+for, not style or what might be nice: a reviewer asked for gaps finds some,
+and chasing every one adds code nobody needed. Verify each finding before acting on it, and say
 in the PR what the review found and what was fixed or deliberately left.
 Docs-, comment- and config-only changes can skip this; after fixing the
 findings, a short second look at just the new diff is enough.
