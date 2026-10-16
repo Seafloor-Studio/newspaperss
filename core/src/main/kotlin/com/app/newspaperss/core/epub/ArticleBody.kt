@@ -44,6 +44,7 @@ internal object ArticleBody {
         val ids = prefixIds(body, idPrefix)
         fixLinks(body, ids)
         fixImages(body, imageHrefs)
+        levelHeadings(body)
         stripInvalidCharacters(body)
 
         doc.outputSettings()
@@ -52,6 +53,24 @@ internal object ArticleBody {
             .charset(Charsets.UTF_8)
             .prettyPrint(false)
         return body.html()
+    }
+
+    /**
+     * Headings as a screen reader lists them: the article's title is the page's h1, so the body's
+     * start at h2 and go down one level at a time. Sites skip levels for their look (an h3 straight
+     * under the title); the book's styles go by level. Siblings stay siblings: h3, h5, h3 becomes
+     * h2, h3, h2.
+     */
+    private fun levelHeadings(root: Element) {
+        // The site's level and the book's, for each heading still open above the current one.
+        val open = ArrayDeque<Pair<Int, Int>>()
+        for (heading in root.select("h1, h2, h3, h4, h5, h6")) {
+            val level = heading.tagName()[1].digitToInt()
+            while (open.isNotEmpty() && open.last().first >= level) open.removeLast()
+            val leveled = ((open.lastOrNull()?.second ?: 1) + 1).coerceAtMost(6)
+            open.addLast(level to leveled)
+            heading.tagName("h$leveled")
+        }
     }
 
     // "--" inside a comment is not well-formed XML, and comments have no value in a book.
