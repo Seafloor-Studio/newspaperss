@@ -46,11 +46,19 @@ class ReadingListRepository(
     /** How many saved links are still waiting for an edition: read or archived ones aren't, unless starred. */
     fun observeWaiting(): Flow<Int> = observe().map { list -> list.count(::isWaiting) }
 
-    /** Returns false if the link was already on the list. */
+    /**
+     * Returns false if the link was already on the list. One there that couldn't be read
+     * ([ArticleEntity.unreadable]) is looked at again too: saving it again is the way to say "try
+     * again", and the lookup clears the mark if the page reads now.
+     */
     suspend fun save(url: String, title: String? = null): Boolean {
         val article = ArticleEntity(sourceId = sourceId(), guid = url, url = url, title = title?.trim().orEmpty(), discoveredAt = clock.instant())
         val articleId = db.articles().insertIgnoring(article)
-        if (articleId == -1L) return false
+        if (articleId == -1L) {
+            db.articles().allForSource(article.sourceId).firstOrNull { it.guid == url && it.unreadable != null && it.state == ArticleState.NEW }
+                ?.let { onUntitled(listOf(it.id)) }
+            return false
+        }
         onUntitled(listOf(articleId))
         return true
     }
@@ -88,12 +96,16 @@ class ReadingListRepository(
 
     /** The list as an rss-to-e-reader checklist: anything no longer waiting or in an unsent edition is ticked. */
     suspend fun exportMarkdown(): String = MarkdownChecklist.write(
-        db.articles().allForSource(sourceId()).map { ChecklistItem(it.url, done = !isWaiting(it) && it.state != ArticleState.IN_EDITION) },
+        // A link that can't be read isn't read either: it stays unticked, for whatever reads the list next.
+        db.articles().allForSource(sourceId()).map { ChecklistItem(it.url, done = !unsent(it) && it.state != ArticleState.IN_EDITION) },
     )
 
     /** A star brings a delivered link back, so it's waiting again. */
-    private fun isWaiting(article: ArticleEntity) =
+    private fun unsent(article: ArticleEntity) =
         article.state == ArticleState.NEW || (article.starredAt != null && article.state != ArticleState.IN_EDITION)
+
+    /** [unsent] and readable, so an edition will take it ([ArticleEntity.unreadable]). */
+    private fun isWaiting(article: ArticleEntity) = article.unreadable == null && unsent(article)
 
     companion object {
         /** Not a web address, so it can never collide with a real feed's. */

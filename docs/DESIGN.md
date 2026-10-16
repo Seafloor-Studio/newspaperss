@@ -786,6 +786,12 @@ whose Kindle and KOReader answers ask for more on the same page).
   import too. **✕** removes a link at once, with **Undo** in a snackbar, since
   removing is routine and a confirm would only be tapped through. Leaving
   the screen or the app settles a removal still waiting for Undo.
+  A link that can never be read in an edition (not a web page, such as a
+  PDF or a video; a page gone, 410; or one too large to read) says so in
+  place of "Waiting": "Can't go in your paper: … Tap to open it, or remove
+  it." Editions leave it out and it isn't counted as waiting. The lookup
+  when it's saved finds most; the first edition to try it finds the rest.
+  Saving it again looks again, for a page fixed since.
 - **Settings** is a summary: one row per page, each with a line saying
   how it's set now ("About 30 minutes · 1 per source · take turns",
   "Ready by 6:30 AM, weekdays", "Kindle · emailed to …", "Off"), then the

@@ -49,6 +49,13 @@ For the next cycle: what each one should do differently. What was built is in
 - **Run end check:** no emulator was started; nothing left running. The two extra worktrees in
   `/home/user` (wt-a, wt-b) are removed at the end.
 
+### Cycle C8 — build: saved links that can never be read
+
+- **A schema change in a parallel run: ask the other sessions first.** Session D had version 13
+  built; agreeing on 14 by message saved a migration renumber after both were open.
+- **A filter on one query isn't a filter on the feature.** Main grew a second candidates query
+  (#272) for builds while this was in review; grep every query that plans an edition.
+
 ### Cycle C6 — build: typed text kept when Android ends the app
 
 Run of 16 Oct, four sessions in parallel; this one (C) owns the screens. Baseline: a fresh cloud

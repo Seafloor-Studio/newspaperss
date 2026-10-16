@@ -30,6 +30,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 - **The review changed the design:** the first version asked each feed for its newest article once a day; that missed purged articles, starved big accounts and slowed the edition's sync. A second look found that a look cut short dropped older articles for good; it now goes on from where it stopped.
 - **Item 7, Webtoons, built and measured, not shipped:** branch `claude/today-d-c7`. See the backlog item for what the review found.
 
+### Today, C8 (#283): saved links that can never be read
+- **From the backlog:** a PDF, a video or a gone page saved to the reading list waited silently for ever, and every edition downloaded it (up to 10 MB) only to leave it for the next.
+- **Shipped:** the lookup when a link is saved, or the first edition to try it, records why it can't be read (not a web page, a 410, too large). Editions leave it out, it isn't counted as waiting, and the reading list says "Can't go in your paper: … Tap to open it, or remove it." Saving it again looks again. Database version 14.
+- **Review:** two rounds. Files over the 10 MB limit (most videos) were still missed, there was no way back from a mark, and unreadable links still counted as waiting; then a guard that let a starred link wait for ever again. All fixed with tests. Merging main found builds planning from a new query (#272) that needed the same filter.
+- **Left:** a 404 isn't counted (often a passing problem); "Tap to open it" does nothing on a reader with no browser.
+
 ### Today, area C (screens), closing
 - **Six PRs merged, seven of the nine items done** (#251, #258, #264, #266, #270, #276), all with CI green, plus one item checked and found not to be a bug (Stop making and Delete podcast). #271 was a test fix #268 had already made, so it was closed.
 - **Item 6, saved links that can never be read, is built and reviewed twice** (branch `claude/screens-c8`). It adds database version 14, after session D's 12 and 13, so it opens once those merge.
