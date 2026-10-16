@@ -396,10 +396,12 @@ class ArticleExtractor(private val http: HttpClient) {
             "Enable JavaScript and cookies to continue",
             // Fastly's bot challenge (Le Monde): its assets load from /_fs-ch-….
             "<title>Client Challenge</title>", "/_fs-ch-",
+            // SiteGround's: a 202 whose page only refreshes to its captcha.
+            "/.well-known/sgcaptcha/",
         )
         private val WHITESPACE = Regex("\\s+")
 
-        /** Whether a page is a bot check rather than the page asked for: they're small pages served with a 200 status. */
+        /** Whether a page is a bot check rather than the page asked for: they're small pages served with a success status. */
         fun isBotCheck(body: String): Boolean =
             body.length < CHALLENGE_PAGE_MAX_CHARS && body.take(30_000).let { head -> CHALLENGE_MARKERS.any { it in head } }
 

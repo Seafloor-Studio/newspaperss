@@ -1,6 +1,7 @@
 package com.app.newspaperss.core.feed
 
 import com.app.newspaperss.core.net.siteHost
+import com.app.newspaperss.core.extract.ArticleExtractor
 import com.app.newspaperss.core.net.ErrorAnswers
 import com.app.newspaperss.core.net.HttpClient
 import com.app.newspaperss.core.net.HttpResponse
@@ -74,6 +75,9 @@ class FeedFinder(private val http: HttpClient) {
                 if (found.isNotEmpty()) return FindResult.Found(found, page)
             }
         }
+        // Only once nothing was found: an ordinary page can carry a marker (Cloudflare's
+        // challenge-platform script on a small site) and still advertise its feed.
+        if (ArticleExtractor.isBotCheck(response.body)) return FindResult.NotFound(ErrorAnswers.botCheck(url), page = page)
         return FindResult.NotFound("No feed found at $url.", page = page)
     }
 

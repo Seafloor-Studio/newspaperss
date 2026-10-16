@@ -148,6 +148,28 @@ class FeedFinderTest {
         assertEquals("https://odd.example answered with error 418.", (finder.find("odd.example") as FindResult.NotFound).reason)
     }
 
+    /** Shaped like SiteGround's: a 202 whose page only sends the browser on to a captcha. */
+    @Test
+    fun aBotCheckInsteadOfTheFeedSaysTheSiteTurnedTheAppAway() = runTest {
+        val check = "<html><head><link rel=\"icon\" href=\"data:;\"><meta http-equiv=\"refresh\" " +
+            "content=\"0;/.well-known/sgcaptcha/?r=%2Ffeed%2F&y=ipr:203.0.113.7:1760600000.000\"></meta></head></html>"
+        val http = object : HttpClient by FakeHttp(emptyMap()) {
+            override suspend fun get(url: String) = HttpResponse(202, url, "text/html", check)
+            override suspend fun getFeed(url: String) = get(url)
+        }
+        assertEquals(
+            "https://hosted.example/feed turned NewspapeRSS away with a bot check. Some sites block apps: try again later.",
+            (FeedFinder(http).find("hosted.example/feed") as FindResult.NotFound).reason,
+        )
+
+        // A small site behind Cloudflare carries its challenge-platform script on every page, and
+        // still advertises its feed.
+        val page = """<html><head><link rel="alternate" type="application/rss+xml" href="https://small.example/index.xml"></head>""" +
+            """<body><p>A post.</p><script>(function(){var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';})();</script></body></html>"""
+        val found = FeedFinder(FakeHttp(mapOf("https://small.example" to page))).find("small.example") as FindResult.Found
+        assertEquals("https://small.example/index.xml", found.feeds.single().url)
+    }
+
     @Test
     fun explainsFailures() = runTest {
         val finder = FeedFinder(FakeHttp(mapOf("https://example.com" to "<html></html>")))
