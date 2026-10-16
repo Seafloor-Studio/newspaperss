@@ -207,7 +207,12 @@ class FeedSync(
                     ).linkedToStory(siteUrl = null)
                 }
                 if (source.markReadOnServer) syncReadState(client, source, articles, now)
+                val guids = articles.map { it.second.guid }
+                val known = guids.chunked(500).flatMap { db.articles().knownGuids(source.id, it) }.toSet()
                 val added = db.articles().insertFetched(articles.map { (h, a) -> a to h.link })
+                if (source.markReadOnServer && source.markExpiredRead) {
+                    (guids - known).chunked(500).forEach { db.articles().readOnArrival(source.id, it, now.minus(keepFor)) }
+                }
                 // tt-rss answers a deleted (or another user's) category with no articles and no error.
                 if (headlines.isEmpty() && category != null && client.categories().none { it.id == category }) {
                     CATEGORY_GONE
