@@ -55,6 +55,7 @@ import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleState
 import com.app.newspaperss.data.SourceRepository
 import com.app.newspaperss.testutil.TestApp
+import com.app.newspaperss.testutil.ViewModels
 import com.app.newspaperss.testutil.closeAfter
 import com.app.newspaperss.testutil.idleUntil
 import com.app.newspaperss.ui.sources.SourceDetailScreen
@@ -85,6 +86,7 @@ class SourceDetailScreenTest {
     @get:Rule(order = 0) val closeDb = closeAfter { db.close() }
     @get:Rule(order = 1) val tmp = TemporaryFolder()
     @get:Rule(order = 2) val compose = createComposeRule()
+    @get:Rule(order = 3) val viewModels = ViewModels()
 
     private val db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java)
         .allowMainThreadQueries().build()
@@ -108,7 +110,7 @@ class SourceDetailScreenTest {
             id
         }
         var back = false
-        val vm = SourceDetailViewModel(repo, id, flowOf(1))
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         compose.setContent { SourceDetailScreen(vm, onBack = { back = true }) }
         idleUntil { visible("Couldn't reach the site.") }
 
@@ -144,7 +146,7 @@ class SourceDetailScreenTest {
     fun aSiteCanHaveItsOwnNumberOfArticles() {
         val id = runBlocking { repo.addFeed("https://example.com/feed", "Example") }
         val defaultMax = MutableStateFlow(2)
-        val vm = SourceDetailViewModel(repo, id, defaultMax)
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, defaultMax))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
         idleUntil { visible("2 articles from this site, then more if there's room") }
 
@@ -166,7 +168,7 @@ class SourceDetailScreenTest {
     @Test
     fun theArticleTextButtonNamesTheSetting() {
         val id = runBlocking { repo.addFeed("https://example.com/feed", "Example") }
-        val vm = SourceDetailViewModel(repo, id, flowOf(1))
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
         idleUntil { visible("Article text: Automatic") }
 
@@ -179,7 +181,7 @@ class SourceDetailScreenTest {
     @Test
     fun aSiteCanBeHeldToOneArticleEvenWhenTheEditionAllowsOne() {
         val id = runBlocking { repo.addFeed("https://example.com/feed", "Example") }
-        val vm = SourceDetailViewModel(repo, id, flowOf(1))
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
         idleUntil { visible("1 article from this site, then more if there's room") }
 
@@ -198,7 +200,7 @@ class SourceDetailScreenTest {
     fun atLargeTextThePerSiteButtonsGetTheirOwnLine() {
         // Beside the words, they squeezed them to a few words a line.
         val (id, _) = sourceWithArticles()
-        val vm = SourceDetailViewModel(repo, id, flowOf(1))
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
         idleUntil { visible("from this site") }
         val words = compose.onNodeWithText("from this site", substring = true).fetchSemanticsNode().boundsInRoot
@@ -232,7 +234,7 @@ class SourceDetailScreenTest {
     }
 
     private fun show(sourceId: Long): SourceDetailViewModel {
-        val vm = SourceDetailViewModel(repo, sourceId, flowOf(1))
+        val vm = viewModels.add(SourceDetailViewModel(repo, sourceId, flowOf(1)))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
         idleUntil { visible("Article waiting") }
         return vm
@@ -440,7 +442,7 @@ class SourceDetailScreenTest {
     @Config(qualifiers = "w411dp-h1600dp")
     fun backAndCloseLeaveSelectionWithoutChangingAnything() {
         val (id, ids) = sourceWithArticles()
-        val vm = SourceDetailViewModel(repo, id, flowOf(1))
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         var back: OnBackPressedDispatcher? = null
         var left = false
         compose.setContent {
@@ -470,7 +472,7 @@ class SourceDetailScreenTest {
     @Config(qualifiers = "w411dp-h1600dp")
     fun theSelectionSurvivesTheScreenBeingRecreated() {
         val (id, _) = sourceWithArticles(moreWaiting = 1)
-        val vm = SourceDetailViewModel(repo, id, flowOf(1))
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         val restoration = StateRestorationTester(compose)
         restoration.setContent { SourceDetailScreen(vm, onBack = {}) }
         idleUntil { visible("Article waiting") }
@@ -661,7 +663,7 @@ class SourceDetailScreenTest {
     @Config(qualifiers = "w411dp-h1600dp")
     fun anUndoOfferEndsWithTheScreenAndMarkingTheSameArticleAgainOffersItAgain() {
         val (id, ids) = sourceWithArticles()
-        val vm = SourceDetailViewModel(repo, id, flowOf(1))
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         var shown by mutableStateOf(true)
         compose.setContent { if (shown) SourceDetailScreen(vm, onBack = {}) }
         idleUntil { visible("Article waiting") }
@@ -691,7 +693,7 @@ class SourceDetailScreenTest {
                 listOf(ArticleEntity(sourceId = id, guid = "old", url = "https://example.com/old", title = "An old essay", published = Instant.parse("2023-03-03T12:00:00Z"), discoveredAt = Instant.now())),
             )
         }
-        val vm = SourceDetailViewModel(repo, id, flowOf(1))
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
         idleUntil { visible("An old essay") }
         assertTrue(visible("Mar 3, 2023"))

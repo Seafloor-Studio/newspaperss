@@ -19,6 +19,7 @@ import com.app.newspaperss.data.SourceRepository
 import com.app.newspaperss.settings.SettingsStore
 import com.app.newspaperss.testutil.FakeHttp
 import com.app.newspaperss.testutil.TestApp
+import com.app.newspaperss.testutil.ViewModels
 import com.app.newspaperss.testutil.closeAfter
 import com.app.newspaperss.testutil.idleUntil
 import com.app.newspaperss.ui.sources.NotInPaperScreen
@@ -67,6 +68,7 @@ class TtrssFeedsTest {
     @get:Rule(order = 1) val tmp = TemporaryFolder()
     @get:Rule(order = 2) val compose = createComposeRule()
     @get:Rule(order = 3) val stores = TestDataStores()
+    @get:Rule(order = 4) val viewModels = ViewModels()
 
     private val db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java)
         .allowMainThreadQueries().build()
@@ -269,7 +271,7 @@ class TtrssFeedsTest {
             db.sources().savePublication(PublicationEntity(account, "21", title = "Deep Time", category = "Science", outsideCategory = true, leftOut = true))
             db.sources().setFeedsListed(account, Instant.now())
         }
-        val vm = SourceDetailViewModel(repo, account, flowOf(1))
+        val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1)))
         var opened = false
         compose.setContent { NotInPaperScreen(vm, onBack = {}, onOpenAccount = { opened = true }) }
         // The list and the hint come from separate queries.
@@ -294,7 +296,7 @@ class TtrssFeedsTest {
     @Test
     fun aFeedsPageHasItsOwnSettingsAndArticles() {
         val account = account()
-        val vm = SourceDetailViewModel(repo, account, flowOf(1), key = "7")
+        val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = "7"))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
         idleUntil { compose.waitForIdle(); visible("In your tt-rss · category Essays") }
 
@@ -327,7 +329,7 @@ class TtrssFeedsTest {
     fun aFeedSkipsPaidPostsOnItsOwn() {
         val account = account()
         runBlocking { repo.markPaidOnly(db.articles().allForSource(account).first { it.originId == "7" }.id, skip = false) }
-        val vm = SourceDetailViewModel(repo, account, flowOf(1), key = "7")
+        val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = "7"))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
         idleUntil { compose.waitForIdle(); visible("Skip paid posts with nothing free") }
 
@@ -341,7 +343,7 @@ class TtrssFeedsTest {
     fun aLeftOutFeedHasNoPaidPostsSwitch() {
         val account = account()
         runBlocking { repo.setSkipPaidPosts(account, "42", true) }
-        val vm = SourceDetailViewModel(repo, account, flowOf(1), key = "42")
+        val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = "42"))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
         idleUntil { compose.waitForIdle(); visible("Bring back") }
         assertFalse(visible("Skip paid posts"))
@@ -350,7 +352,7 @@ class TtrssFeedsTest {
     @Test
     fun theLeftOutListOpensEachFeed() {
         val account = account()
-        val vm = SourceDetailViewModel(repo, account, flowOf(1))
+        val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1)))
         var opened: String? = null
         var back = false
         compose.setContent { LeftOutScreen(vm, onBack = { back = true }, onOpenFeed = { opened = it }) }
