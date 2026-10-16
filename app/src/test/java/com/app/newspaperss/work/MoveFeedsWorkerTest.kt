@@ -11,10 +11,8 @@ import com.app.newspaperss.testutil.TestApp
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -27,9 +25,6 @@ import org.robolectric.annotation.Config
 class MoveFeedsWorkerTest {
     private val app = ApplicationProvider.getApplicationContext<TestApp>()
     private val container = app.container
-
-    // The app's own DataStore outlives the test; nothing of this move is left for the next.
-    @After fun clear() = runBlocking { container.feedMoves.restore() }
 
     private fun worker() = TestListenableWorkerBuilder<MoveFeedsWorker>(app).build()
 

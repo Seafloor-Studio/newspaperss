@@ -20,7 +20,7 @@ import java.time.Clock
 import java.time.Duration
 import java.util.UUID
 
-private val Context.feedMovesStore by preferencesDataStore(
+internal val Context.feedMovesData by preferencesDataStore(
     name = "feed_moves",
     corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
 )
@@ -46,9 +46,6 @@ class FeedMoves(
     private val clock: Clock = Clock.systemUTC(),
     private val schedule: () -> Unit,
 ) {
-    constructor(context: Context, db: AppDatabase, ttrss: TtrssRepository, schedule: () -> Unit) :
-        this(context.feedMovesStore, db, ttrss, schedule = schedule)
-
     /** A feed tt-rss has: [feedId] as it said, if it did; [wasPaused] on the phone before the move. */
     data class Subscribed(val sourceId: Long, val feedId: Int?, val already: Boolean, val wasPaused: Boolean)
 

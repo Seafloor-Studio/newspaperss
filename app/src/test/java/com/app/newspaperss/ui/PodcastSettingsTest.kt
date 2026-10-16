@@ -27,6 +27,7 @@ import com.app.newspaperss.listen.Podcasts
 import com.app.newspaperss.settings.ListenVoice
 import com.app.newspaperss.settings.PodcastVoice
 import com.app.newspaperss.settings.SettingsStore
+import com.app.newspaperss.testutil.stopStores
 import com.app.newspaperss.testutil.TestApp
 import com.app.newspaperss.testutil.finishDownload
 import com.app.newspaperss.testutil.idleUntil
@@ -38,9 +39,7 @@ import com.app.newspaperss.ui.settings.SettingsPageScreen
 import com.app.newspaperss.ui.settings.SettingsViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -71,13 +70,7 @@ class PodcastSettingsTest {
     private val started = mutableListOf<Boolean>()
     private var stopped = 0
 
-    @After fun stopStore() {
-        // DataStore runs an update's transform in the caller's context, the screen's main thread: let
-        // one the last tap started finish, or the store waits on a main thread waiting on it.
-        compose.waitForIdle()
-        shadowOf(android.os.Looper.getMainLooper()).idle()
-        runBlocking { storeScope.coroutineContext[Job]!!.cancelAndJoin() }
-    }
+    @After fun stopStore() = stopStores(storeScope)
 
     private lateinit var setup: PodcastSetup
     private val log by lazy { PodcastLog(tmp.newFile("podcast-log")) }
