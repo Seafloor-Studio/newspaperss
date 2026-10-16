@@ -56,6 +56,7 @@ import com.app.newspaperss.settings.Settings
 import com.app.newspaperss.settings.SettingsStore
 import com.app.newspaperss.testutil.FakeHttp
 import com.app.newspaperss.testutil.TestApp
+import com.app.newspaperss.testutil.ViewModels
 import com.app.newspaperss.testutil.closeAfter
 import com.app.newspaperss.testutil.idleUntil
 import com.app.newspaperss.testutil.installApp
@@ -156,6 +157,7 @@ class ScreenshotTest {
     @get:Rule(order = 1) val tmp = TemporaryFolder()
     @get:Rule(order = 2) val compose = createComposeRule()
     @get:Rule(order = 3) val stores = TestDataStores()
+    @get:Rule(order = 4) val viewModels = ViewModels()
 
     private val db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java)
         .allowMainThreadQueries().build()
@@ -639,7 +641,7 @@ class ScreenshotTest {
             db.sources().savePublication(PublicationEntity(id, PublicationEntity.OWN, ContentMode.PAGE, FullTextEvidence.PAGE_LONGER, 3))
             id
         }
-        return SourceDetailViewModel(repo, id, flowOf(1))
+        return viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
     }
 
     /** Scrolled to the articles, which sit below the source's settings. */
@@ -665,7 +667,7 @@ class ScreenshotTest {
             db.sources().recordSuccess(id, clock.instant(), null, "https://www.theguardian.com", "")
             id
         }
-        val vm = SourceDetailViewModel(repo, id, flowOf(1))
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         shoot("06f-source-detail-newest", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, act = ::scrollToArticles) { SourceDetailScreen(vm, onBack = {}) }
     }
 
@@ -838,7 +840,7 @@ class ScreenshotTest {
     fun notInYourPaper() {
         serverSources(category = "Essays")
         val account = runBlocking { db.sources().ofKind(com.app.newspaperss.data.SourceKind.TTRSS).single().id }
-        val vm = SourceDetailViewModel(SourceRepository(db, clock), account, flowOf(1))
+        val vm = viewModels.add(SourceDetailViewModel(SourceRepository(db, clock), account, flowOf(1)))
         shoot("08k-not-in-your-paper", ready = { vm.outside.value.isNotEmpty() && vm.detail.value != null }) { NotInPaperScreen(vm, onBack = {}, onOpenAccount = {}) }
     }
 
@@ -862,7 +864,7 @@ class ScreenshotTest {
     private fun feedPage(key: String): SourceDetailViewModel {
         val repo = SourceRepository(db, clock)
         val account = ttrssAccount(repo)
-        return SourceDetailViewModel(repo, account, flowOf(1), key = key)
+        return viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = key))
     }
 
     @Test
@@ -919,7 +921,7 @@ class ScreenshotTest {
     fun leftOutList() {
         val repo = SourceRepository(db, clock)
         val account = ttrssAccount(repo)
-        val vm = SourceDetailViewModel(repo, account, flowOf(1))
+        val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1)))
         shoot("08h-left-out-list", ready = { vm.feeds.value.any { !it.inPaper } }) { LeftOutScreen(vm, onBack = {}, onOpenFeed = {}) }
     }
 
@@ -934,7 +936,7 @@ class ScreenshotTest {
             db.sources().recordFailure(id, clock.instant().minusSeconds(3_600), "Couldn't read this feed: the site sent a web page.")
             id
         }
-        val vm = SourceDetailViewModel(repo, id, flowOf(1))
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         shoot("06g-source-detail-failing", ready = { vm.detail.value?.source?.lastError != null }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
