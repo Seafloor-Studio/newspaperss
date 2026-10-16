@@ -29,6 +29,7 @@ import com.app.newspaperss.data.TtrssAccountStore
 import com.app.newspaperss.data.TtrssRepository
 import com.app.newspaperss.settings.FeedsFrom
 import com.app.newspaperss.settings.SettingsStore
+import com.app.newspaperss.testutil.stopStores
 import com.app.newspaperss.testutil.FakeHttp
 import com.app.newspaperss.testutil.FakeTtrss
 import com.app.newspaperss.testutil.TestApp
@@ -44,9 +45,7 @@ import com.app.newspaperss.ui.sources.SourcesScreen
 import com.app.newspaperss.ui.sources.SourcesViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -80,7 +79,7 @@ class FeedsFromTest {
     private val ttrss by lazy { TtrssRepository(db, http, accounts, sources) }
     private var syncs = 0
 
-    @After fun stopStore() = runBlocking { storeScope.coroutineContext[Job]!!.cancelAndJoin() }
+    @After fun stopStore() = stopStores(storeScope)
 
     private fun visible(text: String) = compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
     private fun waitFor(text: String) = idleUntil { compose.waitForIdle(); visible(text) }
