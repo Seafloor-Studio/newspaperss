@@ -61,6 +61,7 @@ import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleState
 import com.app.newspaperss.data.SourceRepository
 import com.app.newspaperss.ui.components.ArticleRowFrame
+import com.app.newspaperss.ui.components.LocalClock
 import com.app.newspaperss.ui.components.StarToggle
 import com.app.newspaperss.ui.components.openInBrowser
 import com.app.newspaperss.ui.components.rowIconSize
@@ -229,10 +230,11 @@ internal fun RecentArticle(
     onStartSelecting: () -> Unit,
 ) {
     val context = LocalContext.current
+    val clock = LocalClock.current
     val details = buildAnnotatedString {
         // When it was published: a tt-rss backlog arrives all at once, and every row would show
         // the day it was fetched.
-        append(listOfNotNull(article.originTitle, shortDate(article.shownDate, locale)).joinToString(" · "))
+        append(listOfNotNull(article.originTitle, shortDate(article.shownDate, locale, clock.instant(), clock.zone)).joinToString(" · "))
         append(" · ")
         if (isStarred(article)) withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary)) { append(status) } else append(status)
     }

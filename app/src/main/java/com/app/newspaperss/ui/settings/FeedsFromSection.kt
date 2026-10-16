@@ -40,6 +40,7 @@ import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.SourceRepository
 import com.app.newspaperss.data.TtrssStatus
 import com.app.newspaperss.settings.FeedsFrom
+import com.app.newspaperss.ui.components.LocalClock
 import com.app.newspaperss.ui.sources.MoveOffer
 import com.app.newspaperss.ui.sources.MoveProgress
 import com.app.newspaperss.ui.sources.MoveSheetDialog
@@ -174,7 +175,8 @@ private fun Account(source: SourceEntity, status: TtrssStatus) {
         } else {
             Text(status.user?.takeIf { it.isNotEmpty() }?.let { "Signed in as $it" } ?: "Signed in")
         }
-        lastCheckedLine(source.lastFetchedAt, locale, is24Hour)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = muted) }
+        val clock = LocalClock.current
+        lastCheckedLine(source.lastFetchedAt, locale, is24Hour, clock.instant(), clock.zone)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = muted) }
     }
 }
 
