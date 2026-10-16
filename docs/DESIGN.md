@@ -283,11 +283,13 @@ in the share sheet (Android reports the choice back, from the notification
 too); opening the mail app to email it to a Kindle; or **Read** on a Boox. **Mark as sent** covers any other route, and
 **Send again** (in a sent edition's ⋮ menu) is there if a send didn't arrive. An edition still "ready"
 when the next one is built was never sent: it's marked not sent and its
-articles go back, keeping their stars, before the new one is planned.
-Its page still offers **Mark as sent** while its file is here, for one
-sent some other way: its articles are used up, even any taken into the
-newer edition since. It's hidden while an edition is being made, which
-may be taking those articles.
+articles go back, keeping their stars, before the new one is planned,
+and its Ready notification comes down. Its page still offers **Mark as
+sent** while its file is here, for one sent some other way, and a send
+from a share sheet or Send left open counts too: its articles are used
+up, even any taken into the newer edition since. Neither counts while an
+edition is being made, which may be taking those articles; Mark as sent,
+hidden meanwhile, records it afterwards.
 
 **Send to Kindle is slow.** A book can take a few minutes to reach a
 Kindle, so for half an hour after a send the edition (on Today and its own
