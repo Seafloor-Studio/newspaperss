@@ -139,6 +139,13 @@ class FeedsFromTest {
         compose.onNode(hasSetTextAction() and hasText("rss.example.com/tt-rss")).assertExists()
         compose.onNode(hasSetTextAction() and hasText("reader")).assertExists()
         assertEquals("", restored.form.value?.password)
+
+        // Closed, it isn't back the next time Android ends the app.
+        val restoredSaved = afterProcessDeath(saved)
+        val again = FeedsFromViewModel(store, ttrss, saved = restoredSaved) {}
+        again.closeSignIn()
+        idleUntil { "reader" !in restoredSaved.keys().map { restoredSaved.get<Any?>(it) } }
+        assertEquals(null, FeedsFromViewModel(store, ttrss, saved = afterProcessDeath(restoredSaved)) {}.form.value)
     }
 
     @Test
