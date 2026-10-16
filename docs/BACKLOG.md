@@ -82,7 +82,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 ### Accessibility *(a11y, you asked for it)*
 A full pass over the app and the book, not just spot fixes:
 - [ ] App: TalkBack walk-through of every screen (labels, headings, focus order), font scale at 200%, display size, touch targets ≥ 48dp, contrast in light and dark, e-ink readability, nothing carried by colour or animation alone. Confirm the new live regions with TalkBack on a device
-- [ ] Book: EPUB Accessibility 1.1 metadata (`schema:accessMode`, `accessibilityFeature`, `accessibilitySummary`), image alt text carried through, reading order checked with a screen reader
+- [ ] Book: reading order with a screen reader on a device. The metadata, alt text and heading levels are done, and Ace by DAISY passes a live edition (D5); that run had no pictures, so try one with them *(a11y)*
 - [ ] Tooling: Compose accessibility checks in the Robolectric tests, Accessibility Scanner on a device, Ace by DAISY on a live edition
 - [ ] Generate alt text for pictures that have none *(you asked)*. Many feeds' images arrive without a description, so a screen reader (and Listen) says nothing or a file name. Do it when the edition is built, so the book gets it too, and on the phone, so nothing leaves it. Cheapest first, stopping at the first that gives something:
   - The article's own alt text or caption (free, every phone). Never replace it
@@ -443,6 +443,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 ## Done
 
 - [x] An edition released because a newer one was made counts as sent when it is sent anyway, from a share sheet, its notification or Today, as Mark as sent already did, so its articles don't go out again; and its Ready notification comes down when it is released (audit and UX pass, 16 Oct)
+- [x] Book: EPUB Accessibility 1.1 metadata, alt text counted honestly, article headings that never skip a level, the contents list's role; EPUBCheck and Ace pass (today D5)
 - [x] tt-rss marks delivered articles read a couple of minutes after delivery, so a quick Mark as not sent usually never reaches it (today D3)
 - [x] Signing in as another user on the same tt-rss server starts without the first user's articles and stars, as signing in to another server does, and a sync still running for the first user can't add theirs back (audit, 16 Oct)
 - [x] Removing a source, a saved link or the tt-rss account while an edition is being made no longer throws the finished edition away: the removed articles stay in the book and are listed by title, as a removed source's past ones are (audit, 16 Oct)
