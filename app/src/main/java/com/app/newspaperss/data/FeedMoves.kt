@@ -187,11 +187,11 @@ class FeedMoves(
                 target == null -> edit(batch) { s ->
                     s.copy(subscribed = s.subscribed - moved, failed = s.failed + Failure(moved.sourceId, if (listed) NOT_FOUND else NOT_LISTED))
                 }
-                else -> {
+                // Paused and noted as retiring in one step with [restore]'s, both in a store edit:
+                // between a check of the batch and the pause, leaving would miss the feed.
+                else -> edit(batch) { s ->
                     carry(source, target, moved.wasPaused)
-                    edit(batch) { s ->
-                        s.copy(subscribed = s.subscribed - moved, moved = s.moved + 1, retiring = s.retiring + (moved.sourceId to moved.wasPaused))
-                    }
+                    s.copy(subscribed = s.subscribed - moved, moved = s.moved + 1, retiring = s.retiring + (moved.sourceId to moved.wasPaused))
                 }
             }
         }
@@ -246,8 +246,10 @@ class FeedMoves(
      * hidden with no server to come from.
      */
     suspend fun restore() {
-        current().retiring.forEach { (id, wasPaused) -> if (!wasPaused) db.sources().setPaused(id, false) }
-        store.edit { it.clear() }
+        store.edit { p ->
+            read(p).retiring.forEach { (id, wasPaused) -> if (!wasPaused) db.sources().setPaused(id, false) }
+            p.clear()
+        }
     }
 
     /**
