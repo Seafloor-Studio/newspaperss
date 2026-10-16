@@ -80,6 +80,9 @@ object EpubWriter {
         zip.flush()
     }
 
+    // The writer's own markup: Xhtml writes src before alt, and alt always.
+    private val IMG_ALT = Regex("""<img\b[^>]*\balt="([^"]*)"""")
+
     private class Page(val id: String, val href: String, val title: String, val xhtml: String)
 
     private class TocEntry(val label: String, val href: String, val children: List<TocEntry> = emptyList())
@@ -283,6 +286,35 @@ object EpubWriter {
             return Page("end", END, "The end", xhtmlPage("The end", lang, body))
         }
 
+        /**
+         * EPUB Accessibility 1.1's discovery metadata, as schema.org properties: what the book needs
+         * (text, and sight for pictures) and offers. Only what holds for every edition, or is
+         * checked in this one: pictures count as described only if every one has alt text, as the
+         * articles' own sites give it or not. No conformance claim, which would take an audit.
+         */
+        fun accessibility(pages: List<Page>): List<Pair<String, String>> {
+            val alts = pages.flatMap { page -> IMG_ALT.findAll(page.xhtml).map { it.groupValues[1].isNotBlank() }.toList() }
+            val pictures = alts.isNotEmpty()
+            val described = pictures && alts.all { it }
+            return buildList {
+                add("accessMode" to "textual")
+                if (pictures) add("accessMode" to "visual")
+                add("accessModeSufficient" to if (pictures && !described) "textual,visual" else "textual")
+                add("accessibilityFeature" to "tableOfContents")
+                add("accessibilityFeature" to "readingOrder")
+                add("accessibilityFeature" to "structuralNavigation")
+                if (described) add("accessibilityFeature" to "alternativeText")
+                // Pictures are re-encoded as still JPEGs, and there's no audio or video.
+                add("accessibilityHazard" to "none")
+                add(
+                    "accessibilitySummary" to buildString {
+                        append("A reflowable edition of articles with a table of contents, a heading for each article, and the articles in reading order.")
+                        if (pictures) append(if (described) " Every picture has a text description." else " Some pictures have no text description: their sites didn't give one.")
+                    },
+                )
+            }
+        }
+
         fun opf(pages: List<Page>): String {
             val modified = doc.modified.truncatedTo(ChronoUnit.SECONDS)
             return buildString {
@@ -297,6 +329,7 @@ object EpubWriter {
                 append("<meta property=\"dcterms:modified\">${DateTimeFormatter.ISO_INSTANT.format(modified)}</meta>\n")
                 // EPUB 2 readers and Kindle find the cover image through this meta, not the manifest property.
                 if (doc.cover != null) append("<meta name=\"cover\" content=\"$COVER_IMAGE_ID\"/>\n")
+                accessibility(pages).forEach { (property, value) -> append("<meta property=\"schema:$property\">${esc(value)}</meta>\n") }
                 append("</metadata>\n<manifest>\n")
                 append("<item id=\"nav\" href=\"nav.xhtml\" media-type=\"$XHTML\" properties=\"nav\"/>\n")
                 append("<item id=\"ncx\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\"/>\n")

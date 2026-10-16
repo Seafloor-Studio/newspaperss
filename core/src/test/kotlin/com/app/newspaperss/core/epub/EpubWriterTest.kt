@@ -189,6 +189,40 @@ class EpubWriterTest {
     }
 
 
+    private fun Epub.accessibility(property: String) =
+        opf().elements("meta").filter { it.getAttribute("property") == "schema:$property" }.map { it.textContent }
+
+    /** EPUB Accessibility 1.1's discovery metadata: a text-only edition needs nothing but text. */
+    @Test
+    fun aTextOnlyEditionSaysItsTextIsEnough() {
+        val epub = write(unsectioned(article()))
+        assertEquals(listOf("textual"), epub.accessibility("accessMode"))
+        assertEquals(listOf("textual"), epub.accessibility("accessModeSufficient"))
+        assertEquals(listOf("tableOfContents", "readingOrder", "structuralNavigation"), epub.accessibility("accessibilityFeature"))
+        assertEquals(listOf("none"), epub.accessibility("accessibilityHazard"))
+        assertTrue(epub.accessibility("accessibilitySummary").single().startsWith("A reflowable edition"))
+    }
+
+    /** Pictures that all carry their alt text into the book are described; one without makes sight necessary. */
+    @Test
+    fun picturesAreDescribedOnlyWhenEveryOneHasAltText() {
+        val photo = EpubImage("images/a1-0.jpg", "image/jpeg", byteArrayOf(9))
+        val chart = EpubImage("images/a2-0.jpg", "image/jpeg", byteArrayOf(8))
+        val described = article(body = "<p>Text.</p><figure><img src=\"images/a1-0.jpg\" alt=\"A heron on one leg\"></figure>", images = listOf(photo))
+        val bare = article(title = "Second", body = "<p>Text.</p><figure><img src=\"images/a2-0.jpg\" alt=\"\"></figure>", images = listOf(chart))
+
+        val all = write(unsectioned(described))
+        assertEquals(listOf("textual", "visual"), all.accessibility("accessMode"))
+        assertEquals(listOf("textual"), all.accessibility("accessModeSufficient"))
+        assertTrue("alternativeText" in all.accessibility("accessibilityFeature"))
+        assertTrue("the alt text reached the page", all.text("OEBPS/" + all.articleHrefs().single()).contains("alt=\"A heron on one leg\""))
+
+        val some = write(unsectioned(described, bare))
+        assertEquals(listOf("textual,visual"), some.accessibility("accessModeSufficient"))
+        assertFalse("alternativeText" in some.accessibility("accessibilityFeature"))
+        assertTrue(some.accessibility("accessibilitySummary").single().contains("Some pictures have no text description"))
+    }
+
     @Test
     fun spineIsCoverContentsArticlesThenEndAllLinear() {
         val epub = write(
