@@ -235,6 +235,9 @@ module so it's all unit-tested without Android.
   Today's next-edition line and in the speed check's verdict.
 - **Feeds sync right before each build,** and in the background every 12
   hours when the battery isn't low.
+- **One build at a time.** A timed edition takes the place of one made by
+  hand that is still waiting for a connection, so it comes with its Ready
+  notification, podcast and retries; one already being made is left to finish.
 - **No edition is never silent.** A timed run with nothing new sends a quiet
   "No new edition"; if every source failed, it's retried twice, then reported
   as a failure pointing to Sources. A build waiting for a connection says so.
