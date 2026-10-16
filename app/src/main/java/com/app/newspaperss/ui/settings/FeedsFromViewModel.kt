@@ -204,6 +204,11 @@ class FeedsFromViewModel(
         viewModelScope.launch { ttrss.setMarkExpiredRead(source.id, markRead) }
     }
 
+    fun setTakeStars(take: Boolean) {
+        val source = state.value?.ttrss?.source ?: return
+        viewModelScope.launch { ttrss.setTakeStars(source.id, take) }
+    }
+
     private val _startingFresh = MutableStateFlow(false)
     /** tt-rss is being asked to mark its backlog read. */
     val startingFresh: StateFlow<Boolean> = _startingFresh.asStateFlow()

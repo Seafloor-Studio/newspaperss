@@ -499,6 +499,8 @@ class TtrssRepository(
 
     suspend fun setMarkExpiredRead(sourceId: Long, markRead: Boolean) = db.sources().setMarkExpiredRead(sourceId, markRead)
 
+    suspend fun setTakeStars(sourceId: Long, take: Boolean) = db.sources().setTakeTtrssStars(sourceId, take)
+
     /**
      * Brings the server in line with the edition: its tt-rss articles read once it's delivered,
      * unread again once it's marked as not sent. Decided when this runs rather than when it was

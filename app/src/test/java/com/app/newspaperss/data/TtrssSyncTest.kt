@@ -828,6 +828,69 @@ class TtrssSyncTest {
         assertEquals("only what's new is asked for", listOf<Long?>(null, 80L), server.postsAskedSince)
     }
 
+    /**
+     * Asked to, what the reader stars in tt-rss goes in the next edition, once: delivering it or
+     * taking it out here leaves the star in tt-rss, and it isn't taken again. Stars already there
+     * when the option was turned on are kept stars, not requests.
+     */
+    @Test
+    fun aStarInTtrssGoesInTheNextEditionOnce() = runTest {
+        val source = connect()
+        server.add(5, "Kept for years", feedId = 1, feedTitle = "A Blog")
+        server.readThere(5)
+        server.starred += 5L
+        ttrss.setTakeStars(source.id, true)
+        sync.syncAll()
+        assertNull("there before it was turned on", db.articles().allForSource(source.id).firstOrNull { it.guid == "ttrss:5" })
+
+        // Starred on the laptop, long read there; and one waiting here unread already.
+        server.add(6, "Read it on paper", feedId = 1, feedTitle = "A Blog")
+        server.readThere(6)
+        server.add(7, "Waiting", feedId = 2, feedTitle = "Example News")
+        sync.syncAll()
+        server.starred += listOf(6L, 7L)
+        sync.syncAll()
+        suspend fun article(guid: String) = db.articles().allForSource(source.id).single { it.guid == guid }
+        assertEquals(now, article("ttrss:6").starredAt)
+        assertEquals("<p>Text of Read it on paper.</p>", article("ttrss:6").feedHtml)
+        assertEquals(now, article("ttrss:7").starredAt)
+
+        // The reader changes their mind here: still starred there, it isn't taken again.
+        db.articles().setStarred(article("ttrss:7").id, false, now)
+        sync.syncAll()
+        assertNull(article("ttrss:7").starredAt)
+
+        // Unstarred there and starred again: asked for again.
+        server.starred -= 7L
+        sync.syncAll()
+        server.starred += 7L
+        sync.syncAll()
+        assertEquals(now, article("ttrss:7").starredAt)
+    }
+
+    @Test
+    fun starsStayInTtrssUnlessAskedAndTurningItOnAgainStartsFromThen() = runTest {
+        val source = connect()
+        server.add(6, "Starred there", feedId = 1, feedTitle = "A Blog")
+        server.readThere(6)
+        sync.syncAll()
+        server.starred += 6L
+        sync.syncAll()
+        assertTrue("off by default", db.articles().allForSource(source.id).none { it.guid == "ttrss:6" })
+
+        ttrss.setTakeStars(source.id, true)
+        sync.syncAll()
+        server.add(8, "Starred later", feedId = 1, feedTitle = "A Blog")
+        server.readThere(8)
+        server.starred += 8L
+        ttrss.setTakeStars(source.id, false)
+        sync.syncAll()
+        ttrss.setTakeStars(source.id, true)
+        sync.syncAll()
+        sync.syncAll()
+        assertTrue("starred while it was off", db.articles().allForSource(source.id).none { it.starredAt != null })
+    }
+
     /** More arrived between two syncs than one look takes: the rest are looked at next time, not skipped. */
     @Test
     fun aLookCutShortGoesOnFromWhereItStopped() = runTest {

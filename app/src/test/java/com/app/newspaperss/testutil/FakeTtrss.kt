@@ -47,6 +47,8 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
     var brokenFeed: Int? = null
     /** The reader's categories by id; 0 is tt-rss's Uncategorized. */
     val categories = mutableMapOf(0 to "Uncategorized")
+    /** Articles the reader has starred in tt-rss, by id. */
+    val starred = mutableSetOf<Long>()
     /** Ids passed to updateArticle to clear the unread flag. */
     val markedRead = mutableListOf<Long>()
     /** Ids passed to updateArticle to set it again. */
@@ -166,6 +168,7 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
                         when {
                             isCategory -> it.categoryId == feed
                             feed > 0 -> it.feedId == feed
+                            feed == -1 -> it.id in starred
                             else -> true
                         }
                     }.sortedBy { if (str("order_by") == "date_reverse") it.id else -it.id }.drop(skip).take(limit).forEach { item ->
@@ -185,6 +188,19 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
                     }
                 },
             ).also { if (str("view_mode") == "unread") afterUnreadHeadlines?.invoke() }
+            "getArticle" -> ok(
+                buildJsonArray {
+                    val ids = str("article_id")!!.split(",").map { it.toLong() }
+                    (unread + read).filter { it.id in ids }.forEach { item ->
+                        add(
+                            buildJsonObject {
+                                put("id", item.id); put("title", item.title); put("link", item.link); put("content", item.content)
+                                put("author", ""); put("updated", item.updated); put("feed_id", item.feedId); put("feed_title", item.feedTitle)
+                            },
+                        )
+                    }
+                },
+            )
             "getCategories" -> ok(
                 buildJsonArray {
                     categories.forEach { (id, title) -> add(buildJsonObject { put("id", id.toString()); put("title", title) }) }

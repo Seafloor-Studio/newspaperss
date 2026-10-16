@@ -364,8 +364,18 @@ phone restarts.
   marked as not sent straight away, usually never reaches tt-rss. A sync in
   those minutes still marks a delivered link read. One category can be taken instead of all unread,
   chosen in Settings › Where your feeds live; a new account starts
-  with all. tt-rss's own stars
-  aren't synced: there a star usually means "keep this", not "for tomorrow".
+  with all.
+  - **Starred in tt-rss goes in the paper** (off by default): what you star
+    in tt-rss goes in your next edition, the way a star here does. One way
+    only: there a star usually means "keep this", so delivering or
+    unstarring here never touches it in tt-rss.
+    - Each star goes in once. One kept for months isn't sent again, and nor
+      is one you unstar here; unstarred and starred again in tt-rss, it is.
+    - Stars already there when it's turned on are kept stars and stay out.
+    - From any feed, left out or outside the category: a star is asked for.
+      Not an article already delivered: starred after it went out, it's
+      being kept.
+    - Each sync lists up to 1,000 stars and takes up to 50 new ones.
   - **Sync read status with tt-rss** (on by default) keeps read and unread
     the same in both, the newest change winning. tt-rss doesn't say when a
     flag changed, so each sync works it out from what changed since the

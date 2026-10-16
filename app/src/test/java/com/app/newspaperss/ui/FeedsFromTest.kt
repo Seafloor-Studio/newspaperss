@@ -217,6 +217,10 @@ class FeedsFromTest {
         waitFor("are marked read in tt-rss too")
         assertEquals(true, runBlocking { db.sources().byId(id)!!.markExpiredRead })
 
+        compose.onNodeWithText("Starred in tt-rss goes in the paper").performScrollTo().performClick()
+        waitFor("goes in your next edition, once")
+        assertEquals(true, runBlocking { db.sources().byId(id)!!.takeTtrssStars })
+
         compose.onNodeWithText("Sync read status with tt-rss").performScrollTo().performClick()
         waitFor("keep their own read and unread")
         assertEquals(false, runBlocking { db.sources().byId(id)!!.markReadOnServer })
