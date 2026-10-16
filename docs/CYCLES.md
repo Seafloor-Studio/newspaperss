@@ -3,6 +3,18 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycles B1–B11 (16 Oct) — build: test health and speed
+
+- **A teardown hook is shared by every test, so a reviewer's "low risk, none found" there needs
+  the full suite, not the classes touched.** B1 ran 17 classes green and broke main; three
+  full runs (about 5 minutes each here) would have shown it. Before merging a change to
+  `TestApp`, `testutil` rules or teardown, run the whole `:app:testDebugUnitTest` at least
+  twice.
+- **Gradle's build cache can answer a test task without running it**, and a screenshot or
+  benchmark run then writes nothing. Use `--rerun` and check that the output exists.
+- **The app's full Robolectric suite takes about 5 minutes on 4 cores**, not the 50 the day's
+  prompt said, so counting a flake over the whole suite is affordable.
+
 ### Cycle D5 — build: accessibility metadata for the book
 
 - **Run the real validator, not only the spec**: Ace on a live edition found the heading-order problem the backlog item never named. EPUBCheck is a jar from GitHub releases; Ace installs from npm (`@daisy/ace`) and runs with `ace-puppeteer` and `PUPPETEER_EXECUTABLE_PATH` at the pre-installed Chromium (the default Electron one refuses to run as root).
