@@ -3,11 +3,6 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
-### Cycle C5 — build: a Kindle how-to, and what counts as sent
-
-- **Text that states what the code does gets reviewed against the code**, for every context it
-  is shown in: one line read right in setup and wrong in Settings, where another delivery applies.
-
 ### Cycle D5 — build: accessibility metadata for the book
 
 - **Run the real validator, not only the spec**: Ace on a live edition found the heading-order problem the backlog item never named. EPUBCheck is a jar from GitHub releases; Ace installs from npm (`@daisy/ace`) and runs with `ace-puppeteer` and `PUPPETEER_EXECUTABLE_PATH` at the pre-installed Chromium (the default Electron one refuses to run as root).
