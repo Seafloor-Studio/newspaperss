@@ -14,6 +14,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Today, D4: a quiet tt-rss feed says so
+- **From the backlog (personas):** a tt-rss feed that stopped posting looked like any other on Sources.
+- **Shipped:** "Nothing new in N weeks" (months past two) under a feed's row once it has gone three weeks without posting. Each sync takes one look at every article tt-rss got since the last, read or not, without their text (up to 1,000, oldest first; the rest wait for the next sync), since a feed read on the laptop leaves nothing unread here. A feed with nothing seen counts from when the app started watching it. Database version 12.
+- **The review changed the design:** the first version asked each feed for its newest article once a day; that missed purged articles, starved big accounts and slowed the edition's sync. A second look found that a look cut short dropped older articles for good; it now goes on from where it stopped.
+- **Item 7, Webtoons, built and measured, not shipped:** branch `claude/today-d-c7`. See the backlog item for what the review found.
+
 ### Today, D2: articles that expire here can be read in tt-rss too
 - **From the backlog (personas):** articles that waited their week out here stayed unread in tt-rss.
 - **Shipped:** **Mark read when they expire here**, a switch under Sync read status (off by default, shown only with read sync on). Waiting out the week then counts as marked read, which the next sync passes to tt-rss. Leaving a feed out or changing the category still leaves articles unread there. Database version 11.
