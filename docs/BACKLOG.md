@@ -47,7 +47,6 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] Decide what tt-rss is as a source. Explored ([research/ttrss-backend/](research/ttrss-backend/index.html), open it in a browser): one tt-rss row in Sources with its feeds inset under it, folded, each opening its own page, is built (cycles 77–79). Still open: how this joins "tt-rss and Google Reader API servers as full backends" below. Sections were taken out (cycle 80)
 - [ ] Search on the account page's feed list (F4), if scrolling 50+ feeds on Sources gets slow
 - [ ] Several categories, and tt-rss's Starred and Published as choices
-- [ ] **Your call:** should tt-rss's star feed the ☆? Recommended: an opt-in, one-way "Starred in tt-rss goes in my next edition" setting, not a two-way sync, since the ☆ clears on delivery and syncing that back would unstar articles in tt-rss. On the morning page
 
 - [ ] Moving off tt-rss: **I pick my own sites** brings the feeds along as phone feeds, the reverse of moving phone feeds in. The daily feed list already has each feed's address, title and category. Feeds in the paper come with their settings (cap, article text, skip paid posts), left-out ones stay left out, and a feed already on the phone or without an address yet is skipped and said so. Open: whether starred articles come too (today they go with the account). About a cycle. Until then the leave dialog points to tt-rss's OPML export *(you asked)*
 - [ ] Delay tt-rss mark-read a little after sharing, so a quick "Mark as not sent" doesn't flip articles read and then unread again on the server
@@ -402,7 +401,7 @@ Restoring onto a phone that already has sources asks first whether to replace or
   the competitors do, not what this app is for.
 - **A heart for "loved this / keep it", synced to tt-rss:** skipped by madCode, 16 Oct. The ☆ already
   means "put it in my next edition", and tt-rss's own star means "keep". Whether tt-rss's star should
-  feed the ☆ is a separate question, on the morning page.
+  feed the ☆ was a separate question: madCode chose an opt-in, one-way setting, built 16 Oct.
 
 ### Sections in the paper (taken out)
 Taken out in cycle 80, with OPML folders, the reading list's "Saved for later" heading, tt-rss
@@ -434,6 +433,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] Starred in tt-rss goes in the paper: an opt-in, one-way, each star once (today D8, madCode's call on the morning page)
 - [x] A quiet tt-rss feed says so under its row: "Nothing new in 3 weeks" (today D4)
 - [x] **Send for a look**: ⋮ › Send for a look… on an article's preview says the report is a public GitHub issue, then opens GitHub's form with "Extraction: *title*", the address and the app's version filled in (#251)
 - [x] A snackbar on screen as the app goes to the background is shown again in full on its return, Undo and all, on Sources, the reading list, a source's page, Settings and an edition's page; a reading-list removal waiting for Undo is settled then rather than left in the database (#258)

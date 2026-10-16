@@ -3,6 +3,11 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle D8 — build: starred in tt-rss goes in the paper
+
+- **Ask how a list is ordered before capping it.** tt-rss sorts stars by the article's date, not when they were starred, so "the newest 1,000" isn't "the most recent stars". Both reviews' worst findings came from that one assumption.
+- **A decision answered on the morning page mid-day is a new item.** Built as its own cycle, stacked on the previous one's migration, rather than waiting for tomorrow.
+
 ### Cycle D4 — build: a quiet tt-rss feed says so
 
 - **A fix stacked on an unmerged PR's migration** (v11 → v12 here) branches from that PR's branch and merges main once it lands; two sessions bumping the version at once would collide.
