@@ -725,6 +725,9 @@ class SourceDetailScreenTest {
         assertEquals("Last checked today at 6:02 PM", lastCheckedLine(evening, Locale.US, is24Hour = false, now = later, zone = utc)?.replace('\u202f', ' '))
         assertEquals("the phone's 24-hour setting wins", "Last checked today at 18:02", lastCheckedLine(evening, Locale.US, is24Hour = true, now = later, zone = utc))
         assertEquals("Last checked Sep 27", lastCheckedLine(Instant.parse("2026-09-27T06:02:00Z"), Locale.US, is24Hour = false, now = now, zone = utc))
+
+        // The year shows once the date is in another year than "now", whatever year it really is.
+        assertEquals("Failing for 4 days, since Dec 30, 2026", failingLine(Instant.parse("2026-12-30T08:00:00Z"), Locale.US, Instant.parse("2027-01-03T10:00:00Z"), utc))
     }
 
     /** The paid-posts switch only shows on a source that's had one, and says how many it left out. */

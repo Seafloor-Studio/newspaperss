@@ -1,6 +1,7 @@
 package com.app.newspaperss.ui.readinglist
 
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.app.newspaperss.ui.components.LocalClock
 import com.app.newspaperss.ui.components.openInBrowser
 import com.app.newspaperss.core.extract.ArticleExtractor
 import com.app.newspaperss.core.ReadingTime
@@ -166,7 +167,8 @@ private fun AddLink(viewModel: ReadingListViewModel) {
 @Composable
 private fun SavedLink(article: ArticleEntity, onRemove: () -> Unit) {
     // Saved links never expire, so no days left.
-    val status = historyLine(article, history = null, expires = false)
+    val clock = LocalClock.current
+    val status = historyLine(article, history = null, expires = false, now = clock.instant(), zone = clock.zone)
     val context = LocalContext.current
     val site = listOfNotNull(
         // An untitled row's stand-in title already names the site.

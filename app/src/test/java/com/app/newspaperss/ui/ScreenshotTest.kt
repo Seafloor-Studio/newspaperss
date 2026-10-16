@@ -1,5 +1,6 @@
 package com.app.newspaperss.ui
 
+import androidx.compose.runtime.CompositionLocalProvider
 import com.app.newspaperss.testutil.TestDataStores
 import com.app.newspaperss.testutil.writeEpub
 import android.content.Intent
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.isDialog
+import com.app.newspaperss.ui.components.LocalClock
 import com.app.newspaperss.ui.sources.LeftOutScreen
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollAction
@@ -62,6 +64,8 @@ import com.app.newspaperss.testutil.finishDownload
 import com.app.newspaperss.testutil.kokoroInstall
 import com.app.newspaperss.testutil.runningWork
 import androidx.work.WorkInfo
+import java.time.Clock
+import java.time.ZoneOffset
 import kotlinx.coroutines.flow.Flow
 import com.app.newspaperss.ui.edition.ArticlePreviewScreen
 import com.app.newspaperss.ui.edition.EditionDetailScreen
@@ -156,6 +160,9 @@ class ScreenshotTest {
     private val db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java)
         .allowMainThreadQueries().build()
     private val store by lazy { SettingsStore(stores.preferences("s")) }
+    // Tuesday, just after the sample morning edition. The screens and repositories all read it,
+    // so a shot is the same whatever the day or time it is rendered.
+    private val clock = Clock.fixed(Instant.parse("2026-09-29T07:15:00Z"), ZoneOffset.UTC)
     private val out = File("build/screenshots").apply { mkdirs() }
 
     /**
@@ -163,7 +170,7 @@ class ScreenshotTest {
      * [dialog], only the open dialog is captured; otherwise the screen, with any open menu on it.
      */
     private fun shoot(name: String, ready: () -> Boolean = { true }, act: () -> Unit = {}, dialog: Boolean = false, content: @Composable () -> Unit) {
-        compose.setContent { NewspaperssTheme(content) }
+        compose.setContent { NewspaperssTheme { CompositionLocalProvider(LocalClock provides clock, content = content) } }
         // Recomposing on each check: some screens only start loading part of what [ready] waits
         // for once they're drawn (Sources' folded categories).
         idleUntil { compose.waitForIdle(); ready() }
@@ -211,7 +218,7 @@ class ScreenshotTest {
         File(out, "store-icon.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
-    private fun onboarding() = OnboardingViewModel(store, SourceRepository(db), FeedFinder(FakeHttp())) {}
+    private fun onboarding() = OnboardingViewModel(store, SourceRepository(db, clock), FeedFinder(FakeHttp())) {}
 
     @Test
     fun onboardingWelcome() = shoot("01-onboarding-welcome") { OnboardingScreen(onboarding()) }
@@ -282,7 +289,7 @@ class ScreenshotTest {
 
     private val ttrssHttp = FakeHttp()
     private val ttrssAccounts by lazy { TtrssAccountStore(stores.preferences("ttrss"), testCipher()) }
-    private val ttrss by lazy { TtrssRepository(db, ttrssHttp, ttrssAccounts, SourceRepository(db)) }
+    private val ttrss by lazy { TtrssRepository(db, ttrssHttp, ttrssAccounts, SourceRepository(db, clock), clock) }
 
     /** A sample tt-rss server: 58 feeds in 7 categories. */
     private fun sampleServer() = FakeTtrss(ttrssHttp).apply {
@@ -293,7 +300,7 @@ class ScreenshotTest {
 
     /** On the server path, at the sign-in step. */
     private fun onboardingOnTheServer(): OnboardingViewModel =
-        OnboardingViewModel(store, SourceRepository(db), FeedFinder(ttrssHttp), ttrss) {}.apply {
+        OnboardingViewModel(store, SourceRepository(db, clock), FeedFinder(ttrssHttp), ttrss) {}.apply {
             next(); chooseDevice(Device.KINDLE); editKindleEmail("name_abc123@kindle.com"); next()
             answer(FeedsAnswer.SERVER)
             idleUntil { state.value.step == Step.SIGN_IN }
@@ -324,7 +331,7 @@ class ScreenshotTest {
         }
         idleUntil { vm.state.value.signedIn }
         vm.next()
-        val readingList = com.app.newspaperss.ui.readinglist.ReadingListViewModel(com.app.newspaperss.data.ReadingListRepository(db))
+        val readingList = com.app.newspaperss.ui.readinglist.ReadingListViewModel(com.app.newspaperss.data.ReadingListRepository(db, clock))
         shoot("03d-onboarding-extras") { OnboardingScreen(vm, readingList = readingList) }
     }
 
@@ -339,7 +346,7 @@ class ScreenshotTest {
             (1..2).forEach { db.articles().insertIgnoring(ArticleEntity(sourceId = source, guid = "$it", url = "https://example.com/$it", title = "Starred $it", starredAt = now)) }
         }
         val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
-        val vm = TodayViewModel(EditionRepository(db, files), flowOf(null)) {}
+        val vm = TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {}
         shoot("05-today", ready = { vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm) }
     }
 
@@ -351,7 +358,7 @@ class ScreenshotTest {
             db.editions().insertArticles(sampleArticles(latest))
         }
         val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
-        val vm = TodayViewModel(EditionRepository(db, files), flowOf(null)) {}
+        val vm = TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {}
         shoot("05i-today-newer-build", ready = { vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm, newerBuild = 464) }
     }
 
@@ -365,7 +372,7 @@ class ScreenshotTest {
         val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
         val podcast = Settings(scheduleEnabled = true, listenVoice = ListenVoice.PODCAST, podcastPace = 1.2f)
         val evening = java.time.ZonedDateTime.of(2026, 9, 29, 21, 0, 0, 0, java.time.ZoneOffset.UTC)
-        val vm = TodayViewModel(EditionRepository(db, files), flowOf(null), settings = flowOf(podcast), now = { evening }) {}
+        val vm = TodayViewModel(EditionRepository(db, files, clock), flowOf(null), settings = flowOf(podcast), now = { evening }) {}
         shoot("05h-today-podcast", ready = { vm.state.value.next != null && vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm) }
     }
 
@@ -401,7 +408,7 @@ class ScreenshotTest {
                 .also { db.editions().insertArticles(sampleArticles(it)) }
         }
         val sent = if (kindleNote) mapOf(latest to KindleSend.APP) else emptyMap()
-        val vm = TodayViewModel(EditionRepository(db, files), flowOf(null), settings = flowOf(Settings(device = device)), sentToKindle = flowOf(sent)) {}
+        val vm = TodayViewModel(EditionRepository(db, files, clock), flowOf(null), settings = flowOf(Settings(device = device)), sentToKindle = flowOf(sent), now = { clock.instant().atZone(clock.zone) }) {}
         shoot(name, ready = { vm.state.value.editions?.isNotEmpty() == true }, act = act) { TodayScreen(vm) }
     }
 
@@ -448,7 +455,7 @@ class ScreenshotTest {
         made.complete(id, 0)
         made.complete(id, 1)
         val listening = Listening(
-            player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder()),
+            player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock),
             Podcasts(made, store, install) {},
         ) {}
         shoot("05i-edition-detail-podcast", ready = {
@@ -458,7 +465,7 @@ class ScreenshotTest {
 
     /** A player with a voice that says nothing, over [db]'s editions in [files]. */
     private fun listenPlayer(files: File = tmp.newFolder()): Pair<ListenPlayer, FakeSpeaker> {
-        val repo = EditionRepository(db, files)
+        val repo = EditionRepository(db, files, clock)
         val speaker = FakeSpeaker()
         val progress = StoredListenProgress(ApplicationProvider.getApplicationContext())
         return ListenPlayer(speaker, progress, open = { ListenBook.open(repo, it) }, kotlinx.coroutines.MainScope()) to speaker
@@ -466,7 +473,7 @@ class ScreenshotTest {
 
     private fun listening(): Listening {
         val (player, _) = listenPlayer()
-        return Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder())) {}
+        return Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock)) {}
     }
 
     /** Listening to an article, two sentences in, its picture just ahead. */
@@ -565,7 +572,7 @@ class ScreenshotTest {
             )
             edition
         }
-        return EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }), id, EditionNotes(db, tmp.newFolder())) {}
+        return EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id, EditionNotes(db, tmp.newFolder())) {}
     }
 
     @Test
@@ -593,11 +600,11 @@ class ScreenshotTest {
 
     @Test
     fun sources() {
-        val repo = SourceRepository(db)
+        val repo = SourceRepository(db, clock)
         runBlocking {
             StarterPacks.all[3].feeds.forEach { repo.addFeed(it.url, it.title) }
             val broken = repo.addFeed("https://broken.example/feed", "A blog that moved")
-            db.sources().recordFailure(broken, Instant.now(), "We can't get new articles from this site any more. It may have moved; try adding it again.")
+            db.sources().recordFailure(broken, clock.instant(), "We can't get new articles from this site any more. It may have moved; try adding it again.")
         }
         runBlocking { store.update { it.copy(feedsFrom = FeedsFrom.PHONE) } }
         val vm = SourcesViewModel(repo, FeedFinder(FakeHttp()), settings = store) {}
@@ -606,7 +613,7 @@ class ScreenshotTest {
 
     /** A source with a row in each state the design shows: waiting, starred, marked read, in an unsent edition, delivered (two days ago), got old. */
     private fun sourceWithArticles(): SourceDetailViewModel {
-        val repo = SourceRepository(db)
+        val repo = SourceRepository(db, clock)
         val id = runBlocking {
             val id = repo.addFeed("https://www.theguardian.com/world/rss", "The Guardian: World")
             val titles = listOf(
@@ -617,18 +624,18 @@ class ScreenshotTest {
                 "Why city trees are planted in pairs",
                 "The quiet return of the paperback",
             )
-            db.articles().insertNew(titles.mapIndexed { i, t -> ArticleEntity(sourceId = id, guid = "$i", url = "https://www.theguardian.com/$i", title = t, discoveredAt = Instant.now().minusSeconds(3_600L * (i + 1))) })
+            db.articles().insertNew(titles.mapIndexed { i, t -> ArticleEntity(sourceId = id, guid = "$i", url = "https://www.theguardian.com/$i", title = t, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1))) })
             val ids = db.articles().candidates().sortedBy { it.guid }.map { it.id }
             repo.setStarred(ids[1], true)
             db.articles().setState(listOf(ids[2]), ArticleState.SKIPPED)
             db.articles().setState(listOf(ids[3]), ArticleState.IN_EDITION)
-            val today = LocalDate.now().dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
+            val today = LocalDate.now(clock).dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
             val edition = db.editions().insert(EditionEntity(title = "$today Morning Edition", status = EditionStatus.READY))
             db.editions().insertArticles(listOf(EditionArticleEntity(editionId = edition, articleId = ids[3], position = 0, title = titles[3], sourceTitle = "The Guardian: World", minutes = 6.0)))
             db.articles().setState(listOf(ids[4]), ArticleState.DELIVERED)
-            db.articles().rememberDelivered(listOf(ids[4]), Instant.now().minus(Duration.ofDays(2)))
+            db.articles().rememberDelivered(listOf(ids[4]), clock.instant().minus(Duration.ofDays(2)))
             db.articles().setState(listOf(ids[5]), ArticleState.EXPIRED)
-            db.sources().recordSuccess(id, Instant.now(), null, "https://www.theguardian.com", "")
+            db.sources().recordSuccess(id, clock.instant(), null, "https://www.theguardian.com", "")
             db.sources().savePublication(PublicationEntity(id, PublicationEntity.OWN, ContentMode.PAGE, FullTextEvidence.PAGE_LONGER, 3))
             id
         }
@@ -649,13 +656,13 @@ class ScreenshotTest {
     /** A busy source lists only its newest articles, and the heading says so rather than looking like a total. */
     @Test
     fun sourceDetailNewest() {
-        val repo = SourceRepository(db)
+        val repo = SourceRepository(db, clock)
         val id = runBlocking {
             val id = repo.addFeed("https://www.theguardian.com/world/rss", "The Guardian: World")
             db.articles().insertNew((1..40).map { i ->
-                ArticleEntity(sourceId = id, guid = "$i", url = "https://www.theguardian.com/$i", title = "Morning briefing, part $i", discoveredAt = Instant.now().minusSeconds(600L * i))
+                ArticleEntity(sourceId = id, guid = "$i", url = "https://www.theguardian.com/$i", title = "Morning briefing, part $i", discoveredAt = clock.instant().minusSeconds(600L * i))
             })
-            db.sources().recordSuccess(id, Instant.now(), null, "https://www.theguardian.com", "")
+            db.sources().recordSuccess(id, clock.instant(), null, "https://www.theguardian.com", "")
             id
         }
         val vm = SourceDetailViewModel(repo, id, flowOf(1))
@@ -720,7 +727,7 @@ class ScreenshotTest {
         repo.addFeed("https://www.theguardian.com/world/rss", "The Guardian: World")
         repo.addFeed("https://aeon.co/feed.rss", "Aeon")
         val account = repo.addTtrss("https://rss.example.com/tt-rss/api/")
-        db.sources().recordSuccess(account, Instant.now(), null, null, SourceRepository.TTRSS_TITLE)
+        db.sources().recordSuccess(account, clock.instant(), null, null, SourceRepository.TTRSS_TITLE)
         fun feed(key: String, title: String, url: String, category: String) =
             PublicationEntity(account, key, title = title, feedUrl = url, category = category, listed = true)
         listOf(
@@ -733,7 +740,7 @@ class ScreenshotTest {
             feed("7", "Hacker News", "https://news.ycombinator.com/rss", "Tech").copy(leftOut = true),
             feed("8", "Slashdot", "https://rss.slashdot.org/Slashdot/slashdotMain", "Tech").copy(leftOut = true),
         ).forEach { db.sources().savePublication(it) }
-        db.sources().setFeedsListed(account, Instant.now())
+        db.sources().setFeedsListed(account, clock.instant())
         val stories = listOf(
             "How a quiet lab rebuilt the atomic clock",
             "The mathematicians who count the uncountable",
@@ -744,7 +751,7 @@ class ScreenshotTest {
             stories.mapIndexed { i, t ->
                 ArticleEntity(
                     sourceId = account, guid = "ttrss:5$i", url = "https://www.quantamagazine.org/$i", title = t,
-                    originId = "5", originTitle = "Quanta Magazine", discoveredAt = Instant.now().minusSeconds(3_600L * (i + 1)),
+                    originId = "5", originTitle = "Quanta Magazine", discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1)),
                 )
             },
         )
@@ -757,7 +764,7 @@ class ScreenshotTest {
      * left out.
      */
     private fun serverSources(category: String? = null): SourcesViewModel {
-        val repo = SourceRepository(db)
+        val repo = SourceRepository(db, clock)
         runBlocking {
             repo.addList(com.app.newspaperss.core.lists.CuratedLists.all.first())
             val account = repo.addTtrss("https://rss.example.com/tt-rss/api/")
@@ -792,8 +799,8 @@ class ScreenshotTest {
                 db.sources().savePublication(f.copy(listed = inside, outsideCategory = !inside))
             }
             if (category != null) db.sources().setTtrssCategory(account, 99, category)
-            db.sources().setFeedsListed(account, Instant.now())
-            db.sources().recordSuccess(account, Instant.now(), null, null, SourceRepository.TTRSS_TITLE)
+            db.sources().setFeedsListed(account, clock.instant())
+            db.sources().recordSuccess(account, clock.instant(), null, null, SourceRepository.TTRSS_TITLE)
             store.update { it.copy(feedsFrom = FeedsFrom.SERVER) }
         }
         return SourcesViewModel(repo, FeedFinder(FakeHttp()), settings = store) {}
@@ -831,7 +838,7 @@ class ScreenshotTest {
     fun notInYourPaper() {
         serverSources(category = "Essays")
         val account = runBlocking { db.sources().ofKind(com.app.newspaperss.data.SourceKind.TTRSS).single().id }
-        val vm = SourceDetailViewModel(SourceRepository(db), account, flowOf(1))
+        val vm = SourceDetailViewModel(SourceRepository(db, clock), account, flowOf(1))
         shoot("08k-not-in-your-paper", ready = { vm.outside.value.isNotEmpty() && vm.detail.value != null }) { NotInPaperScreen(vm, onBack = {}, onOpenAccount = {}) }
     }
 
@@ -840,7 +847,7 @@ class ScreenshotTest {
         val vm = serverSources()
         runBlocking {
             val account = db.sources().ofKind(com.app.newspaperss.data.SourceKind.TTRSS).single().id
-            db.sources().recordFailure(account, Instant.now().minusSeconds(3_600), "Couldn't reach tt-rss.")
+            db.sources().recordFailure(account, clock.instant().minusSeconds(3_600), "Couldn't reach tt-rss.")
         }
         shoot("08l-sources-server-down", ready = { vm.screen.value?.server?.account?.lastError != null && vm.folded.value != null }) { SourcesScreen(vm) }
     }
@@ -853,7 +860,7 @@ class ScreenshotTest {
     }
 
     private fun feedPage(key: String): SourceDetailViewModel {
-        val repo = SourceRepository(db)
+        val repo = SourceRepository(db, clock)
         val account = ttrssAccount(repo)
         return SourceDetailViewModel(repo, account, flowOf(1), key = key)
     }
@@ -910,7 +917,7 @@ class ScreenshotTest {
 
     @Test
     fun leftOutList() {
-        val repo = SourceRepository(db)
+        val repo = SourceRepository(db, clock)
         val account = ttrssAccount(repo)
         val vm = SourceDetailViewModel(repo, account, flowOf(1))
         shoot("08h-left-out-list", ready = { vm.feeds.value.any { !it.inPaper } }) { LeftOutScreen(vm, onBack = {}, onOpenFeed = {}) }
@@ -919,12 +926,12 @@ class ScreenshotTest {
     /** A failing feed's page from the top, where its own address is offered to check. */
     @Test
     fun sourceDetailFailing() {
-        val repo = SourceRepository(db)
+        val repo = SourceRepository(db, clock)
         val id = runBlocking {
             val id = repo.addFeed("https://example.org/weekly/rss.xml", "Example Weekly")
-            db.sources().recordSuccess(id, Instant.now().minus(Duration.ofDays(6)), null, "https://example.org", "")
-            db.sources().recordFailure(id, Instant.now().minus(Duration.ofDays(5)), "Couldn't read this feed: the site sent a web page.")
-            db.sources().recordFailure(id, Instant.now().minusSeconds(3_600), "Couldn't read this feed: the site sent a web page.")
+            db.sources().recordSuccess(id, clock.instant().minus(Duration.ofDays(6)), null, "https://example.org", "")
+            db.sources().recordFailure(id, clock.instant().minus(Duration.ofDays(5)), "Couldn't read this feed: the site sent a web page.")
+            db.sources().recordFailure(id, clock.instant().minusSeconds(3_600), "Couldn't read this feed: the site sent a web page.")
             id
         }
         val vm = SourceDetailViewModel(repo, id, flowOf(1))
@@ -1106,7 +1113,7 @@ class ScreenshotTest {
         runBlocking {
             ttrss.connect("rss.example.com/tt-rss", server.user, server.password)
             store.update { it.copy(feedsFrom = FeedsFrom.SERVER) }
-            db.sources().ofKind(com.app.newspaperss.data.SourceKind.TTRSS).forEach { db.sources().recordSuccess(it.id, Instant.now(), null, null, it.title) }
+            db.sources().ofKind(com.app.newspaperss.data.SourceKind.TTRSS).forEach { db.sources().recordSuccess(it.id, clock.instant(), null, null, it.title) }
         }
         return SettingsViewModel(store, ttrss.observeStatus()) {} to FeedsFromViewModel(store, ttrss)
     }
@@ -1157,7 +1164,7 @@ class ScreenshotTest {
     @Test
     fun sourcesSignedOutOfTheServer() {
         runBlocking { store.update { it.copy(feedsFrom = FeedsFrom.SERVER) } }
-        val vm = SourcesViewModel(SourceRepository(db), FeedFinder(FakeHttp()), ttrss, settings = store) {}
+        val vm = SourcesViewModel(SourceRepository(db, clock), FeedFinder(FakeHttp()), ttrss, settings = store) {}
         shoot("06f-sources-sign-in", ready = { vm.screen.value?.needsSignIn == true }) { SourcesScreen(vm) }
     }
 
@@ -1178,7 +1185,7 @@ class ScreenshotTest {
             server()
         }
         ttrssHttp.page("https://quantamagazine.org", """<html><head><link rel="alternate" type="application/rss+xml" title="Quanta Magazine" href="https://www.quantamagazine.org/feed/"></head></html>""")
-        val repo = SourceRepository(db)
+        val repo = SourceRepository(db, clock)
         runBlocking {
             assertNull(ttrss.connect("rss.example.com/tt-rss", fake.user, fake.password))
             store.update { it.copy(feedsFrom = FeedsFrom.SERVER, lastCategoryId = 3) }
@@ -1267,10 +1274,10 @@ class ScreenshotTest {
             assertNull(ttrss.connect("rss.example.com/tt-rss", fake.user, fake.password))
             store.update { it.copy(feedsFrom = FeedsFrom.SERVER, lastCategoryId = 3) }
             val account = db.sources().ofKind(com.app.newspaperss.data.SourceKind.TTRSS).single().id
-            db.sources().recordSuccess(account, Instant.now(), null, null, SourceRepository.TTRSS_TITLE)
+            db.sources().recordSuccess(account, clock.instant(), null, null, SourceRepository.TTRSS_TITLE)
         }
         val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-        val vm = SourcesViewModel(SourceRepository(db), FeedFinder(ttrssHttp), ttrss, settings = store, subscriptions = TtrssSubscriptions(ttrss, scope)) {}
+        val vm = SourcesViewModel(SourceRepository(db, clock), FeedFinder(ttrssHttp), ttrss, settings = store, subscriptions = TtrssSubscriptions(ttrss, scope)) {}
         try {
             shoot(
                 "09g-add-server-added", ready = { vm.screen.value?.server != null },
@@ -1302,7 +1309,7 @@ class ScreenshotTest {
             feeds[1] = FakeTtrss.Feed("Aeon", "https://aeon.co/feed.rss", categoryId = 1)
             server()
         }
-        val repo = SourceRepository(db)
+        val repo = SourceRepository(db, clock)
         runBlocking {
             assertNull(ttrss.connect("rss.example.com/tt-rss", fake.user, fake.password))
             store.update { it.copy(feedsFrom = FeedsFrom.SERVER) }
@@ -1314,9 +1321,9 @@ class ScreenshotTest {
                 "https://www.quantamagazine.org/feed/" to "Quanta Magazine",
                 "https://www.themarginalian.org/feed/" to "The Marginalian",
             ).forEach { (url, title) -> repo.addFeed(url, title) }
-            db.sources().all().forEach { db.sources().recordSuccess(it.id, Instant.now(), null, null, it.title) }
+            db.sources().all().forEach { db.sources().recordSuccess(it.id, clock.instant(), null, null, it.title) }
         }
-        val moves = FeedMoves(stores.preferences("moves"), db, ttrss) {}
+        val moves = FeedMoves(stores.preferences("moves"), db, ttrss, clock) {}
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         val vm = SourcesViewModel(repo, FeedFinder(ttrssHttp), ttrss, settings = store, moves = moves) {}
         try {
@@ -1370,14 +1377,14 @@ class ScreenshotTest {
     @Test
     fun moveOfferAfterSignIn() {
         val fake = sampleServer()
-        val repo = SourceRepository(db)
+        val repo = SourceRepository(db, clock)
         runBlocking {
             store.update { it.copy(feedsFrom = FeedsFrom.PHONE) }
             repo.addFeed("https://aeon.co/feed.rss", "Aeon")
             repo.addFeed("https://www.quantamagazine.org/feed/", "Quanta Magazine")
             repo.addFeed("https://feed3.example/rss", "Feed 3")
         }
-        val moves = FeedMoves(stores.preferences("moves"), db, ttrss) {}
+        val moves = FeedMoves(stores.preferences("moves"), db, ttrss, clock) {}
         val settingsVm = SettingsViewModel(store, ttrss.observeStatus()) {}
         val feeds = FeedsFromViewModel(store, ttrss, moves, repo).apply {
             openSignIn()

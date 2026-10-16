@@ -49,6 +49,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.LaunchedEffect
+import com.app.newspaperss.ui.components.LocalClock
 import kotlinx.coroutines.flow.first
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -203,11 +204,12 @@ fun SourcesScreen(
                 // list rather than in it: the list keeps its first row in place, so a banner
                 // appearing later as its first item would land out of sight.
                 val account = srv?.account
+                val clock = LocalClock.current
                 // At most a third of the screen, scrolling within it, so with large text the list keeps room.
                 val bannerMax = (LocalConfiguration.current.screenHeightDp / 3).dp
                 Column(Modifier.heightIn(max = bannerMax).verticalScroll(rememberScrollState())) {
                     if (srv != null && shown.needsSignIn) SignInBanner(onOpenAccount)
-                    else account?.let { accountProblem(it, locale, is24Hour) }?.let { AccountProblemBanner(it, onOpenAccount) }
+                    else account?.let { accountProblem(it, locale, is24Hour, clock.instant(), clock.zone) }?.let { AccountProblemBanner(it, onOpenAccount) }
                         // The account itself is fine but some of its feeds aren't: named here, as their
                         // rows can be under folded categories, and each is fixed in tt-rss.
                         ?: srv?.cantFetch?.let(::cantFetchLine)?.let { AccountProblemBanner(it, onOpen = null, announce = false) }
@@ -559,7 +561,8 @@ internal fun feedNote(feed: FeedChoice): String? {
 private fun SourceItem(row: SourceRow, onOpen: () -> Unit) {
     val s = row.source
     val fullText = if (s.kind == SourceKind.FEED) fullTextLine(row.text) else null
-    val status = statusLine(s, row.lastNew)
+    val clock = LocalClock.current
+    val status = statusLine(s, row.lastNew, clock.instant(), clock.zone)
     ListItem(
         modifier = Modifier.clickable(onClickLabel = "Open ${s.title}", onClick = onOpen),
         headlineContent = { Text(s.title) },
@@ -630,12 +633,12 @@ private val CONTENT_MODE_CHOICES = listOf(
 )
 
 /** The one line that says how a source is doing: paused, its problem, or how recently it published. */
-internal fun statusLine(source: SourceEntity, lastNew: Instant?): String = when {
+internal fun statusLine(source: SourceEntity, lastNew: Instant?, now: Instant = Instant.now(), zone: ZoneId = ZoneId.systemDefault()): String = when {
     source.paused -> "Paused"
     source.lastError != null -> source.lastError
     source.serverNote != null -> source.serverNote
     source.lastFetchedAt == null -> "Checking…"
-    else -> freshness(lastNew)
+    else -> freshness(lastNew, now, zone)
 }
 
 internal fun hasProblem(source: SourceEntity) = (source.lastError != null || source.serverNote != null) && !source.paused

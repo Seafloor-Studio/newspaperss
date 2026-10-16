@@ -55,6 +55,7 @@ import com.app.newspaperss.listen.Listening
 import com.app.newspaperss.settings.KindleEmail
 import com.app.newspaperss.ui.components.ArticleRowFrame
 import com.app.newspaperss.ui.components.BUILDING_NOTE
+import com.app.newspaperss.ui.components.LocalClock
 import com.app.newspaperss.ui.components.StarToggle
 import com.app.newspaperss.ui.listen.ListenButton
 import com.app.newspaperss.ui.listen.PodcastLine
@@ -283,10 +284,11 @@ private fun Header(
     onSent: () -> Unit,
     listen: (@Composable (Modifier) -> Unit)? = null,
 ) {
+    val zone = LocalClock.current.zone
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Text(edition.title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.semantics { heading() })
-        Text(dateOf(edition.createdAt), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
-        Text(statusOf(edition), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+        Text(dateOf(edition.createdAt, zone), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
+        Text(statusOf(edition, zone), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
         if (edition.status == EditionStatus.FAILED) {
             Text(edition.error ?: "This edition couldn't be made.", color = failureColor(edition.error))
         }
@@ -346,12 +348,12 @@ private fun ContentRow(
 }
 
 
-private fun dateOf(instant: Instant): String =
-    instant.atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL))
+private fun dateOf(instant: Instant, zone: ZoneId): String =
+    instant.atZone(zone).toLocalDate().format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL))
 
-private fun statusOf(edition: EditionEntity): String = when (edition.status) {
+private fun statusOf(edition: EditionEntity, zone: ZoneId): String = when (edition.status) {
     EditionStatus.READY -> "Ready to send"
-    EditionStatus.DELIVERED -> edition.deliveredAt?.takeIf { dateOf(it) != dateOf(edition.createdAt) }?.let { "Sent on ${dateOf(it)}" } ?: "Sent"
+    EditionStatus.DELIVERED -> edition.deliveredAt?.takeIf { dateOf(it, zone) != dateOf(edition.createdAt, zone) }?.let { "Sent on ${dateOf(it, zone)}" } ?: "Sent"
     EditionStatus.FAILED -> "Not sent"
     EditionStatus.BUILDING -> "Being made"
     EditionStatus.DELETED -> "Deleted"

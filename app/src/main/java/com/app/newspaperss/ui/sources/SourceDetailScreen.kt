@@ -69,6 +69,7 @@ import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.SourceKind
 import com.app.newspaperss.data.SourceRepository
 import com.app.newspaperss.ui.components.BUILDING_NOTE
+import com.app.newspaperss.ui.components.LocalClock
 import com.app.newspaperss.ui.components.historyLine
 import com.app.newspaperss.ui.components.isWebAddress
 import com.app.newspaperss.ui.settings.SettingsViewModel
@@ -91,6 +92,7 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
     val detail by viewModel.detail.collectAsStateWithLifecycle()
     val source = detail?.source
     val locale = LocalConfiguration.current.locales[0]
+    val clock = LocalClock.current
     val is24Hour = DateFormat.is24HourFormat(LocalContext.current)
     // Saved: an open confirmation survives a rotation.
     var removing by rememberSaveable { mutableStateOf(false) }
@@ -239,6 +241,8 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
                             // A curated list expires by count (its newest 12), so no day count there.
                             expires = source.kind == SourceKind.FEED || source.kind == SourceKind.TTRSS,
                             paused = source.paused,
+                            now = clock.instant(),
+                            zone = clock.zone,
                         ),
                         locale,
                         building,
@@ -344,16 +348,17 @@ private fun LeaveOutDialog(title: String, onConfirm: () -> Unit, onDismiss: () -
 private fun Health(source: SourceEntity, learned: PublicationEntity?, lastNew: Instant?, locale: Locale, is24Hour: Boolean, onCopied: (String) -> Unit) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val details = MaterialTheme.typography.bodySmall
+    val clock = LocalClock.current
     // The feed's own address when the site's isn't one to open, as a hostile feed's may not be.
     val site = listOfNotNull(source.siteUrl, source.url).firstOrNull(::isWebAddress) ?: source.siteUrl ?: source.url
     Column(Modifier.padding(16.dp)) {
         AddressLink(site, SourceRepository.hostOf(site), MaterialTheme.typography.bodyMedium, onCopied)
         Column(Modifier.padding(top = 12.dp)) {
-            Text(statusLine(source, lastNew), style = MaterialTheme.typography.bodyLarge, color = if (hasProblem(source)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
-            if (!source.paused) failingLine(source.failingSince, locale)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+            Text(statusLine(source, lastNew, clock.instant(), clock.zone), style = MaterialTheme.typography.bodyLarge, color = if (hasProblem(source)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+            if (!source.paused) failingLine(source.failingSince, locale, clock.instant(), clock.zone)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
         }
         Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            lastCheckedLine(source.lastFetchedAt, locale, is24Hour)?.let { Text(it, style = details, color = muted) }
+            lastCheckedLine(source.lastFetchedAt, locale, is24Hour, clock.instant(), clock.zone)?.let { Text(it, style = details, color = muted) }
             if (source.kind == SourceKind.FEED) {
                 Text(textLine(learned), style = details, color = muted)
                 if (hasProblem(source) || lastNew == null) AddressLink(source.url, shownAddress(source.url), details, onCopied, label = "Feed:")
@@ -454,7 +459,7 @@ internal fun failingLine(since: Instant?, locale: Locale, now: Instant = Instant
     return when {
         days <= 0 -> null
         days == 1L -> "Failing since yesterday"
-        else -> "Failing for $days days, since ${shortDate(since, locale, zone)}"
+        else -> "Failing for $days days, since ${shortDate(since, locale, now, zone)}"
     }
 }
 
@@ -465,13 +470,13 @@ internal fun lastCheckedLine(at: Instant?, locale: Locale, is24Hour: Boolean, no
         val pattern = DateFormat.getBestDateTimePattern(locale, if (is24Hour) "Hm" else "hma")
         "Last checked today at ${DateTimeFormatter.ofPattern(pattern, locale).format(date)}"
     } else {
-        "Last checked ${shortDate(at, locale, zone)}"
+        "Last checked ${shortDate(at, locale, now, zone)}"
     }
 }
 
 /** Month and day, and the year too when it isn't this one. */
-internal fun shortDate(at: Instant, locale: Locale, zone: ZoneId = ZoneId.systemDefault()): String {
+internal fun shortDate(at: Instant, locale: Locale, now: Instant = Instant.now(), zone: ZoneId = ZoneId.systemDefault()): String {
     val date = at.atZone(zone)
-    val skeleton = if (date.year == java.time.LocalDate.now(zone).year) "MMMd" else "yMMMd"
+    val skeleton = if (date.year == now.atZone(zone).year) "MMMd" else "yMMMd"
     return DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, skeleton), locale).format(date)
 }
