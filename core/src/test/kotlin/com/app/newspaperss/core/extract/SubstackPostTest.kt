@@ -66,12 +66,27 @@ class SubstackPostTest {
         assertTrue("its Note was there all along", http.requested.isEmpty())
     }
 
-    /** A paid post's page has only the free part; a subscriber's tt-rss has it all. */
+    /** A paid post's page has only the free part, however late the writer put the paywall; a subscriber's tt-rss has it all. */
     @Test
     fun aShorterPostOnThePageKeepsTtrssText() = runTest {
-        val free = Jsoup.parseBodyFragment(feed).body().children().take(3).joinToString("") { it.outerHtml() }
+        val blocks = Jsoup.parseBodyFragment(feed).body().children()
+        val free = blocks.dropLast(2).joinToString("") { it.outerHtml() }
         val article = extract(FakeHttp(mapOf(url to page(free))))
         assertEquals(extract(FakeHttp(emptyMap())).html, article.html)
+    }
+
+    /** A non-subscriber's tt-rss has a paid post's free part, ending in "Read more": it stays a paid post. */
+    @Test
+    fun aPaidPreviewStaysAPaidPost() = runTest {
+        val preview = "$ttrss<p><a href=\"$url\">Read more</a></p>"
+        val paywalled = HttpResponse(
+            200, url, "text/html; charset=utf-8",
+            page(feed).body.replace("</article>", "<div data-testid=\"paywall\"><h2>Keep reading with a 7-day free trial</h2></div></article>"),
+        )
+        val http = FakeHttp(mapOf(url to paywalled))
+        val article = extract(http, preview)
+        assertTrue(article.paidPost)
+        assertEquals("fetched once", listOf(url), http.requested)
     }
 
     @Test
@@ -93,5 +108,14 @@ class SubstackPostTest {
     fun aCustomDomainIsSubstackByItsImages() {
         assertTrue(SubstackPost.stripped(ttrss, "https://www.slowboring.com/p/a-post"))
         assertFalse(SubstackPost.stripped(ttrss.replace("substackcdn.com", "cdn.example.com"), "https://www.slowboring.com/p/a-post"))
+    }
+
+    /** Most Substack posts have an empty block where tt-rss stripped a picture's zoom button: no Note there, no fetch. */
+    @Test
+    fun aPicturesStrippedButtonIsntANote() {
+        val other = File(dir.parentFile, "www.slowboring.com-cracks-in-the-republican-coalition")
+        val text = GZIPInputStream(File(other, "ttrss.html.gz").inputStream()).use { it.readBytes().toString(Charsets.UTF_8) }
+        assertTrue("it has one", Regex("""</picture>\s*<div>\s*</div>""").containsMatchIn(text))
+        assertFalse(SubstackPost.stripped(text, "https://www.slowboring.com/p/cracks-in-the-republican-coalition"))
     }
 }

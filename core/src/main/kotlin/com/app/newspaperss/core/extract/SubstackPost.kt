@@ -16,7 +16,8 @@ import java.net.URI
 internal object SubstackPost {
     /**
      * Feed text from a Substack post whose embeds were stripped: a Substack address or Substack's
-     * image host (a custom domain), no `data-attrs` left anywhere, and an empty block where one was.
+     * image host (a custom domain), no `data-attrs` left anywhere, and an empty block after a
+     * paragraph, where a Note goes. Not one after a picture: that's its stripped zoom button.
      */
     fun stripped(feedHtml: String, url: String): Boolean {
         if (DATA_ATTRS in feedHtml || !EMPTY_DIV.containsMatchIn(feedHtml)) return false
@@ -37,5 +38,5 @@ internal object SubstackPost {
     private const val DATA_ATTRS = "data-attrs"
     private const val PRELOADS = "preloads-json"
     private const val CDN = "substackcdn.com/"
-    private val EMPTY_DIV = Regex("""<div>\s*</div>""")
+    private val EMPTY_DIV = Regex("""</p>\s*<div>\s*</div>""")
 }
