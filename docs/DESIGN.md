@@ -534,7 +534,11 @@ whose Kindle and KOReader answers ask for more on the same page).
   **Share** in the top bar sends the article's original link to Android's share sheet;
   it's hidden when an article has no web link. Selected text shared from the
   page carries that link too, on its own line under the quote, with the
-  article's title as the subject. Large pictures that stand
+  article's title as the subject. **Send for a look…** in the top bar's ⋮ (also
+  only with a web link) is for an article that came out wrong: it first says the
+  report is a public GitHub issue, then opens GitHub's new-issue form in the
+  browser with "Extraction: *title*", the article's address and the app's version
+  filled in, for the issue check to compare with the page. Large pictures that stand
   alone fill the width (small ones keep their size), and the page can be
   pinched to zoom into a comic. **Notes** exports a Markdown file for a
   notes app: front matter
