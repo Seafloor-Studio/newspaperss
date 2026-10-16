@@ -85,7 +85,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 ### Accessibility *(a11y, you asked for it)*
 A full pass over the app and the book, not just spot fixes:
 - [ ] App: TalkBack walk-through of every screen (labels, headings, focus order), font scale at 200%, display size, touch targets ≥ 48dp, contrast in light and dark, e-ink readability, nothing carried by colour or animation alone. Confirm the new live regions with TalkBack on a device
-- [ ] Book: EPUB Accessibility 1.1 metadata (`schema:accessMode`, `accessibilityFeature`, `accessibilitySummary`), image alt text carried through, reading order checked with a screen reader
+- [ ] Book: reading order with a screen reader on a device. The metadata, alt text and heading levels are done, and Ace by DAISY passes a live edition (D5); that run had no pictures, so try one with them *(a11y)*
 - [ ] Tooling: Compose accessibility checks in the Robolectric tests, Accessibility Scanner on a device, Ace by DAISY on a live edition
 - [ ] Generate alt text for pictures that have none *(you asked)*. Many feeds' images arrive without a description, so a screen reader (and Listen) says nothing or a file name. Do it when the edition is built, so the book gets it too, and on the phone, so nothing leaves it. Cheapest first, stopping at the first that gives something:
   - The article's own alt text or caption (free, every phone). Never replace it
@@ -445,6 +445,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] Book: EPUB Accessibility 1.1 metadata, alt text counted honestly, article headings that never skip a level, the contents list's role; EPUBCheck and Ace pass (today D5)
 - [x] Substack Notes in posts from tt-rss come back: the post is read from its page's data, one fetch, only where a Note was (today D1)
 - [x] Tapping a notification brings back the app as it was rather than starting it afresh (audit, 16 Oct)
 - [x] One feed item too big for Android to read back (a picture inlined as text) no longer stops every edition: feed text is capped when stored, and rows stored before are shrunk once, keeping a post's words (database version 10)
