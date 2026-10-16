@@ -207,6 +207,11 @@ module so it's all unit-tested without Android.
     totals and a question to think about, one of a short list of open
     questions that suit any paper ("What surprised you?"). It usually differs from
     one edition to the next, and the notes file shows the same one;
+  - for screen readers: EPUB Accessibility 1.1's metadata (what the book
+    needs and offers; pictures count as described only when every one has
+    the alt text its site gave), each article's headings going down one
+    level at a time under its title, and images keeping their alt text.
+    It passes EPUBCheck and Ace by DAISY;
   - styles Kindle's conversion keeps: plain class selectors, relative
     sizes, no side margins, headings aligned explicitly;
   - images as JPEG up to 1200px, about 15 MB in all including the cover, up
