@@ -3,6 +3,14 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle A5 (16 Oct) — build: another tt-rss user on the same server
+
+- **"Keep both sides" is wrong for a removed line.** Merging main's shared docs with a script
+  that keeps both halves of each conflict put back backlog items another PR had ticked off.
+  After such a merge, diff BACKLOG.md against main and check each `-`/`+` line by hand.
+- **A reviewer judges the branch it reads, not main.** It flagged a mid-build delete that an
+  earlier PR, already merged, had fixed: merge main before the review on a run of related PRs.
+
 ### Cycle A1 (16 Oct, day run, four sessions) — build: a source removed during a build
 
 - **Four sessions at once:** cycles are numbered by area (A1, B1…) so they don't collide. Work
