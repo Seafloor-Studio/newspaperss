@@ -282,7 +282,7 @@ class HtmlCleanerTest {
         )
         for (line in lines) assertEquals(line, body, clean("$body<p>$line</p>"))
         // A heading the extractor left without its links, over the article's next paragraph.
-        assertEquals(body + body, clean("$body<h2>Lire aussi</h2>$body"))
+        for (heading in listOf("Les plus lus", "Meistgelesen", "Lo más leído")) assertEquals(heading, body + body, clean("$body<h2>$heading</h2>$body"))
         // A sentence that only starts the same way is the article's.
         val sentence = "Lire aussi les lettres de sa mère, publiées après sa mort, change tout ce que nous savions de lui."
         assertEquals("<p>$sentence</p>", clean("<p>$sentence</p>"))
