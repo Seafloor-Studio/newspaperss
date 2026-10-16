@@ -62,6 +62,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.app.newspaperss.ui.components.showWhileStarted
 import com.app.newspaperss.core.extract.ContentMode
 import com.app.newspaperss.core.plural
 import com.app.newspaperss.data.PublicationEntity
@@ -101,6 +103,7 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
     val gone = detail != null && source == null
     LaunchedEffect(gone) { if (gone) onGone() }
     val snackbar = remember { SnackbarHostState() }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val undoOffer by viewModel.undoOffer.collectAsStateWithLifecycle()
     val notice by viewModel.notice.collectAsStateWithLifecycle()
     val building by viewModel.building.collectAsStateWithLifecycle()
@@ -110,7 +113,7 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
         // Undo never comes back. Missed, starring still brings the article back.
         try {
             // Long: on e-ink the reader may not see it straight away.
-            val result = snackbar.showSnackbar(undoMessage(offer.change), actionLabel = "Undo", duration = SnackbarDuration.Long)
+            val result = snackbar.showWhileStarted(lifecycle, undoMessage(offer.change), actionLabel = "Undo", duration = SnackbarDuration.Long)
             if (result == SnackbarResult.ActionPerformed) viewModel.undo(offer)
         } finally {
             viewModel.undoOfferEnded(offer)
@@ -119,7 +122,7 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
     LaunchedEffect(notice) {
         val text = notice ?: return@LaunchedEffect
         try {
-            snackbar.showSnackbar(text, duration = SnackbarDuration.Long)
+            snackbar.showWhileStarted(lifecycle, text, duration = SnackbarDuration.Long)
         } finally {
             viewModel.noticeShown()
         }
