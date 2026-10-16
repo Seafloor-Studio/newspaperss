@@ -103,6 +103,27 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+// ScreenshotTest draws every screen for review and the README, with almost nothing asserted, so
+// what it draws isn't counted as tested: it runs as its own task, which check depends on and
+// Kover doesn't measure.
+val screenshotTest = tasks.register<Test>("screenshotTest") {
+    description = "Draws every screen to build/screenshots."
+    group = "verification"
+    val unitTests = tasks.named<Test>("testDebugUnitTest").get()
+    testClassesDirs = unitTests.testClassesDirs
+    classpath = unitTests.classpath
+    jvmArgs(unitTests.jvmArgs)
+    systemProperties(unitTests.systemProperties)
+    filter.includeTestsMatching("*.ScreenshotTest")
+}
+tasks.withType<Test>().configureEach {
+    if (name == "testDebugUnitTest" || name == "testReleaseUnitTest") filter.excludeTestsMatching("*.ScreenshotTest")
+}
+tasks.named("check") { dependsOn(screenshotTest) }
+kover {
+    currentProject { instrumentation { disabledForTestTasks.add("screenshotTest") } }
+}
+
 dependencies {
     implementation(project(":core"))
 
