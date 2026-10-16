@@ -513,14 +513,19 @@ interface ArticleDao {
 
     /**
      * Expires unpicked articles discovered before [before], except reading-list items and stars.
-     * A tt-rss account set to [SourceEntity.markExpiredRead] has them marked read instead, which
-     * its next sync passes on to tt-rss. Only here, by age: leaving a feed out or changing the
-     * category also expire articles, and those stay unread in tt-rss.
+     * A tt-rss account set to [SourceEntity.markExpiredRead] (and not paused) has them marked read
+     * instead, which its next sync passes on to tt-rss. Only here, by age: leaving a feed out or
+     * changing the category also expire articles, and those stay unread in tt-rss.
+     *
+     * For such an account an article also counts by when it was published: each sync takes a
+     * feed's newest few unread, so marking those read brings in the next older ones, and a feed
+     * never picked would bring its whole backlog through the paper a few at a time. Marked read on
+     * arrival, the backlog drains out of tt-rss without showing up here.
      */
     @Query(
-        """UPDATE articles SET state = CASE WHEN sourceId IN (
-               SELECT id FROM sources WHERE kind = 'TTRSS' AND markReadOnServer = 1 AND markExpiredRead = 1) THEN 'SKIPPED' ELSE 'EXPIRED' END
-           WHERE state = 'NEW' AND starredAt IS NULL AND discoveredAt < :before
+        """UPDATE articles SET state = CASE WHEN sourceId IN ($MARKS_EXPIRED_READ) THEN 'SKIPPED' ELSE 'EXPIRED' END
+           WHERE state = 'NEW' AND starredAt IS NULL
+           AND (discoveredAt < :before OR (published < :before AND sourceId IN ($MARKS_EXPIRED_READ)))
            AND sourceId IN (SELECT id FROM sources WHERE kind != 'READING_LIST')""",
     )
     suspend fun expireOlderThan(before: Instant): Int
@@ -578,6 +583,9 @@ interface ArticleDao {
     )
     suspend fun ttrssUnsentInEdition(editionId: Long): List<ArticleEntity>
 }
+
+/** tt-rss accounts that mark articles read there when they expire here (see [ArticleDao.expireOlderThan]). */
+private const val MARKS_EXPIRED_READ = """SELECT id FROM sources WHERE kind = 'TTRSS' AND paused = 0 AND markReadOnServer = 1 AND markExpiredRead = 1"""
 
 /** Articles in an edition not yet sent: ready, or being made. */
 private const val IN_UNSENT = """SELECT ea.articleId FROM edition_articles ea JOIN editions e ON e.id = ea.editionId
