@@ -257,8 +257,8 @@ class EditionDetailScreenTest {
 
         compose.onNodeWithText("Mark as sent").performClick()
 
-        waitFor("Sent")
-        assertEquals(EditionStatus.DELIVERED, runBlocking { db.editions().byId(id) }?.status)
+        // Not waitFor("Sent"): a ready edition already shows "Sent it another way?".
+        idleUntil { runBlocking { db.editions().byId(id) }?.status == EditionStatus.DELIVERED }
         assertEquals(ArticleState.DELIVERED, runBlocking { db.articles().byId(articles[0]) }?.state)
     }
 
