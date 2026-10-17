@@ -37,7 +37,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 
 ### Delivery and schedule
 - [ ] **Save a copy of an edition to the phone** *(you asked)*: there's no easy way to keep the EPUB file itself. Android's share sheet often offers no Files target, so **Send another way** can't save it. Add "Save a copy…", opening the system's save dialog (`ACTION_CREATE_DOCUMENT`), beside Send another way in the edition's ⋮ menu
-- [ ] Dropbox connection (OAuth PKCE) so Kobo delivery is automatic; waiting on an app key ([#18](https://github.com/madCode/newspaperss/issues/18)) *(personas)*
+- [ ] Dropbox connection (OAuth PKCE) so Kobo delivery is automatic; waiting on an app key ([#18](https://github.com/Seafloor-Studio/newspaperss/issues/18)) *(personas)*
 - [ ] Boox: offer folder delivery into the Books folder, so editions stay in the library *(personas)*
 - [ ] Folder delivery: tt-rss marks articles read as soon as the file is saved, before Syncthing has synced; old editions pile up in the folder *(personas)*
 - [ ] Verify folder delivery and the chooser from the notification on a real device

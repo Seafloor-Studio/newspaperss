@@ -134,4 +134,4 @@ The store text and screenshots come from `fastlane/metadata/android/en-US/`.
   browser at 1024×500 and screenshot it to change it.
 - **Forms:** Data safety (nothing collected or shared), the content rating
   questionnaire, the target audience, and the privacy policy:
-  https://github.com/madCode/newspaperss/blob/main/docs/PRIVACY.md
+  https://github.com/Seafloor-Studio/newspaperss/blob/main/docs/PRIVACY.md

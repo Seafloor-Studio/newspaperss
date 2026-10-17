@@ -18,7 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.app.newspaperss.ui.components.openInBrowser
 
-private const val NEW_ISSUE = "https://github.com/madCode/newspaperss/issues/new"
+private const val NEW_ISSUE = "https://github.com/Seafloor-Studio/newspaperss/issues/new"
 
 // GitHub's form takes its fields from the address, and refuses one much past 8,000 characters
 // once encoded: a CJK character takes 9, and an address already percent-encoded triples.

@@ -142,5 +142,5 @@ for a new screen).
 - Open the PR, then commit the PNGs to the `claude/screenshots` branch
   (never merged) under `pr-<N>/` as `<screen>-before.png` and
   `<screen>-after.png`, and edit them into the description with
-  `![<screen>, before](https://github.com/madCode/newspaperss/blob/claude/screenshots/pr-<N>/<screen>-before.png?raw=true)`.
+  `![<screen>, before](https://github.com/Seafloor-Studio/newspaperss/blob/claude/screenshots/pr-<N>/<screen>-before.png?raw=true)`.
 - If they can't be rendered (no Android SDK), say so in the PR.

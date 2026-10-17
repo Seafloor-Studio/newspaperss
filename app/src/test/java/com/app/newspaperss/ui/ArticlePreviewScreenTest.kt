@@ -352,7 +352,7 @@ class ArticlePreviewScreenTest {
         val opened = shadowOf(compose.activity).nextStartedActivity
         assertEquals(Intent.ACTION_VIEW, opened.action)
         val form = opened.data!!
-        assertEquals("https://github.com/madCode/newspaperss/issues/new", "${form.scheme}://${form.host}${form.path}")
+        assertEquals("https://github.com/Seafloor-Studio/newspaperss/issues/new", "${form.scheme}://${form.host}${form.path}")
         assertEquals("Extraction: A story", form.getQueryParameter("title"))
         val body = form.getQueryParameter("body")!!
         assertTrue(body, body.contains("Article: https://www.a.example/2026/a-story?ref=feed&x=1\n"))

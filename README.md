@@ -113,11 +113,11 @@ another reader app's list):
 ## Trying it
 
 The newest debug build is always at
-[newspapeRSS-debug.apk](https://github.com/madCode/newspaperss/releases/download/latest-debug/newspapeRSS-debug.apk)
+[newspapeRSS-debug.apk](https://github.com/Seafloor-Studio/newspaperss/releases/download/latest-debug/newspapeRSS-debug.apk)
 (Android 8 or later), for 64-bit ARM: most phones and recent e-readers. An
 older 32-bit e-reader needs `newspapeRSS-debug-armeabi-v7a.apk` from the same
 page, which has everything but the podcast voice. It installs beside a release build, and Settings shows
-which build it is. The [release page](https://github.com/madCode/newspaperss/releases/tag/latest-debug)
+which build it is. The [release page](https://github.com/Seafloor-Studio/newspaperss/releases/tag/latest-debug)
 names the newest build, its commit and date, and has the same file under the
 build's number. After that the test build keeps itself current: it downloads
 each newer build on Wi-Fi and installs it when the app isn't in use. Allow
