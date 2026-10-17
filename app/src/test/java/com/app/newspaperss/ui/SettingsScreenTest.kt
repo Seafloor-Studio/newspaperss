@@ -13,6 +13,12 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performTextInput
 import android.content.Intent
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.core.app.ActivityOptionsCompat
 import androidx.test.core.app.ApplicationProvider
 import com.app.newspaperss.settings.Device
 import com.app.newspaperss.settings.KindleEmail
@@ -195,21 +201,6 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun notesCanBeSavedWhateverTheDeliveryAndTurnedOff() {
-        show(SettingsPage.NOTES)
-        // A Kindle reader shares each edition, and still gets notes in her vault.
-        grant("content://vault")
-        runBlocking { store.update { it.copy(delivery = DeliveryMethod.SHARE, notesFolderUri = "content://vault", notesFolderName = "Vault") } }
-        waitFor("Saved to Vault when an edition is delivered.")
-
-        compose.onNodeWithText("Save notes for each edition").performScrollTo().performClick()
-
-        idleUntil { runBlocking { store.current().notesFolderUri } == null }
-        waitFor("You'll pick the folder.")
-        assertEquals("the delivery folder is left alone", DeliveryMethod.SHARE, runBlocking { store.current().delivery })
-    }
-
-    @Test
     fun theEReaderCanBeChangedAfterOnboarding() {
         runBlocking { store.update { it.copy(device = Device.KINDLE) } }
         show(SettingsPage.DELIVERY)
@@ -256,7 +247,6 @@ class SettingsScreenTest {
         show()
         waitFor("About 30 minutes · 1 per source · take turns")
         compose.onNodeWithText("Off: make editions from Today").assertExists()
-        compose.onNodeWithText("Off").assertExists()
         val rows = SettingsPage.entries.map { compose.onNodeWithText(it.title).fetchSemanticsNode().positionInRoot.y }
         assertEquals("in the order of the pages", rows.sorted(), rows)
 
@@ -288,14 +278,12 @@ class SettingsScreenTest {
             store.update {
                 it.copy(
                     device = Device.KOREADER, scheduleEnabled = true, delivery = DeliveryMethod.FOLDER, folderUri = "content://tree/books", folderName = "Books",
-                    notesFolderUri = "content://tree/gone", notesFolderName = "Vault",
                 )
             }
         }
         show()
         waitFor("KOReader · saved to Books")
         compose.onNodeWithText("Notifications are off.").assertExists()
-        compose.onNodeWithText("Can't reach Vault.").assertExists()
         compose.onNodeWithText("Can't reach Books.").assertDoesNotExist()
     }
 
@@ -396,22 +384,55 @@ class SettingsScreenTest {
     private fun grant(uri: String) = ApplicationProvider.getApplicationContext<android.app.Application>().contentResolver
         .takePersistableUriPermission(android.net.Uri.parse(uri), Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
 
+    private fun granted() = ApplicationProvider.getApplicationContext<android.app.Application>().contentResolver
+        .persistedUriPermissions.map { it.uri.toString() }.toSet()
+
+    /** The delivery page, where the system folder picker answers each launch with [picked]. */
+    private fun showDeliveryPicking(picked: () -> String) {
+        val owner = object : ActivityResultRegistryOwner {
+            override val activityResultRegistry = object : ActivityResultRegistry() {
+                override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
+                    dispatchResult(requestCode, android.app.Activity.RESULT_OK, Intent().setData(android.net.Uri.parse(picked())))
+                }
+            }
+        }
+        compose.setContent {
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides owner) { SettingsPageScreen(vm, SettingsPage.DELIVERY, onBack = {}) }
+        }
+        idleUntil { vm.settings.value != null }
+    }
+
     @Test
-    fun aFolderTheAppCanNoLongerReachSaysSoInsteadOfSavingAutomatically() {
-        grant("content://tree/books")
-        runBlocking { store.update { it.copy(delivery = DeliveryMethod.FOLDER, folderUri = "content://tree/books", folderName = "Books", notesFolderUri = "content://tree/gone", notesFolderName = "Vault") } }
-        show(SettingsPage.NOTES)
-        // The notes folder's grant is gone (its app uninstalled, say): every save there would fail.
-        waitFor("Can't reach Vault. Tap to choose it again.")
-        compose.onNodeWithText("Choose another notes folder").assertExists()
+    fun pickingAnotherDeliveryFolderLetsGoOfTheOldOneButPickingTheSameKeepsIt() {
+        val books = "content://com.android.externalstorage.documents/tree/primary%3ABooks"
+        val kindle = "content://com.android.externalstorage.documents/tree/primary%3AKindle"
+        grant(books)
+        runBlocking { store.update { it.copy(delivery = DeliveryMethod.FOLDER, folderUri = books, folderName = "Books") } }
+        var picked = books
+        showDeliveryPicking { picked }
 
-        // Tapping the row, as the line says, picks a folder again rather than turning notes off.
-        compose.onNodeWithText("Save notes for each edition").performClick()
+        // The same folder again: its grant is the one delivery still needs.
+        compose.onNodeWithText("Choose another delivery folder").performScrollTo().performClick()
+        compose.waitForIdle()
+        assertEquals(setOf(books), granted())
+
+        // Grants are capped per app, so the folder delivery moved away from is let go.
+        picked = kindle
+        compose.onNodeWithText("Choose another delivery folder").performScrollTo().performClick()
+        idleUntil { runBlocking { store.current().folderUri } == kindle }
+        assertEquals(setOf(kindle), granted())
+    }
+
+    @Test
+    fun aDeliveryFolderTheAppCanNoLongerReachSaysSoAndATapPicksOneAgain() {
+        // The folder's grant is gone (its app uninstalled, say): every save there would fail.
+        runBlocking { store.update { it.copy(delivery = DeliveryMethod.FOLDER, folderUri = "content://tree/gone", folderName = "Books") } }
+        show(SettingsPage.DELIVERY)
+        waitFor("Can't reach Books. Tap to choose it again.")
+
+        compose.onNodeWithText("Can't reach Books. Tap to choose it again.").performScrollTo().performClick()
         assertEquals(Intent.ACTION_OPEN_DOCUMENT_TREE, shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedActivity.action)
-        assertEquals("content://tree/gone", runBlocking { store.current().notesFolderUri })
-
-        compose.onNodeWithText("Turn off").performScrollTo().performClick()
-        idleUntil { runBlocking { store.current().notesFolderUri } == null }
+        assertEquals("content://tree/gone", runBlocking { store.current().folderUri })
     }
 
     /** At 200% the per-source count keeps the width; − and + go on the line below. */

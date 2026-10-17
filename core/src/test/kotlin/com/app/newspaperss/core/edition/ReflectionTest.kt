@@ -1,4 +1,4 @@
-package com.app.newspaperss.core.notes
+package com.app.newspaperss.core.edition
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals

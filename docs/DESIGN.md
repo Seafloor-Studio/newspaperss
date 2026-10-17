@@ -208,7 +208,7 @@ module so it's all unit-tested without Android.
   - "That's all for today", a chapter in the contents, with the day's
     totals and a question to think about, one of a short list of open
     questions that suit any paper ("What surprised you?"). It usually differs from
-    one edition to the next, and the notes file shows the same one;
+    one edition to the next;
   - for screen readers: EPUB Accessibility 1.1's metadata (what the book
     needs and offers; pictures count as described only when every one has
     the alt text its site gave), each article's headings going down one
@@ -561,10 +561,7 @@ whose Kindle and KOReader answers ask for more on the same page).
   browser with "Extraction: *title*", the article's address and the app's version
   filled in, for the issue check to compare with the page. Large pictures that stand
   alone fill the width (small ones keep their size), and the page can be
-  pinched to zoom into a comic. **Notes** exports a Markdown file for a
-  notes app: front matter
-  (date, edition, sources, a tag) for Obsidian, the closing page's question and
-  a few reflection prompts at the top, then per article its source, author, date, link, a citation and room for notes.
+  pinched to zoom into a comic.
   **Delete edition** is in the ⋮ menu, and asks by name, saying what happens
   to the articles (an unsent edition's go back for the next one). An article that went in because it was starred says
   "You starred it". On delivered editions each article has a trailing **☆** to
@@ -868,7 +865,8 @@ whose Kindle and KOReader answers ask for more on the same page).
     **Save to a folder**. A folder the app can no longer reach (its access
     was revoked, or its app uninstalled) says "Can't reach <name>. Tap to
     choose it again." instead of saving automatically, and tapping picks
-    it again; so does the notes folder, which also offers **Turn off**.
+    it again. Picking another folder lets go of the old one's access
+    (Android caps how many an app keeps).
   - **Where your feeds live** (its row says "Sites you pick" or "Your
     tt-rss · host"; in red, "Not signed in" or "Can't sign in to tt-rss"):
     the two setups as radio rows, in onboarding's words: **I pick my own
@@ -894,12 +892,6 @@ whose Kindle and KOReader answers ask for more on the same page).
     again** (the address and username filled in; the same user keeps their
     category), **Articles from**, **Sync read status with tt-rss** and
     **Start fresh**, and **Resume** if the account was paused.
-  - **Reading notes:** "Save notes for each edition" asks for a folder (an Obsidian
-    vault, say). Each edition's notes file is saved there once the edition is
-    delivered, by share, folder or Read on a Boox, in the background so a slow cloud folder
-    doesn't hold up delivery. A folder that refuses the file gets a notification;
-    **Notes** on the edition still shares them. It can be the delivery folder too;
-    changing one folder never drops the app's access to the other.
 
 The look: a newspaper feel (serif headlines, a masthead with the date), but
 calm, with no badges, counts or endless animations, which smear on e-ink.

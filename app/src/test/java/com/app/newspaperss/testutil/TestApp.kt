@@ -27,8 +27,6 @@ class TestApp : NewspaperssApp() {
     val markedTtrssRead = mutableListOf<Long>()
     /** Saved links and curated-list picks whose titles the app asked to look up in the background. */
     val titlesRequested = mutableListOf<Long>()
-    /** Delivered editions whose notes the app asked to save in the background. */
-    val notesRequested = mutableListOf<Long>()
     /** How many times the app asked for the work that moves phone feeds into tt-rss. */
     var movesRequested = 0
     /** The voice Listen reads with. */
@@ -54,7 +52,6 @@ class TestApp : NewspaperssApp() {
         cipher = testCipher(),
         markTtrssRead = { markedTtrssRead += it },
         fetchReadingListTitles = { titlesRequested += it },
-        saveNotes = { notesRequested += it },
         moveFeeds = { movesRequested++ },
         speaker = { speaker },
         connectListening = {},

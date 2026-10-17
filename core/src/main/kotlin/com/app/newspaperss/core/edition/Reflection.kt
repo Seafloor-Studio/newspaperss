@@ -1,9 +1,6 @@
-package com.app.newspaperss.core.notes
+package com.app.newspaperss.core.edition
 
-/**
- * The question on an edition's closing page, also at the top of its notes, so what the reader
- * thought about on the e-reader is waiting for them in their notes app.
- */
+/** The question on an edition's closing page, something to think about once the paper is read. */
 object Reflection {
     // Open and short: something to turn over on the walk to work, not an assignment. Each has to
     // make sense after any paper, including one long read, or only comics and fun.
@@ -23,8 +20,8 @@ object Reflection {
     )
 
     /**
-     * Picked by edition id, so an edition's notes ask what its book asked. Ids also go to builds
-     * that found nothing, so the questions vary from one paper to the next but can repeat.
+     * Picked by edition id. Ids also go to builds that found nothing, so the questions vary from
+     * one paper to the next but can repeat.
      */
     fun forEdition(editionId: Long): String = QUESTIONS[Math.floorMod(editionId, QUESTIONS.size.toLong()).toInt()]
 }

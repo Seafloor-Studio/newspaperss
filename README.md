@@ -80,11 +80,6 @@ another reader app's list):
   waiting (and for how many more days), in Thursday's edition, sent
   Wednesday, read, or not picked. With tt-rss, read and unread stay in
   step both ways.
-- **Take notes.** A Markdown notes file per edition for Obsidian, Logseq or
-  any notes app: properties Obsidian understands, the end page's question, a
-  few reflection prompts, and a citation and room for notes under each
-  article. Pick a folder (your vault) and each delivered edition's notes are
-  saved there, however you send the edition.
 - **Listen to it.** **Listen** on an edition reads it aloud in your phone's
   own voice, article by article to its closing page, and keeps going with
   the screen off, from the lock screen and headphones. Take the phone out

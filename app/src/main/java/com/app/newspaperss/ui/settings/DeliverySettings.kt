@@ -8,14 +8,11 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -25,14 +22,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -94,7 +88,7 @@ internal fun DeliverySection(s: AppSettings, vm: SettingsViewModel) {
     val context = LocalContext.current
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
         if (uri != null && keepFolderAccess(context, uri)) {
-            release(context, s.folderUri, keep = setOf(uri.toString(), s.notesFolderUri))
+            release(context, s.folderUri, keep = uri.toString())
             vm.useFolder(uri.toString(), FolderDelivery.displayName(context.contentResolver, uri))
         }
     }
@@ -190,62 +184,12 @@ internal fun rememberReachable(uri: String?): Boolean {
 }
 
 /**
- * Lets go of a folder no setting uses any more: grants are capped per app. The delivery and
- * notes folders can be the same one, so neither lets go of a folder the other still holds.
+ * Lets go of the folder delivery used before, unless it was picked again: grants are capped per
+ * app.
  */
-private fun release(context: android.content.Context, old: String?, keep: Set<String?>) {
-    if (old == null || old in keep) return
+private fun release(context: android.content.Context, old: String?, keep: String) {
+    if (old == null || old == keep) return
     runCatching { context.contentResolver.releasePersistableUriPermission(Uri.parse(old), FOLDER_GRANT) }
-}
-
-@Composable
-internal fun NotesSection(s: AppSettings, vm: SettingsViewModel) {
-    val context = LocalContext.current
-    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
-        if (uri != null && keepFolderAccess(context, uri)) {
-            release(context, s.notesFolderUri, keep = setOf(uri.toString(), s.folderUri))
-            vm.setNotesFolder(uri.toString(), FolderDelivery.displayName(context.contentResolver, uri))
-        }
-    }
-    val saving = s.notesFolderUri != null
-    val reachable = rememberReachable(s.notesFolderUri)
-    fun turnOff() {
-        release(context, s.notesFolderUri, keep = setOf(s.folderUri))
-        vm.setNotesFolder(null, null)
-    }
-    // A folder that can't be reached is what the row offers to fix, so tapping it picks one again
-    // rather than turning notes off under a line that says "Tap to choose it again".
-    val tap = if (saving && !reachable) {
-        Modifier.clickable(onClickLabel = "Choose the notes folder again") { pickFolder.launch(null) }
-    } else {
-        Modifier.toggleable(saving, role = Role.Switch) { on -> if (on) pickFolder.launch(null) else turnOff() }
-    }
-    Row(
-        Modifier.fillMaxWidth().then(tap).heightIn(min = 48.dp).padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("Save notes for each edition", style = MaterialTheme.typography.bodyLarge)
-            val name = s.notesFolderName ?: "your folder"
-            Text(
-                when {
-                    !saving -> "A Markdown file for each edition, for Obsidian or any notes app. You'll pick the folder."
-                    !reachable -> "Can't reach $name. Tap to choose it again."
-                    else -> "Saved to $name when an edition is delivered."
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = if (reachable) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
-            )
-        }
-        Switch(checked = saving, onCheckedChange = null)
-    }
-    if (saving) {
-        Row(Modifier.padding(start = OPTION_INDENT), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = { pickFolder.launch(null) }) { Text("Choose another notes folder") }
-            // The row no longer turns notes off while the folder is unreachable, so this does.
-            if (!reachable) TextButton(onClick = ::turnOff, modifier = Modifier.padding(start = 8.dp)) { Text("Turn off") }
-        }
-    }
 }
 
 @Composable

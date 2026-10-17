@@ -101,7 +101,6 @@ fun SettingsScreen(viewModel: SettingsViewModel, onOpen: (SettingsPage) -> Unit)
         val locale = LocalConfiguration.current.locales[0]
         val notificationsOn = rememberNotificationsEnabled()
         val folderReachable = rememberReachable(s.folderUri)
-        val notesReachable = rememberReachable(s.notesFolderUri)
         val ttrss by viewModel.ttrssStatus.collectAsStateWithLifecycle()
         val voice = rememberPhoneVoice()
         Column(Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) {
@@ -113,7 +112,6 @@ fun SettingsScreen(viewModel: SettingsViewModel, onOpen: (SettingsPage) -> Unit)
                     SettingsPage.LISTENING -> SettingsSummary.listening(s, hasVoice = voice != null)
                     SettingsPage.DELIVERY -> SettingsSummary.delivery(s, folderReachable)
                     SettingsPage.FEEDS -> SettingsSummary.feedsFrom(s.feedsFrom(hasServer = ttrss.source != null), ttrss)
-                    SettingsPage.NOTES -> SettingsSummary.notes(s, notesReachable)
                 }
                 SummaryRow(page.title, summary) { onOpen(page) }
                 HorizontalDivider()
@@ -209,7 +207,6 @@ fun SettingsPageScreen(viewModel: SettingsViewModel, page: SettingsPage, onBack:
                     signingIn -> FeedsFromSignIn(feedsFrom)
                     else -> FeedsFromSection(feedsFrom)
                 }
-                SettingsPage.NOTES -> NotesSection(s, viewModel)
             }
         }
     }
