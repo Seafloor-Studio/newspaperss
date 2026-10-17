@@ -308,6 +308,7 @@ article without leaving the page.
 Recommendation: build step 1, use it for a week, then decide on step 2.
 
 ### Podcast episodes in feeds *(you asked)*
+Research plan, and the episode corpus to test it on: [research/podcast-episodes.md](research/podcast-episodes.md).
 Some posts are podcast episodes, and the paper treats them as articles. Measured on one real
 reading list (91 feeds, about 1,450 recent posts), about 4% carried podcast audio, in 12 feeds.
 They came in these shapes, with what the paper does with each today:
