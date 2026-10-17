@@ -96,6 +96,7 @@ Whole-codebase passes for what a review of one PR can't see. Each follows the au
 - [ ] Listen sometimes stops at the paragraph instead of scrolling down to the sentence being read: its fine scroll needs the paragraph's text layout, which may not be recorded yet when the scroll runs. Seen as `11d-listen-larger-text` differing between two renders; likely on a phone too *(today B7)*
 
 ### Later
+- [ ] When releases start, the live (debug) channel keeps self-updating; release builds never do.
 - [ ] Send the email itself (SMTP, an app password), so a Kindle edition arrives with no tap and from a chosen account; email delivery through the mail app is done (#123)
 
 ## Feature proposals

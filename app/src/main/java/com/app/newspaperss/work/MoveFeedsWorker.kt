@@ -32,7 +32,7 @@ class MoveFeedsWorker(context: Context, params: WorkerParameters) : CoroutineWor
     }
 
     companion object {
-        private const val UNIQUE = "move-feeds"
+        internal const val UNIQUE = "move-feeds"
         internal const val MAX_ATTEMPTS = 3
 
         fun enqueue(context: Context) {

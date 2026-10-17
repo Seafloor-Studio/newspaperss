@@ -124,8 +124,10 @@ older 32-bit e-reader needs `newspapeRSS-debug-armeabi-v7a.apk` from the same
 page, which has everything but the podcast voice. It installs beside a release build, and Settings shows
 which build it is. The [release page](https://github.com/madCode/newspaperss/releases/tag/latest-debug)
 names the newest build, its commit and date, and has the same file under the
-build's number. Today says when a newer build is out (the app asks GitHub at
-most every three hours).
+build's number. After that the test build keeps itself current: it downloads
+each newer build on Wi-Fi and installs it when the app isn't in use. Allow
+"Install unknown apps" for it when Today asks, and confirm the first update
+(Android asks once after a browser install, and every time before Android 12).
 
 ## Building
 

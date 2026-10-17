@@ -201,5 +201,34 @@ androidComponents {
             val base = debugRun ?: output.versionCode.orNull ?: 1
             output.versionCode.set(base * 10 + ABI_CODES.getValue(abi))
         }
+        val manifestCheck = tasks.register<SelfUpdateManifestCheck>("check${variant.name.replaceFirstChar { it.uppercase() }}SelfUpdateManifest") {
+            manifest.set(variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST))
+            selfUpdates.set(variant.buildType == "debug")
+        }
+        tasks.named("check") { dependsOn(manifestCheck) }
+    }
+}
+
+/**
+ * Fails when a variant's merged manifest disagrees about installing apps: the debug build updates
+ * itself (src/debug), and Play and F-Droid refuse a release that could. Checking debug as well
+ * keeps the release check from passing on a manifest it misread.
+ */
+abstract class SelfUpdateManifestCheck : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val manifest: RegularFileProperty
+
+    @get:Input
+    abstract val selfUpdates: Property<Boolean>
+
+    @TaskAction
+    fun check() {
+        val text = manifest.get().asFile.readText()
+        for (name in listOf("android.permission.REQUEST_INSTALL_PACKAGES", "update.InstallResultReceiver")) {
+            if ((name in text) != selfUpdates.get()) {
+                throw GradleException("${manifest.get().asFile}: $name should " + if (selfUpdates.get()) "be there" else "not be there")
+            }
+        }
     }
 }

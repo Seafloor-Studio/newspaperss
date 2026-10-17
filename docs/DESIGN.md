@@ -511,10 +511,34 @@ whose Kindle and KOReader answers ask for more on the same page).
 - **Today** (home): when the next edition is due, how many starred articles
   will go in the next one (only when some will), and the latest edition's
   card. Tapping anywhere on the card opens the edition.
-  - On a debug build from CI, a line under the masthead says when a newer
-    test build is out, with a link to download it. The app asks GitHub when
-    it comes to the front, at most every three hours; a local or release
-    build never asks.
+  - On a debug build from CI (the live channel), a line under the masthead
+    says when a newer test build is out. The app asks GitHub when it comes
+    to the front and every six hours in the background, at most every three
+    hours; a local or release build never asks.
+  - The live build then updates itself:
+    - it downloads its own ABI's APK into its cache, on Wi-Fi or another
+      unmetered network only (about 50 MB);
+    - it checks the file before anything else: the same package, a newer
+      build and version code, and signed with the same key as the running
+      app. A file that fails is deleted, and that build isn't fetched again;
+    - it installs with Android's PackageInstaller once no edition, podcast,
+      podcast voice download or feed move is running, Listen isn't
+      playing and the app isn't open; otherwise it tries again later;
+    - Android asks the reader to confirm the first time after a browser
+      install, and every time before Android 12: a notification, "Build N
+      is ready. Tap to install.", opens the question;
+    - it needs "Install unknown apps" allowed for NewspapeRSS; without it a
+      notification and the line say so and open that setting;
+    - a build that can't be downloaded, or fails to install three times,
+      is given up on until a newer one is out.
+  - So the line reads "Downloading test build N", "Test build N downloads
+    on Wi-Fi. Download it now", "Test build N is ready. Install it" (tap
+    installs now, unless an edition, podcast or Listen is under way), or
+    "Test build N is ready. Allow installing it". With none of those, it is
+    the browser link: "Test build N is out. Download it".
+  - Release builds have none of this: the code and the install permission
+    are in the debug source set only, and `check` fails if a release's
+    merged manifest asks to install apps.
   - The card previews what's inside, as the book's contents page opens: the
     first three headlines in order, each with its source (★ if you starred
     it) and reading time, then "and N more". A failed edition shows none:

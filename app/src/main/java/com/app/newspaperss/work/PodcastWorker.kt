@@ -162,7 +162,7 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     }
 
     companion object {
-        private const val UNIQUE = "podcast"
+        internal const val UNIQUE = "podcast"
         private const val CHECK_MS = 30_000L
 
         /** WorkManager's, by name: the class is internal to it. */

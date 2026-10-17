@@ -62,7 +62,7 @@ class KokoroWorker(context: Context, params: WorkerParameters) : CoroutineWorker
     private fun fail(message: String) = Result.failure(workDataOf(PodcastSetup.ERROR to message))
 
     companion object {
-        private const val UNIQUE = "kokoro"
+        internal const val UNIQUE = "kokoro"
         /** Failures in a row, with nothing arriving in between, before it gives up. */
         private const val ATTEMPTS = 6
 

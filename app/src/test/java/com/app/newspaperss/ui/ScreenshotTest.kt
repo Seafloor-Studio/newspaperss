@@ -375,17 +375,31 @@ class ScreenshotTest {
         shoot("05-today", ready = { vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm) }
     }
 
-    /** A tester's debug build with a newer one out. */
-    @Test
-    fun todayWithANewerBuild() {
+    /** A tester's debug build with a newer one out, and how far it is with installing that itself. */
+    private fun todayWithNewerBuild(name: String, selfUpdate: com.app.newspaperss.SelfUpdate = com.app.newspaperss.SelfUpdate.None) {
         runBlocking {
             val latest = db.editions().insert(EditionEntity(title = "Tuesday Morning Edition", createdAt = Instant.parse("2026-09-29T06:30:00Z"), status = EditionStatus.DELIVERED, fileName = "x.epub", articleCount = 8, minutes = 33.4))
             db.editions().insertArticles(sampleArticles(latest))
         }
         val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
         val vm = TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {}
-        shoot("05i-today-newer-build", ready = { vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm, newerBuild = 464) }
+        shoot(name, ready = { vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm, newerBuild = 464, selfUpdate = selfUpdate) }
     }
+
+    @Test
+    fun todayWithANewerBuild() = todayWithNewerBuild("05i-today-newer-build")
+
+    @Test
+    fun todayDownloadingANewerBuild() = todayWithNewerBuild("05i-today-newer-build-downloading", com.app.newspaperss.SelfUpdate.Downloading(464, waitingForWifi = false))
+
+    @Test
+    fun todayWaitingForWifiForANewerBuild() = todayWithNewerBuild("05i-today-newer-build-on-wifi", com.app.newspaperss.SelfUpdate.Downloading(464, waitingForWifi = true))
+
+    @Test
+    fun todayWithANewerBuildReady() = todayWithNewerBuild("05i-today-newer-build-ready", com.app.newspaperss.SelfUpdate.Ready(464))
+
+    @Test
+    fun todayWithANewerBuildNeedingPermission() = todayWithNewerBuild("05i-today-newer-build-allow", com.app.newspaperss.SelfUpdate.NeedsPermission(464))
 
     /** The evening before, with the podcast in use on a Pixel 8: when the paper starts, and to leave the phone charging. */
     @Test
