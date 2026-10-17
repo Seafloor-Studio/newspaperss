@@ -20,33 +20,57 @@ Builds:
     versionCode: 11
     commit: v0.1.0
     subdir: app
+    sudo:
+      - export CPUS_MAX=16
+      - export CPUS=$(getconf _NPROCESSORS_ONLN)
+      - for (( c=$CPUS_MAX; c<$CPUS; c++ )) ; do echo 0 > /sys/devices/system/cpu/cpu$c/online
+        ; done
     gradle:
       - yes
     output: build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
+    binary: https://github.com/madCode/newspaperss/releases/download/v%v/NewspapeRSS-%v-armeabi-v7a.apk
 
   - versionName: 0.1.0
     versionCode: 12
     commit: v0.1.0
     subdir: app
+    sudo:
+      - export CPUS_MAX=16
+      - export CPUS=$(getconf _NPROCESSORS_ONLN)
+      - for (( c=$CPUS_MAX; c<$CPUS; c++ )) ; do echo 0 > /sys/devices/system/cpu/cpu$c/online
+        ; done
     gradle:
       - yes
     output: build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
+    binary: https://github.com/madCode/newspaperss/releases/download/v%v/NewspapeRSS-%v-arm64-v8a.apk
 
   - versionName: 0.1.0
     versionCode: 13
     commit: v0.1.0
     subdir: app
+    sudo:
+      - export CPUS_MAX=16
+      - export CPUS=$(getconf _NPROCESSORS_ONLN)
+      - for (( c=$CPUS_MAX; c<$CPUS; c++ )) ; do echo 0 > /sys/devices/system/cpu/cpu$c/online
+        ; done
     gradle:
       - yes
     output: build/outputs/apk/release/app-x86-release-unsigned.apk
+    binary: https://github.com/madCode/newspaperss/releases/download/v%v/NewspapeRSS-%v-x86.apk
 
   - versionName: 0.1.0
     versionCode: 14
     commit: v0.1.0
     subdir: app
+    sudo:
+      - export CPUS_MAX=16
+      - export CPUS=$(getconf _NPROCESSORS_ONLN)
+      - for (( c=$CPUS_MAX; c<$CPUS; c++ )) ; do echo 0 > /sys/devices/system/cpu/cpu$c/online
+        ; done
     gradle:
       - yes
     output: build/outputs/apk/release/app-x86_64-release-unsigned.apk
+    binary: https://github.com/madCode/newspaperss/releases/download/v%v/NewspapeRSS-%v-x86_64.apk
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9.]+$
