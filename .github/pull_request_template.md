@@ -16,7 +16,7 @@ No Android SDK? Say so here instead. -->
 
 | <screen>, before | <screen>, after |
 |---|---|
-| ![<screen>, before](https://github.com/madCode/newspaperss/blob/claude/screenshots/pr-<N>/<screen>-before.png?raw=true) | ![<screen>, after](https://github.com/madCode/newspaperss/blob/claude/screenshots/pr-<N>/<screen>-after.png?raw=true) |
+| ![<screen>, before](https://github.com/Seafloor-Studio/newspaperss/blob/claude/screenshots/pr-<N>/<screen>-before.png?raw=true) | ![<screen>, after](https://github.com/Seafloor-Studio/newspaperss/blob/claude/screenshots/pr-<N>/<screen>-after.png?raw=true) |
 
 ## Diagrams
 <!-- Only if the change alters structure or flow: modules, the edition pipeline, delivery, a state machine,
