@@ -61,8 +61,8 @@ app can show you. Check this first if a Kindle email never arrives.
 Not delivery, but things a runner can't show either:
 
 - **A release build on a real phone:** onboarding, an edition and a send. CI only tests the debug build.
-- **Timed editions overnight** on a real phone, with Android's battery saving, and on an old, slow
-  phone if one is around.
+- **Timed editions overnight:** timed editions and their podcasts arrive overnight on a real phone
+  (Oct 2026). Still to try: an old, slow phone.
 - **Imports from real accounts:** a Pocket export, an Instapaper export and an OPML file.
 - **tt-rss against a real server:** in daily use since Oct 2026. Moving feeds between the phone and
   the server is the part used least.
