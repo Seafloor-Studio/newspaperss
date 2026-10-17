@@ -69,3 +69,9 @@ Not delivery, but things a runner can't show either:
 - **Pictures and players in the book** on a Kindle and a Kobo or Boox: pictures are stored rather
   than compressed again (#263), and a podcast player leaves a "Listen on …" line (#237).
 - **TalkBack and large text** on a phone, and the screens on e-ink.
+- **The live build updating itself** (tests stop at the hand-off to PackageInstaller): on a phone
+  with a CI debug build installed from the browser, wait for a newer build on Wi-Fi. Today says
+  "ready"; allow "Install unknown apps" when asked; confirm Android's question once. The next
+  build should then install with no question on Android 12 or later, while the app is closed and
+  nothing is running, and Settings should show its number. Also: an edition being made holds the
+  install back; mobile data doesn't download; a release build has no "Install unknown apps" entry.

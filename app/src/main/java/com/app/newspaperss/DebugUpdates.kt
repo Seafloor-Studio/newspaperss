@@ -5,22 +5,31 @@ import com.app.newspaperss.core.net.HttpClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
  * Notices when CI has published a newer debug build than the one installed, so a tester isn't
- * left on a stale one. Asks GitHub when the app comes to the front, at most every [INTERVAL_MILLIS].
+ * left on a stale one. Asks GitHub when the app comes to the front, and on a live build from the
+ * background check too, at most every [INTERVAL_MILLIS].
  *
  * @param installed this app's CI build number, or null for a release or locally built app, which
  *   never asks.
+ * @param onNewer told of the newest build after every check while it's newer, asked or not, so
+ *   the live build can fetch it ([SelfUpdater.newerBuild]).
  */
 class DebugUpdates(
     private val http: HttpClient,
     private val prefs: SharedPreferences,
     private val installed: Int?,
+    private val onNewer: (Int) -> Unit = {},
     private val now: () -> Long = System::currentTimeMillis,
 ) {
+    // The app coming to the front and the background check can arrive together: one asks GitHub.
+    private val checking = Mutex()
+
     private val newerBuild = MutableStateFlow(newer(prefs.getInt(LATEST, 0)))
 
     /** The newest build's number while it's newer than this one, else null. */
@@ -28,6 +37,11 @@ class DebugUpdates(
 
     suspend fun checkIfDue() {
         if (installed == null) return
+        checking.withLock { ask() }
+        newerBuild.value?.let(onNewer)
+    }
+
+    private suspend fun ask() {
         // A clock set back counts as due, or it could hold the check off for as long.
         if (now() - prefs.getLong(CHECKED, 0L) in 0 until INTERVAL_MILLIS) return
         val response = try {

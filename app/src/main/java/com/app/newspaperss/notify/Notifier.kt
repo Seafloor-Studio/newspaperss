@@ -167,5 +167,7 @@ class Notifier(private val context: Context) : EditionNotifier {
         private const val EDITION_ID = 1
         private const val PROBLEM_ID = 2
         const val PODCAST_ID = 3
+        /** The live (debug) build's news of a newer build of itself, posted from the debug source set. */
+        const val TEST_BUILD_ID = 4
     }
 }

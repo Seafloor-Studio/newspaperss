@@ -27,6 +27,7 @@ open class NewspaperssApp : Application() {
         container.appScope.launch { container.feedMoves.resumeIfPending() }
         container.notifier.createChannels()
         SyncWorker.schedulePeriodic(this)
+        container.selfUpdates.start()
         // Arms the timer if none is pending (first run, after an update or a
         // restore); a pending or overdue one is left alone. Again whenever the head start
         // for the podcast changes: its pace learned from a podcast, or Kokoro turned on or off.

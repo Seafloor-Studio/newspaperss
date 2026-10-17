@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The live build installs newer CI builds of itself (update/LiveUpdates). Debug only: Play and
+     F-Droid both refuse an app that can install apps. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- Android 11 and later hide other apps' screens unless asked for: without this, the check for
+         the "Install unknown apps" screen (UpdateNotices) could miss one that is there. -->
+    <queries>
+        <intent>
+            <action android:name="android.settings.MANAGE_UNKNOWN_APP_SOURCES" />
+        </intent>
+    </queries>
+
+    <application>
+        <receiver
+            android:name=".update.InstallResultReceiver"
+            android:exported="false" />
+    </application>
+</manifest>

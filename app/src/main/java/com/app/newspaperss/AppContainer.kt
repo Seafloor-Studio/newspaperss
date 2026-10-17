@@ -135,7 +135,9 @@ class AppContainer(
     }
     val editionBuilder = EditionBuilder(db, content, editionsDir, cover = CoverRenderer()::render, retiring = feedMoves::retiringIds, onReleased = notifier::dismissFor)
     val settings = SettingsStore(settingsData)
-    val debugUpdates = DebugUpdates(http, context.getSharedPreferences("debug-updates", Context.MODE_PRIVATE), installedBuild)
+    /** A live build fetching and installing newer builds; nothing in a release build. */
+    val selfUpdates = selfUpdater(context, installedBuild, appScope) { listenMade.isInitialized() && listen.state.value.playing }
+    val debugUpdates = DebugUpdates(http, context.getSharedPreferences("debug-updates", Context.MODE_PRIVATE), installedBuild, onNewer = selfUpdates::newerBuild)
     private val folderDelivery = FolderDelivery(context.contentResolver)
     val editionRun = EditionRun(settings, feedSync, editionBuilder, editions, folderDelivery, notifier,
         // Scheduled editions only: one made by hand gets its podcast when asked.

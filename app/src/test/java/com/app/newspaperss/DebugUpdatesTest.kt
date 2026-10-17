@@ -5,6 +5,9 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.testutil.FakeHttp
 import com.app.newspaperss.testutil.TestApp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -60,6 +63,22 @@ class DebugUpdatesTest {
         assertEquals("after a restart, without asking", 464, updates(installed = 455).newer.value)
         assertEquals(1, asked)
         assertNull("once it's installed", updates(installed = 464).newer.value)
+    }
+
+    @Test
+    fun twoChecksAtOnceAskOnceAndBothPassTheNewerBuildOn() = runTest {
+        release(464)
+        http.beforeResponse = { if (it == DebugUpdates.RELEASE_API) { asked++; delay(100) } }
+        val told = mutableListOf<Int>()
+        val updates = DebugUpdates(http, prefs, installed = 455, now = { clock }, onNewer = { told += it })
+
+        // The app coming to the front while the background check runs.
+        listOf(launch { updates.checkIfDue() }, launch { updates.checkIfDue() }).joinAll()
+
+        assertEquals(1, asked)
+        assertEquals(listOf(464, 464), told)
+        updates.checkIfDue()
+        assertEquals("passed on when not due too, so a stopped download starts again", 3, told.size)
     }
 
     @Test
