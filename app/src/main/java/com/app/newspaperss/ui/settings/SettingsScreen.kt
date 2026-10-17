@@ -332,15 +332,15 @@ private fun PodcastStart(s: AppSettings) {
     val making = SettingsSummary.aboutTime(minutes)
     Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Starts at $at, for the podcast", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+            Text("Starts at $at, for the audio", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
             Text(
                 when {
                     minutes > PodcastPace.MOST_EARLIER ->
-                        "Making the podcast takes $making on this phone, more than the 3 hours a paper can start early. " +
+                        "Making the audio takes $making on this phone, more than the 3 hours a paper can start early. " +
                             "The end of it will play in your phone's voice; a shorter paper would fit."
                     earlier >= PodcastPace.MOST_EARLIER ->
-                        "Making the podcast takes $making on this phone, so the paper starts 3 hours earlier, the most it can, with little room to spare."
-                    else -> "Making the podcast takes $making on this phone, so the paper starts $earlier minutes earlier, with room to spare."
+                        "Making the audio takes $making on this phone, so the paper starts 3 hours earlier, the most it can, with little room to spare."
+                    else -> "Making the audio takes $making on this phone, so the paper starts $earlier minutes earlier, with room to spare."
                 } + " Anything published after $at goes in the next one.",
                 style = MaterialTheme.typography.bodyMedium,
             )

@@ -54,13 +54,13 @@ class PodcastLineTest {
     @Test
     fun anEditionMadeByHandOffersToMakeItsPodcast() {
         show()
-        waitFor("No podcast for this edition yet")
-        compose.onNodeWithText("Make the podcast", substring = true).performClick()
+        waitFor("No audio for this edition yet")
+        compose.onNodeWithText("Make the audio", substring = true).performClick()
         idleUntil { started > 0 }
         assertEquals(1, started)
         assertNotNull(store.voice(7))
         // Asked for, it says how it's made.
-        waitFor("Waiting to make the podcast")
+        waitFor("Waiting to make the audio")
     }
 
     @Test
@@ -74,17 +74,17 @@ class PodcastLineTest {
         store.complete(7, 1)
         store.complete(7, 2)
         store.finish(7)
-        waitFor("The podcast is ready.")
+        waitFor("Audio ready.")
     }
 
     @Test
     fun whileItsBeingMadeItSaysSoAndTheArticleFillsAsPiecesAreKept() {
         store.want(7, PodcastVoice.HEART)
         show()
-        waitFor("Waiting to make the podcast")
+        waitFor("Waiting to make the audio")
         // The phone charges: the first article, of four lines, has its first two made.
         store.making(7)
-        waitFor("Making the podcast now")
+        waitFor("Making the audio now")
         store.lines(7, 0, 4)
         val scratch = store.scratch(7, 0, 0).apply { writeText("audio") }
         store.keep(7, 0, 0, scratch, listOf(0.0, 2.0))
@@ -95,7 +95,7 @@ class PodcastLineTest {
         waitFor("It carries on while the phone charges")
         // Another edition's being made first.
         store.making(8)
-        waitFor("Waiting while another edition's podcast is made")
+        waitFor("Waiting while another edition's audio is made")
     }
 
     @Test
@@ -105,7 +105,7 @@ class PodcastLineTest {
         show()
         waitFor("Stop making")
         // Nothing to delete until audio is kept: the made pages here are only marked so.
-        assertTrue(compose.onAllNodes(androidx.compose.ui.test.hasText("Delete podcast", substring = true)).fetchSemanticsNodes().isEmpty())
+        assertTrue(compose.onAllNodes(androidx.compose.ui.test.hasText("Delete audio", substring = true)).fetchSemanticsNodes().isEmpty())
         compose.onNodeWithText("Stop making").performClick()
         idleUntil { store.stopped(7) }
         assertTrue(store.waiting().isEmpty())
@@ -123,15 +123,15 @@ class PodcastLineTest {
         val scratch = store.scratch(7, 0, 0).apply { writeBytes(ByteArray(3_000_000)) }
         store.keep(7, 0, 0, scratch, listOf(0.0))
         show()
-        waitFor("Delete podcast · 3 MB")
-        compose.onNodeWithText("Delete podcast · 3 MB").performClick()
+        waitFor("Delete audio · 3 MB")
+        compose.onNodeWithText("Delete audio · 3 MB").performClick()
         waitFor("It frees 3 MB")
         // Nothing's gone until it's confirmed.
         assertNotNull(store.voice(7))
         compose.onNodeWithText("Delete").performClick()
         // The folder goes file by file, on another thread: the voice can be gone before the audio.
         idleUntil { store.voice(7) == null && store.bytes(7) == 0L }
-        waitFor("No podcast for this edition yet")
+        waitFor("No audio for this edition yet")
     }
 
     @Test
@@ -140,7 +140,7 @@ class PodcastLineTest {
         (0..2).forEach { store.complete(7, it) }
         store.finish(7)
         show()
-        waitFor("The podcast is ready.")
+        waitFor("Audio ready.")
         assertTrue(compose.onAllNodes(androidx.compose.ui.test.hasText("Stop making")).fetchSemanticsNodes().isEmpty())
     }
 

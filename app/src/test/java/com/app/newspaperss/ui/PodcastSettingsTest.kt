@@ -101,7 +101,7 @@ class PodcastSettingsTest {
         runBlocking { store.update { it.copy(podcastPace = pace) } }
     }
 
-    private fun pickPodcast() = compose.onNodeWithText("Make a podcast in a natural voice").performScrollTo().performClick()
+    private fun pickPodcast() = compose.onNodeWithText("A natural voice").performScrollTo().performClick()
 
     @Test
     fun offWifiItAsksBeforeUsingMobileData() {
@@ -132,7 +132,7 @@ class PodcastSettingsTest {
         assertEquals(listOf(false), started)
         work.value = runningWork(PodcastSetup.GOT to 154_000_000L, PodcastSetup.TOTAL to 384_077_374L)
         waitFor("154 of 384 MB")
-        compose.onNodeWithText("Make a podcast in a natural voice").assertIsSelected()
+        compose.onNodeWithText("A natural voice").assertIsSelected()
         compose.onNodeWithText("Cancel").performClick()
         assertEquals(1, stopped)
     }
@@ -153,7 +153,7 @@ class PodcastSettingsTest {
         // In use: its voices, each with a sample.
         compose.onNodeWithText("Emma").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
         idleUntil { vm.settings.value?.podcastVoice == PodcastVoice.EMMA }
-        waitFor("Listen plays an article from its podcast once it's made")
+        waitFor("Listen plays an article in the natural voice once its audio is made")
     }
 
     @Test
@@ -190,7 +190,7 @@ class PodcastSettingsTest {
         show()
         waitFor("This phone is slow at it, but it can")
         waitFor("Your 30-minute paper takes about 2 hours to make here")
-        compose.onNodeWithText("Read live in this phone's voice").assertIsSelected()
+        compose.onNodeWithText("Your phone's voice").assertIsSelected()
     }
 
     @Test
@@ -201,15 +201,15 @@ class PodcastSettingsTest {
         podcasts.want(7, PodcastVoice.HEART)
         podcasts.keep(7, 0, 0, podcasts.scratch(7, 0, 0).apply { writeBytes(ByteArray(5_000_000)) }, listOf(0.0))
         show()
-        waitFor("Podcasts take 5 MB")
-        compose.onNodeWithText("Delete all podcasts").performScrollTo().performClick()
+        waitFor("Audio takes 5 MB")
+        compose.onNodeWithText("Delete all audio").performScrollTo().performClick()
         waitFor("It frees 5 MB")
         compose.onNodeWithText("Delete").performClick()
         idleUntil { podcasts.voice(7) == null }
         assertTrue(install.complete)
         assertEquals(ListenVoice.PODCAST, runBlocking { store.current() }.listenVoice)
         // Nothing left to delete: the button goes.
-        idleUntil { compose.onAllNodes(hasText("Delete all podcasts")).fetchSemanticsNodes().isEmpty() }
+        idleUntil { compose.onAllNodes(hasText("Delete all audio")).fetchSemanticsNodes().isEmpty() }
     }
 
     @Test
@@ -219,7 +219,7 @@ class PodcastSettingsTest {
         log.add("Run started (try 1)")
         log.add("Stopped: unplugged")
         show()
-        compose.onNodeWithText("Podcast log").performScrollTo().performClick()
+        compose.onNodeWithText("Audio log").performScrollTo().performClick()
         waitFor("Stopped: unplugged")
         val shown = compose.onNode(hasText("Run started", substring = true)).fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.Text].joinToString()
         assertTrue(shown, shown.indexOf("Stopped: unplugged") < shown.indexOf("Run started"))
@@ -231,7 +231,7 @@ class PodcastSettingsTest {
         show()
         work.value = runningWork(PodcastSetup.GOT to 1_000_000L, PodcastSetup.TOTAL to 384_077_374L)
         waitFor("1 of 384 MB")
-        compose.onNodeWithText("Read live in this phone's voice").performClick()
+        compose.onNodeWithText("Your phone's voice").performClick()
         assertEquals(1, stopped)
     }
 
@@ -251,7 +251,7 @@ class PodcastSettingsTest {
         show()
         work.value = WorkInfo(UUID.randomUUID(), WorkInfo.State.FAILED, emptySet(), outputData = workDataOf(PodcastSetup.ERROR to "Couldn't download Kokoro."))
         waitFor("Couldn't download Kokoro.")
-        compose.onNodeWithText("Read live in this phone's voice").performClick()
+        compose.onNodeWithText("Your phone's voice").performClick()
         idleUntil { compose.onAllNodes(hasText("Couldn't download Kokoro.")).fetchSemanticsNodes().isEmpty() }
     }
 
@@ -259,7 +259,7 @@ class PodcastSettingsTest {
     fun aThirtyTwoBitPhoneSeesWhyNot() {
         show(supported = false)
         waitFor("Kokoro needs a 64-bit phone")
-        compose.onNodeWithText("Make a podcast in a natural voice").assertIsNotEnabled()
+        compose.onNodeWithText("A natural voice").assertIsNotEnabled()
     }
 
     @Test

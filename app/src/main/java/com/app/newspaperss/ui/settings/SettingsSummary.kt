@@ -61,7 +61,7 @@ object SettingsSummary {
             days == WEEKEND -> "$time, weekends"
             else -> "$time, " + days.sorted().joinToString(", ") { it.getDisplayName(TextStyle.SHORT, locale) }
         }
-        val start = podcastStart(s, locale)?.let { " · starts $it for the podcast" }.orEmpty()
+        val start = podcastStart(s, locale)?.let { " · starts $it for the audio" }.orEmpty()
         val problem = when {
             days.isEmpty() -> "Pick at least one day."
             !notificationsOn -> "Notifications are off."
@@ -101,7 +101,7 @@ object SettingsSummary {
      */
     fun listening(s: Settings, hasVoice: Boolean): Summary = Summary(
         when {
-            s.listenVoice == ListenVoice.PODCAST -> "Podcast in Kokoro (${s.podcastVoice.label}) · ${speedLabel(s.listenSpeed)}"
+            s.listenVoice == ListenVoice.PODCAST -> "A natural voice (${s.podcastVoice.label}) · ${speedLabel(s.listenSpeed)}"
             hasVoice -> "This phone's voice · ${speedLabel(s.listenSpeed)}"
             else -> "No voice on this phone"
         },

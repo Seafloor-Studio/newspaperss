@@ -278,8 +278,8 @@ class LiveUpdatesTest {
 
     @Test
     fun whatWouldBeCutOffIsNamed() {
-        assertEquals("It installs once the podcast is made.", LiveUpdates.busyReason(setOf("podcast"), listenPlaying = false, foreground = false))
-        assertEquals("It installs once the podcast voice has downloaded.", LiveUpdates.busyReason(setOf("kokoro"), listenPlaying = false, foreground = false))
+        assertEquals("It installs once the audio is made.", LiveUpdates.busyReason(setOf("podcast"), listenPlaying = false, foreground = false))
+        assertEquals("It installs once the natural voice has downloaded.", LiveUpdates.busyReason(setOf("kokoro"), listenPlaying = false, foreground = false))
         assertEquals(null, LiveUpdates.busyReason(setOf("edition-schedule", "sync"), listenPlaying = false, foreground = false))
     }
 
