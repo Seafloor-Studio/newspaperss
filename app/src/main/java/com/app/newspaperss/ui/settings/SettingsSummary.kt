@@ -102,7 +102,7 @@ object SettingsSummary {
     fun listening(s: Settings, hasVoice: Boolean): Summary = Summary(
         when {
             s.listenVoice == ListenVoice.PODCAST -> "A natural voice (${s.podcastVoice.label}) · ${speedLabel(s.listenSpeed)}"
-            hasVoice -> "This phone's voice · ${speedLabel(s.listenSpeed)}"
+            hasVoice -> "Your phone's voice · ${speedLabel(s.listenSpeed)}"
             else -> "No voice on this phone"
         },
     )

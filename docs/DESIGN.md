@@ -831,7 +831,7 @@ whose Kindle and KOReader answers ask for more on the same page).
     (85% to 175%) as radio rows; the preview's **Aa** sets the same size.
     The rest of the app follows Android's font size, and the EPUB the
     e-reader's own settings.
-  - **Listening** (its row says "This phone's voice · 1×", or "No voice on
+  - **Listening** (its row says "Your phone's voice · 1×", or "No voice on
     this phone", which isn't shown as a problem: many e-readers have none):
     the phone's text-to-speech engine by name with **Hear it**, a sample line
     at the chosen speed (it pauses an edition that's playing); the speed as
@@ -840,9 +840,9 @@ whose Kindle and KOReader answers ask for more on the same page).
     settings. A voice, language or engine changed there is heard from the next start or jump.
     A speed asked for by a car or watch becomes the nearest of these.
     Without an engine the page says so and offers Speech Services by Google.
-    Debug builds also offer a second choice: **Your phone's voice**, which
-    starts now, or **A natural voice**, Kokoro, made ahead
-    while the phone charges (see the backlog). Picking it downloads
+    Debug builds make the voice a choice of two: **Your phone's voice**, which
+    starts now (its detail reads "Starts now ·" and the engine), or
+    **A natural voice**, Kokoro, made ahead while the phone charges (see the backlog). Picking it downloads
     384 MB, asking first when not on Wi-Fi ("Wait for Wi-Fi" starts it on
     the next Wi-Fi by itself); then a 20-second check times this phone and
     says what your paper would take to make: up to about an hour, "This

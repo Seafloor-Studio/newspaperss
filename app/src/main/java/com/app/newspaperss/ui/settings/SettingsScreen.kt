@@ -395,7 +395,7 @@ private fun ListeningSection(s: AppSettings, vm: SettingsViewModel) {
     } else if (voice != null) {
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("This phone's voice", style = MaterialTheme.typography.bodyLarge)
+                Text("Your phone's voice", style = MaterialTheme.typography.bodyLarge)
                 Text(voice, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             OutlinedButton(onClick = vm::hear, modifier = Modifier.padding(start = 8.dp)) { Text("Hear it") }

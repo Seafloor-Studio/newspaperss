@@ -62,7 +62,7 @@ class Notifier(private val context: Context) : EditionNotifier {
             },
         )
         system.createNotificationChannel(
-            NotificationChannel(PODCAST, "Making audio", NotificationManager.IMPORTANCE_LOW).apply {
+            NotificationChannel(PODCAST, "Making the audio", NotificationManager.IMPORTANCE_LOW).apply {
                 description = "Shows while an edition's audio is made, as the phone charges"
             },
         )

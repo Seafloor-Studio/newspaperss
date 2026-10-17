@@ -268,7 +268,7 @@ class PodcastSettingsTest {
         val vm = SettingsViewModel(store) {}
         compose.setContent { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
         idleUntil { vm.settings.value != null }
-        waitFor("This phone's voice")
+        waitFor("Your phone's voice")
         assertEquals(0, compose.onAllNodes(hasText("A natural voice", substring = true)).fetchSemanticsNodes().size)
     }
 }

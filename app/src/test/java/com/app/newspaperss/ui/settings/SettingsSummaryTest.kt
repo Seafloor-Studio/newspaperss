@@ -82,7 +82,7 @@ class SettingsSummaryTest {
 
     @Test
     fun listeningNamesTheSpeedAndAPhoneWithoutAVoiceIsntAProblem() {
-        assertEquals(Summary("This phone's voice · 1.2×"), SettingsSummary.listening(Settings(listenSpeed = 1.2f), hasVoice = true))
+        assertEquals(Summary("Your phone's voice · 1.2×"), SettingsSummary.listening(Settings(listenSpeed = 1.2f), hasVoice = true))
         // An e-reader without one, whose reader may never listen.
         assertEquals(Summary("No voice on this phone"), SettingsSummary.listening(Settings(), hasVoice = false))
         val podcast = Settings(listenVoice = ListenVoice.PODCAST, podcastVoice = PodcastVoice.EMMA)

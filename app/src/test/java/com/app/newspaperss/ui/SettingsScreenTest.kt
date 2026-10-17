@@ -173,7 +173,7 @@ class SettingsScreenTest {
     fun listeningNamesThePhonesVoiceKeepsASpeedAndPlaysASample() {
         installVoice(ApplicationProvider.getApplicationContext())
         show()
-        waitFor("This phone's voice · 1×")
+        waitFor("Your phone's voice · 1×")
         compose.onNodeWithText("Listening").performScrollTo().performClick()
         waitFor("Speech Services by Google")
         compose.onNodeWithText("1× · normal").assertIsSelected()

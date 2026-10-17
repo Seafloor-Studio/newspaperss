@@ -108,7 +108,7 @@ internal fun ListeningVoices(s: AppSettings, vm: SettingsViewModel, kokoro: Koko
         )
         if (phoneVoice == null && !podcast) {
             Column(Modifier.padding(start = INDENT, bottom = 8.dp)) {
-                Text("Listen can't read live without one. Speech Services by Google is free.", style = MaterialTheme.typography.bodyMedium)
+                Text("Listen can't read aloud without one. Speech Services by Google is free.", style = MaterialTheme.typography.bodyMedium)
                 OutlinedButton(onClick = onGetPhoneVoice) { Text("Get Speech Services by Google") }
             }
         }
@@ -224,7 +224,7 @@ private fun CheckResult(s: AppSettings, kokoro: KokoroState.Ready, size: String,
             }
         }
         Verdict.TOO_SLOW -> Step("Too slow on this phone") {
-            Text("Your $paper-minute paper would take $time to make here, more than a night can give it. Listen keeps reading live in your phone's voice.")
+            Text("Your $paper-minute paper would take $time to make here, more than a night can give it. Listen keeps using your phone's voice.")
             val fits = PodcastPace.longestPaper(kokoro.pace)
             if (fits >= MIN_PAPER) {
                 Text("A shorter paper might fit: $fits minutes would take ${SettingsSummary.aboutTime(PodcastPace.minutesToMake(fits, kokoro.pace))}.")
@@ -263,7 +263,7 @@ private fun Podcast(s: AppSettings, vm: SettingsViewModel, kokoro: KokoroState.R
         Note("Listen plays an article in the natural voice once its audio is made, and in your phone's voice until then.", Modifier.padding(top = 4.dp))
         DeletePodcasts(vm)
         TextButton(onClick = vm::removeKokoro, modifier = Modifier.padding(top = 4.dp)) { Text("Remove Kokoro") }
-        Note("Frees $size. Listen goes back to reading live.")
+        Note("Frees $size. Listen goes back to your phone's voice.")
         PodcastLogButton(vm)
     }
 }
