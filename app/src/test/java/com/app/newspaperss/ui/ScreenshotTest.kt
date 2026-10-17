@@ -370,7 +370,7 @@ class ScreenshotTest {
             (1..2).forEach { db.articles().insertIgnoring(ArticleEntity(sourceId = source, guid = "$it", url = "https://example.com/$it", title = "Starred $it", starredAt = now)) }
         }
         val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
-        val vm = TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {}
+        val vm = viewModels.add(TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {})
         shoot("05-today", ready = { vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm) }
     }
 
@@ -381,7 +381,7 @@ class ScreenshotTest {
             db.editions().insertArticles(sampleArticles(latest))
         }
         val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
-        val vm = TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {}
+        val vm = viewModels.add(TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {})
         shoot(name, ready = { vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm, newerBuild = 464, selfUpdate = selfUpdate) }
     }
 
@@ -410,7 +410,7 @@ class ScreenshotTest {
         val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
         val podcast = Settings(scheduleEnabled = true, listenVoice = ListenVoice.PODCAST, podcastPace = 1.2f)
         val evening = java.time.ZonedDateTime.of(2026, 9, 29, 21, 0, 0, 0, java.time.ZoneOffset.UTC)
-        val vm = TodayViewModel(EditionRepository(db, files, clock), flowOf(null), settings = flowOf(podcast), now = { evening }) {}
+        val vm = viewModels.add(TodayViewModel(EditionRepository(db, files, clock), flowOf(null), settings = flowOf(podcast), now = { evening }) {})
         shoot("05h-today-podcast", ready = { vm.state.value.next != null && vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm) }
     }
 
@@ -446,7 +446,7 @@ class ScreenshotTest {
                 .also { db.editions().insertArticles(sampleArticles(it)) }
         }
         val sent = if (kindleNote) mapOf(latest to KindleSend.APP) else emptyMap()
-        val vm = TodayViewModel(EditionRepository(db, files, clock), flowOf(null), settings = flowOf(Settings(device = device)), sentToKindle = flowOf(sent), now = { clock.instant().atZone(clock.zone) }) {}
+        val vm = viewModels.add(TodayViewModel(EditionRepository(db, files, clock), flowOf(null), settings = flowOf(Settings(device = device)), sentToKindle = flowOf(sent), now = { clock.instant().atZone(clock.zone) }) {})
         shoot(name, ready = { vm.state.value.editions?.isNotEmpty() == true }, act = act) { TodayScreen(vm) }
     }
 
@@ -610,7 +610,7 @@ class ScreenshotTest {
             )
             edition
         }
-        return EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id) {}
+        return viewModels.add(EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id) {})
     }
 
     @Test
