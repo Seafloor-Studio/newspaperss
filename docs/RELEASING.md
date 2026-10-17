@@ -37,7 +37,7 @@ They're the same names dailylog uses.
    it can't see a draft.
 
 There's one APK per ABI (arm64-v8a, armeabi-v7a, x86_64, x86), since the
-podcast voice's native code is about 30 MB for each 64-bit one. Each has
+natural voice's native code is about 30 MB for each 64-bit one. Each has
 version code `versionCode * 10` plus 1 to 4, in that order: armeabi-v7a,
 arm64-v8a, x86, x86_64. A store offers a device the highest code it can
 run. The AAB takes the first of these, `versionCode * 10 + 1`, as Android's
@@ -104,7 +104,7 @@ dailylog uses (`com.app.dailylog` in fdroiddata).
 - **Why else it looks as it does:**
   - Four builds, one per ABI, because the app's build splits its APKs; each
     names its APK with `output:`.
-  - `NonFreeNet`: the podcast voice (Kokoro) downloads from Hugging Face, as
+  - `NonFreeNet`: the natural voice (Kokoro) downloads from Hugging Face, as
     SherpaTTS, the other sherpa-onnx app on F-Droid, declares.
   - sherpa-onnx comes from JitPack, which F-Droid's scanner allows; SherpaTTS
     uses the same library the same way.

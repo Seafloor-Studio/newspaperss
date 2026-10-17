@@ -14,7 +14,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-/** The "Making the podcast" notification's Stop. */
+/** The "Making the audio" notification's Stop. */
 @RunWith(AndroidJUnit4::class)
 @Config(application = TestApp::class)
 class StopPodcastReceiverTest {

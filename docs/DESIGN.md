@@ -231,18 +231,18 @@ module so it's all unit-tested without Android.
   should be *ready*. A chain of one-off timers fires 30 minutes early,
   because Android's Doze can hold background work; the delay then eats lead
   time, not your morning. A clock or time-zone change re-arms the timer.
-- **With the podcast, they start earlier still** (debug builds): by the
-  time this phone takes to make your paper's podcast, × 1.25 for room to
-  spare, in whole 5 minutes, up to 3 hours. Once real podcasts have timed
+- **With a natural voice, they start earlier still** (debug builds): by the
+  time this phone takes to make your paper's audio, × 1.25 for room to
+  spare, in whole 5 minutes, up to 3 hours. Once real audio has timed
   the phone (each finished one moves the pace halfway to its own), the margin is × 1.1.
   The start shows under Ready by on Schedule ("Starts at 4:50 AM, for the
-  podcast", and to leave the phone charging), in the Schedule summary, in
+  audio", and to leave the phone charging), in the Schedule summary, in
   Today's next-edition line and in the speed check's verdict.
 - **Feeds sync right before each build,** and in the background every 12
   hours when the battery isn't low.
 - **One build at a time.** A timed edition takes the place of one made by
   hand that is still waiting for a connection, so it comes with its Ready
-  notification, podcast and retries; one already being made is left to finish.
+  notification, audio and retries; one already being made is left to finish.
 - **No edition is never silent.** A timed run with nothing new sends a quiet
   "No new edition"; if every source failed, it's retried twice, then reported
   as a failure pointing to Sources. A build waiting for a connection says so.
@@ -521,8 +521,8 @@ whose Kindle and KOReader answers ask for more on the same page).
     - it checks the file before anything else: the same package, a newer
       build and version code, and signed with the same key as the running
       app. A file that fails is deleted, and that build isn't fetched again;
-    - it installs with Android's PackageInstaller once no edition, podcast,
-      podcast voice download or feed move is running, Listen isn't
+    - it installs with Android's PackageInstaller once no edition, audio,
+      natural voice download or feed move is running, Listen isn't
       playing and the app isn't open; otherwise it tries again later;
     - Android asks the reader to confirm the first time after a browser
       install, and every time before Android 12: a notification, "Build N
@@ -533,7 +533,7 @@ whose Kindle and KOReader answers ask for more on the same page).
       is given up on until a newer one is out.
   - So the line reads "Downloading test build N", "Test build N downloads
     on Wi-Fi. Download it now", "Test build N is ready. Install it" (tap
-    installs now, unless an edition, podcast or Listen is under way), or
+    installs now, unless an edition, audio or Listen is under way), or
     "Test build N is ready. Allow installing it". With none of those, it is
     the browser link: "Test build N is out. Download it".
   - Release builds have none of this: the code and the install permission
@@ -831,7 +831,7 @@ whose Kindle and KOReader answers ask for more on the same page).
     (85% to 175%) as radio rows; the preview's **Aa** sets the same size.
     The rest of the app follows Android's font size, and the EPUB the
     e-reader's own settings.
-  - **Listening** (its row says "This phone's voice · 1×", or "No voice on
+  - **Listening** (its row says "Your phone's voice · 1×", or "No voice on
     this phone", which isn't shown as a problem: many e-readers have none):
     the phone's text-to-speech engine by name with **Hear it**, a sample line
     at the chosen speed (it pauses an edition that's playing); the speed as
@@ -840,8 +840,9 @@ whose Kindle and KOReader answers ask for more on the same page).
     settings. A voice, language or engine changed there is heard from the next start or jump.
     A speed asked for by a car or watch becomes the nearest of these.
     Without an engine the page says so and offers Speech Services by Google.
-    Debug builds also offer **Make a podcast in a natural voice**, Kokoro
-    (see the backlog). Picking it downloads
+    Debug builds make the voice a choice of two: **Your phone's voice**, which
+    starts now (its detail reads "Starts now ·" and the engine), or
+    **A natural voice**, Kokoro, made ahead while the phone charges (see the backlog). Picking it downloads
     384 MB, asking first when not on Wi-Fi ("Wait for Wi-Fi" starts it on
     the next Wi-Fi by itself); then a 20-second check times this phone and
     says what your paper would take to make: up to about an hour, "This
@@ -849,36 +850,36 @@ whose Kindle and KOReader answers ask for more on the same page).
     slow", offering only Remove and the paper size that would fit. A 32-bit
     phone sees the option greyed, with why. In use, it lists Heart,
     Michael, Emma and George, each with a clip shipped in the app,
-    **Delete all podcasts** with the space they take (Kokoro stays, so
-    they can be made again), **Remove Kokoro**, and **Podcast log**: what the making and playing did,
-    newest first, with Share to send it to whoever's fixing it. While it's in use, each scheduled edition's podcast
+    **Delete all audio** with the space it takes (Kokoro stays, so
+    it can be made again), **Remove Kokoro**, and **Audio log**: what the making and playing did,
+    newest first, with Share to send it to whoever's fixing it. While it's in use, each scheduled edition's audio
     is made after the book, only while the phone charges: unplugged, it
     stops and keeps what's made. It runs at low priority, so using
     the phone meanwhile isn't slowed. It's made in the foreground, with a
-    quiet "Making the podcast" notification (if notifications are on),
-    whose **Stop** stops making podcasts, keeping what's made, until one
+    quiet "Making the audio" notification (if notifications are on),
+    whose **Stop** stops making audio, keeping what's made, until one
     is asked for again:
     Android lets long work run only so. From Android 12 that's allowed
     overnight only if the app's battery use is Unrestricted, and from
     Android 15 for 6 hours a day; otherwise it's made a few minutes at a
     time, slowly.
     English articles only; the rest are left
-    to the phone's voice. A podcast is deleted with its edition's book, and
-    all of them with Kokoro. Listen plays an article from its podcast once
-    it's made, and in the phone's voice until then: from the next play or
-    jump once it's made, never mid-sentence. The playing screen shows the podcast voice's name by
-    the source, and a quiet line when an article of an edition with a
-    podcast plays in the phone's voice (not made yet, or left out).
+    to the phone's voice. An edition's audio is deleted with its book, and
+    all of it with Kokoro. Listen plays an article in the natural voice once
+    its audio is made, and in the phone's voice until then: from the next play or
+    jump once it's made, never mid-sentence. The playing screen shows the natural voice's name by
+    the source, and a quiet line when an article of an edition with
+    audio plays in the phone's voice (not made yet, or left out).
     Under Listen on the edition page, a bar of its articles fills as each
     is made (an article being made fills as each ~2-minute piece is kept),
     with how many minutes are made, and whether it's being made now or
-    waiting for the phone to charge; an edition without a podcast
-    (made by hand, say) offers **Make the podcast**, made while charging.
+    waiting for the phone to charge; an edition without audio
+    (made by hand, say) offers **Make the audio**, made while charging.
     While it's made or waiting, **Stop making** stops it between sentences,
     keeping what's made (those articles play from it, the rest in the
     phone's voice) and offering **Make the rest**. Once any audio is made,
-    **Delete podcast · 7 MB** deletes it, after asking: the edition plays
-    in the phone's voice and can have its podcast made again.
+    **Delete audio · 7 MB** deletes it, after asking: the edition plays
+    in the phone's voice and can have its audio made again.
   - **E-reader & delivery:** the e-reader in a dropdown at the top, then
     "How it gets there". They share a page because the e-reader decides
     which delivery options show: **Email it to your Kindle** (shown for a Kindle, or once

@@ -379,8 +379,8 @@ internal class LiveUpdates(
         /** Why installing now would cut something off, as Today says it; null when nothing would. */
         fun busyReason(running: Set<String>, listenPlaying: Boolean, foreground: Boolean): String? = when {
             EditionWorker.UNIQUE in running -> "It installs once the edition is made."
-            PodcastWorker.UNIQUE in running -> "It installs once the podcast is made."
-            KokoroWorker.UNIQUE in running -> "It installs once the podcast voice has downloaded."
+            PodcastWorker.UNIQUE in running -> "It installs once the audio is made."
+            KokoroWorker.UNIQUE in running -> "It installs once the natural voice has downloaded."
             MoveFeedsWorker.UNIQUE in running -> "It installs once your feeds have moved."
             listenPlaying -> "It installs once Listen stops."
             foreground -> "It installs once you leave the app."

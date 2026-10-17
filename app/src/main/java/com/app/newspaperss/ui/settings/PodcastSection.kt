@@ -95,8 +95,8 @@ internal fun ListeningVoices(s: AppSettings, vm: SettingsViewModel, kokoro: Koko
     Column(Modifier.selectableGroup()) {
         VoiceOption(
             selected = !podcast,
-            title = "Read live in this phone's voice",
-            detail = phoneVoice ?: "No voice on this phone",
+            title = "Your phone's voice",
+            detail = phoneVoice?.let { "Starts now · $it" } ?: "No voice on this phone",
             onSelect = {
                 asking = false
                 failureSeen = true
@@ -108,14 +108,14 @@ internal fun ListeningVoices(s: AppSettings, vm: SettingsViewModel, kokoro: Koko
         )
         if (phoneVoice == null && !podcast) {
             Column(Modifier.padding(start = INDENT, bottom = 8.dp)) {
-                Text("Listen can't read live without one. Speech Services by Google is free.", style = MaterialTheme.typography.bodyMedium)
+                Text("Listen can't read aloud without one. Speech Services by Google is free.", style = MaterialTheme.typography.bodyMedium)
                 OutlinedButton(onClick = onGetPhoneVoice) { Text("Get Speech Services by Google") }
             }
         }
         val unsupported = kokoro is KokoroState.Unsupported
         VoiceOption(
             selected = podcast,
-            title = "Make a podcast in a natural voice",
+            title = "A natural voice",
             detail = if (unsupported) "Kokoro needs a 64-bit phone, and this one is 32-bit." else "Kokoro · made ahead while your phone charges · $mb",
             enabled = !unsupported,
             onSelect = ::pickPodcast,
@@ -224,7 +224,7 @@ private fun CheckResult(s: AppSettings, kokoro: KokoroState.Ready, size: String,
             }
         }
         Verdict.TOO_SLOW -> Step("Too slow on this phone") {
-            Text("Your $paper-minute paper would take $time to make here, more than a night can give it. Listen keeps reading live in your phone's voice.")
+            Text("Your $paper-minute paper would take $time to make here, more than a night can give it. Listen keeps using your phone's voice.")
             val fits = PodcastPace.longestPaper(kokoro.pace)
             if (fits >= MIN_PAPER) {
                 Text("A shorter paper might fit: $fits minutes would take ${SettingsSummary.aboutTime(PodcastPace.minutesToMake(fits, kokoro.pace))}.")
@@ -239,7 +239,7 @@ private fun earlier(s: AppSettings, kokoro: KokoroState.Ready): String {
     if (!s.scheduleEnabled) return ""
     val minutes = PodcastPace.earlier(s.edition.minutes, kokoro.pace, s.podcastPaceMeasured)
     val ready = s.schedule.time.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
-    return " Scheduled editions will start $minutes minutes earlier, so the podcast is ready by $ready."
+    return " Scheduled editions will start $minutes minutes earlier, so the audio is ready by $ready."
 }
 
 /** Kokoro in use: its voices, what a paper costs on this phone, and removing it. */
@@ -260,10 +260,10 @@ private fun Podcast(s: AppSettings, vm: SettingsViewModel, kokoro: KokoroState.R
             "On this phone, your ${s.edition.minutes}-minute paper takes ${SettingsSummary.aboutTime(PodcastPace.minutesToMake(s.edition.minutes, kokoro.pace))} to make.",
             Modifier.padding(top = 4.dp),
         )
-        Note("Listen plays an article from its podcast once it's made, and in your phone's voice until then.", Modifier.padding(top = 4.dp))
+        Note("Listen plays an article in the natural voice once its audio is made, and in your phone's voice until then.", Modifier.padding(top = 4.dp))
         DeletePodcasts(vm)
         TextButton(onClick = vm::removeKokoro, modifier = Modifier.padding(top = 4.dp)) { Text("Remove Kokoro") }
-        Note("Frees $size. Listen goes back to reading live.")
+        Note("Frees $size. Listen goes back to your phone's voice.")
         PodcastLogButton(vm)
     }
 }
@@ -274,13 +274,13 @@ private fun DeletePodcasts(vm: SettingsViewModel) {
     val bytes = vm.podcastBytes.collectAsStateWithLifecycle().value ?: return
     if (bytes == 0L) return
     var asking by rememberSaveable { mutableStateOf(false) }
-    TextButton(onClick = { asking = true }, modifier = Modifier.padding(top = 4.dp)) { Text("Delete all podcasts") }
-    Note("Podcasts take ${megabytes(bytes)}. Each edition's can also be deleted on its page.")
+    TextButton(onClick = { asking = true }, modifier = Modifier.padding(top = 4.dp)) { Text("Delete all audio") }
+    Note("Audio takes ${megabytes(bytes)}. Each edition's can also be deleted on its page.")
     if (asking) {
         AlertDialog(
             onDismissRequest = { asking = false },
-            title = { Text("Delete all podcasts?") },
-            text = { Text("It frees ${megabytes(bytes)}. Editions play in your phone's voice, and Kokoro stays, so their podcasts can be made again.") },
+            title = { Text("Delete all audio?") },
+            text = { Text("It frees ${megabytes(bytes)}. Editions play in your phone's voice, and Kokoro stays, so the audio can be made again.") },
             confirmButton = {
                 TextButton(onClick = {
                     asking = false
@@ -299,12 +299,12 @@ private fun PodcastLogButton(vm: SettingsViewModel) {
     var lines by remember { mutableStateOf<List<String>?>(null) }
     var open by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(open) { lines = if (open) vm.podcastLog() else null }
-    TextButton(onClick = { open = true }, modifier = Modifier.padding(top = 4.dp)) { Text("Podcast log") }
+    TextButton(onClick = { open = true }, modifier = Modifier.padding(top = 4.dp)) { Text("Audio log") }
     if (!open) return
     val text = lines?.joinToString("\n")
     AlertDialog(
         onDismissRequest = { open = false },
-        title = { Text("Podcast log") },
+        title = { Text("Audio log") },
         text = {
             Text(
                 when {
@@ -321,7 +321,7 @@ private fun PodcastLogButton(vm: SettingsViewModel) {
                 onClick = {
                     val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
                     // E-reader firmware may lack the chooser.
-                    runCatching { context.startActivity(Intent.createChooser(send, "Share the podcast log")) }
+                    runCatching { context.startActivity(Intent.createChooser(send, "Share the audio log")) }
                 },
                 enabled = !text.isNullOrEmpty(),
             ) { Text("Share") }

@@ -116,7 +116,7 @@ The newest debug build is always at
 [newspapeRSS-debug.apk](https://github.com/Seafloor-Studio/newspaperss/releases/download/latest-debug/newspapeRSS-debug.apk)
 (Android 8 or later), for 64-bit ARM: most phones and recent e-readers. An
 older 32-bit e-reader needs `newspapeRSS-debug-armeabi-v7a.apk` from the same
-page, which has everything but the podcast voice. It installs beside a release build, and Settings shows
+page, which has everything but the natural voice. It installs beside a release build, and Settings shows
 which build it is. The [release page](https://github.com/Seafloor-Studio/newspaperss/releases/tag/latest-debug)
 names the newest build, its commit and date, and has the same file under the
 build's number. After that the test build keeps itself current: it downloads
@@ -142,7 +142,7 @@ MIT: see [LICENSE](LICENSE).
 
 The app includes [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)
 (Apache 2.0) and [ONNX Runtime](https://github.com/microsoft/onnxruntime)
-(MIT), which run the podcast's voice. That voice,
+(MIT), which run the natural voice. That voice,
 [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) (Apache 2.0), is
 downloaded when chosen, with espeak-ng's pronunciation data (GPL 3.0);
 the four voice samples shipped in the app were made with it. The page

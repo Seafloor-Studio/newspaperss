@@ -71,7 +71,7 @@ class Podcasts(
         val s = settings.current()
         if (s.listenVoice != ListenVoice.PODCAST || !withContext(Dispatchers.IO) { install.complete }) return
         withContext(Dispatchers.IO) { store.want(editionId, s.podcastVoice) }
-        log.add("Edition $editionId's podcast asked for, in ${s.podcastVoice.label}; made once the phone charges")
+        log.add("Edition $editionId's audio asked for, in ${s.podcastVoice.label}; made once the phone charges")
         start()
     }
 
@@ -82,7 +82,7 @@ class Podcasts(
     /** Stops making [editionId]'s podcast between sentences, keeping what's made; [request] carries on. */
     fun stop(editionId: Long) {
         store.stop(editionId)
-        log.add("Edition $editionId's podcast stopped")
+        log.add("Edition $editionId's audio stopped")
     }
 
     /**
@@ -94,7 +94,7 @@ class Podcasts(
     /** Deletes [editionId]'s podcast: it plays in the phone's voice, and can be made again. */
     fun delete(editionId: Long) {
         store.delete(editionId)
-        log.add("Edition $editionId's podcast deleted")
+        log.add("Edition $editionId's audio deleted")
     }
 
     /** The space all podcasts take, in bytes, following [PodcastStore.changes]. */

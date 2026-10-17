@@ -122,8 +122,8 @@ fun ListenScreen(
     val why by instead.collectAsStateWithLifecycle()
     // One quiet line where the voice changes; nothing is said aloud about it.
     val voiceNote = when (why) {
-        PodcastSpeaker.Instead.NOT_MADE_YET -> "From here, your phone's voice: the podcast hasn't reached this article yet."
-        PodcastSpeaker.Instead.LEFT_OUT -> "This article plays in your phone's voice: the podcast left it out, as it's not in English or couldn't be made."
+        PodcastSpeaker.Instead.NOT_MADE_YET -> "From here, your phone's voice: the audio hasn't reached this article yet."
+        PodcastSpeaker.Instead.LEFT_OUT -> "This article plays in your phone's voice: it was left out of the audio, as it's not in English or couldn't be made."
         null -> null
     }
     var contents by rememberSaveable { mutableStateOf(false) }
@@ -360,7 +360,7 @@ private fun PlayerDock(state: ListenState, player: ListenPlayer, voice: PodcastV
                         modifier = Modifier.padding(start = 8.dp)
                             .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small)
                             .padding(horizontal = 6.dp, vertical = 1.dp)
-                            .semantics { contentDescription = "Podcast, in ${voice.label}'s voice" },
+                            .semantics { contentDescription = "Audio, in ${voice.label}'s voice" },
                     )
                 }
                 if (page?.end != true) Text("${minutes(pageLeft)} left", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))

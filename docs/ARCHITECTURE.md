@@ -91,7 +91,7 @@ Entry points from outside the app (`app/src/main/AndroidManifest.xml`):
 | `ClockChangeReceiver` | Time or time zone changed: re-arms the edition timer. |
 | `FileProvider` | Hands EPUB files to other apps by `content://` URI. |
 | `ListenService` | Keeps an edition playing aloud with the screen off; Android's media controls talk to it. |
-| `StopPodcastReceiver` | The "Making the podcast" notification's **Stop**: stops making podcasts, keeping what's made. |
+| `StopPodcastReceiver` | The "Making the audio" notification's **Stop**: stops making audio, keeping what's made. |
 
 ## Making an edition
 
@@ -267,7 +267,9 @@ flowchart LR
   saves changes made from its own controls there.
 - **`Speaker`** is the voice. `SystemSpeaker` wraps Android's
   `TextToSpeech`; tests use a fake. Kokoro can't keep up live on a phone,
-  so it makes podcasts ahead of time (below).
+  so it makes audio ahead of time (below). The code calls that audio a
+  podcast (`Podcasts`, `PodcastStore`, `ListenVoice.PODCAST`); the app
+  says "audio" and "a natural voice", and stored keys keep the old name.
 - **`PodcastSpeaker`** is the `Speaker` the player gets. When an article
   starts, it picks its voice: the podcast if that article is made and
   Kokoro is in use, else `SystemSpeaker`; the choice holds while the article
@@ -284,7 +286,7 @@ flowchart LR
   the edition page which articles are made, followed through
   `PodcastStore.changes`. It asks for a podcast: a scheduled edition's
   from `EditionRun`'s `onBuilt`, or one made by hand from **Make the
-  podcast**. It starts the work again when Kokoro is turned back on, and
+  audio**. It starts the work again when Kokoro is turned back on, and
   deletes every podcast when Kokoro is removed.
 - **`ListenService`** is a Media3 `MediaSessionService`. Its
   `SessionPlayer` (a `SimpleBasePlayer`) shows the player's state to
@@ -354,7 +356,7 @@ twice.
 | `TtrssMarkReadWorker` | Delivery, mark not sent | `ttrss-mark-read-<edition>`, REPLACE | Up to 4 attempts. Reads the edition's state when it runs. |
 | `ReadingListTitleWorker` | New untitled links | `reading-list-titles`, APPEND_OR_REPLACE | Batches of 20, one batch at a time. |
 | `MoveFeedsWorker` | Moving phone feeds to tt-rss; app start, if a move is stored | `move-feeds`, APPEND_OR_REPLACE | Connected. Runs `FeedMoves.run`; what's left is in DataStore, so a run stopped part way carries on in the next. Appended so a run finishing up can't swallow a new move. |
-| `KokoroWorker` | Settings › Listening, picking the podcast | `kokoro`, REPLACE | Downloads Kokoro on Wi-Fi (any connection if the reader chose mobile data), then the speed check. Resumes across WorkManager's 10-minute limit; gives up after 6 failures with nothing arriving between them. |
+| `KokoroWorker` | Settings › Listening, picking **A natural voice** | `kokoro`, REPLACE | Downloads Kokoro on Wi-Fi (any connection if the reader chose mobile data), then the speed check. Resumes across WorkManager's 10-minute limit; gives up after 6 failures with nothing arriving between them. |
 | `PodcastWorker` | A scheduled edition built with Kokoro in use; turning Kokoro back on | `podcast`, APPEND_OR_REPLACE | Only while charging. Runs in the foreground with a quiet notification, so past WorkManager's 10-minute limit, where Android allows it: before Android 12, with battery use Unrestricted, or with the app on screen. Otherwise it doesn't ask (asked and refused, WorkManager would ignore unplugging), and runs as background work, stopped at 10 minutes and rationed. Refused anyway, it stays in the background for an hour; after Android 15's 6 hours a day, for 12. It checks for itself every 30 s that the phone is plugged in, and, not really in the foreground, stops at 9 minutes and queues itself again: work WorkManager thinks is foreground but Android doesn't would otherwise never be stopped. Unplugged, it stops and carries on from the last piece kept when it runs again. Appended so a run finishing up can't swallow a new edition. |
 
 Timed editions use a chain of one-off timers, not periodic work, because
