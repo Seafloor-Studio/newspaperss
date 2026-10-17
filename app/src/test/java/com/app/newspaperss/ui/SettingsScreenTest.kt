@@ -57,6 +57,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import com.app.newspaperss.settings.ListenVoice
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -114,6 +115,20 @@ class SettingsScreenTest {
         waitFor("Mon")
         compose.onNodeWithText("Make an edition automatically").assertHeightIsAtLeast(48.dp)
         assertEquals(true, rescheduled.last().scheduleEnabled)
+    }
+
+    /** With the natural voice, Schedule says the paper starts early so its audio is made in time, and how early. */
+    @Test
+    fun withANaturalVoiceTheScheduleSaysWhenTheAudioStarts() {
+        runBlocking { store.update { it.copy(scheduleEnabled = true, listenVoice = ListenVoice.PODCAST, podcastPace = 1.2f) } }
+        show(SettingsPage.SCHEDULE)
+        waitFor(", for the audio")
+        waitFor("minutes earlier, with room to spare.")
+
+        // A phone too slow for the audio to fit in the 3 hours a paper can start early.
+        runBlocking { store.update { it.copy(podcastPace = 20f) } }
+        waitFor("more than the 3 hours a paper can start early")
+        waitFor("The end of it will play in your phone's voice")
     }
 
     @Test
