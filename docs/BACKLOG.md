@@ -147,10 +147,16 @@ shouldn't become a way around paywalls. A likely middle: the link plus a short e
   - From the book: each article already ends with "Read the original"; a Kindle can share that link itself, so nothing needed there.
   - Later: the excerpt, if the link alone feels bare.
 
-### Notes: what should they be?
-The edition notes export (a markdown checklist of each edition's articles) went in without much thought
-about who uses it. Research first: what people do with a read list; whether to import highlights from
-Kindle (My Clippings), Kobo or KOReader; where notes should live (the app, or a markdown file elsewhere).
+### Reading notes: removed, and only worth bringing back as highlights
+The Markdown notes file (the Notes button on an edition, and a notes folder in Settings) was removed
+before the first release: nobody had tried it by hand, and a blank template wasn't used. Quotes are
+shared from the article preview instead. To bring it back, revert the PR that removed it ("Remove
+reading notes"), resolving whatever has moved since.
+- If notes come back, only as highlights pulled back from the e-reader. Each device keeps them its own
+  way: Kindle's My Clippings.txt (or Amazon's notebook), Kobo's on-device database, KOReader's sidecar
+  files beside each book, Boox's exported notes.
+- Start with KOReader (its sidecar files come back through the Syncthing folder) or Boox (the app runs
+  on the device): those files are reachable without a cable.
 
 ### More than one schedule, and one-off editions
 Several timed editions (a weekday morning paper and Sunday long reads), and a one-off custom edition
@@ -385,7 +391,7 @@ Restoring onto a phone that already has sources asks first whether to replace or
 ### From the competitor research ([docs/research/competitors.md](research/competitors.md))
 - **Kobo through Google Drive.** Kobo syncs a "Rakuten Kobo" Drive folder natively. Drive's SAF provider
   has no folder trees, so this needs the Drive API (an OAuth client, like Dropbox's app key).
-- **Close the loop from the device:** finished on the e-reader means archived; KOReader highlights feed the notes export.
+- **Close the loop from the device:** finished on the e-reader means archived; KOReader highlights come back (see Reading notes above).
 - **More importers:** Matter, Readwise, Raindrop and Omnivore exports, for people leaving shut-down apps.
 - **An OPDS catalog served from the phone,** for KOReader and jailbroken Kindles.
 
@@ -481,8 +487,8 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 - [x] tt-rss: leave a feed out of the paper from the source's page; it isn't fetched, and its waiting articles go except starred ones *(personas)*
 - [x] No Open for Kindle and Kobo readers, who send the book rather than open it on the phone *(personas)*
 - [x] tt-rss "Start fresh" for a reader back after a break: marks everything older than two weeks read on the server, after asking, and refuses on servers too old to limit it *(personas)*
-- [x] A question to think about on each edition's closing page, from a short list that suits any paper, and shown in its notes *(personas)*
-- [x] Reading notes saved to a folder of your choice (an Obsidian vault) for every delivered edition, whether it was shared, saved to a folder or opened *(personas)*
+- [x] A question to think about on each edition's closing page, from a short list that suits any paper, *(personas)*
+- [x] Reading notes saved to a folder of your choice (an Obsidian vault) for every delivered edition, whether it was shared, saved to a folder or opened *(personas; removed before release, see Reading notes above)*
 - [x] Link posts (Longreads' picks): a short item whose link to another site carries a referral tag naming its own site is stored as that story, fetched and credited "Equator via Longreads", with its pitch as the fallback; tracking tags come off stored links, so a story two sources picked goes out once *(you asked)*
 - [x] Sources take turns starting with the one featured longest ago, not shifting by one each edition, so with many feeds every one gets its turn *(personas)*
 - [x] Stars: `☆ Next edition` on a source's articles and on delivered editions puts an article first in the next edition (it replaces bring back); the planner takes stars first, taking turns across sources, within each source's slots and the budget; Today says how many are waiting
@@ -525,7 +531,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 - [x] Real-world check: a live edition from the starter feeds passes epubcheck (stray figcaptions fixed; `./gradlew :core:liveEdition`); a source settled on the feed's text keeps probing short items, so a lifted block is noticed
 - [x] Tech debt: feed parser smoke-tested on Android's own XmlPullParser; HTML meta-charset and byte-order-mark sniffing
 - [x] Curated list sources: a scraper per site (Arts & Letters Daily first), each list its own source, keeping its newest 12 unread links; added from the Add a source dialog
-- [x] Notes export: a Markdown notes file per edition (details, citation, reflection prompts) from Edition detail
+- [x] Notes export: a Markdown notes file per edition (details, citation, reflection prompts) from Edition detail *(removed before release)*
 - [x] App shell: splash until settings load, onboarding survives process death, timer re-armed on time-zone change, launch test
 - [x] Auto-tune each source's ContentMode from its articles (three in a row), a manual choice that's never overridden, and per-source full-text health on the Sources screen
 - [x] Import Pocket (HTML, CSV) and Instapaper (CSV) exports into the reading list; saved links without a title get the page's title in the background

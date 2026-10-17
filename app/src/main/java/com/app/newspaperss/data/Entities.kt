@@ -299,7 +299,7 @@ data class EditionEntity(
     val minutes: Double = 0.0,
     /**
      * When it was last delivered. Kept when it's marked as not sent: sending it again then knows
-     * the work done on first delivery, like saving its notes, is done.
+     * the work done on first delivery is done.
      */
     val deliveredAt: Instant? = null,
     val error: String? = null,

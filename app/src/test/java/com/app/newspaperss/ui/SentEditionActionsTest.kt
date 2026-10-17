@@ -27,7 +27,6 @@ import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.delivery.EditionIntents
 import com.app.newspaperss.delivery.KindleSend
 import com.app.newspaperss.edition.EditionBuilder
-import com.app.newspaperss.edition.EditionNotes
 import com.app.newspaperss.settings.Device
 import com.app.newspaperss.settings.Settings
 import com.app.newspaperss.settings.offersOpen
@@ -97,7 +96,7 @@ class SentEditionActionsTest {
     }
 
     private fun page(id: Long, device: Device) {
-        val vm = EditionDetailViewModel(repo, id, EditionNotes(db, File(app.filesDir, "notes"))) {}
+        val vm = EditionDetailViewModel(repo, id) {}
         compose.setContent {
             EditionDetailScreen(vm, onBack = {}, preferOpen = device == Device.BOOX, offerOpen = device.offersOpen, kindleReader = device == Device.KINDLE)
         }

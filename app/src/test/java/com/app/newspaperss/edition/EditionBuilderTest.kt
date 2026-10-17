@@ -7,7 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.core.epub.EpubImage
 import com.app.newspaperss.core.extract.ArticleExtractor
 import com.app.newspaperss.core.extract.ContentMode
-import com.app.newspaperss.core.notes.Reflection
+import com.app.newspaperss.core.edition.Reflection
 import com.app.newspaperss.testutil.FakeHttp
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleState
@@ -150,8 +150,7 @@ class EditionBuilderTest {
     }
 
     @Test
-    fun theClosingPageAsksTheSameQuestionTheNotesStartWith() = runTest {
-        // What she turned over on the Kindle is waiting in her notes app.
+    fun theClosingPageAsksTheEditionsQuestion() = runTest {
         source("a", "a1")
         val first = (builder.build(EditionSettings()) as BuildResult.Built).editionId
         val question = Reflection.forEdition(first)
@@ -161,8 +160,6 @@ class EditionBuilderTest {
                 .parse(zip.getInputStream(zip.getEntry("OEBPS/end.xhtml"))).documentElement.textContent
         }
         assertTrue(end.contains(question))
-        val notes = EditionNotes(db, tmp.newFolder("notes")).write(first)!!.readText()
-        assertTrue(notes.contains("From the end of the paper: *$question*"))
     }
 
     @Test
@@ -1067,7 +1064,7 @@ class EditionBuilderTest {
         assertNull("its star isn't brought back either", starredAt("a1"))
     }
 
-    /** Sending again after marking as not sent is the same delivery: its notes are saved once. */
+    /** Sending again after marking as not sent is the same delivery: what follows it runs once. */
     @Test
     fun sendingAgainAfterMarkingAsNotSentDoesntRepeatTheWorkOfDelivery() = runTest {
         val followUps = mutableListOf<Long>()

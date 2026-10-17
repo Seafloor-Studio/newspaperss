@@ -24,8 +24,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -44,8 +42,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.app.newspaperss.ui.components.showWhileStarted
 import com.app.newspaperss.data.EditionContent
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionStatus
@@ -88,11 +84,8 @@ fun EditionDetailScreen(
     onOpenPlayer: () -> Unit = {},
 ) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
-    val message by viewModel.message.collectAsStateWithLifecycle()
     val building by viewModel.building.collectAsStateWithLifecycle()
     val sentToKindle by viewModel.sentToKindle.collectAsStateWithLifecycle()
-    val snackbar = remember { SnackbarHostState() }
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val context = LocalContext.current
     fun launch(intent: Intent): Boolean = try {
         context.startActivity(intent)
@@ -100,18 +93,6 @@ fun EditionDetailScreen(
     } catch (_: ActivityNotFoundException) {
         Toast.makeText(context, "No reading app on this phone can open the edition. Try Send instead.", Toast.LENGTH_LONG).show()
         false
-    }
-    val notesFile by viewModel.notesFile.collectAsStateWithLifecycle()
-    LaunchedEffect(notesFile) {
-        val file = notesFile ?: return@LaunchedEffect
-        context.startActivity(EditionIntents.shareNotes(context, file, detail?.edition?.title ?: file.nameWithoutExtension))
-        viewModel.notesShared()
-    }
-    LaunchedEffect(message) {
-        message?.let {
-            snackbar.showWhileStarted(lifecycle, it)
-            viewModel.dismissMessage()
-        }
     }
 
     fun send() {
@@ -174,11 +155,8 @@ fun EditionDetailScreen(
                 title = { Text("Edition") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
                 actions = {
-                    if (detail?.contents?.isNotEmpty() == true) {
-                        TextButton(onClick = viewModel::writeNotes) { Text("Notes") }
-                    }
                     val status = detail?.edition?.status
-                    // Rare and destructive, so in the menu rather than beside Notes, where a slow
+                    // Rare and destructive, so in a menu rather than a button of its own, where a slow
                     // e-ink refresh makes a mis-tap easy. A sent edition's rare actions go here too,
                     // as on Today's card.
                     if (status != null && status != EditionStatus.BUILDING) {
@@ -206,7 +184,6 @@ fun EditionDetailScreen(
                 },
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         val current = detail ?: return@Scaffold
         val edition = current.edition

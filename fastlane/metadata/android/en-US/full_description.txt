@@ -26,7 +26,6 @@ NewspapeRSS turns the sites and links you choose into a finite edition (say, abo
 
 <b>Calm by design</b>
 • No unread counts, no infinite timeline, no animations to smear on an e-ink screen.
-• Optional Markdown reading notes for Obsidian, Logseq or any notes app.
 
 <b>Private</b>
 No ads, no tracking, no account. Everything stays on your phone; the app only contacts the sites you read and, if you use one, your own tt-rss server.

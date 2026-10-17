@@ -14,7 +14,7 @@ import java.time.Clock
 
 /**
  * @param onDelivered called with an edition's id the first time it's delivered, for work that
- *   follows delivery (saving its reading notes), not again if it's sent again after being marked
+ *   follows delivery (taking its notification down), not again if it's sent again after being marked
  *   as not sent. Like [onTtrssChanged], it must return quickly.
  * @param onTtrssChanged called with an edition's id once it's delivered, or marked as not sent,
  *   with tt-rss articles in it, to mark them read or unread on the server to match. It must
@@ -97,7 +97,7 @@ class EditionRepository(
             // Checked inside the transaction: a build may be releasing unsent editions at the same
             // time, and the reader may have deleted this one while a folder copy was finishing.
             // Already delivered (the reader tapped Sent while a folder copy was finishing): the
-            // work that follows delivery, like saving notes, mustn't run twice.
+            // work that follows delivery mustn't run twice.
             if (edition.status == EditionStatus.DELETED || edition.status == EditionStatus.DELIVERED) return@withTransaction null
             if (onlyIfReady && edition.status != EditionStatus.READY &&
                 !(orNotSent && notSent(edition) && !db.editions().buildingSince(clock.instant().minus(BUILD_HOLD)))
@@ -118,8 +118,8 @@ class EditionRepository(
             try {
                 onDelivered(id)
             } catch (e: Exception) {
-                // The edition is delivered either way; only its notes are missing.
-                Log.w(TAG, "Couldn't schedule saving the notes: ${e.javaClass.name}")
+                // The edition is delivered either way.
+                Log.w(TAG, "Work after delivery failed: ${e.javaClass.name}")
             }
         }
         if (db.articles().ttrssInEdition(id).isEmpty()) return

@@ -51,8 +51,6 @@ class EditionSentTest {
         callback.sendIntent(app, 0, null, null, null)
 
         idleUntil { statusOf(ready) == EditionStatus.DELIVERED }
-        // A shared edition's notes are saved.
-        idleUntil { app.notesRequested == listOf(ready) }
     }
 
     @Test
@@ -135,7 +133,6 @@ class EditionSentTest {
 
         idleUntil { statusOf(released) == EditionStatus.DELIVERED }
         assertEquals(EditionStatus.FAILED, statusOf(failed))
-        idleUntil { app.notesRequested == listOf(released) }
     }
 
     @Test

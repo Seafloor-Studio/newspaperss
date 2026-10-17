@@ -94,13 +94,13 @@ class MainActivityTest {
         launchWith(onboarded = true)
         shows("Sources")
         compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
-        shows("Reading notes")
-        compose.onNodeWithText("Reading notes").performScrollTo().performClick()
-        shows("Save notes for each edition")
+        shows("Article text size")
+        compose.onNodeWithText("Article text size").performScrollTo().performClick()
+        shows("The quiet return of the night train")
 
         compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
         shows("About 30 minutes")
-        compose.onNodeWithText("Save notes for each edition").assertDoesNotExist()
+        compose.onNodeWithText("The quiet return of the night train").assertDoesNotExist()
     }
 
     @Test
