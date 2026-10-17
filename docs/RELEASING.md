@@ -30,7 +30,9 @@ They're the same names dailylog uses.
    `git tag v0.2.0 && git push origin v0.2.0`.
 4. The **Release** workflow checks the tag matches `versionName`, builds the
    signed APKs and the AAB, and attaches them to a **draft** GitHub release.
-   Try the arm64 APK on a phone, then publish the draft.
+   Try the arm64 APK on a phone, then publish the draft the same day:
+   F-Droid downloads these APKs to check its own build against (below), and
+   it can't see a draft.
 
 There's one APK per ABI (arm64-v8a, armeabi-v7a, x86_64, x86), since the
 podcast voice's native code is about 30 MB for each 64-bit one. Each has
@@ -45,24 +47,56 @@ through onboarding, an edition and a send: CI only tests the debug build.
 
 ## F-Droid
 
-F-Droid builds the app itself from the tag and signs it with its own key.
+F-Droid builds the app from the tag, checks its build is byte for byte the
+same as the APKs on the GitHub release, and if so publishes those APKs, signed
+with your key. This is F-Droid's *reproducible builds* route, and the one
+dailylog uses (`com.app.dailylog` in fdroiddata).
 
+- **Why this way:** one signature everywhere. Someone can move between the
+  GitHub APK and F-Droid's (or an updater like Obtainium) without
+  uninstalling, and F-Droid prefers it. The other route, F-Droid signing with
+  its own key, is simpler, but its users could never take a GitHub APK as an
+  update, and moving to your key later would make every one of them
+  reinstall. So it's decided before the first release.
+- **What the draft says for it:**
+  - Each build's `binary:` is the GitHub release's APK for that ABI
+    (`NewspapeRSS-%v-<abi>.apk`, as the Release workflow names them).
+  - `AllowedAPKSigningKeys:` pins your certificate. It's the SHA-256 of the
+    signing certificate: public data, not a secret. Read it with
+    `keytool -list -v -keystore release.jks -alias <alias>` (the `SHA256:`
+    line, lowercase, without colons) or `apksigner verify --print-certs` on a
+    signed APK. The private key and passwords stay in GitHub's secrets and
+    your own copy; nothing else needs them. **Until it's added, `fdroid lint`
+    fails on purpose** ("App version has binary but does not have
+    corresponding AllowedAPKSigningKeys").
+  - The `sudo:` lines take the build server down to 16 CPU cores. They're
+    copied from dailylog, whose 3.1.2 failed to reproduce until they were
+    added: some build outputs (the baseline profile, `assets/dexopt/`) can
+    depend on how many cores made them, and this app ships one too.
+- **Checked here:** two release builds of the same commit, one on 4 cores
+  and one on 1, each from a fresh checkout with `--no-build-cache
+  --rerun-tasks`, came out byte for byte the same for all four ABIs. That
+  doesn't prove F-Droid's build server matches GitHub's runner (a different
+  JDK or a machine with many more cores could still differ); only F-Droid's
+  first build shows that. If one release fails to reproduce, F-Droid skips
+  it and its log says which files differ.
 - **First time:** open a merge request to
   [fdroiddata](https://gitlab.com/fdroid/fdroiddata) adding
   `metadata/com.app.newspaperss.yml`, from the draft in
-  [docs/fdroid/](fdroid/com.app.newspaperss.yml). Its reviewers check that it
-  builds; they may ask for changes (for example if their build server
-  doesn't yet support compileSdk 37).
+  [docs/fdroid/](fdroid/com.app.newspaperss.yml), once
+  `AllowedAPKSigningKeys` is in and `v0.1.0`'s release is published. Its
+  reviewers check that it builds; they may ask for changes (for example if
+  their build server doesn't yet support compileSdk 37).
 - **After that:** each new `v*` tag is picked up on its own, one build per
-  ABI (`VercodeOperation` in the draft). The `latest-debug` tag is ignored,
-  as `UpdateCheckMode` only matches `v` tags.
+  ABI (`VercodeOperation`). The `latest-debug` tag is ignored, as
+  `UpdateCheckMode` only matches `v` tags.
 - **The draft is kept in the form `fdroid rewritemeta` writes,** so it has no
   comments; fdroiddata's CI rejects anything else. Check it with
   fdroidserver (`pip install fdroidserver`) in a sparse clone of fdroiddata
   (`git sparse-checkout set config`), with the draft in `metadata/`:
   `fdroid lint com.app.newspaperss` and `fdroid rewritemeta com.app.newspaperss`
   should change nothing.
-- **Why it looks as it does:**
+- **Why else it looks as it does:**
   - Four builds, one per ABI, because the app's build splits its APKs; each
     names its APK with `output:`.
   - `NonFreeNet`: the podcast voice (Kokoro) downloads from Hugging Face, as
@@ -77,8 +111,13 @@ The store text and screenshots come from `fastlane/metadata/android/en-US/`.
 - **The account:** a new personal developer account must run a closed test
   with at least 12 testers for 14 days before it can publish to everyone.
   Start this early.
-- **Signing:** turn on Play App Signing and upload the AAB from the draft
-  release. The key in the secrets above becomes your upload key.
+- **Signing:** Play App Signing re-signs what Play delivers. By default
+  Google makes the app signing key and the key in the secrets above becomes
+  only your upload key, so Play's APKs would carry a different signature from
+  GitHub's and F-Droid's, and people couldn't move between them without
+  reinstalling. To keep one signature everywhere, choose to use your own
+  app signing key when Play Console asks at the first upload, and give it
+  the same key. Then upload the AAB from the release.
 - **The listing:** the same text and screenshots as `fastlane/`, the icon at
   `fastlane/metadata/android/en-US/images/icon.png`, and the 1024×500 feature
   graphic at `images/featureGraphic.png` beside it. Its source is
