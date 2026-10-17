@@ -71,9 +71,9 @@ dailylog uses (`com.app.dailylog` in fdroiddata).
     `.jks` elsewhere could differ, and a mismatch only shows when F-Droid
     rejects a tagged release. Run it again whenever the secrets change. The
     private key and passwords stay in the secrets and your own copy; nothing
-    else needs them. **Until it's added, `fdroid lint` fails on purpose**
-    ("App version has binary but does not have corresponding
-    AllowedAPKSigningKeys").
+    else needs them. The draft has the value the workflow printed on 17 Oct
+    for the new newspaperss key (`0f1bb6e4…`). If the secrets ever change,
+    run it again and update the draft before the next tag.
   - The `sudo:` lines take the build server down to 16 CPU cores. They're
     copied from dailylog, whose 3.1.2 failed to reproduce until they were
     added: some build outputs (the baseline profile, `assets/dexopt/`) can

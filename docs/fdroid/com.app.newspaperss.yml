@@ -72,6 +72,8 @@ Builds:
     output: build/outputs/apk/release/app-x86_64-release-unsigned.apk
     binary: https://github.com/madCode/newspaperss/releases/download/v%v/NewspapeRSS-%v-x86_64.apk
 
+AllowedAPKSigningKeys: 0f1bb6e4744e935219cfaca53533839c1f8631389214c48e9da55e08055c6c5d
+
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9.]+$
 VercodeOperation:
