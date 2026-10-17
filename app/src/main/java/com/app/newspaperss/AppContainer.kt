@@ -26,9 +26,7 @@ import com.app.newspaperss.data.TtrssSubscriptions
 import com.app.newspaperss.edition.AndroidImageEncoder
 import com.app.newspaperss.edition.CoverRenderer
 import com.app.newspaperss.edition.EditionBuilder
-import com.app.newspaperss.edition.EditionNotes
 import com.app.newspaperss.edition.EditionRun
-import com.app.newspaperss.edition.NotesSaver
 import com.app.newspaperss.delivery.FolderDelivery
 import com.app.newspaperss.delivery.KindleSends
 import com.app.newspaperss.notify.Notifier
@@ -56,7 +54,6 @@ import com.app.newspaperss.work.KokoroWorker
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import com.app.newspaperss.work.MoveFeedsWorker
-import com.app.newspaperss.work.NotesWorker
 import com.app.newspaperss.work.ReadingListTitleWorker
 import com.app.newspaperss.work.TtrssMarkReadWorker
 import java.io.File
@@ -89,7 +86,6 @@ class AppContainer(
     cipher: SecretCipher = AesGcmCipher.androidKeystore(),
     markTtrssRead: (editionId: Long) -> Unit = { TtrssMarkReadWorker.enqueue(context, it) },
     fetchReadingListTitles: (articleIds: List<Long>) -> Unit = { ReadingListTitleWorker.enqueue(context, it) },
-    saveNotes: (editionId: Long) -> Unit = { NotesWorker.enqueue(context, it) },
     moveFeeds: () -> Unit = { MoveFeedsWorker.enqueue(context) },
     speaker: () -> Speaker = { SystemSpeaker(context) },
     private val connectListening: () -> Unit = { ListenService.connect(context) },
@@ -119,7 +115,7 @@ class AppContainer(
     val notifier = Notifier(context)
     val kindleSends = KindleSends()
     // A sent edition's Ready notification comes down: its Send would offer an edition already sent.
-    val editions = EditionRepository(db, editionsDir, onDelivered = { notifier.dismissFor(it); saveNotes(it) }, onTtrssChanged = markTtrssRead, kindleSends = kindleSends,
+    val editions = EditionRepository(db, editionsDir, onDelivered = notifier::dismissFor, onTtrssChanged = markTtrssRead, kindleSends = kindleSends,
         // Only if Listen has started: it isn't made just to be told.
         onFileGone = { id ->
             if (listenMade.isInitialized()) appScope.launch { listen.forget(id) }
@@ -132,19 +128,21 @@ class AppContainer(
     val ttrssSubscriptions = TtrssSubscriptions(ttrss, appScope)
     val feedMoves = FeedMoves(feedMovesData, db, ttrss, schedule = moveFeeds)
     val feedSync = FeedSync(db, http, ttrssAccounts = ttrssAccounts, onUntitled = fetchReadingListTitles)
-    private val content = ExtractorContentProvider(ArticleExtractor(http), http, AndroidImageEncoder(), onPaidOnly = sources::markPaidOnly) { sourceId, originId, evidence, text ->
+    private val content = ExtractorContentProvider(
+        ArticleExtractor(http), http, AndroidImageEncoder(), onPaidOnly = sources::markPaidOnly, onUnreadable = db.articles()::setUnreadable,
+    ) { sourceId, originId, evidence, text ->
         sources.recordFullText(sourceId, originId, evidence, text.check, text.day)
     }
     val editionBuilder = EditionBuilder(db, content, editionsDir, cover = CoverRenderer()::render, retiring = feedMoves::retiringIds, onReleased = notifier::dismissFor)
     val settings = SettingsStore(settingsData)
-    val debugUpdates = DebugUpdates(http, context.getSharedPreferences("debug-updates", Context.MODE_PRIVATE), installedBuild)
-    val editionNotes = EditionNotes(db, File(context.filesDir, "notes"))
+    /** A live build fetching and installing newer builds; nothing in a release build. */
+    val selfUpdates = selfUpdater(context, installedBuild, appScope) { listenMade.isInitialized() && listen.state.value.playing }
+    val debugUpdates = DebugUpdates(http, context.getSharedPreferences("debug-updates", Context.MODE_PRIVATE), installedBuild, onNewer = selfUpdates::newerBuild)
     private val folderDelivery = FolderDelivery(context.contentResolver)
     val editionRun = EditionRun(settings, feedSync, editionBuilder, editions, folderDelivery, notifier,
         // Scheduled editions only: one made by hand gets its podcast when asked.
         onBuilt = { id, scheduled -> if (scheduled) podcasts.request(id) },
     )
-    val notesSaver = NotesSaver(settings, editions, editionNotes, folderDelivery, notifier)
 
     /** Reading editions aloud. Made on first use: the voice takes a moment to start. */
     private val listenProgress = StoredListenProgress(context)

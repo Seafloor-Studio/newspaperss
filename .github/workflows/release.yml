@@ -34,6 +34,17 @@ jobs:
             echo "::error::Tag $GITHUB_REF_NAME doesn't match versionName $version in app/build.gradle.kts"
             exit 1
           fi
+      # F-Droid reads each APK's changelog by that APK's version code, versionCode * 10 + 1 to 4.
+      - name: Check the changelog and its F-Droid copies
+        run: |
+          code=$(sed -n 's/^ *versionCode = \([0-9]*\)$/\1/p' app/build.gradle.kts)
+          dir=fastlane/metadata/android/en-US/changelogs
+          for n in 1 2 3 4; do
+            if [ ! -f "$dir/$code.txt" ] || ! cmp -s "$dir/$code.txt" "$dir/$code$n.txt"; then
+              echo "::error::$dir needs $code.txt and identical copies $code""1.txt to $code""4.txt (see docs/RELEASING.md)"
+              exit 1
+            fi
+          done
       - name: Decode the signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -57,11 +68,15 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           tag="$GITHUB_REF_NAME"
-          apk="NewspapeRSS-${tag#v}.apk"
           aab="NewspapeRSS-${tag#v}.aab"
-          cp app/build/outputs/apk/release/app-release.apk "$apk"
           cp app/build/outputs/bundle/release/app-release.aab "$aab"
+          # One APK per ABI (see splits in app/build.gradle.kts). A missing one fails the step rather than going out short.
+          apks=()
+          for abi in arm64-v8a armeabi-v7a x86_64 x86; do
+            apk="NewspapeRSS-${tag#v}-$abi.apk"
+            cp "app/build/outputs/apk/release/app-$abi-release.apk" "$apk"
+            apks+=("$apk")
+          done
           code=$(sed -n 's/^ *versionCode = \([0-9]*\)$/\1/p' app/build.gradle.kts)
           notes="fastlane/metadata/android/en-US/changelogs/$code.txt"
-          if [ -f "$notes" ]; then notes_flag=(--notes-file "$notes"); else notes_flag=(--notes "NewspapeRSS ${tag#v}"); fi
-          gh release create "$tag" "$apk" "$aab" --draft --verify-tag --title "NewspapeRSS ${tag#v}" "${notes_flag[@]}"
+          gh release create "$tag" "${apks[@]}" "$aab" --draft --verify-tag --title "NewspapeRSS ${tag#v}" --notes-file "$notes"

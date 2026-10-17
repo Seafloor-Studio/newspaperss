@@ -30,10 +30,6 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.app.newspaperss.core.notes.NotesArticle
-import com.app.newspaperss.core.notes.NotesEdition
-import com.app.newspaperss.core.notes.NotesWriter
-import com.app.newspaperss.core.notes.Reflection
 import com.app.newspaperss.data.AppDatabase
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleState
@@ -43,7 +39,6 @@ import com.app.newspaperss.data.EditionRepository
 import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.edition.EditionBuilder
-import com.app.newspaperss.edition.EditionNotes
 import com.app.newspaperss.delivery.KindleSend
 import com.app.newspaperss.testutil.TestApp
 import com.app.newspaperss.testutil.ViewModels
@@ -79,8 +74,6 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.io.File
 import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneOffset
 
 @RunWith(AndroidJUnit4::class)
 // Tall enough that every row of these short editions is composed without scrolling.
@@ -93,13 +86,9 @@ class EditionDetailScreenTest {
 
     private val db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java)
         .allowMainThreadQueries().build()
-    // In the app's files dir, like the notes: Open and Send hand the file out through its FileProvider.
+    // In the app's files dir: Open and Send hand the file out through its FileProvider.
     private val editionsDir by lazy { File(ApplicationProvider.getApplicationContext<Application>().filesDir, "editions").apply { mkdirs() } }
     private val repo by lazy { EditionRepository(db, editionsDir) }
-    // In the app's files dir: the share sheet's FileProvider only serves files from there.
-    private val notes by lazy {
-        EditionNotes(db, File(ApplicationProvider.getApplicationContext<Application>().filesDir, "notes")) { ZoneOffset.UTC }
-    }
 
     @Before @After fun freshFileProvider() = clearFileProviderCache()
 
@@ -126,7 +115,7 @@ class EditionDetailScreenTest {
     }
 
     private fun show(editionId: Long, preferOpen: Boolean = false, offerOpen: Boolean = true): EditionDetailViewModel {
-        val vm = viewModels.add(EditionDetailViewModel(repo, editionId, notes) {})
+        val vm = viewModels.add(EditionDetailViewModel(repo, editionId) {})
         compose.setContent { EditionDetailScreen(vm, onBack = {}, preferOpen = preferOpen, offerOpen = offerOpen) }
         idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
         return vm
@@ -296,53 +285,6 @@ class EditionDetailScreenTest {
         compose.onNodeWithText("Mark as sent").assertIsEnabled()
         compose.onNodeWithContentDescription("More options").performClick()
         compose.onNodeWithText("Open on this phone").assertDoesNotExist()
-    }
-
-    @Test
-    fun notesCarryEachArticlesDetailsAndOpenTheShareSheet() {
-        val editionId = runBlocking {
-            val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "Example News"))
-            val kept = db.articles().insertIgnoring(
-                ArticleEntity(
-                    sourceId = source, guid = "a", url = "https://example.com/a", title = "Kept", author = "Jane Doe",
-                    published = Instant.parse("2026-09-28T23:30:00Z"), state = ArticleState.DELIVERED,
-                ),
-            )
-            val id = db.editions().insert(
-                EditionEntity(title = "Tuesday Morning Edition", createdAt = Instant.parse("2026-09-29T06:30:00Z"), status = EditionStatus.DELIVERED),
-            )
-            db.editions().insertArticles(
-                listOf(
-                    EditionArticleEntity(editionId = id, articleId = kept, position = 0, title = "Kept", sourceTitle = "Example News", minutes = 4.0),
-                    // Its source was removed: the edition still lists it, but its link and byline are gone.
-                    EditionArticleEntity(editionId = id, articleId = null, position = 1, title = "Orphan", sourceTitle = "Old Blog", minutes = 3.0),
-                ),
-            )
-            id
-        }
-        val vm = show(editionId)
-
-        compose.onNodeWithText("Notes").performClick()
-        idleUntil { File(notes.notesDir, "Tuesday Morning Edition notes.md").exists() }
-        idleUntil { compose.waitForIdle(); vm.notesFile.value == null }
-
-        val expected = NotesWriter.write(
-            NotesEdition(
-                "Tuesday Morning Edition",
-                LocalDate.of(2026, 9, 29),
-                listOf(
-                    NotesArticle("Kept", "Example News", "https://example.com/a", "Jane Doe", LocalDate.of(2026, 9, 28)),
-                    NotesArticle("Orphan", "Old Blog", url = null),
-                ),
-                question = Reflection.forEdition(editionId),
-            ),
-        )
-        assertEquals(expected, File(notes.notesDir, "Tuesday Morning Edition notes.md").readText())
-        val chooser = shadowOf(ApplicationProvider.getApplicationContext<Application>()).nextStartedActivity
-        val send = chooser.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)!!
-        assertEquals(Intent.ACTION_SEND, send.action)
-        assertEquals("text/markdown", send.type)
-        assertEquals("Tuesday Morning Edition notes.md", send.getStringExtra(Intent.EXTRA_TITLE))
     }
 
     @Test
@@ -613,7 +555,7 @@ class EditionDetailScreenTest {
         val (id, _) = edition(EditionStatus.DELIVERED, listOf("A story"))
         // Another edition sent with Kindle says nothing about this one.
         val kindle = MutableStateFlow(mapOf(id + 1 to KindleSend.APP))
-        val vm = viewModels.add(EditionDetailViewModel(repo, id, notes, sentToKindle = kindle) {})
+        val vm = viewModels.add(EditionDetailViewModel(repo, id, sentToKindle = kindle) {})
         compose.setContent { EditionDetailScreen(vm, onBack = {}) }
         idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
         compose.waitForIdle()
@@ -628,7 +570,7 @@ class EditionDetailScreenTest {
 
     private fun deleteFromTheScreen(id: Long) {
         var left = false
-        val vm = viewModels.add(EditionDetailViewModel(repo, id, notes) { dismissed += it })
+        val vm = viewModels.add(EditionDetailViewModel(repo, id) { dismissed += it })
         compose.setContent { EditionDetailScreen(vm, onBack = { left = true }) }
         idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
         compose.onNodeWithContentDescription("More options").performClick()
@@ -692,7 +634,7 @@ class EditionDetailScreenTest {
         val building = runBlocking { db.editions().insert(EditionEntity(title = "Tuesday Morning Edition", status = EditionStatus.BUILDING)) }
 
         assertFalse(runBlocking { repo.delete(building) })
-        val vm = viewModels.add(EditionDetailViewModel(repo, building, notes) {})
+        val vm = viewModels.add(EditionDetailViewModel(repo, building) {})
         compose.setContent { EditionDetailScreen(vm, onBack = {}) }
         idleUntil { vm.detail.value?.edition != null }
         compose.onNodeWithContentDescription("More options").assertDoesNotExist()

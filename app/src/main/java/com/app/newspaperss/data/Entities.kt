@@ -58,6 +58,15 @@ data class SourceEntity(
      * marked read, here and so on the server, rather than expiring.
      */
     @ColumnInfo(defaultValue = "0") val markExpiredRead: Boolean = false,
+    /** tt-rss only: what the reader stars in tt-rss goes in the next edition, once each ([TtrssStarEntity]). */
+    @ColumnInfo(defaultValue = "0") val takeTtrssStars: Boolean = false,
+    /**
+     * tt-rss only: the stars already there when [takeTtrssStars] was turned on have been noted,
+     * and stay out of the paper: a long list of kept stars would otherwise all go in at once.
+     */
+    @ColumnInfo(defaultValue = "0") val ttrssStarsNoted: Boolean = false,
+    /** tt-rss only: the newest article id [FeedSync] has looked at for posts, read or not. */
+    val ttrssSeenId: Long? = null,
     /**
      * tt-rss only: when the full list of the account's feeds last filled in its publications
      * ([PublicationEntity.listed]); null before the first, and after the category changes.
@@ -145,6 +154,12 @@ data class ArticleEntity(
      * [paidOnly]. Cleared when the reader marks it unread: then they want it, and it isn't skipped again.
      */
     @ColumnInfo(defaultValue = "0") val paidSkipped: Boolean = false,
+    /**
+     * A saved link that can never be read in an edition, and why in a few words ("not a web
+     * page", "error 410"): a PDF, a video, a page gone or too large. Editions leave it out, and
+     * the reading list says so, rather than it waiting there for ever.
+     */
+    val unreadable: String? = null,
 ) {
     /**
      * When it was published, for showing: a date more than a day after it was fetched is a
@@ -221,6 +236,10 @@ data class PublicationEntity(
      * when it worked. tt-rss fetches its feeds itself, so without this a dead feed just goes quiet.
      */
     val serverError: String? = null,
+    /** tt-rss only: when the feed last posted, of the articles the app has seen there, read or not. */
+    val newestPostAt: Instant? = null,
+    /** tt-rss only: when the app started watching the feed post, for one with no post seen since. */
+    val watchedSince: Instant? = null,
 ) {
     companion object {
         /** The key of a source's own feed, and of an article with no [ArticleEntity.originId]. */
@@ -245,6 +264,19 @@ data class DeliveredUrlEntity(
     val deliveredAt: Instant,
 )
 
+/**
+ * A star in tt-rss that an account set to [SourceEntity.takeTtrssStars] has seen: taken into the
+ * paper, or there when the option was turned on. Kept apart from articles, which are trimmed, so a
+ * star kept for months doesn't go in again. Forgotten when the star goes, so starring it again
+ * sends it again.
+ */
+@Entity(
+    tableName = "ttrss_stars",
+    primaryKeys = ["sourceId", "articleId"],
+    foreignKeys = [ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE)],
+)
+data class TtrssStarEntity(val sourceId: Long, val articleId: Long)
+
 enum class EditionStatus {
     BUILDING, READY, DELIVERED, FAILED,
 
@@ -267,7 +299,7 @@ data class EditionEntity(
     val minutes: Double = 0.0,
     /**
      * When it was last delivered. Kept when it's marked as not sent: sending it again then knows
-     * the work done on first delivery, like saving its notes, is done.
+     * the work done on first delivery is done.
      */
     val deliveredAt: Instant? = null,
     val error: String? = null,

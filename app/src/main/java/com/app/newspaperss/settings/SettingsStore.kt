@@ -99,9 +99,6 @@ data class Settings(
     /** A persisted SAF tree URI, for [DeliveryMethod.FOLDER]. */
     val folderUri: String? = null,
     val folderName: String? = null,
-    /** A persisted SAF tree URI where each delivered edition's Markdown reading notes are saved, whatever [delivery] is. */
-    val notesFolderUri: String? = null,
-    val notesFolderName: String? = null,
     val previewTextSize: PreviewTextSize = PreviewTextSize.DEFAULT,
     /** The Kindle's Send-to-Kindle address, for [DeliveryMethod.KINDLE_EMAIL]. */
     val kindleEmail: String? = null,
@@ -159,8 +156,6 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val delivery = stringPreferencesKey("delivery_method")
         val folderUri = stringPreferencesKey("delivery_folder_uri")
         val folderName = stringPreferencesKey("delivery_folder_name")
-        val notesFolderUri = stringPreferencesKey("notes_folder_uri")
-        val notesFolderName = stringPreferencesKey("notes_folder_name")
         val previewTextSize = stringPreferencesKey("preview_text_size")
         val kindleEmail = stringPreferencesKey("kindle_email")
         val mailApp = stringPreferencesKey("kindle_email_mail_app")
@@ -172,8 +167,6 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val podcastVoice = stringPreferencesKey("podcast_voice")
         val podcastPace = floatPreferencesKey("podcast_pace")
         val podcastPaceMeasured = booleanPreferencesKey("podcast_pace_measured")
-        /** Notes saved beside editions in the delivery folder; read as that folder being the notes folder. */
-        val legacyNotesWithEdition = booleanPreferencesKey("delivery_notes_with_edition")
     }
 
     val settings: Flow<Settings> = store.data.map(::read)
@@ -195,8 +188,6 @@ class SettingsStore(private val store: DataStore<Preferences>) {
             prefs[Keys.delivery] = s.delivery.name
             prefs.setOrRemove(Keys.folderUri, s.folderUri)
             prefs.setOrRemove(Keys.folderName, s.folderName)
-            prefs.setOrRemove(Keys.notesFolderUri, s.notesFolderUri)
-            prefs.setOrRemove(Keys.notesFolderName, s.notesFolderName)
             prefs[Keys.previewTextSize] = s.previewTextSize.name
             prefs.setOrRemove(Keys.kindleEmail, s.kindleEmail)
             prefs.setOrRemove(Keys.mailApp, s.mailApp)
@@ -208,7 +199,6 @@ class SettingsStore(private val store: DataStore<Preferences>) {
             prefs[Keys.podcastVoice] = s.podcastVoice.name
             if (s.podcastPace != null) prefs[Keys.podcastPace] = s.podcastPace else prefs.remove(Keys.podcastPace)
             prefs[Keys.podcastPaceMeasured] = s.podcastPaceMeasured
-            prefs.remove(Keys.legacyNotesWithEdition)
         }
     }
 
@@ -229,8 +219,6 @@ class SettingsStore(private val store: DataStore<Preferences>) {
     private fun read(p: Preferences): Settings {
         val d = Settings()
         val delivery = p[Keys.delivery]?.enumOrNull<DeliveryMethod>() ?: d.delivery
-        // Only a folder that was being delivered to had notes saved in it.
-        val legacyNotes = p[Keys.legacyNotesWithEdition] == true && delivery == DeliveryMethod.FOLDER
         return Settings(
             onboarded = p[Keys.onboarded] ?: false,
             device = p[Keys.device]?.enumOrNull<Device>(),
@@ -248,8 +236,6 @@ class SettingsStore(private val store: DataStore<Preferences>) {
             delivery = delivery,
             folderUri = p[Keys.folderUri],
             folderName = p[Keys.folderName],
-            notesFolderUri = p[Keys.notesFolderUri] ?: p[Keys.folderUri]?.takeIf { legacyNotes },
-            notesFolderName = p[Keys.notesFolderName] ?: p[Keys.folderName]?.takeIf { legacyNotes },
             previewTextSize = p[Keys.previewTextSize]?.enumOrNull<PreviewTextSize>() ?: d.previewTextSize,
             kindleEmail = p[Keys.kindleEmail],
             mailApp = p[Keys.mailApp],

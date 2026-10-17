@@ -208,7 +208,7 @@ module so it's all unit-tested without Android.
   - "That's all for today", a chapter in the contents, with the day's
     totals and a question to think about, one of a short list of open
     questions that suit any paper ("What surprised you?"). It usually differs from
-    one edition to the next, and the notes file shows the same one;
+    one edition to the next;
   - for screen readers: EPUB Accessibility 1.1's metadata (what the book
     needs and offers; pictures count as described only when every one has
     the alt text its site gave), each article's headings going down one
@@ -369,8 +369,22 @@ phone restarts.
   marked as not sent straight away, usually never reaches tt-rss. A sync in
   those minutes still marks a delivered link read. One category can be taken instead of all unread,
   chosen in Settings › Where your feeds live; a new account starts
-  with all. tt-rss's own stars
-  aren't synced: there a star usually means "keep this", not "for tomorrow".
+  with all.
+  - **Starred in tt-rss goes in the paper** (off by default): what you star
+    in tt-rss goes in your next edition, the way a star here does. One way
+    only: there a star usually means "keep this", so delivering or
+    unstarring here never touches it in tt-rss.
+    - Each star goes in once. One kept for months isn't sent again, and nor
+      is one you unstar here; unstarred and starred again in tt-rss, it is.
+    - Stars already there when it's turned on are kept stars and stay out.
+    - From any feed, left out or outside the category: a star is asked for.
+      Not an article already delivered: starred after it went out, it's
+      being kept.
+    - tt-rss lists stars by the article's date, not when it was starred, so
+      each sync lists them all, up to 10,000; past that, none are taken.
+      It takes up to 50 new ones a sync.
+    - One in an edition not yet sent is starred once that edition goes back
+      (Mark as not sent, or replaced by a new one).
   - **Sync read status with tt-rss** (on by default) keeps read and unread
     the same in both, the newest change winning. tt-rss doesn't say when a
     flag changed, so each sync works it out from what changed since the
@@ -497,10 +511,34 @@ whose Kindle and KOReader answers ask for more on the same page).
 - **Today** (home): when the next edition is due, how many starred articles
   will go in the next one (only when some will), and the latest edition's
   card. Tapping anywhere on the card opens the edition.
-  - On a debug build from CI, a line under the masthead says when a newer
-    test build is out, with a link to download it. The app asks GitHub when
-    it comes to the front, at most every three hours; a local or release
-    build never asks.
+  - On a debug build from CI (the live channel), a line under the masthead
+    says when a newer test build is out. The app asks GitHub when it comes
+    to the front and every six hours in the background, at most every three
+    hours; a local or release build never asks.
+  - The live build then updates itself:
+    - it downloads its own ABI's APK into its cache, on Wi-Fi or another
+      unmetered network only (about 50 MB);
+    - it checks the file before anything else: the same package, a newer
+      build and version code, and signed with the same key as the running
+      app. A file that fails is deleted, and that build isn't fetched again;
+    - it installs with Android's PackageInstaller once no edition, podcast,
+      podcast voice download or feed move is running, Listen isn't
+      playing and the app isn't open; otherwise it tries again later;
+    - Android asks the reader to confirm the first time after a browser
+      install, and every time before Android 12: a notification, "Build N
+      is ready. Tap to install.", opens the question;
+    - it needs "Install unknown apps" allowed for NewspapeRSS; without it a
+      notification and the line say so and open that setting;
+    - a build that can't be downloaded, or fails to install three times,
+      is given up on until a newer one is out.
+  - So the line reads "Downloading test build N", "Test build N downloads
+    on Wi-Fi. Download it now", "Test build N is ready. Install it" (tap
+    installs now, unless an edition, podcast or Listen is under way), or
+    "Test build N is ready. Allow installing it". With none of those, it is
+    the browser link: "Test build N is out. Download it".
+  - Release builds have none of this: the code and the install permission
+    are in the debug source set only, and `check` fails if a release's
+    merged manifest asks to install apps.
   - The card previews what's inside, as the book's contents page opens: the
     first three headlines in order, each with its source (★ if you starred
     it) and reading time, then "and N more". A failed edition shows none:
@@ -547,10 +585,7 @@ whose Kindle and KOReader answers ask for more on the same page).
   browser with "Extraction: *title*", the article's address and the app's version
   filled in, for the issue check to compare with the page. Large pictures that stand
   alone fill the width (small ones keep their size), and the page can be
-  pinched to zoom into a comic. **Notes** exports a Markdown file for a
-  notes app: front matter
-  (date, edition, sources, a tag) for Obsidian, the closing page's question and
-  a few reflection prompts at the top, then per article its source, author, date, link, a citation and room for notes.
+  pinched to zoom into a comic.
   **Delete edition** is in the ⋮ menu, and asks by name, saying what happens
   to the articles (an unsent edition's go back for the next one). An article that went in because it was starred says
   "You starred it". On delivered editions each article has a trailing **☆** to
@@ -646,8 +681,14 @@ whose Kindle and KOReader answers ask for more on the same page).
       no category go under **Uncategorized**, last. A line under a feed only
       when it says something: "tt-rss couldn't fetch it last time" for a feed
       tt-rss's own fetcher failed on, "Not fetched by tt-rss yet" for a feed
-      just added, or its own settings ("Feed's text", "Full page", "At most
-      2", "Skips paid posts"). Each opens its own page, which says "In your
+      just added, "Nothing new in 3 weeks" for one that has stopped posting
+      (in months past two), or its own settings ("Feed's text", "Full page",
+      "At most 2", "Skips paid posts"). For the quiet line, each sync looks
+      at every article in the account since the last one it saw, read or
+      not, in one request (the first looks back over the newest thousand):
+      a feed read on the laptop still counts as posting. tt-rss deletes old
+      articles, so a feed with none seen counts from when the app started
+      watching it, and says so only three weeks after that. Each opens its own page, which says "In your
       tt-rss · category News", and for a feed tt-rss couldn't fetch, that if
       this stays the feed may have moved or closed, with tt-rss's own words
       ("HTTP Code: 404"). "Last time", as tt-rss reports even a one-off
@@ -766,6 +807,12 @@ whose Kindle and KOReader answers ask for more on the same page).
   import too. **✕** removes a link at once, with **Undo** in a snackbar, since
   removing is routine and a confirm would only be tapped through. Leaving
   the screen or the app settles a removal still waiting for Undo.
+  A link that can never be read in an edition (not a web page, such as a
+  PDF or a video; a page gone, 410; or one too large to read) says so in
+  place of "Waiting": "Can't go in your paper: … Tap to open it, or remove
+  it." Editions leave it out and it isn't counted as waiting. The lookup
+  when it's saved finds most; the first edition to try it finds the rest.
+  Saving it again looks again, for a page fixed since.
 - **Settings** is a summary: one row per page, each with a line saying
   how it's set now ("About 30 minutes · 1 per source · take turns",
   "Ready by 6:30 AM, weekdays", "Kindle · emailed to …", "Off"), then the
@@ -842,7 +889,8 @@ whose Kindle and KOReader answers ask for more on the same page).
     **Save to a folder**. A folder the app can no longer reach (its access
     was revoked, or its app uninstalled) says "Can't reach <name>. Tap to
     choose it again." instead of saving automatically, and tapping picks
-    it again; so does the notes folder, which also offers **Turn off**.
+    it again. Picking another folder lets go of the old one's access
+    (Android caps how many an app keeps).
   - **Where your feeds live** (its row says "Sites you pick" or "Your
     tt-rss · host"; in red, "Not signed in" or "Can't sign in to tt-rss"):
     the two setups as radio rows, in onboarding's words: **I pick my own
@@ -868,12 +916,6 @@ whose Kindle and KOReader answers ask for more on the same page).
     again** (the address and username filled in; the same user keeps their
     category), **Articles from**, **Sync read status with tt-rss** and
     **Start fresh**, and **Resume** if the account was paused.
-  - **Reading notes:** "Save notes for each edition" asks for a folder (an Obsidian
-    vault, say). Each edition's notes file is saved there once the edition is
-    delivered, by share, folder or Read on a Boox, in the background so a slow cloud folder
-    doesn't hold up delivery. A folder that refuses the file gets a notification;
-    **Notes** on the edition still shares them. It can be the delivery folder too;
-    changing one folder never drops the app's access to the other.
 
 The look: a newspaper feel (serif headlines, a masthead with the date), but
 calm, with no badges, counts or endless animations, which smear on e-ink.

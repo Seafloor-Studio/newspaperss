@@ -2,7 +2,6 @@ package com.app.newspaperss.settings
 
 import com.app.newspaperss.testutil.TestDataStores
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.app.newspaperss.core.edition.Ordering
@@ -34,8 +33,6 @@ class SettingsStoreTest {
                 delivery = DeliveryMethod.FOLDER,
                 folderUri = "content://tree/x",
                 folderName = "Books",
-                notesFolderUri = "content://tree/vault",
-                notesFolderName = "Vault",
                 previewTextSize = PreviewTextSize.LARGER,
                 kindleEmail = "me_42@kindle.com",
                 mailApp = "com.example.mail",
@@ -57,8 +54,6 @@ class SettingsStoreTest {
         assertEquals(DeliveryMethod.FOLDER, s.delivery)
         assertEquals("content://tree/x", s.folderUri)
         assertEquals("Books", s.folderName)
-        assertEquals("content://tree/vault", s.notesFolderUri)
-        assertEquals("Vault", s.notesFolderName)
         assertEquals(PreviewTextSize.LARGER, s.previewTextSize)
         assertEquals("me_42@kindle.com", s.kindleEmail)
         assertEquals("com.example.mail", s.mailApp)
@@ -138,31 +133,6 @@ class SettingsStoreTest {
         // Written by a newer version that has more sizes, then the app downgraded.
         dataStore.edit { it[stringPreferencesKey("preview_text_size")] = "HUGE" }
         assertEquals(PreviewTextSize.DEFAULT, store.current().previewTextSize)
-    }
-
-    @Test
-    fun notesSavedBesideFolderEditionsCarryOverAsTheNotesFolder() = runTest {
-        legacy(DeliveryMethod.FOLDER)
-        assertEquals("content://tree/x", store.current().notesFolderUri)
-        assertEquals("Books", store.current().notesFolderName)
-
-        store.update { it.copy(notesFolderUri = null, notesFolderName = null) }
-        assertNull("turning notes off sticks, rather than the old switch turning them back on", store.current().notesFolderUri)
-    }
-
-    @Test
-    fun theOldNotesSwitchMeantNothingWithoutFolderDelivery() = runTest {
-        legacy(DeliveryMethod.SHARE)
-        assertNull(store.current().notesFolderUri)
-    }
-
-    private suspend fun legacy(delivery: DeliveryMethod) {
-        dataStore.edit {
-            it[stringPreferencesKey("delivery_method")] = delivery.name
-            it[stringPreferencesKey("delivery_folder_uri")] = "content://tree/x"
-            it[stringPreferencesKey("delivery_folder_name")] = "Books"
-            it[booleanPreferencesKey("delivery_notes_with_edition")] = true
-        }
     }
 
     @Test

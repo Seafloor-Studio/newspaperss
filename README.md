@@ -80,11 +80,6 @@ another reader app's list):
   waiting (and for how many more days), in Thursday's edition, sent
   Wednesday, read, or not picked. With tt-rss, read and unread stay in
   step both ways.
-- **Take notes.** A Markdown notes file per edition for Obsidian, Logseq or
-  any notes app: properties Obsidian understands, the end page's question, a
-  few reflection prompts, and a citation and room for notes under each
-  article. Pick a folder (your vault) and each delivered edition's notes are
-  saved there, however you send the edition.
 - **Listen to it.** **Listen** on an edition reads it aloud in your phone's
   own voice, article by article to its closing page, and keeps going with
   the screen off, from the lock screen and headphones. Take the phone out
@@ -119,11 +114,15 @@ another reader app's list):
 
 The newest debug build is always at
 [newspapeRSS-debug.apk](https://github.com/madCode/newspaperss/releases/download/latest-debug/newspapeRSS-debug.apk)
-(Android 8 or later). It installs beside a release build, and Settings shows
+(Android 8 or later), for 64-bit ARM: most phones and recent e-readers. An
+older 32-bit e-reader needs `newspapeRSS-debug-armeabi-v7a.apk` from the same
+page, which has everything but the podcast voice. It installs beside a release build, and Settings shows
 which build it is. The [release page](https://github.com/madCode/newspaperss/releases/tag/latest-debug)
 names the newest build, its commit and date, and has the same file under the
-build's number. Today says when a newer build is out (the app asks GitHub at
-most every three hours).
+build's number. After that the test build keeps itself current: it downloads
+each newer build on Wi-Fi and installs it when the app isn't in use. Allow
+"Install unknown apps" for it when Today asks, and confirm the first update
+(Android asks once after a browser install, and every time before Android 12).
 
 ## Building
 

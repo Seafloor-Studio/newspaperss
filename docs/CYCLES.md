@@ -3,6 +3,25 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Area D, closing
+
+- **Shared docs in every PR cost a CI round each time another session merged.** #274 went green four times and was refused three of them for a conflict in BACKLOG, DEVLOG or CYCLES. With four sessions, each session's docs in one closing PR, or merging the moment CI is green, would have saved about an hour and a half.
+- **Two sessions bumping the database on the same day work if they say so early.** C asked before opening; D kept 13, C took 14 on top of D's branch.
+
+### Cycle D8 — build: starred in tt-rss goes in the paper
+
+- **Ask how a list is ordered before capping it.** tt-rss sorts stars by the article's date, not when they were starred, so "the newest 1,000" isn't "the most recent stars". Both reviews' worst findings came from that one assumption.
+- **A decision answered on the morning page mid-day is a new item.** Built as its own cycle, stacked on the previous one's migration, rather than waiting for tomorrow.
+
+### Cycle D4 — build: a quiet tt-rss feed says so
+
+- **A fix stacked on an unmerged PR's migration** (v11 → v12 here) branches from that PR's branch and merges main once it lands; two sessions bumping the version at once would collide.
+- **One look per sync beats a daily question per feed.** Reading every new article id since the last sync costs one small request and can't miss a feed; the per-feed version had three failure modes the review found.
+
+### Cycle D7 — build, parked: Webtoons strips
+
+- **Measure the real thing at scale before building on a cap.** Episodes run 84–140 panels, not the 60 assumed; the image budget is shared and greedy, so a strip gets gaps mid-episode. "Built it, measured it, not shipping it" was the right call, and the branch keeps the work.
+
 ### Cycles B1–B12 (16 Oct) — build: test health and speed
 
 - **A teardown hook is shared by every test, so a reviewer's "low risk, none found" there needs
@@ -29,6 +48,13 @@ For the next cycle: what each one should do differently. What was built is in
   connection" for free. Replaced work is pruned at once: `getWorkInfoById` returns null.
 - **Run end check:** no emulator was started; nothing left running. The two extra worktrees in
   `/home/user` (wt-a, wt-b) are removed at the end.
+
+### Cycle C8 — build: saved links that can never be read
+
+- **A schema change in a parallel run: ask the other sessions first.** Session D had version 13
+  built; agreeing on 14 by message saved a migration renumber after both were open.
+- **A filter on one query isn't a filter on the feature.** Main grew a second candidates query
+  (#272) for builds while this was in review; grep every query that plans an edition.
 
 ### Cycle C6 — build: typed text kept when Android ends the app
 

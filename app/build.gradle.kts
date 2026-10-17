@@ -6,6 +6,10 @@ plugins {
 }
 
 val ciRun = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
+
+// Each ABI's APK has version code base * 10 + this. A store offers a device the highest code it
+// can run, so a 64-bit ABI comes after its 32-bit one; F-Droid's recipe uses the same numbers.
+val ABI_CODES = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86" to 3, "x86_64" to 4)
 val ciCommit = System.getenv("GITHUB_SHA")?.take(7)
 
 android {
@@ -92,6 +96,18 @@ android {
         }
     }
 
+    // One APK per ABI: the podcast voice's native code is about 30 MB per 64-bit ABI, and a
+    // single APK carried both. Each phone needs only its own. The 32-bit ones are kept, without
+    // the voice, for older e-readers. Google Play builds per-device APKs from the bundle itself.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include(*ABI_CODES.keys.toTypedArray())
+            isUniversalApk = false
+        }
+    }
+
     // F-Droid rejects the encrypted dependency blob Google Play wants.
     dependenciesInfo {
         includeInApk = false
@@ -101,6 +117,27 @@ android {
 
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+// ScreenshotTest draws every screen for review and the README, with almost nothing asserted, so
+// what it draws isn't counted as tested: it runs as its own task, which check depends on and
+// Kover doesn't measure.
+val screenshotTest = tasks.register<Test>("screenshotTest") {
+    description = "Draws every screen to build/screenshots."
+    group = "verification"
+    val unitTests = tasks.named<Test>("testDebugUnitTest").get()
+    testClassesDirs = unitTests.testClassesDirs
+    classpath = unitTests.classpath
+    jvmArgs(unitTests.jvmArgs)
+    systemProperties(unitTests.systemProperties)
+    filter.includeTestsMatching("*.ScreenshotTest")
+}
+tasks.withType<Test>().configureEach {
+    if (name == "testDebugUnitTest" || name == "testReleaseUnitTest") filter.excludeTestsMatching("*.ScreenshotTest")
+}
+tasks.named("check") { dependsOn(screenshotTest) }
+kover {
+    currentProject { instrumentation { disabledForTestTasks.add("screenshotTest") } }
 }
 
 dependencies {
@@ -152,10 +189,46 @@ dependencies {
     androidTestImplementation(libs.espresso.core)
 }
 
-// Debug builds only: CI's run number, so each build from CI installs over the one before it.
-// Release builds keep their own version code, which stores and F-Droid need to control.
+// The base is defaultConfig's version code, or for debug builds from CI the run number, so each
+// build from CI installs over the one before it. Release builds keep their own base, which stores
+// and F-Droid need to control.
 androidComponents {
-    onVariants(selector().withBuildType("debug")) { variant ->
-        ciRun?.let { run -> variant.outputs.forEach { it.versionCode.set(run) } }
+    onVariants { variant ->
+        val debugRun = ciRun.takeIf { variant.buildType == "debug" }
+        variant.outputs.forEach { output ->
+            val abi = output.filters.singleOrNull { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }?.identifier
+                ?: return@forEach
+            val base = debugRun ?: output.versionCode.orNull ?: 1
+            output.versionCode.set(base * 10 + ABI_CODES.getValue(abi))
+        }
+        val manifestCheck = tasks.register<SelfUpdateManifestCheck>("check${variant.name.replaceFirstChar { it.uppercase() }}SelfUpdateManifest") {
+            manifest.set(variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.MERGED_MANIFEST))
+            selfUpdates.set(variant.buildType == "debug")
+        }
+        tasks.named("check") { dependsOn(manifestCheck) }
+    }
+}
+
+/**
+ * Fails when a variant's merged manifest disagrees about installing apps: the debug build updates
+ * itself (src/debug), and Play and F-Droid refuse a release that could. Checking debug as well
+ * keeps the release check from passing on a manifest it misread.
+ */
+abstract class SelfUpdateManifestCheck : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val manifest: RegularFileProperty
+
+    @get:Input
+    abstract val selfUpdates: Property<Boolean>
+
+    @TaskAction
+    fun check() {
+        val text = manifest.get().asFile.readText()
+        for (name in listOf("android.permission.REQUEST_INSTALL_PACKAGES", "update.InstallResultReceiver")) {
+            if ((name in text) != selfUpdates.get()) {
+                throw GradleException("${manifest.get().asFile}: $name should " + if (selfUpdates.get()) "be there" else "not be there")
+            }
+        }
     }
 }

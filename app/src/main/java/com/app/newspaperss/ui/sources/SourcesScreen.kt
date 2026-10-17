@@ -1,5 +1,7 @@
 package com.app.newspaperss.ui.sources
 
+import com.app.newspaperss.data.FeedSync
+import java.time.Duration
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.app.newspaperss.ui.components.showWhileStarted
@@ -393,7 +395,7 @@ private fun LazyListScope.serverCategories(
                 if (i > 0) RowDivider()
                 ListItem(
                     headlineContent = { Text(feed.title) },
-                    supportingContent = feedNote(feed)?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
+                    supportingContent = feedNote(feed, LocalClock.current.instant())?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
                     modifier = Modifier.clickable(onClickLabel = "Open ${feed.title}") { onOpenFeed(accountId, feed.originId) },
                 )
                 if (i == category.feeds.lastIndex) GroupEnd()
@@ -531,6 +533,13 @@ private fun failingSinceLine(since: Instant, locale: Locale, is24Hour: Boolean, 
     return "Since ${DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, skeleton), locale).format(date)}."
 }
 
+/** "Nothing new in 3 weeks", once a feed has gone [FeedSync.QUIET_AFTER] without posting; then months past two. */
+internal fun quietLine(newestPost: Instant, now: Instant): String? {
+    val days = Duration.between(newestPost, now).toDays()
+    if (days < FeedSync.QUIET_AFTER.toDays()) return null
+    return if (days < 60) "Nothing new in ${days / 7} weeks" else "Nothing new in ${days / 30} months"
+}
+
 /** A feed just subscribed to in tt-rss, which has nothing to give until tt-rss's own schedule fetches it. */
 internal const val WAITING_FOR_FIRST_FETCH = "Not fetched by tt-rss yet"
 
@@ -542,13 +551,17 @@ internal const val SERVER_CANT_FETCH = "tt-rss couldn't fetch it last time"
 
 /**
  * A line under a feed only when it has something to say: tt-rss failing to fetch it, a first
- * fetch still to come, or its own settings. A line under all of them would be noise.
+ * fetch still to come, nothing new for weeks, or its own settings. A line under all of them would
+ * be noise.
  */
-internal fun feedNote(feed: FeedChoice): String? {
+internal fun feedNote(feed: FeedChoice, now: Instant): String? {
     val p = feed.publication
     return listOfNotNull(
         SERVER_CANT_FETCH.takeIf { p?.serverError != null },
         WAITING_FOR_FIRST_FETCH.takeIf { p?.awaitingFirstFetch == true && p.serverError == null },
+        // Not when tt-rss can't fetch it or hasn't yet: that line says why already. With no post
+        // seen, from when the app started watching: tt-rss may have deleted the last one.
+        (p?.newestPostAt ?: p?.watchedSince)?.takeIf { p?.serverError == null && p?.awaitingFirstFetch != true }?.let { quietLine(it, now) },
         when (p?.chosenMode) {
             ContentMode.FEED -> "Feed's text"
             ContentMode.PAGE -> "Full page"

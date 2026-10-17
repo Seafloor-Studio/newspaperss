@@ -8,7 +8,6 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.core.os.bundleOf
-import com.app.newspaperss.edition.EditionNotes
 import com.app.newspaperss.settings.KindleEmail
 import java.io.File
 
@@ -129,18 +128,6 @@ object EditionIntents {
         } catch (_: IllegalArgumentException) {
         } catch (_: SecurityException) {
         }
-    }
-
-    /** The share sheet for an edition's reading notes, e.g. to a notes app or Files. */
-    fun shareNotes(context: Context, file: File, title: String): Intent {
-        val send = Intent(Intent.ACTION_SEND).apply {
-            type = EditionNotes.MIME
-            putExtra(Intent.EXTRA_STREAM, uriFor(context, file))
-            putExtra(Intent.EXTRA_SUBJECT, "$title notes")
-            putExtra(Intent.EXTRA_TITLE, file.name)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        return Intent.createChooser(send, "Save notes for “$title”")
     }
 
     /** Starts the Kindle app, or null when it isn't installed (or can't be started). */

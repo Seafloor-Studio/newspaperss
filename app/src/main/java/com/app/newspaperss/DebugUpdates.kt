@@ -5,22 +5,31 @@ import com.app.newspaperss.core.net.HttpClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
  * Notices when CI has published a newer debug build than the one installed, so a tester isn't
- * left on a stale one. Asks GitHub when the app comes to the front, at most every [INTERVAL_MILLIS].
+ * left on a stale one. Asks GitHub when the app comes to the front, and on a live build from the
+ * background check too, at most every [INTERVAL_MILLIS].
  *
  * @param installed this app's CI build number, or null for a release or locally built app, which
  *   never asks.
+ * @param onNewer told of the newest build after every check while it's newer, asked or not, so
+ *   the live build can fetch it ([SelfUpdater.newerBuild]).
  */
 class DebugUpdates(
     private val http: HttpClient,
     private val prefs: SharedPreferences,
     private val installed: Int?,
+    private val onNewer: (Int) -> Unit = {},
     private val now: () -> Long = System::currentTimeMillis,
 ) {
+    // The app coming to the front and the background check can arrive together: one asks GitHub.
+    private val checking = Mutex()
+
     private val newerBuild = MutableStateFlow(newer(prefs.getInt(LATEST, 0)))
 
     /** The newest build's number while it's newer than this one, else null. */
@@ -28,6 +37,11 @@ class DebugUpdates(
 
     suspend fun checkIfDue() {
         if (installed == null) return
+        checking.withLock { ask() }
+        newerBuild.value?.let(onNewer)
+    }
+
+    private suspend fun ask() {
         // A clock set back counts as due, or it could hold the check off for as long.
         if (now() - prefs.getLong(CHECKED, 0L) in 0 until INTERVAL_MILLIS) return
         val response = try {
@@ -49,11 +63,22 @@ class DebugUpdates(
     companion object {
         val INTERVAL_MILLIS = TimeUnit.HOURS.toMillis(3)
         const val RELEASE_API = "https://api.github.com/repos/madCode/newspaperss/releases/tags/latest-debug"
-        const val DOWNLOAD = "https://github.com/madCode/newspaperss/releases/download/latest-debug/newspapeRSS-debug.apk"
+        private const val DOWNLOADS = "https://github.com/madCode/newspaperss/releases/download/latest-debug/"
+        // CI publishes one APK per ABI; the fixed name is arm64's (see build-and-test.yml).
+        private val OTHER_ABIS = setOf("armeabi-v7a", "x86", "x86_64")
+
+        /**
+         * The newest debug build for a device whose ABIs, best first, are [abis]
+         * (`Build.SUPPORTED_ABIS`): another ABI's APK won't install.
+         */
+        fun downloadFor(abis: Array<String>): String {
+            val abi = abis.firstOrNull { it == "arm64-v8a" || it in OTHER_ABIS }
+            return DOWNLOADS + if (abi == null || abi == "arm64-v8a") "newspapeRSS-debug.apk" else "newspapeRSS-debug-$abi.apk"
+        }
         private const val CHECKED = "checked"
         private const val LATEST = "latest"
 
-        // CI names each build's file after its run number, beside the fixed name DOWNLOAD links to.
+        // CI names each build's file after its run number, beside the fixed name downloadFor links to.
         private val BUILD_FILE = Regex("""newspapeRSS-debug-(\d+)\.apk""")
         private val BUILD_IN_VERSION = Regex("""-debug\.(\d+)""")
 

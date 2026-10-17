@@ -32,9 +32,9 @@ import com.app.newspaperss.data.EditionArticleEntity
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionRepository
 import com.app.newspaperss.data.EditionStatus
-import com.app.newspaperss.edition.EditionNotes
 import com.app.newspaperss.testutil.FakeSpeaker
 import com.app.newspaperss.testutil.TestApp
+import com.app.newspaperss.testutil.ViewModels
 import com.app.newspaperss.testutil.closeAfter
 import com.app.newspaperss.testutil.idleUntil
 import com.app.newspaperss.testutil.transparentPng
@@ -66,6 +66,7 @@ import java.time.LocalDate
 class ListenAppTest {
     @get:Rule(order = 0) val closeDb = closeAfter { db.close() }
     @get:Rule(order = 1) val compose = createComposeRule()
+    @get:Rule(order = 2) val viewModels = ViewModels()
 
     private val app = ApplicationProvider.getApplicationContext<Application>()
     private val db = Room.inMemoryDatabaseBuilder(app, AppDatabase::class.java).allowMainThreadQueries().build()
@@ -146,7 +147,7 @@ class ListenAppTest {
         val yesterday = edition("Wednesday Morning Edition", lagos)
         val today = edition()
         progress.set(yesterday, ListenPosition(0, 1))
-        val vm = EditionDetailViewModel(repo, today, EditionNotes(db, File(app.filesDir, "notes"))) {}
+        val vm = viewModels.add(EditionDetailViewModel(repo, today) {})
         var openedPlayer = 0
         compose.setContent { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = { openedPlayer++ }) }
         // 6 minutes to read is 9 to hear.
@@ -180,7 +181,7 @@ class ListenAppTest {
         val yesterday = edition("Wednesday Morning Edition", lagos)
         val today = edition()
         progress.set(yesterday, ListenPosition(0, 1))
-        val vm = EditionDetailViewModel(repo, today, EditionNotes(db, File(app.filesDir, "notes"))) {}
+        val vm = viewModels.add(EditionDetailViewModel(repo, today) {})
         val restoration = StateRestorationTester(compose)
         restoration.setContent { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = {}) }
         idleUntil { compose.onAllNodesWithText("Listen · about 9 min").fetchSemanticsNodes().isNotEmpty() }
@@ -200,7 +201,7 @@ class ListenAppTest {
         val yesterday = edition("Wednesday Morning Edition", lagos)
         val today = edition()
         progress.set(yesterday, ListenPosition(0, 1))
-        val vm = EditionDetailViewModel(repo, today, EditionNotes(db, File(app.filesDir, "notes"))) {}
+        val vm = viewModels.add(EditionDetailViewModel(repo, today) {})
         val restoration = StateRestorationTester(compose)
         restoration.setContent { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = {}) }
         idleUntil { compose.onAllNodesWithText("Listen · about 9 min").fetchSemanticsNodes().isNotEmpty() }

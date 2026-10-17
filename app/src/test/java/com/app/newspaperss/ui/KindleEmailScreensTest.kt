@@ -21,7 +21,6 @@ import com.app.newspaperss.data.EditionRepository
 import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.delivery.KindleSends
-import com.app.newspaperss.edition.EditionNotes
 import com.app.newspaperss.settings.DeliveryMethod
 import com.app.newspaperss.settings.Device
 import com.app.newspaperss.settings.KindleEmail
@@ -150,7 +149,7 @@ class KindleEmailScreensTest {
     fun anEditionsSendOpensTheMailAppAndCountsAsSent() {
         installApp(app)
         val (id, _) = readyEdition()
-        val vm = viewModels.add(EditionDetailViewModel(repo, id, EditionNotes(db, File(app.filesDir, "notes")), sentToKindle = kindleSends.recent) {})
+        val vm = viewModels.add(EditionDetailViewModel(repo, id, sentToKindle = kindleSends.recent) {})
         compose.setContent { EditionDetailScreen(vm, onBack = {}, offerOpen = false, kindleEmail = KindleEmail("me_42@kindle.com", MAIL_APP)) }
         idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
 

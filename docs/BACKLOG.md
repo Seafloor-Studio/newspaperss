@@ -15,7 +15,6 @@ Grouped by part of the app. The tag says where each item came from: *device* (yo
 Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "checked" means read against the code, not yet reproduced.
 - [ ] Another tt-rss user, or another server, still meets the first one's delivered links: `delivered_urls` is shared, so a story the first user received is skipped for the second, and marked read on their server. Small, but partners often follow the same blogs. Forget the delivered links that came only from the old source when it goes? *(review, 16 Oct)*
 - [ ] Restored onto a new phone, the database comes back without the tt-rss login (it's left out of backups), so whoever signs in next keeps the waiting and starred articles, as the same user would. Ask on sign-in whether it's the same account? *(review, 16 Oct)*
-- [ ] Coverage counts the pictures `ScreenshotTest` draws (85 tests, 4 assertions) as tested code. Proposed in [#269](https://github.com/madCode/newspaperss/pull/269), your call: the screenshots run as their own task, which Kover doesn't measure; coverage goes from 94.73% to 94.32%
 - [ ] About 100 view models built directly in tests (Today, Settings, Sources…) are still never stopped, as the source page's were; `testutil/ViewModels` stops them, so adopt it as those tests are touched *(today B3)*
 - [ ] `PodcastSettingsTest.choosingToReadLiveDuringTheDownloadStopsIt` timed out once in six full runs, at its 30 s wait for the settings screen to load, on a machine running other builds. Watch it *(today B9)*
 - [ ] CLAUDE.md says its shared sections match claude-playground's; several rules have drifted (tests "waits for the condition", the review's background-work bullet, the PR template, "merge only when asked"). Your call whether to bring them across
@@ -28,6 +27,8 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [x] **Show tt-rss's own feed errors** *(you asked)*: tt-rss's `last_error` for each feed, on the feed's row and page and named in a banner on Sources
 - [ ] Paywalled and summary-only sites: warn when a site is added; keep stubs from eating the budget; drop metered sites from starter packs *(personas)*
 - [x] A feed over 10 MB was refused as too large: some static sites (a Hugo `index.xml`) put every post they ever wrote in one feed. Now it's read up to 10 MB, keeping the whole items before the cut *(sweep)*
+- [ ] "No feed found" in onboarding: offer the reading list there too (done in Sources) *(personas)*
+- [ ] Webtoons: episodes are one long strip of 84–140 lazily loaded panels (a phone is sent to m.webtoons.com, which lists them in a script; the desktop viewer has them in `data-url`), beyond the 20-image cap. Built and measured on `claude/today-d-c7` (D7), not shipped. Before it can ship: the image budget must take a strip whole or not at all (today it is shared and greedy, so a strip gets gaps mid-episode and starves later articles); no cap that cuts an ending silently; ask for `?type=opti` (PNG panels ignore `q90`: 800 KB vs 300 KB); drop the feed's two thumbnail panels, which otherwise repeat after the strip; panels contiguous in the book (no figure margins), with alt text. Re-encoded, an episode is about 6–9 MB *(device)*
 - [ ] Webtoons: episodes are one long strip of dozens of lazy images (`data-url`), beyond the 20-image cap, and its mobile site hides the feed. Support strips properly *(device)*
 
 ### The book
@@ -35,6 +36,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] Substack Notes when a Substack post is read from its page (PAGE mode, or an excerpt): the page shows a placeholder where the Note goes, so it vanishes. The page's data has the whole post (see `SubstackPost`); a free post could be read from there *(found in D1)*
 
 ### Delivery and schedule
+- [ ] **Save a copy of an edition to the phone** *(you asked)*: there's no easy way to keep the EPUB file itself. Android's share sheet often offers no Files target, so **Send another way** can't save it. Add "Save a copy…", opening the system's save dialog (`ACTION_CREATE_DOCUMENT`), beside Send another way in the edition's ⋮ menu
 - [ ] Dropbox connection (OAuth PKCE) so Kobo delivery is automatic; waiting on an app key ([#18](https://github.com/madCode/newspaperss/issues/18)) *(personas)*
 - [ ] Boox: offer folder delivery into the Books folder, so editions stay in the library *(personas)*
 - [ ] Folder delivery: tt-rss marks articles read as soon as the file is saved, before Syncthing has synced; old editions pile up in the folder *(personas)*
@@ -43,10 +45,8 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 
 ### tt-rss, for a returning reader *(personas)*
 - [ ] Decide what tt-rss is as a source. Explored ([research/ttrss-backend/](research/ttrss-backend/index.html), open it in a browser): one tt-rss row in Sources with its feeds inset under it, folded, each opening its own page, is built (cycles 77–79). Still open: how this joins "tt-rss and Google Reader API servers as full backends" below. Sections were taken out (cycle 80)
-- [ ] A quiet tt-rss feed says so under its row ("Nothing new in 3 weeks"). tt-rss's feed list gives when it last fetched a feed, not when it last posted, so this needs the newest article's date from getHeadlines, once a day
 - [ ] Search on the account page's feed list (F4), if scrolling 50+ feeds on Sources gets slow
 - [ ] Several categories, and tt-rss's Starred and Published as choices
-- [ ] **Your call:** should tt-rss's star feed the ☆? Recommended: an opt-in, one-way "Starred in tt-rss goes in my next edition" setting, not a two-way sync, since the ☆ clears on delivery and syncing that back would unstar articles in tt-rss. On the morning page
 
 - [ ] Moving off tt-rss: **I pick my own sites** brings the feeds along as phone feeds, the reverse of moving phone feeds in. The daily feed list already has each feed's address, title and category. Feeds in the paper come with their settings (cap, article text, skip paid posts), left-out ones stay left out, and a feed already on the phone or without an address yet is skipped and said so. Open: whether starred articles come too (today they go with the account). About a cycle. Until then the leave dialog points to tt-rss's OPML export *(you asked)*
 - [ ] Delay tt-rss mark-read a little after sharing, so a quick "Mark as not sent" doesn't flip articles read and then unread again on the server
@@ -69,8 +69,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 
 ### Reading list
 - [ ] Send for a look on an e-reader with no browser says so and stops there; copying the form's address would let the reader send it from a phone. And check on a device whether the GitHub app, if installed, takes the link and drops the filled-in fields *(today C1 review)*
-- [ ] Saved links that can never be read (a PDF, a video, a page over 5 MB, a 410) wait silently forever. Show them in the reading list as unreadable, with the reason and a way to open or remove them. Not as "couldn't fetch" pages in the edition: they cost no reading time, so a backlog of them could fill one. Built on `claude/screens-c8` (database version 14), waiting on session D's versions 12 and 13 to merge first
-- [ ] **Your call:** reading times for saved links. Not only links saved before database version 2: no titled link from a Pocket or Instapaper import gets one either, since only untitled links are looked up. The reading time is only the reading list's "10 min read" (editions don't use it). Filling them in costs one background page fetch per link, 20 at a time, so a 3,000-link import means 3,000 fetches. Options: measure every saved link; measure only links saved from now on and leave imports; or leave it. On the morning page
+- [ ] **Approved:** give every saved link a reading time, slowly. Links saved before database version 2 and titled Pocket or Instapaper imports have none, so the reading list shows "10 min read" on some rows and nothing on others. Measure them in the background a few dozen a day, only on Wi-Fi while charging, until none are left; new links are measured as now. `ReadingListTitles.fetch` already measures a titled link whose `pageWords` is null: what's missing is a periodic job that hands it the next batch. Keep the label; feed articles stay without one. *(morning page, 16 Oct)*
 
 ### Accessibility *(a11y, you asked for it)*
 A full pass over the app and the book, not just spot fixes:
@@ -88,10 +87,6 @@ A full pass over the app and the book, not just spot fixes:
 ### Performance *(resources)*
 - [ ] A floor device: Android 8, 2 GB RAM, slow CPU and storage (a 2018 budget phone or an older Boox). Measure on an emulator with that profile how long a 30-minute edition takes, peak memory, whether timed editions still arrive under Doze, and whether long lists and the preview stay smooth; set budgets from the numbers *(you asked)*
 - [ ] A feed's title, link, guid and author are stored uncapped: a hostile feed (a `data:` link, a megabyte title) could still make a row too big for the 2 MB Android reads it through. Cap them as feed text now is *(review)*
-- [ ] A smaller APK *(you asked)*. It went from 20–40 MB to 94 MB with the podcast, because sherpa-onnx's native code is in it twice, stored uncompressed: about 32 MB for arm64-v8a and 36 MB for x86_64. Three ways, with what each costs:
-  - **One APK per ABI** (preferred): about 57 MB for a phone, and nothing stops working. The cost: two files on the release page, CI and the `latest-debug` publish adjusted, and F-Droid's build recipe given the split.
-  - **Drop x86_64**: one APK of about 57 MB, but no podcast on emulators and x86 Chromebooks. First check whether the device tests' emulator needs it.
-  - **Compress the native code** (`useLegacyPackaging`): about 50 MB to download, but Android unpacks a copy on install, so it takes more room on the phone than now.
 
 ### Recurring reviews *(audit)*
 Whole-codebase passes for what a review of one PR can't see. Each follows the audit's pattern: fresh-eyes reviewers, each finding checked, a PR per area.
@@ -102,6 +97,7 @@ Whole-codebase passes for what a review of one PR can't see. Each follows the au
 - [ ] Listen sometimes stops at the paragraph instead of scrolling down to the sentence being read: its fine scroll needs the paragraph's text layout, which may not be recorded yet when the scroll runs. Seen as `11d-listen-larger-text` differing between two renders; likely on a phone too *(today B7)*
 
 ### Later
+- [ ] When releases start, the live (debug) channel keeps self-updating; release builds never do.
 - [ ] Send the email itself (SMTP, an app password), so a Kindle edition arrives with no tap and from a chosen account; email delivery through the mail app is done (#123)
 
 ## Feature proposals
@@ -153,10 +149,16 @@ shouldn't become a way around paywalls. A likely middle: the link plus a short e
   - From the book: each article already ends with "Read the original"; a Kindle can share that link itself, so nothing needed there.
   - Later: the excerpt, if the link alone feels bare.
 
-### Notes: what should they be?
-The edition notes export (a markdown checklist of each edition's articles) went in without much thought
-about who uses it. Research first: what people do with a read list; whether to import highlights from
-Kindle (My Clippings), Kobo or KOReader; where notes should live (the app, or a markdown file elsewhere).
+### Reading notes: removed, and only worth bringing back as highlights
+The Markdown notes file (the Notes button on an edition, and a notes folder in Settings) was removed
+before the first release: nobody had tried it by hand, and a blank template wasn't used. Quotes are
+shared from the article preview instead. To bring it back, revert the PR that removed it ("Remove
+reading notes"), resolving whatever has moved since.
+- If notes come back, only as highlights pulled back from the e-reader. Each device keeps them its own
+  way: Kindle's My Clippings.txt (or Amazon's notebook), Kobo's on-device database, KOReader's sidecar
+  files beside each book, Boox's exported notes.
+- Start with KOReader (its sidecar files come back through the Syncthing folder) or Boox (the app runs
+  on the device): those files are reachable without a cable.
 
 ### More than one schedule, and one-off editions
 Several timed editions (a weekday morning paper and Sunday long reads), and a one-off custom edition
@@ -391,7 +393,7 @@ Restoring onto a phone that already has sources asks first whether to replace or
 ### From the competitor research ([docs/research/competitors.md](research/competitors.md))
 - **Kobo through Google Drive.** Kobo syncs a "Rakuten Kobo" Drive folder natively. Drive's SAF provider
   has no folder trees, so this needs the Drive API (an OAuth client, like Dropbox's app key).
-- **Close the loop from the device:** finished on the e-reader means archived; KOReader highlights feed the notes export.
+- **Close the loop from the device:** finished on the e-reader means archived; KOReader highlights come back (see Reading notes above).
 - **More importers:** Matter, Readwise, Raindrop and Omnivore exports, for people leaving shut-down apps.
 - **An OPDS catalog served from the phone,** for KOReader and jailbroken Kindles.
 
@@ -401,7 +403,7 @@ Restoring onto a phone that already has sources asks first whether to replace or
   the competitors do, not what this app is for.
 - **A heart for "loved this / keep it", synced to tt-rss:** skipped by madCode, 16 Oct. The ☆ already
   means "put it in my next edition", and tt-rss's own star means "keep". Whether tt-rss's star should
-  feed the ☆ is a separate question, on the morning page.
+  feed the ☆ was a separate question: madCode chose an opt-in, one-way setting, built 16 Oct.
 
 ### Sections in the paper (taken out)
 Taken out in cycle 80, with OPML folders, the reading list's "Saved for later" heading, tt-rss
@@ -433,6 +435,11 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] Coverage no longer counts what `ScreenshotTest` draws: the screenshots run as their own task, which Kover doesn't measure; coverage went from 94.73% to 94.32% (#269, your call: merged)
+- [x] A smaller APK: one per ABI, as you chose. A phone's release APK is 50.6 MB (arm64) instead of 86.8 MB; older 32-bit e-readers get an 18.6 MB one without the podcast voice; Play's bundle is unchanged (today B13)
+- [x] A saved link that can never be read (not a web page, a 410, too large) says why in the reading list, can still be opened or removed, and editions stop trying it; saving it again looks again (database version 14, #283)
+- [x] Starred in tt-rss goes in the paper: an opt-in, one-way, each star once (today D8, madCode's call on the morning page)
+- [x] A quiet tt-rss feed says so under its row: "Nothing new in 3 weeks" (today D4)
 - [x] **Send for a look**: ⋮ › Send for a look… on an article's preview says the report is a public GitHub issue, then opens GitHub's form with "Extraction: *title*", the address and the app's version filled in (#251)
 - [x] A snackbar on screen as the app goes to the background is shown again in full on its return, Undo and all, on Sources, the reading list, a source's page, Settings and an edition's page; a reading-list removal waiting for Undo is settled then rather than left in the database (#258)
 - [x] ~~Stop making and Delete podcast run on the screen's scope without `NonCancellable`~~: checked, not a bug. Both are blocking file writes launched straight onto `Dispatchers.IO`, so leaving the page can't cut them short once tapped; `NonCancellable` only matters for a suspending call like Make's (#258)
@@ -482,8 +489,8 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 - [x] tt-rss: leave a feed out of the paper from the source's page; it isn't fetched, and its waiting articles go except starred ones *(personas)*
 - [x] No Open for Kindle and Kobo readers, who send the book rather than open it on the phone *(personas)*
 - [x] tt-rss "Start fresh" for a reader back after a break: marks everything older than two weeks read on the server, after asking, and refuses on servers too old to limit it *(personas)*
-- [x] A question to think about on each edition's closing page, from a short list that suits any paper, and shown in its notes *(personas)*
-- [x] Reading notes saved to a folder of your choice (an Obsidian vault) for every delivered edition, whether it was shared, saved to a folder or opened *(personas)*
+- [x] A question to think about on each edition's closing page, from a short list that suits any paper, *(personas)*
+- [x] Reading notes saved to a folder of your choice (an Obsidian vault) for every delivered edition, whether it was shared, saved to a folder or opened *(personas; removed before release, see Reading notes above)*
 - [x] Link posts (Longreads' picks): a short item whose link to another site carries a referral tag naming its own site is stored as that story, fetched and credited "Equator via Longreads", with its pitch as the fallback; tracking tags come off stored links, so a story two sources picked goes out once *(you asked)*
 - [x] Sources take turns starting with the one featured longest ago, not shifting by one each edition, so with many feeds every one gets its turn *(personas)*
 - [x] Stars: `☆ Next edition` on a source's articles and on delivered editions puts an article first in the next edition (it replaces bring back); the planner takes stars first, taking turns across sources, within each source's slots and the budget; Today says how many are waiting
@@ -526,7 +533,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 - [x] Real-world check: a live edition from the starter feeds passes epubcheck (stray figcaptions fixed; `./gradlew :core:liveEdition`); a source settled on the feed's text keeps probing short items, so a lifted block is noticed
 - [x] Tech debt: feed parser smoke-tested on Android's own XmlPullParser; HTML meta-charset and byte-order-mark sniffing
 - [x] Curated list sources: a scraper per site (Arts & Letters Daily first), each list its own source, keeping its newest 12 unread links; added from the Add a source dialog
-- [x] Notes export: a Markdown notes file per edition (details, citation, reflection prompts) from Edition detail
+- [x] Notes export: a Markdown notes file per edition (details, citation, reflection prompts) from Edition detail *(removed before release)*
 - [x] App shell: splash until settings load, onboarding survives process death, timer re-armed on time-zone change, launch test
 - [x] Auto-tune each source's ContentMode from its articles (three in a row), a manual choice that's never overridden, and per-source full-text health on the Sources screen
 - [x] Import Pocket (HTML, CSV) and Instapaper (CSV) exports into the reading list; saved links without a title get the page's title in the background

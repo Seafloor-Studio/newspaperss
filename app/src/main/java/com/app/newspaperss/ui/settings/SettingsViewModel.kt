@@ -120,7 +120,6 @@ class SettingsViewModel(
         viewModelScope.launch { store.update { it.copy(mailApp = packageName) } }
     }
     fun useFolder(uri: String, name: String) = update { it.copy(delivery = DeliveryMethod.FOLDER, folderUri = uri, folderName = name) }
-    fun setNotesFolder(uri: String?, name: String?) = update { it.copy(notesFolderUri = uri, notesFolderName = name) }
     fun setDevice(device: Device) = update { it.copy(device = device) }
 
     companion object {

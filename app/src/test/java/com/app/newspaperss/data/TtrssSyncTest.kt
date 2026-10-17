@@ -797,6 +797,176 @@ class TtrssSyncTest {
     private val fresh = now.epochSecond
 
     /**
+     * Each sync looks at every article since the last, read or not, so a feed read on the laptop
+     * is still known to post; the first looks back over the newest few hundred.
+     */
+    @Test
+    fun eachFeedsLastPostIsKnownReadOrNot() = runTest {
+        val source = connect()
+        server.feeds[7] = FakeTtrss.Feed("Quarterly Review", "https://quarterly.example/feed")
+        server.feeds[8] = FakeTtrss.Feed("Example News", "https://news.example/feed")
+        server.feeds[9] = FakeTtrss.Feed("Gone Quiet", "https://quiet.example/feed")
+        val monthAgo = now.minus(Duration.ofDays(30))
+        server.add(70, "An essay", feedId = 7, feedTitle = "Quarterly Review", updated = monthAgo.epochSecond)
+        server.readThere(70)
+        server.add(80, "Today's news", feedId = 8, feedTitle = "Example News", updated = fresh)
+
+        sync.syncAll()
+
+        suspend fun publication(key: String) = db.sources().allPublications().single { it.sourceId == source.id && it.key == key }
+        assertEquals("read in tt-rss, still a post", monthAgo, publication("7").newestPostAt)
+        assertEquals(now, publication("8").newestPostAt)
+        assertNull("nothing left in tt-rss to date it by", publication("9").newestPostAt)
+        assertEquals("watched from now", now, publication("9").watchedSince)
+
+        // Later, the quiet one posts and it's read at once on the laptop: the next sync still sees it.
+        val later = FeedSync(db, http, Clock.fixed(now.plus(Duration.ofDays(1)), ZoneOffset.UTC), Duration.ofDays(7), accounts)
+        server.add(90, "Back again", feedId = 9, feedTitle = "Gone Quiet", updated = now.plus(Duration.ofHours(20)).epochSecond)
+        server.readThere(90)
+        later.syncAll()
+        assertEquals(now.plus(Duration.ofHours(20)), publication("9").newestPostAt)
+        assertEquals("only what's new is asked for", listOf<Long?>(null, 80L), server.postsAskedSince)
+    }
+
+    /**
+     * Asked to, what the reader stars in tt-rss goes in the next edition, once: delivering it or
+     * taking it out here leaves the star in tt-rss, and it isn't taken again. Stars already there
+     * when the option was turned on are kept stars, not requests.
+     */
+    @Test
+    fun aStarInTtrssGoesInTheNextEditionOnce() = runTest {
+        val source = connect()
+        server.add(5, "Kept for years", feedId = 1, feedTitle = "A Blog")
+        server.readThere(5)
+        server.starred += 5L
+        ttrss.setTakeStars(source.id, true)
+        sync.syncAll()
+        assertNull("there before it was turned on", db.articles().allForSource(source.id).firstOrNull { it.guid == "ttrss:5" })
+
+        // Starred on the laptop, long read there; and one waiting here unread already.
+        server.add(6, "Read it on paper", feedId = 1, feedTitle = "A Blog")
+        server.readThere(6)
+        server.add(7, "Waiting", feedId = 2, feedTitle = "Example News")
+        sync.syncAll()
+        server.starred += listOf(6L, 7L)
+        sync.syncAll()
+        suspend fun article(guid: String) = db.articles().allForSource(source.id).single { it.guid == guid }
+        assertEquals(now, article("ttrss:6").starredAt)
+        assertEquals("<p>Text of Read it on paper.</p>", article("ttrss:6").feedHtml)
+        assertEquals(now, article("ttrss:7").starredAt)
+
+        // The reader changes their mind here: still starred there, it isn't taken again.
+        db.articles().setStarred(article("ttrss:7").id, false, now)
+        sync.syncAll()
+        assertNull(article("ttrss:7").starredAt)
+
+        // Unstarred there and starred again: asked for again.
+        server.starred -= 7L
+        sync.syncAll()
+        server.starred += 7L
+        sync.syncAll()
+        assertEquals(now, article("ttrss:7").starredAt)
+    }
+
+    /** tt-rss lists stars by the article's date: a new star on an old article comes last, behind every kept one. */
+    @Test
+    fun aNewStarOnAnOldArticleIsFoundBehindManyKeptOnes() = runTest {
+        val source = connect()
+        (1L..1300L).forEach { server.add(it, "Article $it", feedId = 1, feedTitle = "A Blog"); server.readThere(it) }
+        server.starred += (2L..1300L)
+        ttrss.setTakeStars(source.id, true)
+        sync.syncAll()
+        server.starred += 1L
+        sync.syncAll()
+        assertEquals(listOf("ttrss:1"), db.articles().allForSource(source.id).filter { it.starredAt != null }.map { it.guid })
+    }
+
+    @Test
+    fun aStarOnAnArticleInAnUnsentEditionGoesInOnceItComesBack() = runTest {
+        val source = connect()
+        ttrss.setTakeStars(source.id, true)
+        server.add(7, "Waiting", feedId = 2, feedTitle = "Example News")
+        sync.syncAll()
+        // More held than one sync takes, and one that isn't: the held ones don't hold it up.
+        (100L..159L).forEach { server.add(it, "In the edition $it", feedId = 3, feedTitle = "Busy") }
+        db.articles().insertNew((100L..159L).map { ArticleEntity(sourceId = source.id, guid = "ttrss:$it", url = "https://news.example/$it", title = "In the edition $it") })
+        db.openHelper.writableDatabase.execSQL("UPDATE articles SET state = 'IN_EDITION' WHERE guid = 'ttrss:7' OR guid LIKE 'ttrss:1__'")
+        server.add(8, "Starred on the laptop", feedId = 1, feedTitle = "A Blog")
+        server.readThere(8)
+        server.starred += (100L..159L) + listOf(7L, 8L)
+        sync.syncAll()
+        suspend fun article(guid: String = "ttrss:7") = db.articles().allForSource(source.id).single { it.guid == guid }
+        assertNull(article().starredAt)
+        assertEquals(now, article("ttrss:8").starredAt)
+
+        // The edition is marked as not sent: its articles wait again.
+        db.openHelper.writableDatabase.execSQL("UPDATE articles SET state = 'NEW' WHERE guid = 'ttrss:7'")
+        sync.syncAll()
+        assertEquals(now, article().starredAt)
+    }
+
+    @Test
+    fun aServerCanOnlyStarWhatWasStarred() = runTest {
+        val source = connect()
+        ttrss.setTakeStars(source.id, true)
+        sync.syncAll()
+        server.add(6, "Starred", feedId = 1, feedTitle = "A Blog")
+        server.readThere(6)
+        server.starred += 6L
+        server.unaskedArticles += FakeTtrss.Item(66, "Never starred", feedId = 1, feedTitle = "A Blog")
+        sync.syncAll()
+        assertEquals(listOf("ttrss:6"), db.articles().allForSource(source.id).map { it.guid })
+    }
+
+    @Test
+    fun starsStayInTtrssUnlessAskedAndTurningItOnAgainStartsFromThen() = runTest {
+        val source = connect()
+        server.add(6, "Starred there", feedId = 1, feedTitle = "A Blog")
+        server.readThere(6)
+        sync.syncAll()
+        server.starred += 6L
+        sync.syncAll()
+        assertTrue("off by default", db.articles().allForSource(source.id).none { it.guid == "ttrss:6" })
+
+        ttrss.setTakeStars(source.id, true)
+        sync.syncAll()
+        server.add(8, "Starred later", feedId = 1, feedTitle = "A Blog")
+        server.readThere(8)
+        server.starred += 8L
+        ttrss.setTakeStars(source.id, false)
+        sync.syncAll()
+        ttrss.setTakeStars(source.id, true)
+        sync.syncAll()
+        sync.syncAll()
+        assertTrue("starred while it was off", db.articles().allForSource(source.id).none { it.starredAt != null })
+    }
+
+    /** More arrived between two syncs than one look takes: the rest are looked at next time, not skipped. */
+    @Test
+    fun aLookCutShortGoesOnFromWhereItStopped() = runTest {
+        val source = connect()
+        server.feeds[7] = FakeTtrss.Feed("Quarterly Review", "https://quarterly.example/feed")
+        server.feeds[9] = FakeTtrss.Feed("Weekly Notes", "https://weekly.example/feed")
+        server.add(10, "Today's news", feedId = 8, feedTitle = "Example News", updated = fresh)
+        sync.syncAll()
+
+        // A week off: the weekly feed posted first, then a busy feed more than a look's worth, then the quarterly.
+        val weekly = now.plus(Duration.ofHours(1))
+        server.add(11, "This week", feedId = 9, feedTitle = "Weekly Notes", updated = weekly.epochSecond)
+        (12L..1211L).forEach { server.add(it, "News $it", feedId = 8, feedTitle = "Example News", updated = fresh) }
+        val quarterly = now.plus(Duration.ofHours(2))
+        server.add(1212, "Autumn issue", feedId = 7, feedTitle = "Quarterly Review", updated = quarterly.epochSecond)
+        val later = FeedSync(db, http, Clock.fixed(now.plus(Duration.ofDays(7)), ZoneOffset.UTC), Duration.ofDays(7), accounts)
+        later.syncAll()
+        later.syncAll()
+
+        suspend fun publication(key: String) = db.sources().allPublications().single { it.sourceId == source.id && it.key == key }
+        assertEquals(weekly, publication("9").newestPostAt)
+        assertEquals(quarterly, publication("7").newestPostAt)
+        assertEquals(listOf<Long?>(null, 10L, 1010L), server.postsAskedSince)
+    }
+
+    /**
      * Asked to, a feed's backlog of old unread articles is marked read as it arrives rather than
      * coming through the paper five at a time: marking the newest five read brings in the next.
      */

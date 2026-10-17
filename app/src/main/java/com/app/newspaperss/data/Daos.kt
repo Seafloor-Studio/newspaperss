@@ -114,6 +114,20 @@ interface SourceDao {
     @Query("UPDATE publications SET serverError = :error WHERE sourceId = :sourceId AND `key` = :key AND serverError IS NOT :error")
     suspend fun setServerError(sourceId: Long, key: String, error: String?)
 
+    /** [key] posted at [at]: kept if it's newer than what's known. */
+    @Query(
+        """UPDATE publications SET newestPostAt = :at WHERE sourceId = :sourceId AND `key` = :key
+           AND (newestPostAt IS NULL OR newestPostAt < :at)""",
+    )
+    suspend fun posted(sourceId: Long, key: String, at: Instant)
+
+    /** Feeds not watched for posts yet are from [now]. */
+    @Query("UPDATE publications SET watchedSince = :now WHERE sourceId = :sourceId AND watchedSince IS NULL")
+    suspend fun watching(sourceId: Long, now: Instant)
+
+    @Query("UPDATE sources SET ttrssSeenId = :id WHERE id = :sourceId")
+    suspend fun setTtrssSeenId(sourceId: Long, id: Long)
+
     /** tt-rss has fetched these feeds: they have unread articles there. */
     @Query("UPDATE publications SET awaitingFirstFetch = 0 WHERE sourceId = :sourceId AND `key` IN (:keys) AND awaitingFirstFetch = 1")
     suspend fun fetchedByServer(sourceId: Long, keys: List<String>)
@@ -123,6 +137,31 @@ interface SourceDao {
 
     @Query("UPDATE sources SET markExpiredRead = :markRead WHERE id = :id")
     suspend fun setMarkExpiredRead(id: Long, markRead: Boolean)
+
+    /** Turned on again, the stars there by then are noted afresh. */
+    @Transaction
+    suspend fun setTakeTtrssStars(id: Long, take: Boolean) {
+        takeTtrssStars(id, take)
+        forgetTtrssStars(id)
+    }
+
+    @Query("UPDATE sources SET takeTtrssStars = :take, ttrssStarsNoted = 0 WHERE id = :id")
+    suspend fun takeTtrssStars(id: Long, take: Boolean)
+
+    @Query("UPDATE sources SET ttrssStarsNoted = 1 WHERE id = :id")
+    suspend fun notedTtrssStars(id: Long)
+
+    @Query("SELECT articleId FROM ttrss_stars WHERE sourceId = :sourceId")
+    suspend fun ttrssStars(sourceId: Long): List<Long>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun addTtrssStars(stars: List<TtrssStarEntity>)
+
+    @Query("DELETE FROM ttrss_stars WHERE sourceId = :sourceId AND articleId IN (:ids)")
+    suspend fun dropTtrssStars(sourceId: Long, ids: List<Long>)
+
+    @Query("DELETE FROM ttrss_stars WHERE sourceId = :sourceId")
+    suspend fun forgetTtrssStars(sourceId: Long)
 
     @Query("SELECT * FROM sources WHERE kind = :kind")
     suspend fun ofKind(kind: SourceKind): List<SourceEntity>
@@ -240,9 +279,19 @@ interface ArticleDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertIgnoring(article: ArticleEntity): Long
 
-    /** Waiting articles, and starred ones in any state but already in an unsent edition. */
-    @Query("SELECT * FROM articles WHERE state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')")
+    /**
+     * Waiting articles, and starred ones in any state but already in an unsent edition; not the
+     * saved links that can never be read ([ArticleEntity.unreadable]).
+     */
+    @Query("SELECT * FROM articles WHERE (state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')) AND unreadable IS NULL")
     suspend fun candidates(): List<ArticleEntity>
+
+    /**
+     * Marks a saved link as one that can never be read, and why (see [ArticleEntity.unreadable]);
+     * null clears it. Not one in an edition, which was read after all.
+     */
+    @Query("UPDATE articles SET unreadable = :why WHERE id = :id AND state != 'IN_EDITION'")
+    suspend fun setUnreadable(id: Long, why: String?)
 
     /**
      * [candidates] without their feed text, which a build reads one article at a time with
@@ -251,8 +300,8 @@ interface ArticleDao {
      */
     @Query(
         """SELECT id, sourceId, guid, url, title, author, published, NULL AS feedHtml, discoveredAt, state, starredAt,
-           originId, originTitle, pageWords, reportedRead, viaUrl, paidOnly, paidSkipped
-           FROM articles WHERE state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')""",
+           originId, originTitle, pageWords, reportedRead, viaUrl, paidOnly, paidSkipped, unreadable
+           FROM articles WHERE (state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')) AND unreadable IS NULL""",
     )
     suspend fun buildCandidates(): List<ArticleEntity>
 
@@ -263,7 +312,7 @@ interface ArticleDao {
     @Query(
         """SELECT COUNT(DISTINCT CASE WHEN articles.url != '' THEN articles.url ELSE '#' || articles.id END)
            FROM articles JOIN sources ON sources.id = articles.sourceId
-           WHERE articles.starredAt IS NOT NULL AND articles.state != 'IN_EDITION' AND sources.paused = 0""",
+           WHERE articles.starredAt IS NOT NULL AND articles.state != 'IN_EDITION' AND sources.paused = 0 AND articles.unreadable IS NULL""",
     )
     fun observeStarredWaiting(): Flow<Int>
 
@@ -431,6 +480,19 @@ interface ArticleDao {
            AND NOT EXISTS (SELECT 1 FROM editions WHERE status = 'BUILDING' AND createdAt > :buildingSince)""",
     )
     suspend fun unstar(id: Long, buildingSince: Instant): Int
+
+    /**
+     * Stars a source's articles by guid, for stars taken from tt-rss. Not one already delivered:
+     * starred there after it went out, it's being kept, not asked for again.
+     */
+    @Query(
+        """UPDATE articles SET starredAt = COALESCE(starredAt, :at) WHERE sourceId = :sourceId AND guid IN (:guids)
+           AND state NOT IN ('IN_EDITION', 'DELIVERED')""",
+    )
+    suspend fun starGuids(sourceId: Long, guids: List<String>, at: Instant)
+
+    @Query("SELECT guid FROM articles WHERE sourceId = :sourceId AND guid IN (:guids) AND state = 'IN_EDITION'")
+    suspend fun inEditionAmong(sourceId: Long, guids: List<String>): List<String>
 
     /** [star] for several articles at once. */
     @Query("UPDATE articles SET starredAt = COALESCE(starredAt, :at) WHERE id IN (:ids) AND state != 'IN_EDITION'")
@@ -644,15 +706,6 @@ data class EditionContent(
     val starredAt: Instant? = null,
 )
 
-/** An edition article with what its notes need; the article's own fields are null once its source is removed. */
-data class NotesRow(
-    val title: String,
-    val sourceTitle: String,
-    val url: String?,
-    val author: String?,
-    val published: Instant?,
-)
-
 @Dao
 interface EditionDao {
     @Query("SELECT * FROM editions WHERE status != 'DELETED' ORDER BY createdAt DESC")
@@ -727,13 +780,6 @@ interface EditionDao {
            WHERE editionId = :editionId ORDER BY position""",
     )
     fun observeContents(editionId: Long): Flow<List<EditionContent>>
-
-    @Query(
-        """SELECT edition_articles.title, edition_articles.sourceTitle, articles.url, articles.author, articles.published
-           FROM edition_articles LEFT JOIN articles ON articles.id = edition_articles.articleId
-           WHERE editionId = :editionId ORDER BY position""",
-    )
-    suspend fun notesRows(editionId: Long): List<NotesRow>
 
     @Query("SELECT articleId FROM edition_articles WHERE editionId = :editionId AND articleId IS NOT NULL ORDER BY position")
     suspend fun articleIds(editionId: Long): List<Long>

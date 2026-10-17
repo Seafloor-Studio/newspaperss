@@ -47,7 +47,6 @@ import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.SourceRepository
 import com.app.newspaperss.delivery.EditionIntents
 import com.app.newspaperss.delivery.KindleSend
-import com.app.newspaperss.edition.EditionNotes
 import com.app.newspaperss.settings.DeliveryMethod
 import com.app.newspaperss.settings.ListenVoice
 import com.app.newspaperss.settings.PodcastVoice
@@ -375,17 +374,31 @@ class ScreenshotTest {
         shoot("05-today", ready = { vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm) }
     }
 
-    /** A tester's debug build with a newer one out. */
-    @Test
-    fun todayWithANewerBuild() {
+    /** A tester's debug build with a newer one out, and how far it is with installing that itself. */
+    private fun todayWithNewerBuild(name: String, selfUpdate: com.app.newspaperss.SelfUpdate = com.app.newspaperss.SelfUpdate.None) {
         runBlocking {
             val latest = db.editions().insert(EditionEntity(title = "Tuesday Morning Edition", createdAt = Instant.parse("2026-09-29T06:30:00Z"), status = EditionStatus.DELIVERED, fileName = "x.epub", articleCount = 8, minutes = 33.4))
             db.editions().insertArticles(sampleArticles(latest))
         }
         val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
         val vm = viewModels.add(TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {})
-        shoot("05i-today-newer-build", ready = { vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm, newerBuild = 464) }
+        shoot(name, ready = { vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm, newerBuild = 464, selfUpdate = selfUpdate) }
     }
+
+    @Test
+    fun todayWithANewerBuild() = todayWithNewerBuild("05i-today-newer-build")
+
+    @Test
+    fun todayDownloadingANewerBuild() = todayWithNewerBuild("05i-today-newer-build-downloading", com.app.newspaperss.SelfUpdate.Downloading(464, waitingForWifi = false))
+
+    @Test
+    fun todayWaitingForWifiForANewerBuild() = todayWithNewerBuild("05i-today-newer-build-on-wifi", com.app.newspaperss.SelfUpdate.Downloading(464, waitingForWifi = true))
+
+    @Test
+    fun todayWithANewerBuildReady() = todayWithNewerBuild("05i-today-newer-build-ready", com.app.newspaperss.SelfUpdate.Ready(464))
+
+    @Test
+    fun todayWithANewerBuildNeedingPermission() = todayWithNewerBuild("05i-today-newer-build-allow", com.app.newspaperss.SelfUpdate.NeedsPermission(464))
 
     /** The evening before, with the podcast in use on a Pixel 8: when the paper starts, and to leave the phone charging. */
     @Test
@@ -597,7 +610,7 @@ class ScreenshotTest {
             )
             edition
         }
-        return viewModels.add(EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id, EditionNotes(db, tmp.newFolder())) {})
+        return viewModels.add(EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id) {})
     }
 
     @Test
@@ -635,6 +648,23 @@ class ScreenshotTest {
         shoot("05d-article-preview-200", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
             ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, textSize = PreviewTextSize.LARGEST, onListen = {})
         }
+    }
+
+    /** The reading list: links with their reading time, and one that can never go in the paper. */
+    @Test
+    fun readingList() {
+        val list = com.app.newspaperss.data.ReadingListRepository(db, clock)
+        runBlocking {
+            list.save("https://example.com/2026/the-quiet-return-of-the-night-train", "The quiet return of the night train")
+            list.save("https://example.org/essays/on-walking", "On walking")
+            list.save("https://example.net/files/annual-report.pdf", "Annual report 2025")
+            val saved = db.articles().allForSource(list.sourceId()).associateBy { it.title }
+            db.articles().setPageWords(saved.getValue("The quiet return of the night train").id, 1900)
+            db.articles().setPageWords(saved.getValue("On walking").id, 3400)
+            db.articles().setUnreadable(saved.getValue("Annual report 2025").id, "not a web page")
+        }
+        val vm = com.app.newspaperss.ui.readinglist.ReadingListViewModel(list)
+        shoot("09a-reading-list", ready = { vm.items.value?.size == 3 }) { com.app.newspaperss.ui.readinglist.ReadingListScreen(vm, onBack = {}) }
     }
 
     @Test
@@ -931,6 +961,17 @@ class ScreenshotTest {
     }
 
     @Test
+    @Config(qualifiers = "w411dp-h1100dp-xxhdpi")
+    fun sourcesWithAQuietTtrssFeed() {
+        val vm = serverSources()
+        runBlocking {
+            val account = db.sources().ofKind(com.app.newspaperss.data.SourceKind.TTRSS).single().id
+            db.sources().posted(account, "2", clock.instant().minus(java.time.Duration.ofDays(30)))
+        }
+        shoot("08r-sources-server-feed-quiet", ready = { vm.screen.value?.server != null && vm.folded.value != null }) { SourcesScreen(vm) }
+    }
+
+    @Test
     fun ttrssFeedPageLeftOut() {
         val vm = feedPage("7")
         shoot("08d-ttrss-feed-left-out", ready = { vm.detail.value?.text?.leftOut == true }) { SourceDetailScreen(vm, onBack = {}) }
@@ -1205,12 +1246,6 @@ class ScreenshotTest {
         runBlocking { store.update { it.copy(feedsFrom = FeedsFrom.SERVER) } }
         val vm = SourcesViewModel(SourceRepository(db, clock), FeedFinder(FakeHttp()), ttrss, settings = store) {}
         shoot("06f-sources-sign-in", ready = { vm.screen.value?.needsSignIn == true }) { SourcesScreen(vm) }
-    }
-
-    @Test
-    fun settingsNotes() {
-        val vm = SettingsViewModel(store) {}
-        shoot("07f-settings-notes", ready = { vm.settings.value != null }) { SettingsPageScreen(vm, SettingsPage.NOTES, onBack = {}) }
     }
 
     /**

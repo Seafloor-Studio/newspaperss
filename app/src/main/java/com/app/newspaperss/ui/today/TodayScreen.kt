@@ -67,13 +67,66 @@ import com.app.newspaperss.ui.edition.editionChoices
 import com.app.newspaperss.ui.edition.rememberKindleApp
 import com.app.newspaperss.ui.edition.startKindle
 import com.app.newspaperss.DebugUpdates
+import com.app.newspaperss.InstallTap
+import com.app.newspaperss.SelfUpdate
+import com.app.newspaperss.unknownAppsSettings
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import com.app.newspaperss.ui.components.openInBrowser
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
+/**
+ * A live build's line about a newer one: on its way, ready to install, or waiting for "Install
+ * unknown apps". The browser link is the fallback whenever installing it here can't happen.
+ */
 @Composable
-fun TodayScreen(viewModel: TodayViewModel, today: LocalDate = LocalDate.now(LocalClock.current), newerBuild: Int? = null, onOpenEdition: (Long) -> Unit = {}) {
+private fun NewerBuildLine(newerBuild: Int?, selfUpdate: SelfUpdate, onInstall: suspend () -> InstallTap) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val download = {
+        val link = DebugUpdates.downloadFor(android.os.Build.SUPPORTED_ABIS)
+        if (!openInBrowser(context, link)) {
+            context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Download link", link))
+            Toast.makeText(context, "No browser here. The download link is copied", Toast.LENGTH_LONG).show()
+        }
+    }
+    val modifier = Modifier.padding(bottom = 8.dp)
+    @Composable
+    fun Line(text: String, onClick: () -> Unit) = TextButton(onClick = onClick, modifier = modifier) { Text(text, textAlign = TextAlign.Center) }
+    when (selfUpdate) {
+        is SelfUpdate.Downloading -> if (selfUpdate.waitingForWifi) {
+            Line("Test build ${selfUpdate.build} downloads on Wi-Fi. Download it now", download)
+        } else {
+            Text("Downloading test build ${selfUpdate.build}", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, modifier = modifier)
+        }
+        is SelfUpdate.Ready -> Line("Test build ${selfUpdate.build} is ready. Install it") {
+            scope.launch {
+                when (val tap = onInstall()) {
+                    InstallTap.Started -> {}
+                    is InstallTap.Waiting -> Toast.makeText(context, tap.reason, Toast.LENGTH_LONG).show()
+                    InstallTap.Unavailable -> download()
+                }
+            }
+        }
+        is SelfUpdate.NeedsPermission -> Line("Test build ${selfUpdate.build} is ready. Allow installing it") {
+            if (runCatching { context.startActivity(unknownAppsSettings(context)) }.isFailure) download()
+        }
+        SelfUpdate.None -> newerBuild?.let { Line("Test build $it is out. Download it", download) }
+    }
+}
+
+@Composable
+fun TodayScreen(
+    viewModel: TodayViewModel,
+    today: LocalDate = LocalDate.now(LocalClock.current),
+    newerBuild: Int? = null,
+    /** On a live (debug) build, how far it is with installing [newerBuild] itself. */
+    selfUpdate: SelfUpdate = SelfUpdate.None,
+    onInstall: suspend () -> InstallTap = { InstallTap.Unavailable },
+    onOpenEdition: (Long) -> Unit = {},
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     fun launch(intent: android.content.Intent): Boolean = try {
@@ -91,18 +144,8 @@ fun TodayScreen(viewModel: TodayViewModel, today: LocalDate = LocalDate.now(Loca
         // Keyed, so an item keeps its state when others come and go above it: the build panel's
         // status line has to stay the same node for TalkBack to announce its changes.
         item(key = "masthead") { Masthead(today, Modifier.padding(top = 24.dp, bottom = 16.dp)) }
-        newerBuild?.let { build ->
-            item(key = "newerBuild") {
-                val download = {
-                    if (!openInBrowser(context, DebugUpdates.DOWNLOAD)) {
-                        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Download link", DebugUpdates.DOWNLOAD))
-                        Toast.makeText(context, "No browser here. The download link is copied", Toast.LENGTH_LONG).show()
-                    }
-                }
-                TextButton(onClick = download, modifier = Modifier.padding(bottom = 8.dp)) {
-                    Text("Test build $build is out. Download it", textAlign = TextAlign.Center)
-                }
-            }
+        if (newerBuild != null || selfUpdate != SelfUpdate.None) {
+            item(key = "newerBuild") { NewerBuildLine(newerBuild, selfUpdate, onInstall) }
         }
         state.next?.let { next ->
             item(key = "next") { Text("Next edition: $next", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 8.dp)) }

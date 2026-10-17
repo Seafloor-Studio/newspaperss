@@ -33,7 +33,6 @@ enum class SettingsPage(val slug: String, val title: String) {
     // One page: the e-reader decides which delivery choices are offered.
     DELIVERY("delivery", "E-reader & delivery"),
     FEEDS("feeds", "Where your feeds live"),
-    NOTES("notes", "Reading notes"),
     ;
 
     companion object {
@@ -114,15 +113,6 @@ object SettingsSummary {
         val halves = (minutes / 30).roundToInt()
         val whole = halves / 2
         return "about " + (if (halves % 2 == 0) "$whole hours" else "$whole½ hours")
-    }
-
-    fun notes(s: Settings, reachable: Boolean): Summary {
-        val name = s.notesFolderName ?: "your folder"
-        return when {
-            s.notesFolderUri == null -> Summary("Off")
-            reachable -> Summary("Saved to $name")
-            else -> Summary("Saved to $name", "Can't reach $name.")
-        }
     }
 
     fun feedsFrom(choice: FeedsFrom, status: TtrssStatus): Summary {

@@ -14,6 +14,28 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 16 Oct
 
+### Today, area D (tt-rss, extraction, the book), closing
+- **Every item on the list done but one:** #242 (docs: the heart to Not doing), #243 (Substack posts whole via tt-rss), #252 (mark-read waits a couple of minutes after a delivery), #254 (the book's accessibility metadata, headings that never skip a level), #259 (mark read when they expire), #265 (leaving tt-rss brings your feeds along), #274 (a quiet tt-rss feed says so), and #281 (starred in tt-rss goes in the paper, madCode's call this morning), all with CI green. #268 fixed a test that failed now and then.
+- **Item 7, Webtoons, parked:** built and measured on `claude/today-d-c7`; the backlog item says what must change first (a strip taken whole or not at all, no silent cut, smaller panels).
+- **Nothing waiting on you from this area.** Database versions: 12 (#274), 13 (#281); session C takes 14.
+
+### Today, D8: starred in tt-rss goes in the paper
+- **madCode's call on the morning page:** one-way and opt-in, as recommended.
+- **Shipped:** a switch under tt-rss in Settings › Where your feeds live, off by default. On, what you star in tt-rss goes in your next edition, once each; the star stays in tt-rss. Stars already there when it's turned on are kept stars and stay out. Seen stars are kept apart from articles (`ttrss_stars`), so a star kept for months isn't sent again; unstarred and starred again in tt-rss, it is. Database version 13.
+- **The review found:** tt-rss lists stars by article date, so a capped list missed new stars on old articles and could let unnoted kept stars through (the list is now read whole, up to 10,000, or nothing is taken); a server could add articles it wasn't asked for; a star on an article in an unsent edition was noted and lost, and could hold up the rest.
+
+### Today, D4: a quiet tt-rss feed says so
+- **From the backlog (personas):** a tt-rss feed that stopped posting looked like any other on Sources.
+- **Shipped:** "Nothing new in N weeks" (months past two) under a feed's row once it has gone three weeks without posting. Each sync takes one look at every article tt-rss got since the last, read or not, without their text (up to 1,000, oldest first; the rest wait for the next sync), since a feed read on the laptop leaves nothing unread here. A feed with nothing seen counts from when the app started watching it. Database version 12.
+- **The review changed the design:** the first version asked each feed for its newest article once a day; that missed purged articles, starved big accounts and slowed the edition's sync. A second look found that a look cut short dropped older articles for good; it now goes on from where it stopped.
+- **Item 7, Webtoons, built and measured, not shipped:** branch `claude/today-d-c7`. See the backlog item for what the review found.
+
+### Today, C8 (#283): saved links that can never be read
+- **From the backlog:** a PDF, a video or a gone page saved to the reading list waited silently for ever, and every edition downloaded it (up to 10 MB) only to leave it for the next.
+- **Shipped:** the lookup when a link is saved, or the first edition to try it, records why it can't be read (not a web page, a 410, too large). Editions leave it out, it isn't counted as waiting, and the reading list says "Can't go in your paper: … Tap to open it, or remove it." Saving it again looks again. Database version 14.
+- **Review:** two rounds. Files over the 10 MB limit (most videos) were still missed, there was no way back from a mark, and unreadable links still counted as waiting; then a guard that let a starred link wait for ever again. All fixed with tests. Merging main found builds planning from a new query (#272) that needed the same filter.
+- **Left:** a 404 isn't counted (often a passing problem); "Tap to open it" does nothing on a reader with no browser.
+
 ### Today, area C (screens), closing
 - **Six PRs merged, seven of the nine items done** (#251, #258, #264, #266, #270, #276), all with CI green, plus one item checked and found not to be a bug (Stop making and Delete podcast). #271 was a test fix #268 had already made, so it was closed.
 - **Item 6, saved links that can never be read, is built and reviewed twice** (branch `claude/screens-c8`). It adds database version 14, after session D's 12 and 13, so it opens once those merge.
@@ -54,8 +76,19 @@ caught, and what got in the way. Newest first. Times are Pacific.
 - **For you:** the `extraction` label doesn't exist yet; GitHub only applies a label from the form for people who can label issues, so the title's "Extraction:" is what marks the rest. The `handle-issues` skill (shared from claude-playground) doesn't mention these issues yet; as a bug report they're fixed the usual way.
 - **Left:** no browser is a dead end; whether the GitHub app takes the link and loses the fields wants a look on a device. Both in the backlog.
 
+### Today, B13: a smaller APK
+- **From you:** one APK per ABI, chosen on the morning page.
+- **Shipped:** four APKs instead of one. Release builds:
+  - arm64-v8a, for phones and recent e-readers: 50.6 MB, down from 86.8 MB.
+  - x86_64: 54.8 MB.
+  - armeabi-v7a, for older 32-bit e-readers: 18.6 MB, without the podcast voice, as before.
+  - x86: 18.6 MB.
+- **Version codes:** each APK's is `versionCode * 10` plus 1 to 4, with 64-bit last, so a device is offered the highest it runs. The release workflow attaches all four, the latest-debug page has each, and F-Droid's draft recipe builds each.
+- **Review:** the app's "newer build" link always fetched the arm64 file, which a 32-bit e-reader can't install; it now picks the device's own, and a test checks each name against what CI uploads. Play's bundle takes the first APK's code, `versionCode * 10 + 1`, which still rises, and RELEASING says so.
+- **Left:** whether F-Droid wants a changelog per ABI code, to check at the first submission.
+
 ### Today, B: test health and speed (B1–B12)
-Area B of four parallel sessions: the audit's test findings, then two speed items. All merged with CI green except #269, which is your call.
+Area B of four parallel sessions: the audit's test findings, then two speed items. All merged with CI green; #269 merged after you answered.
 - **B1, each test's own stores ([#245](https://github.com/madCode/newspaperss/pull/245)):** the app's settings, tt-rss and feed-move stores were made once per test run, so a setting one test wrote was read by the next (shown with two ordered tests). Each test's app now has its own, stopped at teardown. **It broke main for about an hour:** stopping them ran what a test had left queued, a screen's query of its closed database, and the error failed the next test (3 of 7 main builds). The first review had named the risk. Fixed in **B9 ([#267](https://github.com/madCode/newspaperss/pull/267))**: the stores stop off the main thread first. Then 5 of 6 full local runs were clean; the sixth timed out elsewhere under load.
 - **B2–B6 ([#244](https://github.com/madCode/newspaperss/pull/244), [#246](https://github.com/madCode/newspaperss/pull/246)–[#248](https://github.com/madCode/newspaperss/pull/248), [#250](https://github.com/madCode/newspaperss/pull/250)):**
   - The app's FakeHttp can serve a cut-short feed, and FeedSync's handling of one is tested.
@@ -66,7 +99,7 @@ Area B of four parallel sessions: the audit's test findings, then two speed item
   - `SourceDetailScreenTest` runs on a fixed clock.
 - **B7, screenshots ([#260](https://github.com/madCode/newspaperss/pull/260)):** the three that differed between renders caught the last tap's ripple. Advancing Compose's clock and the main looper's didn't settle it, so screenshots are drawn without ripples. A third render found a fourth difference: Listen sometimes doesn't scroll down to the sentence (backlog).
 - **B8, EPUB writing ([#263](https://github.com/madCode/newspaperss/pull/263)):** pictures go into the book stored rather than compressed again, through a buffer. A 4 MB edition was written in 42 ms instead of 146. Wants a delivery check on a device.
-- **B10, coverage ([#269](https://github.com/madCode/newspaperss/pull/269), your call):** the screenshots run as their own task, which Kover doesn't measure. Coverage goes from 94.73% to 94.32%, still over the 93% floor.
+- **B10, coverage ([#269](https://github.com/madCode/newspaperss/pull/269), merged on your answer):** the screenshots run as their own task, which Kover doesn't measure. Coverage goes from 94.73% to 94.32%, still over the 93% floor.
 - **B12, a race other sessions hit ([#273](https://github.com/madCode/newspaperss/pull/273)):** the source page's Undo test tapped **Mark 1 as read** before the list showed the article waiting again; it now waits for the button.
 - **B11, memory ([#272](https://github.com/madCode/newspaperss/pull/272)):** a build reads each article's feed text as it reaches it. 300 waiting articles of 50,000 characters held 15 MB before, 82 KB after. The review found one rare difference, left on purpose: a source removed mid-build sends its remaining articles from their pages.
 

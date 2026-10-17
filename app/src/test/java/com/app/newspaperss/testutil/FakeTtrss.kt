@@ -47,11 +47,17 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
     var brokenFeed: Int? = null
     /** The reader's categories by id; 0 is tt-rss's Uncategorized. */
     val categories = mutableMapOf(0 to "Uncategorized")
+    /** Articles the reader has starred in tt-rss, by id. */
+    val starred = mutableSetOf<Long>()
+    /** Sent with every getArticle reply, asked for or not, as a broken or hostile server might. */
+    val unaskedArticles = mutableListOf<Item>()
     /** Ids passed to updateArticle to clear the unread flag. */
     val markedRead = mutableListOf<Long>()
     /** Ids passed to updateArticle to set it again. */
     val markedUnread = mutableListOf<Long>()
     val ops = mutableListOf<String>()
+    /** Each look at every article in the account, by the since_id it gave (null for none). */
+    val postsAskedSince = mutableListOf<Long?>()
     /** An HTTP status to answer every request with, instead of the API's reply. */
     var failWith: Int? = null
     var apiLevel = 18
@@ -158,14 +164,16 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
                     val since = str("since_id")?.toLong() ?: 0
                     val skip = str("skip")?.toInt() ?: 0
                     val withContent = str("show_content") != "false"
-                    // Newest first, as tt-rss sorts them; a higher id is newer here.
+                    if (all && feed == -4 && skip == 0) postsAskedSince += str("since_id")?.toLong()
+                    // Newest first, as tt-rss sorts them, or oldest first if asked; a higher id is newer here.
                     (if (all) unread + read else unread).filter { it.id > since }.filter {
                         when {
                             isCategory -> it.categoryId == feed
                             feed > 0 -> it.feedId == feed
+                            feed == -1 -> it.id in starred
                             else -> true
                         }
-                    }.sortedByDescending { it.id }.drop(skip).take(limit).forEach { item ->
+                    }.sortedBy { if (str("order_by") == "date_reverse") it.id else -it.id }.drop(skip).take(limit).forEach { item ->
                         add(
                             buildJsonObject {
                                 put("id", item.id)
@@ -182,6 +190,19 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
                     }
                 },
             ).also { if (str("view_mode") == "unread") afterUnreadHeadlines?.invoke() }
+            "getArticle" -> ok(
+                buildJsonArray {
+                    val ids = str("article_id")!!.split(",").map { it.toLong() }
+                    ((unread + read).filter { it.id in ids } + unaskedArticles).forEach { item ->
+                        add(
+                            buildJsonObject {
+                                put("id", item.id); put("title", item.title); put("link", item.link); put("content", item.content)
+                                put("author", ""); put("updated", item.updated); put("feed_id", item.feedId); put("feed_title", item.feedTitle)
+                            },
+                        )
+                    }
+                },
+            )
             "getCategories" -> ok(
                 buildJsonArray {
                     categories.forEach { (id, title) -> add(buildJsonObject { put("id", id.toString()); put("title", title) }) }

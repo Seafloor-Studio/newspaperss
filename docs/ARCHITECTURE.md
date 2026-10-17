@@ -32,20 +32,19 @@ flowchart TB
     end
     subgraph core[":core (JVM, no Android)"]
         feed["feed/: FeedParser, FeedFinder, OPML, imports"]
-        plan["edition/: EditionPlanner, titles, schedule"]
+        plan["edition/: EditionPlanner, titles, schedule, Reflection"]
         extract["extract/: ArticleExtractor, PageExtractor, HtmlCleaner"]
         images["images/: ImageRules, ImageBudget,<br/>ArticleImages, ImageAllowance"]
         epub["epub/: EpubWriter, ArticleBody"]
         lists["lists/: curated-list scrapers"]
         ttrss["ttrss/: TtrssClient"]
-        notes["notes/: NotesWriter"]
         listenScript["listen/: ListenScript, Sentences"]
         net["net/: HttpClient (OkHttp), Urls"]
     end
     container --> ui & work & edition & data & delivery & settings & notify & listen
     ui --> data & settings
     work --> edition & data
-    edition --> data & delivery & notify & plan & extract & images & epub & notes
+    edition --> data & delivery & notify & plan & extract & images & epub
     listen --> data & listenScript
     data --> feed & lists & ttrss & net
     extract & feed & lists & ttrss --> net
@@ -90,7 +89,7 @@ Entry points from outside the app (`app/src/main/AndroidManifest.xml`):
 | `SendEditionActivity` | The notification's **Send** with email to a Kindle: opens the mail app and marks it sent. |
 | `EditionSentReceiver` | The share sheet reports which app was picked: marks the edition sent. |
 | `ClockChangeReceiver` | Time or time zone changed: re-arms the edition timer. |
-| `FileProvider` | Hands EPUB and notes files to other apps by `content://` URI. |
+| `FileProvider` | Hands EPUB files to other apps by `content://` URI. |
 | `ListenService` | Keeps an edition playing aloud with the screen off; Android's media controls talk to it. |
 | `StopPodcastReceiver` | The "Making the podcast" notification's **Stop**: stops making podcasts, keeping what's made. |
 
@@ -214,7 +213,7 @@ flowchart LR
     md --> arts["articles DELIVERED, stars cleared"]
     md --> urls["delivered_urls remembered"]
     md --> copies["copies in other sources used up"]
-    md --> first["first delivery only: dismiss the ready<br/>notification, start NotesWorker"]
+    md --> first["first delivery only: dismiss the ready notification"]
     md --> ttrss["TtrssMarkReadWorker, if it has tt-rss articles"]
 ```
 
@@ -352,7 +351,6 @@ twice.
 | `EditionScheduler.Timer` | `EditionScheduler.reschedule` | `edition-schedule`, REPLACE (re-armed) / APPEND_OR_REPLACE (the next, from the running timer) | One-off timer 30 min before the due time (`lead`: more with the podcast); it starts a build and arms the next timer. |
 | `SyncWorker` (periodic) | App start | `sync-periodic-12h`, KEEP | Every 12 h, connected, battery not low. Only keeps the Sources screen fresh. |
 | `SyncWorker` (now) | Adding a source, refresh | `sync-now`, APPEND_OR_REPLACE | Appended so a new source isn't missed by a sync already running. |
-| `NotesWorker` | First delivery | `notes-<edition>`, KEEP | Saves the notes file to the notes folder. |
 | `TtrssMarkReadWorker` | Delivery, mark not sent | `ttrss-mark-read-<edition>`, REPLACE | Up to 4 attempts. Reads the edition's state when it runs. |
 | `ReadingListTitleWorker` | New untitled links | `reading-list-titles`, APPEND_OR_REPLACE | Batches of 20, one batch at a time. |
 | `MoveFeedsWorker` | Moving phone feeds to tt-rss; app start, if a move is stored | `move-feeds`, APPEND_OR_REPLACE | Connected. Runs `FeedMoves.run`; what's left is in DataStore, so a run stopped part way carries on in the next. Appended so a run finishing up can't swallow a new move. |
@@ -382,6 +380,7 @@ exported to `app/schemas/`, and each version step has a `Migration`.
 erDiagram
     sources ||--o{ articles : "has (cascade delete)"
     sources ||--o{ publications : "carries (cascade delete)"
+    sources ||--o{ ttrss_stars : "has seen (cascade delete)"
     editions ||--o{ edition_articles : "contains (cascade delete)"
     articles |o--o{ edition_articles : "set null on delete"
     sources {
@@ -391,6 +390,7 @@ erDiagram
         enum contentMode "PAGE for kinds with no feed text"
         bool paused
         instant feedsListedAt "tt-rss: last full feed list"
+        bool takeTtrssStars "tt-rss: stars there go in the paper"
     }
     publications {
         long sourceId PK
@@ -437,6 +437,10 @@ erDiagram
     delivered_urls {
         string url PK
         instant deliveredAt
+    }
+    ttrss_stars {
+        long sourceId PK
+        long articleId PK "a tt-rss star already taken, or kept"
     }
 ```
 
@@ -500,7 +504,6 @@ stays as a `DELETED` row to keep its title taken.
 | Kokoro, the podcast's voice (384 MB) | `files/kokoro`, checked files in `.verified` | `app/listen/Kokoro.kt` |
 | Podcasts, about 7 MB per 30 minutes | `files/podcasts/<edition>/`: each page's pieces (`<page>-<first line>.m4a` and `.starts`) and per-page markers, the voice, what making it cost, `finished` | `app/listen/PodcastStore.kt` |
 | EPUBs | `files/editions/`; only the newest 14 keep their file (unsent ones always do) | `EditionRepository.pruneFiles` |
-| Notes files | `files/notes/` | `app/edition/EditionNotes.kt` |
 | HTTP cache | `cache/http`, used to revalidate feeds | `AppContainer`, `core/net/HttpClient.kt` |
 
 Auto Backup leaves out the EPUBs, Kokoro, podcasts, the timer state and the tt-rss account
@@ -600,8 +603,8 @@ back to the banner (`FeedMoves.giveUp`).
 - **Cancellation:** a stopped build marks its edition `FAILED` in
   `NonCancellable` before rethrowing.
 - **Short-lived callers hand off:** receivers use `goAsync()` and the
-  container's `appScope`, and work that may be slow (notes to a cloud
-  folder, tt-rss) goes to a worker. Subscribing in tt-rss is the
+  container's `appScope`, and work that may be slow (tt-rss) goes to a
+  worker. Subscribing in tt-rss is the
   exception, in `appScope`, since its answer goes back to the screen.
 - **One move at a time:** `FeedMoves.start` refuses a batch while one is
   stored, checked inside the DataStore edit, and each step of a batch
@@ -616,7 +619,7 @@ back to the banner (`FeedMoves.giveUp`).
 - `:app`: Robolectric and Compose UI tests against a real Room database,
   plus `MigrationTest` for schema steps.
 - CI (`.github/workflows/build-and-test.yml`) runs `./gradlew build` and
-  Kover's 93% line-coverage check, then publishes the debug APK.
+  Kover's 93% line-coverage check, then publishes the debug APKs, one per ABI.
 - Device tests (`.github/workflows/device-tests.yml`) run on an emulator
   when delivery or the screens change, handing an edition to `:epubsink`.
 - A daily job (`.github/workflows/live-check.yml`) reads each curated
