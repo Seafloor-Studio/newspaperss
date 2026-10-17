@@ -11,6 +11,8 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import android.net.Uri
+import com.app.newspaperss.DebugUpdates
 import com.app.newspaperss.R
 import com.app.newspaperss.notify.Notifier
 import com.app.newspaperss.unknownAppsSettings
@@ -21,8 +23,12 @@ internal class UpdateNotices(private val context: Context) {
     fun confirm(build: Int, confirm: Intent) =
         post("Build $build is ready", "Tap to install.", confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 
-    fun allowInstalls(build: Int) =
-        post("Build $build is ready", "Tap to let NewspapeRSS install it.", unknownAppsSettings(context).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    /** Opens "Install unknown apps", or the browser download on firmware that lacks that screen. */
+    fun allowInstalls(build: Int) {
+        val settings = unknownAppsSettings(context)
+        val tap = if (settings.resolveActivity(context.packageManager) != null) settings else Intent(Intent.ACTION_VIEW, Uri.parse(DebugUpdates.downloadFor(Build.SUPPORTED_ABIS)))
+        post("Build $build is ready", "Tap to let NewspapeRSS install it.", tap.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
 
     fun cancel() = NotificationManagerCompat.from(context).cancel(Notifier.TEST_BUILD_ID)
 

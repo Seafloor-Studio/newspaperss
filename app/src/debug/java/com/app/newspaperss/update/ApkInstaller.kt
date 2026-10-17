@@ -12,7 +12,8 @@ import java.io.File
 
 /** Hands a checked APK to Android's [PackageInstaller]; the answer comes to [InstallResultReceiver]. */
 internal class ApkInstaller(private val context: Context) {
-    fun commit(apk: File, build: Int) {
+    /** Commits [apk] unless [stillIdle], asked once it's written, says no; then the session is dropped. */
+    suspend fun commit(apk: File, build: Int, stillIdle: suspend () -> Boolean) {
         val installer = context.packageManager.packageInstaller
         // A session from a process that died before committing would otherwise keep its copy of
         // the APK for days.
@@ -31,7 +32,7 @@ internal class ApkInstaller(private val context: Context) {
                     apk.inputStream().use { it.copyTo(out) }
                     session.fsync(out)
                 }
-                session.commit(InstallResultReceiver.sender(context, build, id))
+                if (stillIdle()) session.commit(InstallResultReceiver.sender(context, build, id)) else session.abandon()
             }
         } catch (e: Exception) {
             runCatching { installer.abandonSession(id) }

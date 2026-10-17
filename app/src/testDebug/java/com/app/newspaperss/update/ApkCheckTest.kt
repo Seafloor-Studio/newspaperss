@@ -6,6 +6,7 @@ import com.app.newspaperss.testutil.TestApp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -23,13 +24,15 @@ class ApkCheckTest {
     private val newer = installed.copy(versionCode = 4642, versionName = "0.1.0-debug.464+def5678")
 
     private fun bad(apk: ApkFacts?) = verdict(apk, installed) is Verdict.Bad
+    private fun stale(apk: ApkFacts?) = verdict(apk, installed) is Verdict.Stale
 
     @Test
     fun onlyANewerBuildOfThisAppWithItsKeyPasses() {
         assertEquals(Verdict.Good, verdict(newer, installed))
         assertTrue("another app", bad(newer.copy(packageName = "com.app.newspaperss")))
-        assertTrue("an older build", bad(newer.copy(versionCode = 4502, versionName = "0.1.0-debug.450+0000000")))
-        assertTrue("the same build", bad(installed))
+        assertTrue("an older build", stale(newer.copy(versionCode = 4502, versionName = "0.1.0-debug.450+0000000")))
+        assertTrue("the same build", stale(installed))
+        assertTrue("an older build with another key", bad(installed.copy(versionCode = 4502, signers = setOf("someone-else"))))
         assertTrue("another key", bad(newer.copy(signers = setOf("someone-else"))))
         assertTrue("another key beside ours", bad(newer.copy(signers = setOf("our-key", "someone-else"))))
         assertTrue("no signature read", bad(newer.copy(signers = emptySet())))
@@ -39,8 +42,8 @@ class ApkCheckTest {
     /** x86_64's code ends in 4, arm64's in 2: the same build for another ABI has a higher one. */
     @Test
     fun theSameBuildForAnotherAbiIsntNewer() {
-        assertTrue(bad(installed.copy(versionCode = 4554)))
-        assertTrue("no build number to compare", bad(newer.copy(versionName = "0.1.0")))
+        assertTrue(stale(installed.copy(versionCode = 4554)))
+        assertTrue("no build number to compare", stale(newer.copy(versionName = "0.1.0")))
     }
 
     @Test
@@ -55,7 +58,10 @@ class ApkCheckTest {
         val apk = tmp.newFile("build-464.apk").apply { writeText("apk bytes") }
         val installer = app.packageManager.packageInstaller
 
-        ApkInstaller(app).commit(apk, 464)
+        runBlocking { ApkInstaller(app).commit(apk, 465) { false } }
+        assertTrue("busy by the time it was copied: dropped", installer.allSessions.isEmpty())
+
+        runBlocking { ApkInstaller(app).commit(apk, 464) { true } }
 
         val session = installer.allSessions.single()
         assertEquals(app.packageName, session.appPackageName)

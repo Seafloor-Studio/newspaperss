@@ -40,7 +40,7 @@ class LiveCheckWorker(context: Context, params: WorkerParameters) : CoroutineWor
 class LiveDownloadWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val updates = LiveUpdates.of(applicationContext) ?: return Result.success()
-        return when (updates.download(inputData.getInt(BUILD, 0), finalAttempt = runAttemptCount >= ATTEMPTS - 1)) {
+        return when (updates.download(inputData.getInt(BUILD, 0))) {
             LiveUpdates.Outcome.Retry -> Result.retry()
             LiveUpdates.Outcome.Failed -> Result.failure()
             else -> Result.success()
@@ -49,8 +49,6 @@ class LiveDownloadWorker(context: Context, params: WorkerParameters) : Coroutine
 
     companion object {
         private const val BUILD = "build"
-        /** With the backoff, about a quarter of an hour of a bad connection before giving up on the build. */
-        const val ATTEMPTS = 5
 
         fun enqueue(work: WorkManager, build: Int) {
             val request = OneTimeWorkRequestBuilder<LiveDownloadWorker>()

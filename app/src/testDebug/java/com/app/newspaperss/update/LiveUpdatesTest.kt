@@ -67,6 +67,8 @@ class LiveUpdatesTest {
     /** Builds handed to Android, with the text of the file each was handed. */
     private val commits = mutableListOf<Pair<Int, String>>()
     private var commitFails = false
+    /** What happens while the APK is copied into Android's session. */
+    private var whileCopying: () -> Unit = {}
     private var canInstall = true
     private var foreground = false
     private var unmetered = true
@@ -91,9 +93,10 @@ class LiveUpdatesTest {
         download = ApkDownload(url = { server.url("/newspapeRSS-debug.apk").toString() }),
         inspect = { apks[it.readText()] },
         installed = { installed },
-        commit = { file, build ->
+        commit = { file, build, stillIdle ->
             if (commitFails) throw java.io.IOException("no space for a session")
-            commits += build to file.readText()
+            whileCopying()
+            if (stillIdle()) commits += build to file.readText()
         },
         canInstall = { canInstall },
         foreground = { foreground },
@@ -110,7 +113,7 @@ class LiveUpdatesTest {
     private fun ready(updates: LiveUpdates, build: Int = 464) = runBlocking {
         apks["apk-$build"] = apk(build)
         serve("apk-$build")
-        assertEquals(LiveUpdates.Outcome.Done, updates.download(build, finalAttempt = false))
+        assertEquals(LiveUpdates.Outcome.Done, updates.download(build))
     }
 
     @Test
@@ -145,16 +148,15 @@ class LiveUpdatesTest {
         for ((text, facts) in listOf(
             "another key" to apk(464, signers = setOf("someone-else")),
             "another app" to apk(464, packageName = "com.example.other"),
-            "an older build" to apk(450),
         )) {
             apks[text] = facts
             serve(text)
-            assertEquals(text, LiveUpdates.Outcome.Failed, updates.download(464, finalAttempt = false))
+            assertEquals(text, LiveUpdates.Outcome.Failed, updates.download(464))
             assertEquals("$text: nothing kept", emptyList<String>(), dir.list()!!.toList())
             prefs.edit().remove(LiveUpdates.REJECTED).commit()
         }
         serve("not an APK at all")
-        assertEquals(LiveUpdates.Outcome.Failed, updates.download(464, finalAttempt = false))
+        assertEquals(LiveUpdates.Outcome.Failed, updates.download(464))
         assertTrue(commits.isEmpty())
 
         updates.newerBuild(464)
@@ -166,15 +168,47 @@ class LiveUpdatesTest {
     @Test
     fun aFailedDownloadIsRetriedThenGivenUpForThatBuild() = runBlocking {
         val updates = updates()
-        server.enqueue(MockResponse.Builder().code(503).build())
-        assertEquals(LiveUpdates.Outcome.Retry, updates.download(464, finalAttempt = false))
+        repeat(LiveUpdates.DOWNLOAD_TRIES - 1) {
+            server.enqueue(MockResponse.Builder().code(503).build())
+            assertEquals(LiveUpdates.Outcome.Retry, updates.download(464))
+        }
         // Cut off: fewer bytes than the server promised.
         server.enqueue(MockResponse.Builder().body("apk").setHeader("Content-Length", 1000).build())
-        assertEquals(LiveUpdates.Outcome.Failed, updates.download(464, finalAttempt = true))
+        assertEquals(LiveUpdates.Outcome.Failed, updates.download(464))
         assertEquals("no partial file left", emptyList<String>(), dir.list()!!.toList())
 
         updates.newerBuild(464)
         assertTrue(downloads().isEmpty())
+    }
+
+    /** WorkManager stops a download at 10 minutes or when Wi-Fi goes: on a slow link, every time. */
+    @Test
+    fun aDownloadStoppedEveryTimeIsGivenUpNotFetchedForever() = runBlocking {
+        val updates = updates()
+        apks["apk-464"] = apk(464)
+        repeat(LiveUpdates.DOWNLOAD_TRIES) {
+            server.enqueue(MockResponse.Builder().body("apk-464").bodyDelay(10, java.util.concurrent.TimeUnit.SECONDS).build())
+            assertEquals(null, kotlinx.coroutines.withTimeoutOrNull(300) { updates.download(464) })
+        }
+        val asked = server.requestCount
+
+        assertEquals(LiveUpdates.Outcome.Failed, updates.download(464))
+        assertEquals("not fetched again", asked, server.requestCount)
+        updates.newerBuild(464)
+        assertTrue(downloads().isEmpty())
+    }
+
+    /** CI uploads the numbered file and the fixed-name one side by side; the latter can lag. */
+    @Test
+    fun aFileThatIsStillTheOldBuildIsTriedAgainNotRefused() = runBlocking {
+        val updates = updates()
+        apks["apk-455"] = apk(455)
+        serve("apk-455")
+        assertEquals(LiveUpdates.Outcome.Retry, updates.download(464))
+        assertEquals(0, prefs.getInt(LiveUpdates.REJECTED, 0))
+
+        ready(updates)
+        assertEquals(SelfUpdate.Ready(464), updates.state.first())
     }
 
     @Test
@@ -219,6 +253,16 @@ class LiveUpdatesTest {
     }
 
     @Test
+    fun anEditionStartingWhileTheApkIsCopiedStillHoldsTheInstallBack() = runBlocking {
+        val updates = updates()
+        ready(updates)
+        whileCopying = { listenPlaying = true }
+
+        assertEquals(LiveUpdates.Outcome.Busy("It installs once Listen stops."), updates.install(userAsked = false))
+        assertTrue(commits.isEmpty())
+    }
+
+    @Test
     fun whatWouldBeCutOffIsNamed() {
         assertEquals("It installs once the podcast is made.", LiveUpdates.busyReason(setOf("podcast"), listenPlaying = false, foreground = false))
         assertEquals("It installs once the podcast voice has downloaded.", LiveUpdates.busyReason(setOf("kokoro"), listenPlaying = false, foreground = false))
@@ -230,6 +274,10 @@ class LiveUpdatesTest {
         val updates = updates()
         ready(updates)
         canInstall = false
+        shadowOf(app.packageManager).addResolveInfoForIntent(
+            com.app.newspaperss.unknownAppsSettings(app),
+            android.content.pm.ResolveInfo().apply { activityInfo = android.content.pm.ActivityInfo().apply { packageName = "com.android.settings"; name = "Settings" } },
+        )
 
         assertEquals(LiveUpdates.Outcome.NeedsPermission, updates.install(userAsked = false))
         assertEquals(LiveUpdates.Outcome.NeedsPermission, updates.install(userAsked = false))
@@ -237,6 +285,17 @@ class LiveUpdatesTest {
         val intent = shadowOf(shown().single().contentIntent).savedIntent
         assertEquals(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, intent.action)
         assertTrue(commits.isEmpty())
+    }
+
+    /** E-reader firmware can lack Android's settings screens. */
+    @Test
+    fun withoutTheSettingsScreenTheNotificationOffersTheBrowser() = runBlocking {
+        val updates = updates()
+        ready(updates)
+        canInstall = false
+        updates.install(userAsked = false)
+
+        assertEquals(Intent.ACTION_VIEW, shadowOf(shown().single().contentIntent).savedIntent.action)
     }
 
     @Test
@@ -295,6 +354,21 @@ class LiveUpdatesTest {
 
         assertEquals(emptyList<String>(), dir.list()!!.toList())
         assertEquals(464, prefs.getInt(LiveUpdates.REJECTED, 0))
+    }
+
+    @Test
+    fun aLateAnswerAboutAnOlderBuildLeavesTheNewerDownloadAlone() = runBlocking {
+        val updates = updates()
+        ready(updates, 464)
+        updates.install(userAsked = false)
+        ready(updates, 466)
+
+        updates.installResult(464, PackageInstaller.STATUS_FAILURE_INVALID, "bad", null)
+        updates.installResult(464, PackageInstaller.STATUS_SUCCESS, null, null)
+
+        assertEquals(listOf("build-466.apk"), dir.list()!!.toList())
+        assertEquals(SelfUpdate.Ready(466), updates.state.first())
+        assertEquals(0, prefs.getInt(LiveUpdates.REJECTED, 0))
     }
 
     @Test

@@ -55,7 +55,7 @@ internal class LiveUpdates(
     private val download: ApkDownload = ApkDownload(url = { DebugUpdates.downloadFor(Build.SUPPORTED_ABIS) }),
     private val inspect: (File) -> ApkFacts? = { context.packageManager.apkFacts(it) },
     private val installed: () -> ApkFacts = { context.packageManager.installedFacts(context.packageName) },
-    private val commit: (File, Int) -> Unit = ApkInstaller(context)::commit,
+    private val commit: suspend (File, Int, suspend () -> Boolean) -> Unit = ApkInstaller(context)::commit,
     private val canInstall: () -> Boolean = { context.packageManager.canRequestPackageInstalls() },
     private val foreground: () -> Boolean = ::inForeground,
     private val unmetered: () -> Boolean = { unmeteredNow(context) },
@@ -107,41 +107,70 @@ internal class LiveUpdates(
     }
 
     /** Fetches and checks the newest build, which [target] is or something newer. */
-    suspend fun download(target: Int, finalAttempt: Boolean): Outcome = withContext(Dispatchers.IO) {
+    /**
+     * Fetches and checks the newest build, which [target] is or something newer. Every run counts
+     * as a try, whether it fails, is stopped by WorkManager (Wi-Fi lost, its 10-minute limit) or
+     * dies with the process: after [DOWNLOAD_TRIES] the build is given up on.
+     */
+    suspend fun download(target: Int): Outcome = withContext(Dispatchers.IO) {
         if (target <= installedBuild || target <= prefs.getInt(REJECTED, 0)) return@withContext Outcome.Done
         val ready = readyBuild()
         if (ready != null && ready >= target) {
             LiveInstallWorker.enqueue(work)
             return@withContext Outcome.Done
         }
+        val tries = (if (prefs.getInt(DOWNLOADING, 0) == target) prefs.getInt(TRIES, 0) else 0) + 1
+        prefs.edit().putInt(DOWNLOADING, target).putInt(TRIES, tries).commit()
+        if (tries > DOWNLOAD_TRIES) {
+            log("Build $target: given up after $DOWNLOAD_TRIES tries")
+            reject(target)
+            return@withContext Outcome.Failed
+        }
+        // Try again later, or give up on the build after the last try.
+        fun again() = if (tries < DOWNLOAD_TRIES) Outcome.Retry else Outcome.Failed.also { reject(target) }
         dir.mkdirs()
         val part = File(dir, "download.part")
         try {
             download.fetch(part)
         } catch (e: IOException) {
             log("Build $target didn't download: ${e.message}")
-            if (!finalAttempt) return@withContext Outcome.Retry
-            reject(target)
-            return@withContext Outcome.Failed
+            return@withContext again()
         }
         val facts = inspect(part)
-        val verdict = verdict(facts, installed())
-        if (verdict is Verdict.Bad || facts == null) {
-            part.delete()
-            log("Build $target was refused: ${(verdict as? Verdict.Bad)?.why}")
-            // The target, not the number the file claims: a file that failed its checks can't be
-            // trusted to say which build it is.
-            reject(target)
-            return@withContext Outcome.Failed
+        when (val verdict = verdict(facts, installed())) {
+            is Verdict.Bad -> {
+                part.delete()
+                log("Build $target was refused: ${verdict.why}")
+                // The target, not the number the file claims: a file that failed its checks can't
+                // be trusted to say which build it is.
+                reject(target)
+                return@withContext Outcome.Failed
+            }
+            // CI uploads the numbered file and the fixed-name one side by side, so the latter can
+            // lag behind for a while.
+            is Verdict.Stale -> {
+                part.delete()
+                log("Build $target: the file is still an older build (${verdict.why})")
+                return@withContext again()
+            }
+            Verdict.Good -> {}
         }
-        val build = facts.build ?: target
-        val apk = apkOf(build)
-        if (!part.renameTo(apk)) {
+        val build = facts?.build ?: target
+        if (ready != null && build <= ready) {
             part.delete()
-            return@withContext Outcome.Retry
+            return@withContext again()
         }
-        dir.listFiles()?.filter { it != apk }?.forEach { it.delete() }
-        prefs.edit().putInt(READY, build).remove(FAILURES).remove(ASKED).remove(ASKED_PERMISSION).remove(COMMITTED).commit()
+        // Not while an install is deciding on the file this replaces.
+        installing.withLock {
+            val apk = apkOf(build)
+            if (!part.renameTo(apk)) {
+                part.delete()
+                return@withContext Outcome.Retry
+            }
+            dir.listFiles()?.filter { it != apk }?.forEach { it.delete() }
+            prefs.edit().putInt(READY, build).remove(FAILURES).remove(ASKED).remove(ASKED_PERMISSION).remove(COMMITTED)
+                .remove(DOWNLOADING).remove(TRIES).commit()
+        }
         changed.value++
         LiveInstallWorker.enqueue(work)
         Outcome.Done
@@ -168,8 +197,8 @@ internal class LiveUpdates(
                 return@withContext Outcome.Gone
             }
             // Checked again: a file in the cache could have been changed since it was fetched.
-            (verdict(inspect(apk), installed()) as? Verdict.Bad)?.let {
-                log("Build $ready was refused before installing: ${it.why}")
+            verdict(inspect(apk), installed()).takeIf { it != Verdict.Good }?.let {
+                log("Build $ready was refused before installing: $it")
                 giveUp(ready)
                 return@withContext Outcome.Gone
             }
@@ -190,14 +219,21 @@ internal class LiveUpdates(
             if (prefs.getInt(COMMITTED, 0) == ready && now() - prefs.getLong(COMMITTED_AT, 0L) in 0 until COMMIT_PENDING_MS) {
                 return@withContext Outcome.Started
             }
+            var busy: String? = null
             try {
-                commit(apk, ready)
+                // Asked again just before Android takes it: copying 50 MB into the session takes a
+                // while, and a timed edition may have started meanwhile.
+                commit(apk, ready) {
+                    busy = busyReason(runningWork(), listenPlaying(), foreground = !userAsked && foreground())
+                    busy == null
+                }
             } catch (e: Exception) {
                 // PackageInstaller throws IOException and SecurityException, and IllegalStateException
                 // for a session it closed under us.
                 log("Build $ready couldn't be handed to Android: ${e.javaClass.simpleName} ${e.message}")
                 return@withContext if (failed(ready)) Outcome.Failed else Outcome.Retry
             }
+            busy?.let { return@withContext Outcome.Busy(it) }
             prefs.edit().putInt(COMMITTED, ready).putLong(COMMITTED_AT, now()).commit()
             Outcome.Started
         }
@@ -205,6 +241,13 @@ internal class LiveUpdates(
 
     /** Android's answer to a commit, from [InstallResultReceiver]. */
     fun installResult(build: Int, status: Int, message: String?, confirm: Intent?) {
+        // About a build a newer download has since replaced: what it says is no longer true of
+        // the ready file. A success is tidied up when the new process starts.
+        if (build != prefs.getInt(READY, 0)) {
+            log("Build $build: status $status, but build ${prefs.getInt(READY, 0)} is ready now")
+            if (status != PackageInstaller.STATUS_SUCCESS) LiveInstallWorker.enqueue(work)
+            return
+        }
         prefs.edit().remove(COMMITTED).commit()
         when (status) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
@@ -319,6 +362,10 @@ internal class LiveUpdates(
         private const val ASKED_PERMISSION = "askedPermission"
         private const val COMMITTED = "committed"
         private const val COMMITTED_AT = "committedAt"
+        private const val DOWNLOADING = "downloading"
+        private const val TRIES = "tries"
+        /** With the backoff, about a quarter of an hour of a bad connection before giving up on the build. */
+        const val DOWNLOAD_TRIES = 5
         const val MAX_INSTALL_FAILURES = 3
         const val RETRY_MINUTES = 30L
         private val COMMIT_PENDING_MS = TimeUnit.MINUTES.toMillis(10)
