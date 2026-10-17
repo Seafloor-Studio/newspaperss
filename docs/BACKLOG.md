@@ -38,6 +38,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 
 ### Delivery and schedule
 - [ ] **Save a copy of an edition to the phone** *(you asked)*: there's no easy way to keep the EPUB file itself. Android's share sheet often offers no Files target, so **Send another way** can't save it. Add "Save a copy…", opening the system's save dialog (`ACTION_CREATE_DOCUMENT`), beside Send another way in the edition's ⋮ menu
+- [ ] **A deleted edition's title is reused when it was never sent** *(you asked)*: after deleting an edition, the next one made the same day is called "Tuesday Morning Edition, Oct 13 (2)". The " (2)" is there because Send to Kindle silently drops a document whose title it has already received, so a deleted edition keeps its title (`EditionTitles`, the `DELETED` row). One deleted without ever being delivered never reached a Kindle, so its title can go to the next edition. Open: one sent by a route the app can't see (Mark as sent never tapped) would then repeat a title; the rule could count only editions released as not sent or deleted while ready
 - [ ] Dropbox connection (OAuth PKCE) so Kobo delivery is automatic; waiting on an app key ([#18](https://github.com/Seafloor-Studio/newspaperss/issues/18)) *(personas)*
 - [ ] Boox: offer folder delivery into the Books folder, so editions stay in the library *(personas)*
 - [ ] Folder delivery: tt-rss marks articles read as soon as the file is saved, before Syncthing has synced; old editions pile up in the folder *(personas)*
