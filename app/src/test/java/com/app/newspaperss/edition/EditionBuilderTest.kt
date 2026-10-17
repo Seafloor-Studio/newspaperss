@@ -1079,6 +1079,19 @@ class EditionBuilderTest {
         assertEquals(listOf(built.editionId), followUps)
     }
 
+    /** What follows delivery is extra: if it throws, the edition is still delivered and tt-rss still told. */
+    @Test
+    fun aFailingStepAfterDeliveryStillLeavesTheEditionDelivered() = runTest {
+        val asked = mutableListOf<Long>()
+        val delivering = EditionRepository(db, tmp.root, clock, onDelivered = { error("notifier gone") }, onTtrssChanged = { asked += it })
+        ttrss("n1" to ("1" to "Example News"))
+        val built = builder.build(EditionSettings()) as BuildResult.Built
+        delivering.markSent(built.editionId)
+
+        assertEquals(EditionStatus.DELIVERED, db.editions().byId(built.editionId)!!.status)
+        assertEquals(listOf(built.editionId), asked)
+    }
+
     @Test
     fun markingAsNotSentAsksForItsTtrssArticlesToBeMarkedUnread() = runTest {
         val asked = mutableListOf<Long>()

@@ -1,7 +1,9 @@
 package com.app.newspaperss
 
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -21,6 +23,13 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import com.app.newspaperss.settings.FeedsFrom
+import com.app.newspaperss.data.ArticleEntity
+import com.app.newspaperss.data.ArticleState
+import com.app.newspaperss.data.EditionArticleEntity
+import com.app.newspaperss.data.EditionEntity
+import com.app.newspaperss.data.EditionStatus
+import com.app.newspaperss.data.SourceEntity
+import java.time.Instant
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -119,6 +128,26 @@ class MainActivityTest {
         shows("Sign in again")
     } finally {
         runBlocking { app.container.settings.update { it.copy(feedsFrom = null) } }
+    }
+
+    @Test
+    fun anEarlierEditionOpensFromTodayWithItsContents() {
+        runBlocking {
+            val db = app.container.db
+            val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "Example News"))
+            val article = db.articles().insertIgnoring(ArticleEntity(sourceId = source, guid = "a", url = "https://example.com/a", title = "The older story", state = ArticleState.DELIVERED))
+            val older = db.editions().insert(EditionEntity(title = "Monday Morning Edition", createdAt = Instant.parse("2026-10-12T06:00:00Z"), status = EditionStatus.DELIVERED, articleCount = 1, minutes = 4.0))
+            db.editions().insertArticles(listOf(EditionArticleEntity(editionId = older, articleId = article, position = 0, title = "The older story", sourceTitle = "Example News", minutes = 4.0)))
+            db.editions().insert(EditionEntity(title = "Tuesday Morning Edition", createdAt = Instant.parse("2026-10-13T06:00:00Z"), status = EditionStatus.DELIVERED))
+        }
+        launchWith(onboarded = true)
+        shows("Earlier editions")
+        // Only the edition page lists an earlier edition's articles; Today shows its title and count.
+        compose.onNodeWithText("The older story").assertDoesNotExist()
+        // A lazy list: the row isn't composed until it's scrolled to.
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Monday Morning Edition"))
+        compose.onNodeWithText("Monday Morning Edition").performClick()
+        shows("The older story")
     }
 
     @Test
