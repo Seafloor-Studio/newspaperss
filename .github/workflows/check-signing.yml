@@ -1,0 +1,84 @@
+# The release signing secrets are only exercised by a v* tag, so a wrong password or a
+# mismatched alias stays invisible until a release is being cut -- the worst moment to find
+# it. This runs the same opening steps by hand, against the same secrets, and prints only
+# public certificate data. It signs nothing and publishes nothing.
+name: Check signing secrets
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - name: All four secrets are set
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          missing=""
+          for v in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            eval "val=\${$v}"
+            [ -n "$val" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::not set:$missing"
+            exit 1
+          fi
+          echo "all four are set"
+
+      - name: The keystore decodes, and KEYSTORE_PASSWORD opens it
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/check.jks" || {
+            echo "::error::KEYSTORE_BASE64 is not valid base64"; exit 1; }
+          # Only the exception line is echoed on failure. keytool's errors never quote the
+          # password, and Actions masks the secret anyway, but there is no reason to print
+          # a whole log to find out which of two things was wrong.
+          if ! keytool -list -v -keystore "$RUNNER_TEMP/check.jks" \
+                 -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > out.txt 2>&1; then
+            echo "::error::KEYSTORE_PASSWORD or KEY_ALIAS is wrong for this keystore"
+            grep -m2 -e "keytool error" -e "Caused by" out.txt || true
+            exit 1
+          fi
+          grep -e "Alias name:" -e "Owner:" -e "Valid from:" -e "Signature algorithm" -e "SHA256:" out.txt
+
+      - name: KEY_PASSWORD unlocks the private key
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          # -certreq needs the private key, so a wrong KEY_PASSWORD fails here and nowhere
+          # else. The request itself is thrown away; nothing is signed and nothing is sent.
+          if ! keytool -certreq -alias "$KEY_ALIAS" -keystore "$RUNNER_TEMP/check.jks" \
+                 -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD" \
+                 -file /dev/null 2> err.txt; then
+            echo "::error::KEY_PASSWORD does not unlock the key"
+            grep -m2 -e "keytool error" -e "Caused by" err.txt || true
+            exit 1
+          fi
+          echo "the private key unlocks: a release build would sign"
+
+      - name: The value F-Droid needs
+        run: |
+          fp=$(grep -m1 "SHA256:" out.txt | sed -e 's/.*SHA256: //' -e 's/://g' | tr 'A-Z' 'a-z')
+          echo "AllowedAPKSigningKeys: $fp"
+          echo "### AllowedAPKSigningKeys" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "$fp" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
