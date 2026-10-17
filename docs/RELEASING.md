@@ -114,8 +114,42 @@ The store text and screenshots come from `fastlane/metadata/android/en-US/`.
 ## Google Play
 
 - **The account:** a new personal developer account must run a closed test
-  with at least 12 testers for 14 days before it can publish to everyone.
-  Start this early.
+  with at least 12 testers, opted in *continuously* for 14 days, before it
+  can apply to publish to everyone. Start this early. It is the longest part
+  of a first release and nothing else waits on it: F-Droid and the GitHub
+  release have no such gate, so a tag can ship there while Play's clock runs.
+
+  **The signing choice below happens at the first upload to any track, the
+  closed test included** — not at production. So settle signing before
+  uploading anything.
+
+  1. **Create app.** The package name is fixed from here on.
+  2. **Testing → Closed testing → Create track.** A new track, not the
+     default alpha one.
+  3. **Add testers through a Google Group**, not an email list. With a list,
+     every change to who is testing means editing the release; with a group
+     it is a group membership. Each tester needs a Google account.
+  4. **Upload the AAB** to that track. Play Console asks about app signing
+     here.
+  5. **Share the opt-in link.** A tester's 14 days start when they accept it,
+     not when they are invited.
+  6. After 14 days with 12 still opted in, **apply for production**. Google
+     reviews the application, which takes its own time.
+
+  What catches people out is the word *continuously*: one person leaving on
+  day 9 puts the count under 12 and that slot's wait starts again, so
+  recruit more than 12. Google also weighs whether testers used the app, so
+  accounts that never opened it make a weak application. Besides people you
+  know with Android phones, reciprocal testing communities exist for exactly
+  this requirement — r/androiddev runs recurring testing-swap threads — and
+  using them is allowed. Reciprocal means what it says: you join someone
+  else's test in return. Worth pairing with a post somewhere the app's
+  actual users are (r/rss, r/androidapps), because those testers open it
+  more than once, and engagement is part of what the application is judged
+  on.
+
+  Play's rules change. Where the Console disagrees with this, the Console is
+  right.
 - **Signing:** Play App Signing re-signs what Play delivers. By default
   Google makes the app signing key and the key in the secrets above becomes
   only your upload key, so Play's APKs would carry a different signature from
