@@ -16,24 +16,24 @@ are in [BACKLOG.md](../BACKLOG.md), tagged *personas*.
 
 | # | Finding | Who | Status |
 |---|---|---|---|
-| 1 | Sending the paper from its notification was never recorded, so the next build marked it "Not sent" and its articles came back every day. The "Did it reach your Kindle?" dialog asked before anything could have arrived. | Kindle, Kobo, Boox | Fixed in [#23](https://github.com/madCode/newspaperss/pull/23): choosing an app in the share sheet counts as delivered |
-| 2 | Titles repeated every week, and Send to Kindle silently drops a title it has seen. | Kindle, Kobo, KOReader | Fixed in [#24](https://github.com/madCode/newspaperss/pull/24): dated titles |
-| 3 | The "ready" notification was silent, the only prompt to send. | Everyone who shares | Fixed in [#25](https://github.com/madCode/newspaperss/pull/25) |
+| 1 | Sending the paper from its notification was never recorded, so the next build marked it "Not sent" and its articles came back every day. The "Did it reach your Kindle?" dialog asked before anything could have arrived. | Kindle, Kobo, Boox | Fixed in [#23](https://github.com/Seafloor-Studio/newspaperss/pull/23): choosing an app in the share sheet counts as delivered |
+| 2 | Titles repeated every week, and Send to Kindle silently drops a title it has seen. | Kindle, Kobo, KOReader | Fixed in [#24](https://github.com/Seafloor-Studio/newspaperss/pull/24): dated titles |
+| 3 | The "ready" notification was silent, the only prompt to send. | Everyone who shares | Fixed in [#25](https://github.com/Seafloor-Studio/newspaperss/pull/25) |
 | 4 | A Pocket refugee can't finish onboarding with saved links alone; importing Pocket is buried. | Pocket refugee | Backlog |
-| 5 | Kobo delivery is a manual Dropbox share every day; the device can't be changed after onboarding. | Kobo | Backlog; Dropbox waits on an app key ([#18](https://github.com/madCode/newspaperss/issues/18)) |
+| 5 | Kobo delivery is a manual Dropbox share every day; the device can't be changed after onboarding. | Kobo | Backlog; Dropbox waits on an app key ([#18](https://github.com/Seafloor-Studio/newspaperss/issues/18)) |
 | 6 | Failures and "nothing new" are quiet or mislabelled: no notice when a timed run finds nothing, "nothing new" when every source failed, "checking…" forever offline. | Everyone | Backlog |
-| 7 | On a Boox, Open doesn't put the edition in the library, and "I've sent it" makes no sense on the device. | Boox | Opening now counts as delivered ([#23](https://github.com/madCode/newspaperss/pull/23)); folder delivery to Books is in the backlog |
+| 7 | On a Boox, Open doesn't put the edition in the library, and "I've sent it" makes no sense on the device. | Boox | Opening now counts as delivered ([#23](https://github.com/Seafloor-Studio/newspaperss/pull/23)); folder delivery to Books is in the backlog |
 | 8 | Paywalled and summary-only sites give short stubs with no warning; starter packs include metered sites. | Kindle, everyone | Backlog |
 | 9 | A site with no feed is a dead end. | Everyone | Backlog: offer to save it to the reading list |
-| 10 | TalkBack and large fonts: progress not announced, no "Step 2 of 4", Add clipped at large sizes, no click label. | TalkBack | Fixed in [#39](https://github.com/madCode/newspaperss/pull/39) |
+| 10 | TalkBack and large fonts: progress not announced, no "Step 2 of 4", Add clipped at large sizes, no click label. | TalkBack | Fixed in [#39](https://github.com/Seafloor-Studio/newspaperss/pull/39) |
 
 Also noted: with folder delivery, "delivered" means the file was saved, so tt-rss marks
 articles read before Syncthing has synced, and old editions pile up in the folder (backlog).
 
 ## Day 1 (28 Sep): twelve findings
 
-Most were fixed the same night, in [#6](https://github.com/madCode/newspaperss/pull/6) to
-[#9](https://github.com/madCode/newspaperss/pull/9):
+Most were fixed the same night, in [#6](https://github.com/Seafloor-Studio/newspaperss/pull/6) to
+[#9](https://github.com/Seafloor-Studio/newspaperss/pull/9):
 
 - **Fixed:** notification permission asked for during onboarding; Open is the primary action on a
   Boox; check marks on selected chips, so they survive grayscale; spinners replaced with stepped

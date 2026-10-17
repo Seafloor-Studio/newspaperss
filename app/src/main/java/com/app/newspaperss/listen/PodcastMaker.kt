@@ -109,7 +109,7 @@ class PodcastMaker(
                     // Stopped during its last page: not finished, so Make the rest can carry on.
                     if (!store.wanted(editionId, asked)) return@use
                     store.finish(editionId)
-                    log.add("Edition $editionId: podcast finished")
+                    log.add("Edition $editionId: audio finished")
                     // Failing to keep the pace mustn't stop the podcasts behind this one.
                     runCatching { learnPace(editionId) }
                 }

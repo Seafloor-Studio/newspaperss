@@ -146,7 +146,7 @@ class TodayViewModel(
                 else -> next.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
             }
             val podcast = SettingsSummary.podcastStart(s, Locale.getDefault())?.let {
-                ", with its podcast. It starts at $it: leave your phone charging"
+                ", with its audio. It starts at $it: leave your phone charging"
             }.orEmpty()
             return "$day at $time \u00b7 about ${s.edition.minutes} min$podcast"
         }

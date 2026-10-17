@@ -62,8 +62,8 @@ class Notifier(private val context: Context) : EditionNotifier {
             },
         )
         system.createNotificationChannel(
-            NotificationChannel(PODCAST, "Making the podcast", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "Shows while a podcast is made, as the phone charges"
+            NotificationChannel(PODCAST, "Making the audio", NotificationManager.IMPORTANCE_LOW).apply {
+                description = "Shows while an edition's audio is made, as the phone charges"
             },
         )
     }
@@ -74,7 +74,7 @@ class Notifier(private val context: Context) : EditionNotifier {
      */
     fun makingPodcast(): Notification = NotificationCompat.Builder(context, PODCAST)
         .setSmallIcon(R.drawable.ic_notification)
-        .setContentTitle("Making the podcast")
+        .setContentTitle("Making the audio")
         .setContentText("It carries on while the phone charges")
         .setContentIntent(open())
         .addAction(

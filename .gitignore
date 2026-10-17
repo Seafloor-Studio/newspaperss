@@ -10,3 +10,9 @@ captures/
 .kotlin/
 app/release/
 .claude/worktrees/
+
+# A release keystore must never be committed. The debug one is the universal
+# android/androiddebugkey pair and is meant to be here.
+*.jks
+*.keystore
+!app/debug.keystore

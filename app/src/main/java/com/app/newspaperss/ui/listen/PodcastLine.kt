@@ -50,7 +50,7 @@ fun PodcastLine(podcasts: Podcasts, editionId: Long, minutes: List<Double>, modi
     val soft = MaterialTheme.colorScheme.onSurfaceVariant
     Column(modifier) {
         if (!p.asked) {
-            Text("No podcast for this edition yet: it plays in your phone's voice.", style = small, color = soft)
+            Text("No audio for this edition yet: it plays in your phone's voice.", style = small, color = soft)
             val making = SettingsSummary.aboutTime(PodcastPace.minutesToMake(minutes.sum().toInt(), p.pace))
             TextButton(onClick = {
                 scope.launch {
@@ -58,7 +58,7 @@ fun PodcastLine(podcasts: Podcasts, editionId: Long, minutes: List<Double>, modi
                     // a full disk mustn't take the app down.
                     runCatching { withContext(NonCancellable) { podcasts.request(editionId) } }
                 }
-            }) { Text("Make the podcast · $making while charging") }
+            }) { Text("Make the audio · $making while charging") }
             return@Column
         }
         // The text says the same: TalkBack reads that, not the bar.
@@ -80,13 +80,13 @@ fun PodcastLine(podcasts: Podcasts, editionId: Long, minutes: List<Double>, modi
         val rest = if (leftOut) "The rest plays in your phone's voice until it's made, and articles it left out always do." else "The rest plays in your phone's voice until it's made."
         val done = p.finished || p.made.all { it }
         val text = when {
-            p.made.all { it } -> "The podcast is ready."
-            p.finished && !anyMade -> "The podcast couldn't make any of this edition, so it plays in your phone's voice."
-            p.finished -> "The podcast is ready. Articles it left out, not in English or that it couldn't say, play in your phone's voice."
+            p.made.all { it } -> "Audio ready."
+            p.finished && !anyMade -> "No audio could be made for this edition, so it plays in your phone's voice."
+            p.finished -> "Audio ready. Articles left out, not in English or that couldn't be said, play in your phone's voice."
             p.stopped -> "Stopped. " + (if (made > 0.0) "$sofar " else "") + "The rest plays in your phone's voice."
-            p.makingNow -> "Making the podcast now. $sofar $rest"
-            p.makingOther -> "Waiting while another edition's podcast is made: this one comes next. " + (if (made > 0.0) "$sofar " else "") + rest
-            made == 0.0 -> "Waiting to make the podcast: it's made while the phone charges, and Android can take a few minutes to start. Until then, Listen uses your phone's voice."
+            p.makingNow -> "Making the audio now. $sofar $rest"
+            p.makingOther -> "Waiting while another edition's audio is made: this one comes next. " + (if (made > 0.0) "$sofar " else "") + rest
+            made == 0.0 -> "Waiting to make the audio: it's made while the phone charges, and Android can take a few minutes to start. Until then, Listen uses your phone's voice."
             else -> "$sofar It carries on while the phone charges. $rest"
         }
         Text(text, style = small, color = soft, modifier = Modifier.padding(top = 6.dp))
@@ -102,13 +102,13 @@ fun PodcastLine(podcasts: Podcasts, editionId: Long, minutes: List<Double>, modi
                 }
                 else -> TextButton(onClick = { scope.launch(Dispatchers.IO) { podcasts.stop(editionId) } }) { Text("Stop making") }
             }
-            if (p.bytes > 0) TextButton(onClick = { deleting = true }) { Text("Delete podcast · ${megabytes(p.bytes)}") }
+            if (p.bytes > 0) TextButton(onClick = { deleting = true }) { Text("Delete audio · ${megabytes(p.bytes)}") }
         }
         if (deleting) {
             AlertDialog(
                 onDismissRequest = { deleting = false },
-                title = { Text("Delete this edition's podcast?") },
-                text = { Text("It frees ${megabytes(p.bytes)}. The edition plays in your phone's voice, and you can make the podcast again.") },
+                title = { Text("Delete this edition's audio?") },
+                text = { Text("It frees ${megabytes(p.bytes)}. The edition plays in your phone's voice, and you can make the audio again.") },
                 confirmButton = {
                     TextButton(onClick = {
                         deleting = false

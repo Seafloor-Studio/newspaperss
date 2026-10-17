@@ -62,7 +62,7 @@ class TodayViewModelTest {
         // With the podcast, when to have the phone charging.
         val podcast = on.copy(listenVoice = com.app.newspaperss.settings.ListenVoice.PODCAST, podcastPace = 1.2f)
         assertEquals(
-            "Tomorrow at 6:30\u202fAM \u00b7 about 30 min, with its podcast. It starts at 4:50\u202fAM: leave your phone charging",
+            "Tomorrow at 6:30\u202fAM \u00b7 about 30 min, with its audio. It starts at 4:50\u202fAM: leave your phone charging",
             TodayViewModel.nextEdition(podcast, now),
         )
         } finally {

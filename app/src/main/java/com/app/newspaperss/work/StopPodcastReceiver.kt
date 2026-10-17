@@ -7,7 +7,7 @@ import com.app.newspaperss.container
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-/** The "Making the podcast" notification's Stop: stops making podcasts, keeping what's made. */
+/** The "Making the audio" notification's Stop: stops making audio, keeping what's made. */
 class StopPodcastReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val container = context.container

@@ -37,10 +37,10 @@ class SettingsSummaryTest {
     @Test
     fun withThePodcastTheScheduleSaysWhenThePaperStarts() {
         val podcast = Settings(scheduleEnabled = true, listenVoice = ListenVoice.PODCAST, podcastPace = 1.2f)
-        assertEquals("Ready by 6:30 AM, every day · starts 4:50 AM for the podcast", schedule(podcast).text.replace('\u202F', ' '))
+        assertEquals("Ready by 6:30 AM, every day · starts 4:50 AM for the audio", schedule(podcast).text.replace('\u202F', ' '))
         // Ready soon after midnight, it starts the evening before.
         val late = podcast.copy(schedule = Schedule(LocalTime.of(0, 30)))
-        assertEquals("Ready by 12:30 AM, every day · starts 10:50 PM the day before for the podcast", schedule(late).text.replace('\u202F', ' '))
+        assertEquals("Ready by 12:30 AM, every day · starts 10:50 PM the day before for the audio", schedule(late).text.replace('\u202F', ' '))
     }
 
     @Test
@@ -82,11 +82,11 @@ class SettingsSummaryTest {
 
     @Test
     fun listeningNamesTheSpeedAndAPhoneWithoutAVoiceIsntAProblem() {
-        assertEquals(Summary("This phone's voice · 1.2×"), SettingsSummary.listening(Settings(listenSpeed = 1.2f), hasVoice = true))
+        assertEquals(Summary("Your phone's voice · 1.2×"), SettingsSummary.listening(Settings(listenSpeed = 1.2f), hasVoice = true))
         // An e-reader without one, whose reader may never listen.
         assertEquals(Summary("No voice on this phone"), SettingsSummary.listening(Settings(), hasVoice = false))
         val podcast = Settings(listenVoice = ListenVoice.PODCAST, podcastVoice = PodcastVoice.EMMA)
-        assertEquals(Summary("Podcast in Kokoro (Emma) · 1×"), SettingsSummary.listening(podcast, hasVoice = true))
+        assertEquals(Summary("A natural voice (Emma) · 1×"), SettingsSummary.listening(podcast, hasVoice = true))
     }
 
     @Test

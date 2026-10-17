@@ -23,6 +23,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 ### Onboarding and setup
 
 ### Sources and fetching
+- [ ] **Rethink Sources for a big subscription list** *(you asked)*: with about 100 feeds there's no way to find where something in an edition came from, or what's waiting, without opening feed after feed. Consider views across feeds, as tt-rss has: all the newest articles in one list, what's starred, what's waiting for the next edition, what went in recently. Also a way from an article in an edition to its feed and its neighbours. Design pass first (what's on Sources, what's a separate view, how it fits the calm, no-badges look), then build
 - [ ] **Platform pass** *(you asked)*: a test corpus of real posts from the big blog and newsletter platforms, from their own feeds and through tt-rss, checked for footnotes, embeds, captions, paywall teasers and link posts; what breaks gets fixed and the corpus keeps it fixed (`PlatformCorpusTest`). Round 1 covered Substack, Ghost, WordPress, Medium, Blogger, Buttondown and Micro.blog; round 2 added a magazine with its own site (New Left Review), Stratechery and a MemberPress site, found by running `extractionSweep` over a real reading list and over `tools/sweep-feeds.opml`, public feeds picked for variety (news, other languages and scripts, static sites, microblogs). Run that list again before a change to extraction. Still to add: Tumblr (it answers 429 to the collector), beehiiv, posts with galleries, tweets and Bluesky embeds, and more footnote styles
 - [x] **Show tt-rss's own feed errors** *(you asked)*: tt-rss's `last_error` for each feed, on the feed's row and page and named in a banner on Sources
 - [ ] Paywalled and summary-only sites: warn when a site is added; keep stubs from eating the budget; drop metered sites from starter packs *(personas)*
@@ -37,7 +38,8 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 
 ### Delivery and schedule
 - [ ] **Save a copy of an edition to the phone** *(you asked)*: there's no easy way to keep the EPUB file itself. Android's share sheet often offers no Files target, so **Send another way** can't save it. Add "Save a copy…", opening the system's save dialog (`ACTION_CREATE_DOCUMENT`), beside Send another way in the edition's ⋮ menu
-- [ ] Dropbox connection (OAuth PKCE) so Kobo delivery is automatic; waiting on an app key ([#18](https://github.com/madCode/newspaperss/issues/18)) *(personas)*
+- [ ] **A deleted edition's title is reused when it was never sent** *(you asked)*: after deleting an edition, the next one made the same day is called "Tuesday Morning Edition, Oct 13 (2)". The " (2)" is there because Send to Kindle silently drops a document whose title it has already received, so a deleted edition keeps its title (`EditionTitles`, the `DELETED` row). One deleted without ever being delivered never reached a Kindle, so its title can go to the next edition. Open: one sent by a route the app can't see (Mark as sent never tapped) would then repeat a title; the rule could count only editions released as not sent or deleted while ready
+- [ ] Dropbox connection (OAuth PKCE) so Kobo delivery is automatic; waiting on an app key ([#18](https://github.com/Seafloor-Studio/newspaperss/issues/18)) *(personas)*
 - [ ] Boox: offer folder delivery into the Books folder, so editions stay in the library *(personas)*
 - [ ] Folder delivery: tt-rss marks articles read as soon as the file is saved, before Syncthing has synced; old editions pile up in the folder *(personas)*
 - [ ] Verify folder delivery and the chooser from the notification on a real device
@@ -243,19 +245,19 @@ Many of the writers worth reading publish as newsletters. Two routes, from easy 
 
 ### Listen: the paper as an audiobook
 The phone's voice reading an edition, and Settings › Listening for it, are built ([mockups](https://claude.ai/artifact/X9dZJi7XP3GxY85xjdLMXq)). Next:
-- **A podcast in Kokoro's voice, made ahead** ([mockups and spec](https://claude.ai/artifact/43jwa7iFoBUxnyxVGsiYbE)). Built so far, in debug builds only: the download and the check, making a scheduled edition's podcast while charging, starting scheduled editions early for it, and playing it: Listen plays the podcast where it's made and the phone's voice where it isn't, switching only between articles. The edition page shows what's made and offers **Make the podcast**; the playing screen says when an article plays in the phone's voice. It's made in the foreground, with a quiet notification, so Android doesn't stop it every 10 minutes. Next: trying a real morning on a phone; if it's still slow, asking in Settings › Listening for Unrestricted battery use (the only way Android lets foreground work start overnight), or an exact alarm at the edition's start. Then taking it out of debug-only. Not built from the mockups: "Make the podcast" in the edition's ⋮ menu, saying the podcast is paused off the charger, and the edition-size page's warning when a bigger paper wouldn't fit.
-  - **Turning it on:** a second voice in Settings › Listening, "Make a podcast in a natural voice". Kokoro (`kokoro-multi-lang-v1_0` through sherpa-onnx, 384 MB) downloads once; off Wi-Fi, Download asks before using mobile data. No setting for it.
+- **A natural voice, Kokoro's, made ahead** ([mockups and spec](https://claude.ai/artifact/43jwa7iFoBUxnyxVGsiYbE)). Built so far, in debug builds only: the download and the check, making a scheduled edition's audio while charging, starting scheduled editions early for it, and playing it: Listen plays the audio where it's made and the phone's voice where it isn't, switching only between articles. The edition page shows what's made and offers **Make the audio**; the playing screen says when an article plays in the phone's voice. It's made in the foreground, with a quiet notification, so Android doesn't stop it every 10 minutes. Next: trying a real morning on a phone; if it's still slow, asking in Settings › Listening for Unrestricted battery use (the only way Android lets foreground work start overnight), or an exact alarm at the edition's start. Then taking it out of debug-only. Not built from the mockups: "Make the audio" in the edition's ⋮ menu, saying the audio is paused off the charger, and the edition-size page's warning when a bigger paper wouldn't fit.
+  - **Turning it on:** a second voice in Settings › Listening, "A natural voice", beside "Your phone's voice". Kokoro (`kokoro-multi-lang-v1_0` through sherpa-onnx, 384 MB) downloads once; off Wi-Fi, Download asks before using mobile data. No setting for it.
   - **Which phones:** 64-bit only. After the download, a 20-second check estimates how long *your* paper takes to make (× 1.5 for warming up). Up to about 1 hour: "can do it"; up to 2½ hours: "slow, still fine"; beyond: "too slow", offering only Remove.
   - **When it's made:** after a scheduled edition's book is written, from the book, article by article, only while charging. Never on battery (a 30-minute paper would use about 20% of a charge). Unplugged, it stops and keeps what's made.
-  - **Starting early:** scheduled editions start earlier by paper length × this phone's pace × 1.25 (× 1.1 once real times come in), shown with the ready time in Settings, Schedule and Today ("starts 5:05 for the podcast; leave your phone charging"). Built; still to do: when the start moves more than 10 minutes, Schedule and Today say why ("the last three podcasts took about 70 minutes").
-  - **Editions made by hand:** "Make the podcast" under Listen and in ⋮, waiting for a charger too.
+  - **Starting early:** scheduled editions start earlier by paper length × this phone's pace × 1.25 (× 1.1 once real times come in), shown with the ready time in Settings, Schedule and Today ("starts 5:05 for the audio; leave your phone charging"). Built; still to do: when the start moves more than 10 minutes, Schedule and Today say why ("the last three took about 70 minutes to make").
+  - **Editions made by hand:** "Make the audio" under Listen and in ⋮, waiting for a charger too.
   - **Stored** compressed (AAC, about 7 MB per 30 minutes) with each sentence's start time, beside its edition and deleted with it. English only; other articles play in the phone's voice.
   - **Test with papers that aren't all English:** an article in French or German among English ones plays in the phone's voice, switching only between articles; an English article quoting French or naming people from elsewhere still reads sensibly in Kokoro; an article with no language tag; a paper that's entirely in another language.
-- **Podcasts in other languages.** The Kokoro model already downloaded has voices for French, Spanish, Italian, Portuguese, Hindi and Japanese, and their pronunciation data comes with the English download; Chinese needs 17 MB more. Fewer voices than English, of unknown quality: listen first. Each article would pick a voice in its own language, with the phone's voice for languages Kokoro lacks.
+- **A natural voice in other languages.** The Kokoro model already downloaded has voices for French, Spanish, Italian, Portuguese, Hindi and Japanese, and their pronunciation data comes with the English download; Chinese needs 17 MB more. Fewer voices than English, of unknown quality: listen first. Each article would pick a voice in its own language, with the phone's voice for languages Kokoro lacks.
   - **Measured on a Pixel 8 (Tensor G3):** the full model makes speech at 0.8× real time cool and 1.4× warm within 7 minutes, so it can't read live; a 30-minute paper takes 40–50 minutes. The compressed int8 model (170 MB) whines at 4.8 and 9.6 kHz and is no faster. 4 threads was fastest; with 1 thread the same text came out longer (17.6 s, not 14 s), which needs explaining.
 - **🔊 in the article preview**, starting the same player at that article.
 - **A sleep timer**, and a way in from Today's card.
-- **Save as audio:** the edition as a file with a chapter per article, for a podcast or audiobook app. With a podcast made, it's already most of the way there.
+- **Save as audio:** the edition as a file with a chapter per article, for a podcast or audiobook app. With the audio made, it's already most of the way there.
 
 ### Listening in the reading view *(you asked)*
 Today the article preview (the book's own page in a WebView, with Aa, pinch zoom and quote sharing)
@@ -283,7 +285,7 @@ article without leaving the page.
 - **Decided: tint the paragraph, not the sentence.** ↶ ↷ still move by sentence. The walk that
   builds `ListenScript` also marks the page, wrapping each piece of text in a `<span>` numbered with
   its paragraph: text never crosses tags, so the wrapping is always valid, and one walk means the page
-  and the podcast can't disagree. Sentence tints later only if paragraphs feel too coarse; that needs
+  and the audio can't disagree. Sentence tints later only if paragraphs feel too coarse; that needs
   the text split at sentence boundaries too.
 - **Decided: JavaScript on, with no bridge.** Moving the tint without reloading needs JavaScript,
   and it is safe here: the preview already answers every request from the book or with nothing, and
@@ -307,6 +309,7 @@ article without leaving the page.
 Recommendation: build step 1, use it for a week, then decide on step 2.
 
 ### Podcast episodes in feeds *(you asked)*
+Research plan, and the episode corpus to test it on: [research/podcast-episodes.md](research/podcast-episodes.md).
 Some posts are podcast episodes, and the paper treats them as articles. Measured on one real
 reading list (91 feeds, about 1,450 recent posts), about 4% carried podcast audio, in 12 feeds.
 They came in these shapes, with what the paper does with each today:
@@ -436,13 +439,13 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 ## Done
 
 - [x] Coverage no longer counts what `ScreenshotTest` draws: the screenshots run as their own task, which Kover doesn't measure; coverage went from 94.73% to 94.32% (#269, your call: merged)
-- [x] A smaller APK: one per ABI, as you chose. A phone's release APK is 50.6 MB (arm64) instead of 86.8 MB; older 32-bit e-readers get an 18.6 MB one without the podcast voice; Play's bundle is unchanged (today B13)
+- [x] A smaller APK: one per ABI, as you chose. A phone's release APK is 50.6 MB (arm64) instead of 86.8 MB; older 32-bit e-readers get an 18.6 MB one without the natural voice; Play's bundle is unchanged (today B13)
 - [x] A saved link that can never be read (not a web page, a 410, too large) says why in the reading list, can still be opened or removed, and editions stop trying it; saving it again looks again (database version 14, #283)
 - [x] Starred in tt-rss goes in the paper: an opt-in, one-way, each star once (today D8, madCode's call on the morning page)
 - [x] A quiet tt-rss feed says so under its row: "Nothing new in 3 weeks" (today D4)
 - [x] **Send for a look**: ⋮ › Send for a look… on an article's preview says the report is a public GitHub issue, then opens GitHub's form with "Extraction: *title*", the address and the app's version filled in (#251)
 - [x] A snackbar on screen as the app goes to the background is shown again in full on its return, Undo and all, on Sources, the reading list, a source's page, Settings and an edition's page; a reading-list removal waiting for Undo is settled then rather than left in the database (#258)
-- [x] ~~Stop making and Delete podcast run on the screen's scope without `NonCancellable`~~: checked, not a bug. Both are blocking file writes launched straight onto `Dispatchers.IO`, so leaving the page can't cut them short once tapped; `NonCancellable` only matters for a suspending call like Make's (#258)
+- [x] ~~Stop making and Delete audio run on the screen's scope without `NonCancellable`~~: checked, not a bug. Both are blocking file writes launched straight onto `Dispatchers.IO`, so leaving the page can't cut them short once tapped; `NonCancellable` only matters for a suspending call like Make's (#258)
 - [x] Rotation keeps Listen's "Finish X first?" and contents, and the category list of Add a site and Move feeds; after Android ends the app, a restored question is checked again and the category list goes with its dialog (#264)
 - [x] "No feed found" in onboarding offers to save the page to the reading list instead, as Sources does (#266)
 - [x] A short Kindle how-to in setup (the Kindle app on the same Amazon account, then Library › Docs), and per device, in setup and under Send it myself, when an edition counts as sent and what to do if it never arrives (#270)
@@ -452,7 +455,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 - [x] Screenshots are drawn without ripples, so two renders match (today B7)
 - [x] Test health from the 16 Oct audit: each test's app has its own settings, tt-rss and feed-move stores, stopped at teardown; one way to stop a test store; one shared wait in place of three 5-second loops; source-page view models stopped at a test's end; a cut-short feed through FeedSync; `SourceDetailScreenTest` on a fixed clock; `NotesWorkerTest` able to fail; `PodcastMakerTest`'s fake counting atomically (today B1–B6, B9)
 - [x] An edition released because a newer one was made counts as sent when it is sent anyway, from a share sheet, its notification or Today, as Mark as sent already did, so its articles don't go out again; and its Ready notification comes down when it is released (audit and UX pass, 16 Oct)
-- [x] A timed edition takes the place of one made by hand that is still waiting for a connection, rather than being dropped, so the paper comes with its Ready notification, podcast and retries (audit, 16 Oct)
+- [x] A timed edition takes the place of one made by hand that is still waiting for a connection, rather than being dropped, so the paper comes with its Ready notification, audio and retries (audit, 16 Oct)
 - [x] The book of a build the process died during is deleted when the next build finds it, rather than staying in the app's storage for good (audit, 16 Oct)
 - [x] Leaving the server just as a feed is moved leaves it a phone feed, not paused with no server to come from: the move's check and the pause are one step with leaving (audit, 16 Oct)
 - [x] Moving off tt-rss brings the paper's feeds along as phone feeds, with their settings (today D6)

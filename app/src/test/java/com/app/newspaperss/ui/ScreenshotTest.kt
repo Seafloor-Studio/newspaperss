@@ -1165,7 +1165,7 @@ class ScreenshotTest {
     fun settingsPodcastLog() {
         val log = PodcastLog(tmp.newFile(), now = { 1_791_000_000_000L })
         listOf(
-            "Edition 12's podcast asked for, in Heart; made once the phone charges",
+            "Edition 12's audio asked for, in Heart; made once the phone charges",
             "Run started (try 1): asking for the foreground, Android 36, battery unrestricted, plugged in",
             "Kokoro loaded (Heart) in 4s",
             "Edition 12 page 0: from line 0 of 84",
@@ -1180,7 +1180,7 @@ class ScreenshotTest {
             "07u-settings-podcast-log",
             ready = { vm.kokoro.value is KokoroState.Ready },
             act = {
-                compose.onNodeWithText("Podcast log").performScrollTo().performClick()
+                compose.onNodeWithText("Audio log").performScrollTo().performClick()
                 idleUntil { compose.onAllNodes(hasText("Stopped: unplugged", substring = true)).fetchSemanticsNodes().isNotEmpty() }
             },
             dialog = true,
