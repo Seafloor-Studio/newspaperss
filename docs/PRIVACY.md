@@ -38,4 +38,4 @@ folder you choose. NewspapeRSS doesn't send them anywhere itself.
 
 ## Contact
 
-Questions: open an issue at https://github.com/madCode/newspaperss/issues.
+Questions: open an issue at https://github.com/Seafloor-Studio/newspaperss/issues.

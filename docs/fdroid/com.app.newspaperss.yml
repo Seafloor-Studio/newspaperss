@@ -6,14 +6,14 @@ Categories:
   - Reading
 License: MIT
 AuthorName: madCode
-SourceCode: https://github.com/madCode/newspaperss
-IssueTracker: https://github.com/madCode/newspaperss/issues
-Changelog: https://github.com/madCode/newspaperss/releases
+SourceCode: https://github.com/Seafloor-Studio/newspaperss
+IssueTracker: https://github.com/Seafloor-Studio/newspaperss/issues
+Changelog: https://github.com/Seafloor-Studio/newspaperss/releases
 
 AutoName: NewspapeRSS
 
 RepoType: git
-Repo: https://github.com/madCode/newspaperss.git
+Repo: https://github.com/Seafloor-Studio/newspaperss.git
 
 Builds:
   - versionName: 0.1.0
@@ -28,7 +28,7 @@ Builds:
     gradle:
       - yes
     output: build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
-    binary: https://github.com/madCode/newspaperss/releases/download/v%v/NewspapeRSS-%v-armeabi-v7a.apk
+    binary: https://github.com/Seafloor-Studio/newspaperss/releases/download/v%v/NewspapeRSS-%v-armeabi-v7a.apk
 
   - versionName: 0.1.0
     versionCode: 12
@@ -42,7 +42,7 @@ Builds:
     gradle:
       - yes
     output: build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
-    binary: https://github.com/madCode/newspaperss/releases/download/v%v/NewspapeRSS-%v-arm64-v8a.apk
+    binary: https://github.com/Seafloor-Studio/newspaperss/releases/download/v%v/NewspapeRSS-%v-arm64-v8a.apk
 
   - versionName: 0.1.0
     versionCode: 13
@@ -56,7 +56,7 @@ Builds:
     gradle:
       - yes
     output: build/outputs/apk/release/app-x86-release-unsigned.apk
-    binary: https://github.com/madCode/newspaperss/releases/download/v%v/NewspapeRSS-%v-x86.apk
+    binary: https://github.com/Seafloor-Studio/newspaperss/releases/download/v%v/NewspapeRSS-%v-x86.apk
 
   - versionName: 0.1.0
     versionCode: 14
@@ -70,7 +70,7 @@ Builds:
     gradle:
       - yes
     output: build/outputs/apk/release/app-x86_64-release-unsigned.apk
-    binary: https://github.com/madCode/newspaperss/releases/download/v%v/NewspapeRSS-%v-x86_64.apk
+    binary: https://github.com/Seafloor-Studio/newspaperss/releases/download/v%v/NewspapeRSS-%v-x86_64.apk
 
 AllowedAPKSigningKeys: 0f1bb6e4744e935219cfaca53533839c1f8631389214c48e9da55e08055c6c5d
 

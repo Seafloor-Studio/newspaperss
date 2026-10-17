@@ -81,7 +81,7 @@ jobs:
           retention-days: 14
 
   # A fixed link to the newest build from main, for installing on a phone:
-  # https://github.com/madCode/newspaperss/releases/download/latest-debug/newspapeRSS-debug.apk
+  # https://github.com/Seafloor-Studio/newspaperss/releases/download/latest-debug/newspapeRSS-debug.apk
   # Its own job so only these few lines, not the build and its dependencies, get a token that can write.
   publish-debug:
     needs: build
