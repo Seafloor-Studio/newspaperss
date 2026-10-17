@@ -61,7 +61,7 @@ class EditionReachesAnotherAppTest {
     }
 
     @Test fun anotherAppCanReadTheWholeEditionThroughTheGrant() {
-        // In the editions folder, because file_paths.xml exposes only that and notes/: the
+        // In the editions folder, because file_paths.xml exposes only that: the
         // FileProvider refuses anywhere else, which is the point of scoping it.
         val editions = File(context.filesDir, "editions").apply { mkdirs() }
         val epub = File(editions, "reach-test.epub").apply { writeEpub(articles) }
@@ -85,30 +85,6 @@ class EditionReachesAnotherAppTest {
             assertTrue("what arrived isn't a zip, so not a whole epub: $line", "zip=true" in line)
         } finally {
             epub.delete()
-        }
-    }
-
-    @Test fun anotherAppCanReadTheNotesThroughTheGrant() {
-        // Notes go out as markdown from files/notes/, the other folder file_paths.xml exposes.
-        val notes = File(context.filesDir, "notes").apply { mkdirs() }
-        val file = File(notes, "reach-test notes.md").apply { writeText("# A heron\n\nIt stood there.\n") }
-        try {
-            val chooser = EditionIntents.shareNotes(context, file, "A heron on the roof")
-            val share = chooser.getParcelableExtra(Intent.EXTRA_INTENT) ?: chooser
-            share.setPackage(sink)
-            share.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(share)
-
-            val line = sinkResult()
-            assertTrue("the sink never reported for notes", line.isNotEmpty())
-            assertTrue("the sink couldn't read the notes: $line", "RESULT bytes=" in line)
-            assertEquals(
-                "not the whole notes file arrived",
-                file.length(),
-                Regex("bytes=(\\d+)").find(line)!!.groupValues[1].toLong(),
-            )
-        } finally {
-            file.delete()
         }
     }
 }

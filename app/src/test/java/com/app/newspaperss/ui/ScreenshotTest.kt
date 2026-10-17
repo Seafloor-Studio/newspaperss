@@ -47,7 +47,6 @@ import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.SourceRepository
 import com.app.newspaperss.delivery.EditionIntents
 import com.app.newspaperss.delivery.KindleSend
-import com.app.newspaperss.edition.EditionNotes
 import com.app.newspaperss.settings.DeliveryMethod
 import com.app.newspaperss.settings.ListenVoice
 import com.app.newspaperss.settings.PodcastVoice
@@ -611,7 +610,7 @@ class ScreenshotTest {
             )
             edition
         }
-        return EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id, EditionNotes(db, tmp.newFolder())) {}
+        return EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id) {}
     }
 
     @Test
@@ -1247,12 +1246,6 @@ class ScreenshotTest {
         runBlocking { store.update { it.copy(feedsFrom = FeedsFrom.SERVER) } }
         val vm = SourcesViewModel(SourceRepository(db, clock), FeedFinder(FakeHttp()), ttrss, settings = store) {}
         shoot("06f-sources-sign-in", ready = { vm.screen.value?.needsSignIn == true }) { SourcesScreen(vm) }
-    }
-
-    @Test
-    fun settingsNotes() {
-        val vm = SettingsViewModel(store) {}
-        shoot("07f-settings-notes", ready = { vm.settings.value != null }) { SettingsPageScreen(vm, SettingsPage.NOTES, onBack = {}) }
     }
 
     /**

@@ -19,7 +19,7 @@ import com.app.newspaperss.core.images.ImageAllowance
 import com.app.newspaperss.core.images.ImageBudget
 import com.app.newspaperss.core.images.ImageRules
 import com.app.newspaperss.core.net.hostOf
-import com.app.newspaperss.core.notes.Reflection
+import com.app.newspaperss.core.edition.Reflection
 import com.app.newspaperss.core.plural
 import com.app.newspaperss.data.AppDatabase
 import com.app.newspaperss.data.ArticleEntity

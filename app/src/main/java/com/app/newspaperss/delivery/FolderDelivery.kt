@@ -16,7 +16,7 @@ fun interface FolderWriter {
     suspend fun deliver(file: File, treeUri: String, fileName: String, mime: String): String?
 }
 
-/** Saves editions (and their notes) into a folder the reader picked through the system file picker. */
+/** Saves editions into a folder the reader picked through the system file picker. */
 class FolderDelivery(private val resolver: ContentResolver) : FolderWriter {
     // IO: a cloud provider's createDocument and write can block on the network.
     override suspend fun deliver(file: File, treeUri: String, fileName: String, mime: String): String? = withContext(Dispatchers.IO) {
@@ -56,7 +56,7 @@ class FolderDelivery(private val resolver: ContentResolver) : FolderWriter {
         }
 
         /** A file name that's valid on every provider (Drive, Dropbox, SD cards). */
-        fun fileName(title: String, suffix: String = ".epub"): String =
-            title.replace(Regex("[\\\\/:*?\"<>|]"), "-").trim().take(120) + suffix
+        fun fileName(title: String): String =
+            title.replace(Regex("[\\\\/:*?\"<>|]"), "-").trim().take(120) + ".epub"
     }
 }

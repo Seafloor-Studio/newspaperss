@@ -227,7 +227,7 @@ private fun App(
             }
             composable(EDITION, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
                 val id = entry.idArg
-                val vm = viewModel { EditionDetailViewModel(container.editions, id, container.editionNotes, container.kindleSends.recent, container.notifier::dismissFor) }
+                val vm = viewModel { EditionDetailViewModel(container.editions, id, container.kindleSends.recent, container.notifier::dismissFor) }
                 EditionDetailScreen(
                     vm,
                     preferOpen = preferOpen,
