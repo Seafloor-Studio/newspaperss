@@ -153,7 +153,7 @@ class PodcastLineTest {
         waitFor("articles it left out always do")
         store.complete(7, 2)
         store.finish(7)
-        waitFor("Articles it left out")
+        waitFor("Audio ready. Articles left out")
     }
 
     @Test
@@ -162,7 +162,7 @@ class PodcastLineTest {
         (0..2).forEach { store.leaveLive(7, it) }
         store.finish(7)
         show()
-        waitFor("couldn't make any of this edition")
+        waitFor("No audio could be made for this edition")
     }
 
     @Test
@@ -170,6 +170,6 @@ class PodcastLineTest {
         store.want(7, PodcastVoice.HEART)
         show(ListenVoice.PHONE)
         compose.waitForIdle()
-        assertEquals(0, compose.onAllNodes(androidx.compose.ui.test.hasText("podcast", substring = true, ignoreCase = true)).fetchSemanticsNodes().size)
+        assertEquals(0, compose.onAllNodes(androidx.compose.ui.test.hasText("audio", substring = true, ignoreCase = true)).fetchSemanticsNodes().size)
     }
 }
