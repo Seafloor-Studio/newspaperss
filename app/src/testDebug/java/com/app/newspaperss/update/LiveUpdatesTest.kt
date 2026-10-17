@@ -416,8 +416,9 @@ class LiveUpdatesTest {
         val after = updates(installedBuild = 464)
         after.start()
 
-        idleUntil { dir.list()!!.isEmpty() }
-        assertTrue(shown().isEmpty())
+        // The notification goes last, after the file and the state.
+        idleUntil { shown().isEmpty() }
+        assertEquals(emptyList<String>(), dir.list()!!.toList())
         assertEquals(SelfUpdate.None, after.state.first())
         val check = work.getWorkInfosForUniqueWork(LiveUpdates.CHECK).get().single()
         assertFalse(check.state.isFinished)
