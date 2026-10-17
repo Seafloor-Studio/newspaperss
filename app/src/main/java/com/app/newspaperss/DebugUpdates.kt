@@ -63,7 +63,7 @@ class DebugUpdates(
     companion object {
         val INTERVAL_MILLIS = TimeUnit.HOURS.toMillis(3)
         const val RELEASE_API = "https://api.github.com/repos/madCode/newspaperss/releases/tags/latest-debug"
-        private const val DOWNLOADS = "https://github.com/madCode/newspaperss/releases/download/latest-debug/"
+        private const val DOWNLOADS = "https://github.com/Seafloor-Studio/newspaperss/releases/download/latest-debug/"
         // CI publishes one APK per ABI; the fixed name is arm64's (see build-and-test.yml).
         private val OTHER_ABIS = setOf("armeabi-v7a", "x86", "x86_64")
 

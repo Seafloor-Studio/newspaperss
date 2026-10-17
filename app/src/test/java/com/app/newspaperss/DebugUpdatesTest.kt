@@ -32,7 +32,7 @@ class DebugUpdatesTest {
 
     private fun release(build: Int) = http.page(
         DebugUpdates.RELEASE_API,
-        """{"tag_name":"latest-debug","assets":[{"name":"newspapeRSS-debug-$build.apk","browser_download_url":"https://github.com/madCode/newspaperss/releases/download/latest-debug/newspapeRSS-debug-$build.apk"},{"name":"newspapeRSS-debug.apk"}]}""",
+        """{"tag_name":"latest-debug","assets":[{"name":"newspapeRSS-debug-$build.apk","browser_download_url":"https://github.com/Seafloor-Studio/newspaperss/releases/download/latest-debug/newspapeRSS-debug-$build.apk"},{"name":"newspapeRSS-debug.apk"}]}""",
     )
 
     private fun updates(installed: Int?) = DebugUpdates(http, prefs, installed) { clock }
@@ -131,9 +131,9 @@ class DebugUpdatesTest {
         val phone = DebugUpdates.downloadFor(arrayOf("arm64-v8a", "armeabi-v7a", "armeabi"))
         val olderEReader = DebugUpdates.downloadFor(arrayOf("armeabi-v7a", "armeabi"))
         val emulator = DebugUpdates.downloadFor(arrayOf("x86_64", "x86", "arm64-v8a"))
-        assertEquals("https://github.com/madCode/newspaperss/releases/download/latest-debug/newspapeRSS-debug.apk", phone)
-        assertEquals("https://github.com/madCode/newspaperss/releases/download/latest-debug/newspapeRSS-debug-armeabi-v7a.apk", olderEReader)
-        assertEquals("https://github.com/madCode/newspaperss/releases/download/latest-debug/newspapeRSS-debug-x86_64.apk", emulator)
+        assertEquals("https://github.com/Seafloor-Studio/newspaperss/releases/download/latest-debug/newspapeRSS-debug.apk", phone)
+        assertEquals("https://github.com/Seafloor-Studio/newspaperss/releases/download/latest-debug/newspapeRSS-debug-armeabi-v7a.apk", olderEReader)
+        assertEquals("https://github.com/Seafloor-Studio/newspaperss/releases/download/latest-debug/newspapeRSS-debug-x86_64.apk", emulator)
 
         // The names CI uploads to latest-debug, so a renamed file can't leave a link to nothing.
         val published = java.io.File("../.github/workflows/build-and-test.yml").readText()

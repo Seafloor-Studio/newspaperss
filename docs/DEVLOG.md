@@ -3,7 +3,7 @@
 A running log of the build cycles: what's in flight, and what each cycle shipped, what its review
 caught, and what got in the way. Newest first. Times are Pacific.
 
-**Latest debug build:** [newspapeRSS-debug.apk](https://github.com/madCode/newspaperss/releases/download/latest-debug/newspapeRSS-debug.apk)
+**Latest debug build:** [newspapeRSS-debug.apk](https://github.com/Seafloor-Studio/newspaperss/releases/download/latest-debug/newspapeRSS-debug.apk)
 (updated on every merge to main; installs beside a release build as `com.app.newspaperss.debug`)
 
 ## Status
