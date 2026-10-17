@@ -2,9 +2,11 @@
 
 ## Once: the signing key
 
-Release builds are signed with your own key. Make one (keep a copy
-somewhere safe outside GitHub: losing it means Play can't take updates
-from you), then add four secrets in GitHub › Settings › Secrets and
+Release builds are signed with newspaperss's own key, not dailylog's:
+the apps share nothing that needs a common key, and separate keys keep a
+problem with one from reaching the other. Make one (keep a copy somewhere
+safe outside GitHub: losing it means nobody can take updates from you), then
+add four secrets in GitHub › Settings › Secrets and
 variables › Actions:
 
 | Secret | Value |
@@ -62,13 +64,16 @@ dailylog uses (`com.app.dailylog` in fdroiddata).
   - Each build's `binary:` is the GitHub release's APK for that ABI
     (`NewspapeRSS-%v-<abi>.apk`, as the Release workflow names them).
   - `AllowedAPKSigningKeys:` pins your certificate. It's the SHA-256 of the
-    signing certificate: public data, not a secret. Read it with
-    `keytool -list -v -keystore release.jks -alias <alias>` (the `SHA256:`
-    line, lowercase, without colons) or `apksigner verify --print-certs` on a
-    signed APK. The private key and passwords stay in GitHub's secrets and
-    your own copy; nothing else needs them. **Until it's added, `fdroid lint`
-    fails on purpose** ("App version has binary but does not have
-    corresponding AllowedAPKSigningKeys").
+    signing certificate: public data, not a secret. Read it from the key that
+    actually signs releases, the one in the secrets, by running the
+    **Signing fingerprint** workflow (Actions › Signing fingerprint › Run
+    workflow): it prints the value and publishes nothing. A copy of the
+    `.jks` elsewhere could differ, and a mismatch only shows when F-Droid
+    rejects a tagged release. Run it again whenever the secrets change. The
+    private key and passwords stay in the secrets and your own copy; nothing
+    else needs them. **Until it's added, `fdroid lint` fails on purpose**
+    ("App version has binary but does not have corresponding
+    AllowedAPKSigningKeys").
   - The `sudo:` lines take the build server down to 16 CPU cores. They're
     copied from dailylog, whose 3.1.2 failed to reproduce until they were
     added: some build outputs (the baseline profile, `assets/dexopt/`) can
@@ -115,9 +120,13 @@ The store text and screenshots come from `fastlane/metadata/android/en-US/`.
   Google makes the app signing key and the key in the secrets above becomes
   only your upload key, so Play's APKs would carry a different signature from
   GitHub's and F-Droid's, and people couldn't move between them without
-  reinstalling. To keep one signature everywhere, choose to use your own
-  app signing key when Play Console asks at the first upload, and give it
-  the same key. Then upload the AAB from the release.
+  reinstalling. **Decided:** use your own app signing key when Play Console
+  asks at the first upload, the same key, so Play, GitHub and F-Droid all
+  carry one signature. The consequence: the key in the secrets is then the
+  app signing key everywhere, not just a Play upload key Google could reset.
+  Losing it stays recoverable for Play (Google keeps a copy under Play App
+  Signing), but a leak reaches every channel at once. Then upload the AAB
+  from the release.
 - **The listing:** the same text and screenshots as `fastlane/`, the icon at
   `fastlane/metadata/android/en-US/images/icon.png`, and the 1024×500 feature
   graphic at `images/featureGraphic.png` beside it. Its source is
