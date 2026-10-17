@@ -21,8 +21,11 @@ They're the same names dailylog uses.
 1. In `app/build.gradle.kts`, raise `versionCode` by one and set
    `versionName` (e.g. `0.2.0`).
 2. Add `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`: what
-   changed, in a few lines (500 characters at most). F-Droid and the GitHub
-   release both show it.
+   changed, in a few lines (500 characters at most), and the same text as
+   `<versionCode>1.txt` to `<versionCode>4.txt` (for version code 2: `2.txt`,
+   `21.txt` … `24.txt`). The GitHub release shows the first; F-Droid finds a
+   changelog by each APK's own version code (below). The Release workflow
+   stops if a copy is missing or different.
 3. Merge to main, then tag that commit and push the tag:
    `git tag v0.2.0 && git push origin v0.2.0`.
 4. The **Release** workflow checks the tag matches `versionName`, builds the
@@ -52,10 +55,20 @@ F-Droid builds the app itself from the tag and signs it with its own key.
   doesn't yet support compileSdk 37).
 - **After that:** each new `v*` tag is picked up on its own, one build per
   ABI (`VercodeOperation` in the draft). The `latest-debug` tag is ignored,
-  as the metadata only checks `v` tags.
-- **To check at the first submission:** F-Droid finds a changelog by the
-  APK's version code, so `changelogs/1.txt` may need copies as `11.txt` to
-  `14.txt`.
+  as `UpdateCheckMode` only matches `v` tags.
+- **The draft is kept in the form `fdroid rewritemeta` writes,** so it has no
+  comments; fdroiddata's CI rejects anything else. Check it with
+  fdroidserver (`pip install fdroidserver`) in a sparse clone of fdroiddata
+  (`git sparse-checkout set config`), with the draft in `metadata/`:
+  `fdroid lint com.app.newspaperss` and `fdroid rewritemeta com.app.newspaperss`
+  should change nothing.
+- **Why it looks as it does:**
+  - Four builds, one per ABI, because the app's build splits its APKs; each
+    names its APK with `output:`.
+  - `NonFreeNet`: the podcast voice (Kokoro) downloads from Hugging Face, as
+    SherpaTTS, the other sherpa-onnx app on F-Droid, declares.
+  - sherpa-onnx comes from JitPack, which F-Droid's scanner allows; SherpaTTS
+    uses the same library the same way.
 
 The store text and screenshots come from `fastlane/metadata/android/en-US/`.
 
