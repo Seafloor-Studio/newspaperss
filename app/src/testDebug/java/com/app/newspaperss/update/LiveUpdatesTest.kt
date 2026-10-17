@@ -168,8 +168,8 @@ class LiveUpdatesTest {
         val updates = updates()
         server.enqueue(MockResponse.Builder().code(503).build())
         assertEquals(LiveUpdates.Outcome.Retry, updates.download(464, finalAttempt = false))
-        // Declared far bigger than any APK: refused before it's read.
-        server.enqueue(MockResponse.Builder().body("apk").setHeader("Content-Length", ApkDownload.MAX_BYTES + 1).build())
+        // Cut off: fewer bytes than the server promised.
+        server.enqueue(MockResponse.Builder().body("apk").setHeader("Content-Length", 1000).build())
         assertEquals(LiveUpdates.Outcome.Failed, updates.download(464, finalAttempt = true))
         assertEquals("no partial file left", emptyList<String>(), dir.list()!!.toList())
 
