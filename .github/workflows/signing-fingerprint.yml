@@ -19,6 +19,7 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
             echo "::error::KEYSTORE_BASE64 isn't set (see docs/RELEASING.md)"
@@ -35,3 +36,45 @@ jobs:
           fi
           echo "AllowedAPKSigningKeys: $sha"
           echo "AllowedAPKSigningKeys: \`$sha\`" >> "$GITHUB_STEP_SUMMARY"
+          # Everything above opens the KEYSTORE and never touches the private key, so a wrong
+          # KEY_PASSWORD would pass this job and fail the release build at a tag -- one secret
+          # away from what this job exists to catch. keytool cannot check it: on a PKCS12
+          # store it prints "Different store and key passwords not supported ... Ignoring
+          # user-specified -keypass value" and uses the store password, so a keytool-based
+          # check cannot fail. KeyStore.getKey does honour it, which is also the call the
+          # signer makes, so ten lines of Java is the honest check. Every value comes from
+          # the environment: a password in argv is readable from /proc.
+          cat > "$RUNNER_TEMP/CheckKey.java" <<'JAVA'
+          import java.io.File;
+          import java.security.Key;
+          import java.security.KeyStore;
+
+          public class CheckKey {
+            public static void main(String[] args) {
+              try {
+                // getInstance(File, char[]) probes the file's own format, so this holds for
+                // PKCS12 (what keytool writes today) and for an older JKS alike.
+                KeyStore ks = KeyStore.getInstance(new File(System.getenv("JKS")),
+                    System.getenv("KEYSTORE_PASSWORD").toCharArray());
+                String alias = System.getenv("KEY_ALIAS");
+                Key key = ks.getKey(alias, System.getenv("KEY_PASSWORD").toCharArray());
+                if (key == null) {
+                  System.out.println("NO KEY for alias " + alias);
+                  System.exit(2);
+                }
+                System.out.println("OK the private key unlocks (" + key.getAlgorithm() + ")");
+              } catch (Exception e) {
+                System.out.println("FAILED " + e.getClass().getSimpleName() + ": " + e.getMessage());
+                System.exit(1);
+              }
+            }
+          }
+          JAVA
+          if [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::KEY_PASSWORD isn't set, so a release build could not sign"
+            exit 1
+          fi
+          if ! JKS="$jks" java "$RUNNER_TEMP/CheckKey.java"; then
+            echo "::error::KEY_PASSWORD does not unlock the key for alias $KEY_ALIAS"
+            exit 1
+          fi
