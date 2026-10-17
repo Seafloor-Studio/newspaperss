@@ -20,6 +20,7 @@ import com.app.newspaperss.work.EditionWorker
 import com.app.newspaperss.work.KokoroWorker
 import com.app.newspaperss.work.MoveFeedsWorker
 import com.app.newspaperss.work.PodcastWorker
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -227,6 +228,9 @@ internal class LiveUpdates(
                     busy = busyReason(runningWork(), listenPlaying(), foreground = !userAsked && foreground())
                     busy == null
                 }
+            } catch (e: CancellationException) {
+                // Stopped, not refused: WorkManager or a closed screen. Not counted toward giving up.
+                throw e
             } catch (e: Exception) {
                 // PackageInstaller throws IOException and SecurityException, and IllegalStateException
                 // for a session it closed under us.

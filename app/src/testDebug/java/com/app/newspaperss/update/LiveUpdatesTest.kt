@@ -262,6 +262,20 @@ class LiveUpdatesTest {
         assertTrue(commits.isEmpty())
     }
 
+    /** A worker stopped, or Today's screen closed, mid-install isn't Android refusing the build. */
+    @Test
+    fun anInstallStoppedPartWayIsNotCountedAsAFailure() = runBlocking {
+        val updates = updates()
+        ready(updates)
+        whileCopying = { throw kotlinx.coroutines.CancellationException("stopped") }
+        repeat(LiveUpdates.MAX_INSTALL_FAILURES) {
+            runCatching { updates.install(userAsked = false) }
+        }
+
+        assertEquals(listOf("build-464.apk"), dir.list()!!.toList())
+        assertEquals(SelfUpdate.Ready(464), updates.state.first())
+    }
+
     @Test
     fun whatWouldBeCutOffIsNamed() {
         assertEquals("It installs once the podcast is made.", LiveUpdates.busyReason(setOf("podcast"), listenPlaying = false, foreground = false))

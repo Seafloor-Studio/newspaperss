@@ -5,6 +5,14 @@
 
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Android 11 and later hide other apps' screens unless asked for: without this, the check for
+         the "Install unknown apps" screen (UpdateNotices) could miss one that is there. -->
+    <queries>
+        <intent>
+            <action android:name="android.settings.MANAGE_UNKNOWN_APP_SOURCES" />
+        </intent>
+    </queries>
+
     <application>
         <receiver
             android:name=".update.InstallResultReceiver"
