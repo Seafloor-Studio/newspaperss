@@ -18,16 +18,20 @@ writer last changed is a route nobody knows about.
 Build an edition first, then for each row: does the file arrive, and does it
 open with its cover and contents intact?
 
-| Route | Do this | It worked if |
-|---|---|---|
-| **Kindle, by email** | Send → your mail app opens, addressed to `…@kindle.com` with the EPUB attached | It arrives on the Kindle by itself within ~20 minutes, and the app's note ("can take a few minutes") goes away |
-| **Kindle app** | Share → Kindle, from the ready notification | It reaches the cloud library, or the device directly with "Add to your library" off |
-| **Kobo** | Share → Dropbox, into `Apps/Rakuten Kobo` | The file is in that folder, under its own name, and appears on the Kobo after a sync |
-| **PocketBook** | Share → a mail app, to your `@pbsync.com` address | It arrives on the device |
-| **KOReader** | Save to the Syncthing folder | It syncs and opens |
-| **Boox** | Read, from the app or the notification | The device's reader opens it |
-| **Folder** | Save to a folder with Android's picker | The file is there, and the edition is marked delivered |
-| **Anything else** | The share sheet | Android reports the choice back and the edition is marked sent |
+| Route | Do this | It worked if | Last checked |
+|---|---|---|---|
+| **Kindle, by email** | Send → your mail app opens, addressed to `…@kindle.com` with the EPUB attached | It arrives on the Kindle by itself within ~20 minutes, and the app's note ("can take a few minutes") goes away | Oct 2026 |
+| **Kindle app** | Share → Kindle, from the ready notification | It reaches the cloud library, or the device directly with "Add to your library" off | Oct 2026 |
+| **Kobo** | Share → Dropbox, into `Apps/Rakuten Kobo` | The file is in that folder, under its own name, and appears on the Kobo after a sync | Not yet |
+| **PocketBook** | Share → a mail app, to your `@pbsync.com` address | It arrives on the device | Not yet |
+| **KOReader** | Save to the Syncthing folder | It syncs and opens | Not yet |
+| **Boox** | Read, from the app or the notification | The device's reader opens it | Not yet |
+| **Open on this phone** | ⋮ › Open on this phone, with a reading app installed (not offered for Kindle or Kobo) | The reading app opens the book with its cover and contents | Not yet |
+| **Folder** | Save to a folder with Android's picker | The file is there, and the edition is marked delivered | Not yet |
+| **Anything else** | The share sheet | Android reports the choice back and the edition is marked sent | Not yet |
+
+Each row needs someone with that device or account, so most are for testers. Update "Last checked"
+when one is done (a month is enough).
 
 ## Then check the state it left behind
 
@@ -51,3 +55,17 @@ Android can't choose the "From" account for another app, so the address you
 send from must be on Amazon's approved list (Personal Document Settings). A
 send from the wrong account fails silently at Amazon's end, with nothing the
 app can show you. Check this first if a Kindle email never arrives.
+
+## Before the first release, also by hand
+
+Not delivery, but things a runner can't show either:
+
+- **A release build on a real phone:** onboarding, an edition and a send. CI only tests the debug build.
+- **Timed editions overnight** on a real phone, with Android's battery saving, and on an old, slow
+  phone if one is around.
+- **Imports from real accounts:** a Pocket export, an Instapaper export and an OPML file.
+- **tt-rss against a real server:** in daily use since Oct 2026. Moving feeds between the phone and
+  the server is the part used least.
+- **Pictures and players in the book** on a Kindle and a Kobo or Boox: pictures are stored rather
+  than compressed again (#263), and a podcast player leaves a "Listen on …" line (#237).
+- **TalkBack and large text** on a phone, and the screens on e-ink.
