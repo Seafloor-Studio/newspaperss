@@ -101,8 +101,9 @@ class PodcastMakerTest {
 
     private var started = 0
     private var pieceSeconds = PodcastMaker.PIECE_SECONDS
+    private var pieceWorkSeconds = PodcastMaker.PIECE_WORK_SECONDS
     private val log by lazy { PodcastLog(tmp.newFile("log")) }
-    private val maker by lazy { PodcastMaker(editions, store, install, settings, engine, encoder, pieceSeconds, now = { clock }, log = log) }
+    private val maker by lazy { PodcastMaker(editions, store, install, settings, engine, encoder, pieceSeconds, pieceWorkSeconds, now = { clock }, log = log) }
     private val podcasts by lazy { Podcasts(store, settings, install) { started++ } }
 
     private val knots = EditionArticle(
@@ -286,6 +287,33 @@ class PodcastMakerTest {
         assertFalse(File(store.dir, id.toString()).exists())
         assertTrue(store.waiting().isEmpty())
         assertFalse(said.contains("Rest of World"))
+    }
+
+    @Test
+    fun aThrottledPhoneKeepsPiecesOnWorkNotOnlyOnAudio() {
+        inUse()
+        // Far more audio than this page holds, so only the work bound can cut a piece.
+        pieceSeconds = 1000.0
+        pieceWorkSeconds = 0.000001
+        val id = edition("Thursday", knots, lagos)
+        request(id)
+        make()
+
+        assertTrue(store.finished(id))
+        assertTrue("the work bound should have cut the page into pieces", store.pieces(id, 0).size > 1)
+    }
+
+    @Test
+    fun aCoolPhoneIsNotCutByTheWorkBound() {
+        inUse()
+        pieceSeconds = 1000.0
+        pieceWorkSeconds = 1000.0
+        val id = edition("Thursday", knots, lagos)
+        request(id)
+        make()
+
+        assertTrue(store.finished(id))
+        assertEquals(1, store.pieces(id, 0).size)
     }
 
     @Test

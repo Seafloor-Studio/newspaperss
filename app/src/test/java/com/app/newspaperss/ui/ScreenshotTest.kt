@@ -1114,7 +1114,7 @@ class ScreenshotTest {
         installVoice(ApplicationProvider.getApplicationContext())
         runBlocking { store.update { it.copy(podcastPace = pace, listenVoice = if (inUse) ListenVoice.PODCAST else ListenVoice.PHONE) } }
         val setup = PodcastSetup(
-            install, store, work, start = {}, stop = {}, supported = true, engine = { error("not shot") },
+            install, store, work, start = {}, stop = {}, unsupported = { null }, engine = { error("not shot") },
             podcasts = Podcasts(podcasts, store, install) {},
             log = log,
         )

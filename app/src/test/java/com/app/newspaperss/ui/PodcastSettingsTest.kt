@@ -78,7 +78,7 @@ class PodcastSettingsTest {
     private fun show(supported: Boolean = true): SettingsViewModel {
         installVoice(context)
         setup = PodcastSetup(
-            install, store, work, start = { started += it }, stop = { stopped++ }, supported = supported,
+            install, store, work, start = { started += it }, stop = { stopped++ }, unsupported = { if (supported) null else "Kokoro needs a 64-bit phone, and this one is 32-bit." },
             engine = { error("not in these tests") },
             podcasts = Podcasts(PodcastStore(java.io.File(context.filesDir, "podcasts")), store, install) {},
             log = log,

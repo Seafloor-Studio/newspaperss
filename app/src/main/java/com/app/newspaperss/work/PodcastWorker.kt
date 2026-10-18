@@ -9,6 +9,7 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
 import android.os.SystemClock
+import androidx.annotation.RequiresApi
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
@@ -24,6 +25,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 /**
  * Makes the podcasts asked for ([PodcastMaker.makeAll]), only while the phone charges: a
@@ -43,38 +46,51 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     private var timedOut = false
 
     override suspend fun doWork(): Result = try {
-        val asked = mayGoForeground()
-        log.add("Run started (try ${runAttemptCount + 1}): ${if (asked) "asking for the foreground" else "in the background"}, ${standing()}")
-        if (asked && !goForeground()) {
-            enqueue(applicationContext)
+        val holdBack = holdBack()
+        if (holdBack != null) {
+            // Before loading Kokoro: that alone is seconds and 325 MB, and would heat the phone further.
+            log.add("Not started (try ${runAttemptCount + 1}): $holdBack; trying again in ${COOL_OFF_MS / 60_000} min, ${standing()}")
+            enqueue(applicationContext, COOL_OFF_MS)
         } else {
-            val started = SystemClock.elapsedRealtime()
-            var checked = false
-            val stopped = makeWhile(CHECK_MS, { applicationContext.container.podcastMaker.makeAll() }, ::noteTimeout) {
-                val foreground = inForeground()
-                if (!checked) {
-                    checked = true
-                    log.add(if (foreground) "In the foreground" else "Not in the foreground")
-                }
-                when {
-                    !plugged() -> false.also { log.add("Stopped: unplugged") }
-                    foreground || SystemClock.elapsedRealtime() - started < BACKGROUND_MS -> true
-                    else -> {
-                        // Asked, and refused silently inside WorkManager's service: Android 15's
-                        // 6 hours a day used up, most likely.
-                        if (asked) holdOff(TIMED_OUT_MS)
-                        log.add("Stopped at ${BACKGROUND_MS / 60_000} min, not in the foreground" + if (asked) "; not asking again for 12 hours" else "")
-                        false
+            val asked = mayGoForeground()
+            log.add("Run started (try ${runAttemptCount + 1}): ${if (asked) "asking for the foreground" else "in the background"}, ${standing()}")
+            if (asked && !goForeground()) {
+                enqueue(applicationContext)
+            } else {
+                val started = SystemClock.elapsedRealtime()
+                var checked = false
+                var cooling = false
+                val stopped = makeWhile(CHECK_MS, { applicationContext.container.podcastMaker.makeAll() }, ::noteTimeout) {
+                    val foreground = inForeground()
+                    if (!checked) {
+                        checked = true
+                        log.add(if (foreground) "In the foreground" else "Not in the foreground")
+                    }
+                    val hot = holdBack()
+                    when {
+                        !plugged() -> false.also { log.add("Stopped: unplugged") }
+                        hot != null -> false.also {
+                            cooling = true
+                            log.add("Stopped: $hot; trying again in ${COOL_OFF_MS / 60_000} min")
+                        }
+                        foreground || SystemClock.elapsedRealtime() - started < BACKGROUND_MS -> true
+                        else -> {
+                            // Asked, and refused silently inside WorkManager's service: Android 15's
+                            // 6 hours a day used up, most likely.
+                            if (asked) holdOff(TIMED_OUT_MS)
+                            log.add("Stopped at ${BACKGROUND_MS / 60_000} min, not in the foreground" + if (asked) "; not asking again for 12 hours" else "")
+                            false
+                        }
                     }
                 }
+                if (!stopped) log.add("Run ended")
+                if (stopped) enqueue(applicationContext, if (cooling) COOL_OFF_MS else 0L)
             }
-            if (!stopped) log.add("Run ended")
-            if (stopped) enqueue(applicationContext)
         }
         Result.success()
     } catch (e: CancellationException) {
         noteTimeout()
-        log.add("Stopped by Android" + if (Build.VERSION.SDK_INT >= 31) " (reason $stopReason)" else "")
+        log.add("Stopped by Android" + if (Build.VERSION.SDK_INT >= 31) ": ${stopReasonName(stopReason)} (reason $stopReason)" else "")
         throw e
     } catch (e: Exception) {
         // Kokoro couldn't load (its files damaged since the check, say): asked again, it tries again.
@@ -91,7 +107,44 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         val power = applicationContext.getSystemService(PowerManager::class.java)
         val battery = if (power.isIgnoringBatteryOptimizations(applicationContext.packageName)) "battery unrestricted" else "battery optimized"
         val held = if (SystemClock.elapsedRealtime() < holdOffUntil) ", holding off after a refusal" else ""
-        return "Android ${Build.VERSION.SDK_INT}, $battery, ${if (plugged()) "plugged in" else "unplugged"}$held"
+        return "Android ${Build.VERSION.SDK_INT}, $battery, ${if (plugged()) "plugged in" else "unplugged"}, ${heat()}$held"
+    }
+
+    /**
+     * Why this run shouldn't be making speech now, or null.
+     *
+     * Android throttles the CPU long before it calls the heat severe: a run measured at 1.6x
+     * realtime on a cool phone has been seen at 5.7x, where it makes a second of audio every six,
+     * heats the phone for no gain, and loses the unkept part of a piece each time Android stops
+     * it. Stopping at moderate also keeps the phone short of the severities where Android's own
+     * mitigation starts cutting power to the radios.
+     */
+    private fun holdBack(): String? {
+        val power = applicationContext.getSystemService(PowerManager::class.java) ?: return null
+        if (power.isPowerSaveMode) return "the phone is in battery saver"
+        if (Build.VERSION.SDK_INT < 29) return null
+        val status = power.currentThermalStatus
+        if (status >= PowerManager.THERMAL_STATUS_MODERATE) return "the phone is hot (${thermalName(status)})"
+        val headroom = headroom(power)
+        if (headroom != null && headroom >= HEADROOM_LIMIT) {
+            return "the phone is about to be throttled (headroom ${"%.2f".format(Locale.ROOT, headroom)})"
+        }
+        return null
+    }
+
+    /** The heat, for the log: a run's pace means little without it. */
+    private fun heat(): String {
+        if (Build.VERSION.SDK_INT < 29) return "heat unknown"
+        val power = applicationContext.getSystemService(PowerManager::class.java) ?: return "heat unknown"
+        val saver = if (power.isPowerSaveMode) ", battery saver" else ""
+        val headroom = headroom(power)?.let { ", headroom ${"%.2f".format(Locale.ROOT, it)}" } ?: ""
+        return "thermal ${thermalName(power.currentThermalStatus)}$headroom$saver"
+    }
+
+    /** Null when Android won't say: asked too often (ours is every [CHECK_MS]) or too soon after boot. */
+    private fun headroom(power: PowerManager): Float? {
+        if (Build.VERSION.SDK_INT < 30) return null
+        return runCatching { power.getThermalHeadroom(HEADROOM_SECONDS) }.getOrNull()?.takeUnless { it.isNaN() }
     }
 
     /**
@@ -165,6 +218,15 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         internal const val UNIQUE = "podcast"
         private const val CHECK_MS = 30_000L
 
+        /** How long the phone is left alone after a run stopped, or didn't start, for heat. */
+        private const val COOL_OFF_MS = 20 * 60_000L
+
+        /** How far ahead Android forecasts the heat. Its own ceiling is a minute. */
+        private const val HEADROOM_SECONDS = 30
+
+        /** 1.0 is throttling; backing off a little short of it keeps the run ahead of the throttle. */
+        private const val HEADROOM_LIMIT = 0.95f
+
         /** WorkManager's, by name: the class is internal to it. */
         private const val FOREGROUND_SERVICE = "androidx.work.impl.foreground.SystemForegroundService"
 
@@ -216,11 +278,49 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
          * its page, sees the newest edition asked for, and moves to it; one finishing just as
          * this is asked runs again after.
          */
-        fun enqueue(context: Context) {
+        fun enqueue(context: Context, afterMs: Long = 0L) {
             val request = OneTimeWorkRequestBuilder<PodcastWorker>()
-                .setConstraints(Constraints.Builder().setRequiresCharging(true).build())
+                .setConstraints(Constraints.Builder().setRequiresCharging(true).setRequiresBatteryNotLow(true).build())
+                // Appended, so a podcast asked for while the phone cools waits for the cool-off too:
+                // the phone being too hot to make speech is the reason either way.
+                .apply { if (afterMs > 0) setInitialDelay(afterMs, TimeUnit.MILLISECONDS) }
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+        }
+
+        /** Android's stop reasons by name: the number alone sent a session guessing. */
+        internal fun stopReasonName(reason: Int) = when (reason) {
+            WorkInfo.STOP_REASON_CANCELLED_BY_APP -> "cancelled by the app"
+            WorkInfo.STOP_REASON_PREEMPT -> "preempted"
+            WorkInfo.STOP_REASON_TIMEOUT -> "timed out"
+            WorkInfo.STOP_REASON_DEVICE_STATE -> "device state, heat most likely"
+            WorkInfo.STOP_REASON_CONSTRAINT_BATTERY_NOT_LOW -> "battery low"
+            WorkInfo.STOP_REASON_CONSTRAINT_CHARGING -> "unplugged"
+            WorkInfo.STOP_REASON_CONSTRAINT_CONNECTIVITY -> "no network"
+            WorkInfo.STOP_REASON_CONSTRAINT_DEVICE_IDLE -> "phone in use"
+            WorkInfo.STOP_REASON_CONSTRAINT_STORAGE_NOT_LOW -> "storage low"
+            WorkInfo.STOP_REASON_QUOTA -> "out of its share of background work"
+            WorkInfo.STOP_REASON_BACKGROUND_RESTRICTION -> "background work restricted"
+            WorkInfo.STOP_REASON_APP_STANDBY -> "app in standby"
+            WorkInfo.STOP_REASON_USER -> "by the reader"
+            WorkInfo.STOP_REASON_SYSTEM_PROCESSING -> "the system needed the phone"
+            WorkInfo.STOP_REASON_ESTIMATED_APP_LAUNCH_TIME_CHANGED -> "the app was about to be launched"
+            WorkInfo.STOP_REASON_FOREGROUND_SERVICE_TIMEOUT -> "the day's foreground time used up"
+            WorkInfo.STOP_REASON_NOT_STOPPED -> "not stopped"
+            WorkInfo.STOP_REASON_UNKNOWN -> "unknown"
+            else -> "unnamed"
+        }
+
+        @RequiresApi(Build.VERSION_CODES.Q)
+        private fun thermalName(status: Int) = when (status) {
+            PowerManager.THERMAL_STATUS_NONE -> "none"
+            PowerManager.THERMAL_STATUS_LIGHT -> "light"
+            PowerManager.THERMAL_STATUS_MODERATE -> "moderate"
+            PowerManager.THERMAL_STATUS_SEVERE -> "severe"
+            PowerManager.THERMAL_STATUS_CRITICAL -> "critical"
+            PowerManager.THERMAL_STATUS_EMERGENCY -> "emergency"
+            PowerManager.THERMAL_STATUS_SHUTDOWN -> "shutdown"
+            else -> "status $status"
         }
     }
 }

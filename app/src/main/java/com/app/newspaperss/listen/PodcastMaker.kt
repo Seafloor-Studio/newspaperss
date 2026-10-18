@@ -31,6 +31,12 @@ class PodcastMaker(
     private val encoder: AudioEncoder,
     /** Seconds of audio in a piece: kept that often, so a stop loses at most that much work. */
     private val pieceSeconds: Double = PIECE_SECONDS,
+    /**
+     * Seconds of work in a piece, whatever audio came of them. A cool phone takes about 190s over
+     * [pieceSeconds]; a throttled one has taken 700s, and lost all of it when Android stopped the
+     * run. This bounds what a stop costs in the time the phone actually spent.
+     */
+    private val pieceWorkSeconds: Double = PIECE_WORK_SECONDS,
     private val now: () -> Long = System::nanoTime,
     private val log: PodcastLog = PodcastLog(null),
 ) {
@@ -180,7 +186,7 @@ class PodcastMaker(
                 val took = seconds(now() - began)
                 if (took >= SLOW_LINE_SECONDS) log.add("Page $page line $i took ${took}s (${lines[i].spoken.length} characters)")
                 next = i + 1
-                if (current.seconds >= pieceSeconds && i < lines.lastIndex) {
+                if ((current.seconds >= pieceSeconds || current.workSeconds >= pieceWorkSeconds) && i < lines.lastIndex) {
                     current.keep(editionId, page, asked)
                     piece = null
                 }
@@ -227,6 +233,7 @@ class PodcastMaker(
         val starts = mutableListOf<Double>()
         private var samples = 0L
         val seconds: Double get() = samples.toDouble() / rate
+        val workSeconds: Double get() = work / 1e9
 
         fun write(audio: FloatArray) {
             sink.write(audio)
@@ -260,6 +267,9 @@ class PodcastMaker(
         private const val PAUSE = 0.35
 
         const val PIECE_SECONDS = 120.0
+
+        /** Rather over what [PIECE_SECONDS] costs a cool phone, so only a throttled one meets it first. */
+        const val PIECE_WORK_SECONDS = 240.0
 
         /** A line taking this long is logged: one too long for a run would never be made. */
         private const val SLOW_LINE_SECONDS = 30

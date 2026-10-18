@@ -42,6 +42,7 @@ import com.app.newspaperss.listen.SystemSpeaker
 import com.app.newspaperss.listen.KokoroDownload
 import com.app.newspaperss.listen.KokoroEngine
 import com.app.newspaperss.listen.KokoroInstall
+import com.app.newspaperss.listen.KokoroSupport
 import com.app.newspaperss.listen.PodcastSetup
 import com.app.newspaperss.listen.PodcastLog
 import com.app.newspaperss.listen.PodcastMaker
@@ -198,7 +199,7 @@ class AppContainer(
             kokoroInstall, settings, KokoroWorker.observe(context),
             start = { KokoroWorker.enqueue(context, it) },
             stop = { KokoroWorker.cancel(context) },
-            supported = KokoroInstall.supported,
+            unsupported = { installed -> KokoroSupport.why(context, installed) },
             engine = podcastEngine,
             podcasts = podcasts,
             log = podcastLog,

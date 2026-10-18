@@ -112,14 +112,14 @@ internal fun ListeningVoices(s: AppSettings, vm: SettingsViewModel, kokoro: Koko
                 OutlinedButton(onClick = onGetPhoneVoice) { Text("Get Speech Services by Google") }
             }
         }
-        val unsupported = kokoro is KokoroState.Unsupported
+        val unsupported = (kokoro as? KokoroState.Unsupported)?.why
         VoiceOption(
             selected = podcast,
             title = "A natural voice",
-            detail = if (unsupported) "Kokoro needs a 64-bit phone, and this one is 32-bit." else "Kokoro · made ahead while your phone charges · $mb",
-            enabled = !unsupported,
+            detail = unsupported ?: "Kokoro · made ahead while your phone charges · $mb",
+            enabled = unsupported == null,
             onSelect = ::pickPodcast,
-            sample = if (unsupported) null else ({ samples.play(context, sampleOf(s.podcastVoice)) }),
+            sample = if (unsupported != null) null else ({ samples.play(context, sampleOf(s.podcastVoice)) }),
         )
     }
 

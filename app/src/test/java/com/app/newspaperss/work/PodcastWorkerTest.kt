@@ -75,8 +75,45 @@ class PodcastWorkerTest {
     private fun unrestricted(yes: Boolean) =
         shadowOf(app.getSystemService(PowerManager::class.java)).setIgnoringBatteryOptimizations(app.packageName, yes)
 
+    private fun thermal(status: Int) =
+        shadowOf(app.getSystemService(PowerManager::class.java)).setCurrentThermalStatus(status)
+
+    private fun batterySaver(yes: Boolean) =
+        shadowOf(app.getSystemService(PowerManager::class.java)).setIsPowerSaveMode(yes)
+
     private suspend fun run(updater: ForegroundUpdater) =
         TestListenableWorkerBuilder<PodcastWorker>(app).setForegroundUpdater(updater).build().doWork()
+
+    @Test
+    fun aHotPhoneIsLeftAloneAndTriedAgainLater() = runTest {
+        unrestricted(true)
+        thermal(PowerManager.THERMAL_STATUS_MODERATE)
+
+        assertTrue(run(allowed) is ListenableWorker.Result.Success)
+
+        // Kokoro is never loaded: no foreground notification, and the work waits to cool off.
+        assertNull(shown)
+        assertEquals(1, queued())
+    }
+
+    @Test
+    fun lightHeatIsNotTooHotToMakeSpeech() = runTest {
+        unrestricted(true)
+        thermal(PowerManager.THERMAL_STATUS_LIGHT)
+
+        assertTrue(run(allowed) is ListenableWorker.Result.Success)
+        assertTrue(shown != null)
+    }
+
+    @Test
+    fun batterySaverLeavesThePhoneAlone() = runTest {
+        unrestricted(true)
+        batterySaver(true)
+
+        assertTrue(run(allowed) is ListenableWorker.Result.Success)
+        assertNull(shown)
+        assertEquals(1, queued())
+    }
 
     @Test
     fun unrestrictedItGoesForegroundQuietlyAsAKindTheManifestDeclares() = runTest {
