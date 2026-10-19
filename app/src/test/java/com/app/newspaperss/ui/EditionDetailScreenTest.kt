@@ -30,6 +30,7 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.data.AppDatabase
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleState
@@ -123,6 +124,29 @@ class EditionDetailScreenTest {
 
     private fun waitFor(text: String) = idleUntil {
         compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    @Test
+    fun episodePostsSayWhatTheyAre() {
+        val titles = listOf("October 15", "Corruption as a Driving Force", "An essay", "Episode 12")
+        val (id, ids) = edition(EditionStatus.READY, titles)
+        runBlocking {
+            val source = db.articles().byId(ids[0])!!.sourceId
+            db.articles().pairEpisode(source, "October 15", "Corruption as a Driving Force", EpisodeKind.ARTICLE)
+            db.articles().pairEpisode(source, "Corruption as a Driving Force", "October 15", EpisodeKind.AUDIO_VERSION)
+            db.articles().setEpisodeKind(source, "An essay", EpisodeKind.ARTICLE)
+            db.articles().setEpisodeKind(source, "Episode 12", EpisodeKind.NOTES)
+        }
+        show(id)
+        waitFor("Episode notes")
+
+        compose.onNodeWithText("Audio version of “October 15”").assertIsDisplayed()
+        compose.onNodeWithText("Has an audio version").assertIsDisplayed()
+        // Each under its own article, and none under the essay.
+        val top = { text: String -> compose.onNodeWithText(text).fetchSemanticsNode().boundsInRoot.top }
+        assertTrue(top("Has an audio version") in top("October 15")..top("Corruption as a Driving Force"))
+        assertTrue(top("Episode notes") > top("An essay"))
+        assertEquals(3, compose.onAllNodes(hasText("Episode notes") or hasText("audio version", substring = true, ignoreCase = true)).fetchSemanticsNodes().size)
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.app.newspaperss.ui
 
+import com.app.newspaperss.ui.components.episodeNote
+import com.app.newspaperss.core.episodes.EpisodeKind
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.CompositionLocalProvider
 import com.app.newspaperss.testutil.TestDataStores
@@ -472,6 +474,35 @@ class ScreenshotTest {
         shoot("05b-edition-detail", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}, listening = listening) }
     }
 
+    /** Posts the episode detector judged: a letter and its reading, show notes, a transcript, and an article. */
+    @Test
+    fun editionDetailEpisodes() {
+        val id = runBlocking {
+            val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Letter"))
+            val posts = listOf(
+                "October 15" to EpisodeKind.ARTICLE,
+                "A reading of the letter" to EpisodeKind.AUDIO_VERSION,
+                "How a ferry timetable is made, with its planner" to EpisodeKind.NOTES,
+                "Transcript: the ferry planner" to EpisodeKind.TRANSCRIPT,
+                "Why city trees are planted in pairs" to EpisodeKind.ARTICLE,
+            )
+            val ids = posts.mapIndexed { i, (title, _) -> db.articles().insertIgnoring(ArticleEntity(sourceId = source, guid = title, url = "https://example.com/$i", title = title, state = ArticleState.DELIVERED)) }
+            db.articles().pairEpisode(source, posts[0].first, posts[1].first, EpisodeKind.ARTICLE)
+            db.articles().pairEpisode(source, posts[1].first, posts[0].first, EpisodeKind.AUDIO_VERSION)
+            posts.drop(2).forEach { (title, kind) -> db.articles().setEpisodeKind(source, title, kind) }
+            val now = Instant.parse("2026-09-29T06:30:00Z")
+            val edition = db.editions().insert(EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.DELIVERED, fileName = "e.epub", articleCount = 5, minutes = 52.0, deliveredAt = now))
+            db.editions().insertArticles(posts.mapIndexed { i, (title, _) ->
+                EditionArticleEntity(editionId = edition, articleId = ids[i], position = i, title = title, sourceTitle = "The Example Letter", minutes = listOf(10.0, 1.0, 2.0, 30.0, 9.0)[i])
+            })
+            edition
+        }
+        val vm = viewModels.add(EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id) {})
+        shoot("05k-edition-detail-episodes", ready = { vm.detail.value?.contents?.any { it.episodeKind != null } == true }, act = {
+            compose.onNode(hasScrollAction()).performScrollToNode(hasText("Why city trees are planted in pairs"))
+        }) { EditionDetailScreen(vm, onBack = {}) }
+    }
+
     /** Not sent before the next was made: released, and can still be marked as sent. */
     @Test
     fun editionDetailNotSent() {
@@ -624,6 +655,17 @@ class ScreenshotTest {
         }
     }
 
+    /** An episode post: the line above it says what it is. */
+    @Test
+    fun articlePreviewEpisode() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "How a ferry timetable is made, with its planner", sourceTitle = "The Example Letter", url = "https://example.com/ferry", bodyHtml = "<p>This week's guest plans ferries.</p>", minutes = 2.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05c-article-preview-episode", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, noteFor = { episodeNote(EpisodeKind.NOTES, null) })
+        }
+    }
+
     /** Send for a look: what it says before anything is sent. */
     @Test
     fun articlePreviewSendForALook() {
@@ -720,6 +762,34 @@ class ScreenshotTest {
     fun sourceDetail() {
         val vm = sourceWithArticles()
         shoot("06b-source-detail", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, act = ::scrollToArticles) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** A newsletter that posts episodes: how often, and each one's label. */
+    @Test
+    fun sourceDetailEpisodes() {
+        val repo = SourceRepository(db, clock)
+        val id = runBlocking {
+            val id = repo.addFeed("https://example.com/feed", "The Example Letter")
+            val posts = listOf(
+                "How a ferry timetable is made, with its planner" to EpisodeKind.NOTES,
+                "The case for slower trains" to EpisodeKind.ARTICLE,
+                "Transcript: the ferry planner" to EpisodeKind.TRANSCRIPT,
+                "October 15" to EpisodeKind.ARTICLE,
+                "A reading of the letter" to EpisodeKind.AUDIO_VERSION,
+                "Why city trees are planted in pairs" to EpisodeKind.ARTICLE,
+            )
+            db.articles().insertNew(posts.mapIndexed { i, (title, _) -> ArticleEntity(sourceId = id, guid = title, url = "https://example.com/$i", title = title, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1))) })
+            db.articles().pairEpisode(id, "October 15", "A reading of the letter", EpisodeKind.ARTICLE)
+            db.articles().pairEpisode(id, "A reading of the letter", "October 15", EpisodeKind.AUDIO_VERSION)
+            db.articles().pairEpisode(id, "Transcript: the ferry planner", posts[0].first, EpisodeKind.TRANSCRIPT)
+            posts.filter { it.first !in setOf("October 15", "A reading of the letter", "Transcript: the ferry planner") }.forEach { (title, kind) -> db.articles().setEpisodeKind(id, title, kind) }
+            db.sources().recordSuccess(id, clock.instant(), null, "https://example.com", "")
+            id
+        }
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
+        shoot("06g-source-detail-episodes", ready = { vm.detail.value?.episodePairs?.isNotEmpty() == true }, act = {
+            compose.onNode(hasScrollAction()).performScrollToNode(hasText("Posts episodes", substring = true))
+        }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
     /** A busy source lists only its newest articles, and the heading says so rather than looking like a total. */

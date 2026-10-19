@@ -392,6 +392,13 @@ interface ArticleDao {
     )
     fun observeRecentForFeed(sourceId: Long, originId: String, limit: Int): Flow<List<ArticleEntity>>
 
+    /** The posts a source's articles are paired with ([ArticleEntity.episodePair]). */
+    @Query(
+        """SELECT guid, title, episodeKind FROM articles WHERE sourceId = :sourceId
+           AND guid IN (SELECT episodePair FROM articles WHERE sourceId = :sourceId AND episodePair IS NOT NULL)""",
+    )
+    fun observeEpisodePairs(sourceId: Long): Flow<List<EpisodePair>>
+
     @Query("SELECT * FROM articles WHERE sourceId = :sourceId ORDER BY discoveredAt, id")
     suspend fun allForSource(sourceId: Long): List<ArticleEntity>
 
@@ -728,7 +735,14 @@ data class EditionContent(
     val state: ArticleState?,
     /** The article's current star, as against [EditionArticleEntity.starred], its star when the edition was made. */
     val starredAt: Instant? = null,
+    /** What the article is beside podcast episodes ([ArticleEntity.episodeKind]); null if never judged. */
+    val episodeKind: EpisodeKind? = null,
+    /** The post it pairs with ([ArticleEntity.episodePair]), if that is still stored. */
+    @Embedded(prefix = "pair_") val pair: EpisodePair? = null,
 )
+
+/** A post another is paired with, as [ArticleEntity.episodePair] names it. */
+data class EpisodePair(val guid: String, val title: String, val episodeKind: EpisodeKind?)
 
 @Dao
 interface EditionDao {
@@ -799,8 +813,11 @@ interface EditionDao {
     fun observeArticles(editionId: Long): Flow<List<EditionArticleEntity>>
 
     @Query(
-        """SELECT edition_articles.*, articles.state AS state, articles.starredAt AS starredAt FROM edition_articles
+        """SELECT edition_articles.*, articles.state AS state, articles.starredAt AS starredAt, articles.episodeKind AS episodeKind,
+           pair.guid AS pair_guid, pair.title AS pair_title, pair.episodeKind AS pair_episodeKind
+           FROM edition_articles
            LEFT JOIN articles ON articles.id = edition_articles.articleId
+           LEFT JOIN articles AS pair ON pair.sourceId = articles.sourceId AND pair.guid = articles.episodePair
            WHERE editionId = :editionId ORDER BY position""",
     )
     fun observeContents(editionId: Long): Flow<List<EditionContent>>

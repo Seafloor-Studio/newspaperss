@@ -216,6 +216,23 @@ class ArticlePreviewScreenTest {
     }
 
     @Test
+    fun theLineAboutAnEpisodeFollowsTheArticleOnScreen() {
+        val file = tmp.newFile("n.epub")
+        file.writeEpub(listOf("Episode 12", "An essay").map { EditionArticle(title = it, sourceTitle = "S", url = "https://a.example/$it", bodyHtml = "<p>x</p>", minutes = 3.0) })
+        val note = "Episode notes: this post comes with a podcast episode."
+        compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "Episode 12", onBack = {}, noteFor = { if (it == 0) note else null }) }
+        val view = webView()
+        compose.onNodeWithText(note).assertIsDisplayed()
+
+        // "Next" to an article that isn't an episode post.
+        val client = shadowOf(view).webViewClient
+        client.doUpdateVisitedHistory(view, BOOK_ORIGIN + EpubPages.articleHref(1), false)
+        idleUntil { compose.onAllNodesWithText(note).fetchSemanticsNodes().isEmpty() }
+        client.doUpdateVisitedHistory(view, BOOK_ORIGIN + EpubPages.articleHref(0), false)
+        idleUntil { compose.onAllNodesWithText(note).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    @Test
     fun aSizePickedWithAaIsSavedAndMarked() {
         val file = oneArticleEdition()
         var size by mutableStateOf(PreviewTextSize.DEFAULT)

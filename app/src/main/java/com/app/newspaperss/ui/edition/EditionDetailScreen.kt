@@ -52,6 +52,8 @@ import com.app.newspaperss.edition.EditionBuilder
 import com.app.newspaperss.listen.Listening
 import com.app.newspaperss.settings.KindleEmail
 import com.app.newspaperss.ui.components.ArticleRowFrame
+import com.app.newspaperss.ui.components.EpisodeLabelTag
+import com.app.newspaperss.ui.components.episodeLabel
 import com.app.newspaperss.ui.components.BUILDING_NOTE
 import com.app.newspaperss.ui.components.LocalClock
 import com.app.newspaperss.ui.components.StarToggle
@@ -315,6 +317,7 @@ private fun ContentRow(
         details = {
             Column {
                 Text(details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                episodeLabel(content.episodeKind, content.pair)?.let { EpisodeLabelTag(it) }
                 if (starred) {
                     Text("Starred for your next edition", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                 }
