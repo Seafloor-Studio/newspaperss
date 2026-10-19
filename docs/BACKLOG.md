@@ -325,7 +325,7 @@ labelled corpus are [research/podcast-episodes.md](research/podcast-episodes.md)
 - [ ] **Readings for editions made before #322:** their audio was never timed, so an article's own audio isn't played. Time what's missing when Listen opens an edition
 - [ ] **Step 4:** transcripts play their episode in place; notes are read without their furniture and their episode plays at the end; streamed
 - [ ] **Step 5:** downloads for listening offline
-- [ ] **The `handle-issues` skill** doesn't mention "Episode label:" or "Extraction:" issues; it's shared from claude-playground, so it changes there first *(your call)*
+- [x] **The `handle-issues` skill** handles "Episode label:" and "Extraction:" issues: CLAUDE.md's "Issues the app files" says how
 - [ ] **An `episodes` label** on the repo, for the wrong-label reports to carry *(you)*
 
 #### From the 19 Oct audits *(audit)*

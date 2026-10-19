@@ -59,6 +59,11 @@ Read the issue, its comments, and the code it touches, then sort it:
 | **Significant architecture change**: new subsystems, data model or schema changes, a different approach to sync, delivery or storage, large refactors. | Write a proposal. | madCode only |
 | **Both UX and architecture** | Write a proposal. | The reporter and madCode |
 
+**Issues the app files itself.** Some apps open an issue for the user (a report button that
+fills in GitHub's new-issue form). The project's CLAUDE.md lists them by title, with what each
+one needs: its type, how to check the report and what a fix looks like. Its rules for those
+issues come before this table.
+
 When in doubt between bug and UX change, treat it as a UX change. If a
 "bug" fix turns out to need a design change or more than a contained diff,
 stop and write a proposal instead.
@@ -197,7 +202,8 @@ with the attribution footer and then the marker on its own line:
     <!-- claude-issue-check -->
 
 Labels are fine to add when they're obviously right (`bug`, `enhancement`,
-`documentation`, `question`); don't invent new ones, apart from the one below.
+`documentation`, `question`, and any the project's CLAUDE.md names); don't invent new ones,
+apart from the one below.
 
 `waiting on madCode` marks an issue whose next step is madCode's, so they
 can filter for their turn. Keep it accurate on every issue you touch:
