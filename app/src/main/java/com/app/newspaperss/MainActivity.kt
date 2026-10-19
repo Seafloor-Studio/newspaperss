@@ -1,7 +1,11 @@
 package com.app.newspaperss
 
 import androidx.navigation.NavBackStackEntry
+import com.app.newspaperss.data.ArticleSource
+import com.app.newspaperss.data.EditionContent
+import com.app.newspaperss.data.FeedMoves
 import com.app.newspaperss.data.PublicationEntity
+import com.app.newspaperss.data.SourceKind
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.net.Uri
 
@@ -248,6 +252,10 @@ private fun App(
                 val id = entry.idArg
                 val position = entry.arguments?.getInt("position") ?: 0
                 val contents by remember(id) { container.editions.observeContents(id) }.collectAsStateWithLifecycle(initialValue = emptyList())
+                // A phone feed moved to tt-rss is kept, paused, while editions still take from it,
+                // but Sources hides it: its page would offer settings nothing reads any more, and a
+                // Resume that starts it fetching beside the tt-rss feed it became.
+                val moving by remember { container.feedMoves.state }.collectAsStateWithLifecycle(initialValue = FeedMoves.State())
                 val editionTitle by produceState<String?>(null, id) { value = container.editions.byId(id)?.title }
                 val textSize by remember { container.settings.settings.map { it.previewTextSize } }.collectAsStateWithLifecycle(initialValue = null)
                 ArticlePreviewScreen(
@@ -260,6 +268,10 @@ private fun App(
                     onListen = { article ->
                         container.listening.start(id, ListenPosition(article, 0))
                         nav.navigate(LISTEN) { launchSingleTop = true }
+                    },
+                    sourceAt = { position -> goTo(contents, moving, position)?.title },
+                    onOpenSource = { position ->
+                        goTo(contents, moving, position)?.let { nav.navigate(sourceRoute(it)) { launchSingleTop = true } }
                     },
                     episodeFor = { article -> contents.getOrNull(article)?.let { c -> c.episodeKind?.let { EpisodeJudgement(it, c.pair) } } },
                 )
@@ -353,6 +365,20 @@ private fun settingsViewModel(container: AppContainer): SettingsViewModel {
 private val NavBackStackEntry.idArg: Long get() = arguments?.getLong("id") ?: 0L
 
 private fun feedRoute(sourceId: Long, key: String) = "source/$sourceId/feed/${Uri.encode(key)}"
+
+/** Where the article at [position] came from, if there's a page of its own to go to. */
+internal fun goTo(contents: List<EditionContent>, moving: FeedMoves.State, position: Int): ArticleSource? =
+    contents.getOrNull(position)?.source?.takeIf { !moving.hides(it.id, it.paused) }
+
+/**
+ * The page for where an article came from: a tt-rss account's feed within it, the reading list's
+ * own screen, else the source's page.
+ */
+private fun sourceRoute(source: ArticleSource) = when {
+    source.kind == SourceKind.READING_LIST -> READING_LIST
+    source.feedKey != null -> feedRoute(source.id, source.feedKey)
+    else -> "source/${source.id}"
+}
 
 /** A source's page, or one of a tt-rss account's feeds by its [key]. */
 private fun sourceDetail(container: AppContainer, id: Long, key: String = PublicationEntity.OWN, sync: () -> Unit = {}) =

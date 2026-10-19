@@ -16,14 +16,13 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] Another tt-rss user, or another server, still meets the first one's delivered links: `delivered_urls` is shared, so a story the first user received is skipped for the second, and marked read on their server. Small, but partners often follow the same blogs. Forget the delivered links that came only from the old source when it goes? *(review, 16 Oct)*
 - [ ] Restored onto a new phone, the database comes back without the tt-rss login (it's left out of backups), so whoever signs in next keeps the waiting and starred articles, as the same user would. Ask on sign-in whether it's the same account? *(review, 16 Oct)*
 - [ ] About 100 view models built directly in tests (Today, Settings, Sources…) are still never stopped, as the source page's were; `testutil/ViewModels` stops them, so adopt it as those tests are touched *(today B3)*
-- [ ] `PodcastSettingsTest` times out under load, at its 30 s wait for the settings screen: once in six full runs on 16 Oct, and on 19 Oct in 3 of 7 full runs on one branch (passing 3 of 3 alone), while main's suite timed out once in 2, in `KindleEmailScreensTest`. Both wait for a screen while the machine runs other builds. Next: count it on main over 20 runs, with the results saved before each re-run *(today B9, 19 Oct)*
+- [ ] `PodcastSettingsTest` times out under load, at its 30 s wait for the settings screen: once in six full runs on 16 Oct, and on 19 Oct in 3 of 7 full runs on one branch (passing 3 of 3 alone), while main's suite timed out once in 2, in `KindleEmailScreensTest`, and once in `ArticlePreviewScreenTest.everyArticleEndsInALineToTheNextAndTheLastSaysThePaperEnds`. Both wait for a screen while the machine runs other builds. Next: count it on main over 20 runs, with the results saved before each re-run *(today B9, 19 Oct)*
 - [ ] CLAUDE.md says its shared sections match claude-playground's; several rules have drifted (tests "waits for the condition", the review's background-work bullet, the PR template, "merge only when asked"). Your call whether to bring them across
 - Next audit of this kind: after 30–40 more cycles, or before a release
 
 ### Onboarding and setup
 
 ### Sources and fetching
-- [ ] **From an article in your paper to its feed** *(you asked)*: with about 100 feeds, an article in an edition names its source but gives no way to reach it, so leaving a noisy feed out, changing its cap, or marking the article unread means guessing which tt-rss category it's in and hunting for it. Add **Go to *Quanta Magazine*** (the source's name) to the article preview's top-bar ⋮, beside Share and Send for a look. `ArticleEntity` already has `sourceId` and `originId`, and `source/{id}/feed/{key}` is already a route, so it's a menu item and a navigation callback. Not a second thing to tap in the contents row: it's tight at 48dp, already keeps the ☆'s slot, and rows don't take a second icon on e-ink (see **Share the original's link from a row** below). The feed's page does the rest — its status mark marks a delivered article unread, reaching tt-rss at the next sync. This is what's left of **Rethink Sources for a big subscription list**; the views across feeds it also asked for are in Parked and decided against *(narrowed 18 Oct)*
 - [ ] **Platform pass** *(you asked)*: a test corpus of real posts from the big blog and newsletter platforms, from their own feeds and through tt-rss, checked for footnotes, embeds, captions, paywall teasers and link posts; what breaks gets fixed and the corpus keeps it fixed (`PlatformCorpusTest`). Round 1 covered Substack, Ghost, WordPress, Medium, Blogger, Buttondown and Micro.blog; round 2 added a magazine with its own site (New Left Review), Stratechery and a MemberPress site, found by running `extractionSweep` over a real reading list and over `tools/sweep-feeds.opml`, public feeds picked for variety (news, other languages and scripts, static sites, microblogs). Run that list again before a change to extraction. Still to add: Tumblr (it answers 429 to the collector), beehiiv, posts with galleries, tweets and Bluesky embeds, and more footnote styles
 - [x] **Show tt-rss's own feed errors** *(you asked)*: tt-rss's `last_error` for each feed, on the feed's row and page and named in a banner on Sources
 - [ ] Paywalled and summary-only sites: warn when a site is added; keep stubs from eating the budget; drop metered sites from starter packs *(personas)*
@@ -380,7 +379,7 @@ Restoring onto a phone that already has sources asks first whether to replace or
 
 ### Views across your feeds, and a look at tomorrow's paper (decided against)
 Decided with madCode, 18 Oct, narrowing **Rethink Sources for a big subscription list** to the hop
-from an article to its feed, in Sources and fetching above.
+from an article to its feed, built the same day (in Done).
 - **All the newest articles across feeds, as tt-rss has them:** not doing. With about 100 feeds and
   five unread taken from each at a sync, that list is hundreds of rows — the endless timeline
   principle 3 exists to avoid. The app is where you edit your paper, not where you read it.
@@ -426,6 +425,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] **From an article in your paper to its feed** *(you asked)*: **Go to *Quanta Magazine*** in the article preview's ⋮ opens the page of where the article came from — a tt-rss feed's own page, the reading list, or the source's — which is where its cap, its article text, leaving it out and marking it unread are. It follows the page on screen, as Share does. Not in the contents row: it is tight at 48dp, keeps the ☆'s slot, and rows don't take a second icon on e-ink. The views across feeds the item also asked for are in Parked and decided against
 - [x] Coverage no longer counts what `ScreenshotTest` draws: the screenshots run as their own task, which Kover doesn't measure; coverage went from 94.73% to 94.32% (#269, your call: merged)
 - [x] A smaller APK: one per ABI, as you chose. A phone's release APK is 50.6 MB (arm64) instead of 86.8 MB; older 32-bit e-readers get an 18.6 MB one without the natural voice; Play's bundle is unchanged (today B13)
 - [x] A saved link that can never be read (not a web page, a 410, too large) says why in the reading list, can still be opened or removed, and editions stop trying it; saving it again looks again (database version 14, #283)

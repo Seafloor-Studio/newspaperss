@@ -75,7 +75,10 @@ class FeedMoves(
         val finished get() = !running && total > 0
 
         /** A moved source still kept: Sources doesn't show it. Resumed from its page, it's a phone feed again. */
-        fun hides(source: SourceEntity) = source.paused && source.id in retiring
+        fun hides(source: SourceEntity) = hides(source.id, source.paused)
+
+        /** [hides], for a source known by its id and whether it's paused rather than by its row. */
+        fun hides(id: Long, paused: Boolean) = paused && id in retiring
     }
 
     private object Keys {

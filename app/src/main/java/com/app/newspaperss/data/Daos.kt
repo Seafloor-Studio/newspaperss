@@ -742,11 +742,50 @@ data class EditionContent(
     val state: ArticleState?,
     /** The article's current star, as against [EditionArticleEntity.starred], its star when the edition was made. */
     val starredAt: Instant? = null,
+    /** Where it came from. All null once its source has been removed, as [EditionArticleEntity.articleId] is. */
+    val sourceId: Long? = null,
+    val sourceKind: SourceKind? = null,
+    val sourceName: String? = null,
+    val sourcePaused: Boolean? = null,
+    /** The tt-rss feed it came from, as [ArticleEntity.originId]; null from a source that is its own publication. */
+    val originId: String? = null,
+    /**
+     * The name of the tt-rss feed it came from, as the account last listed it, else as the article
+     * carries it; null from a source that is its own publication. Not
+     * [EditionArticleEntity.sourceTitle], which is the byline ("Equator via Longreads").
+     */
+    val publicationTitle: String? = null,
     /** What the article is beside podcast episodes ([ArticleEntity.episodeKind]); null if never judged. */
     val episodeKind: EpisodeKind? = null,
     /** The post it pairs with ([ArticleEntity.episodePair]), if that is still stored. */
     @Embedded(prefix = "pair_") val pair: EpisodePair? = null,
-)
+) {
+    /**
+     * The page to open for where this article came from, or null when there is none to open: its
+     * source has been removed, or a tt-rss article doesn't name its feed, and a tt-rss account has
+     * no page of its own.
+     */
+    val source: ArticleSource?
+        get() {
+            val id = sourceId ?: return null
+            val kind = sourceKind ?: return null
+            val paused = sourcePaused ?: return null
+            // A tt-rss account has no page of its own, only its feeds do, so an article that
+            // doesn't name its feed has nowhere to go. Never the account's own name instead: that
+            // would offer a page that isn't there.
+            if (kind == SourceKind.TTRSS) {
+                val key = originId ?: return null
+                return ArticleSource(id, kind, key, publicationTitle ?: return null, paused)
+            }
+            return ArticleSource(id, kind, null, sourceName ?: return null, paused)
+        }
+}
+
+/**
+ * Where an article came from, as a page to open: its source, and for a tt-rss account the feed
+ * within it ([ArticleEntity.originId], which a feed's page is addressed by).
+ */
+data class ArticleSource(val id: Long, val kind: SourceKind, val feedKey: String?, val title: String, val paused: Boolean)
 
 /** A post another is paired with, as [ArticleEntity.episodePair] names it. */
 data class EpisodePair(val guid: String, val title: String, val episodeKind: EpisodeKind?)
@@ -821,11 +860,15 @@ interface EditionDao {
 
     @Query(
         """SELECT edition_articles.*, articles.state AS state, articles.starredAt AS starredAt, articles.episodeKind AS episodeKind,
-           pair.guid AS pair_guid, pair.title AS pair_title, pair.episodeKind AS pair_episodeKind
-           FROM edition_articles
+                  pair.guid AS pair_guid, pair.title AS pair_title, pair.episodeKind AS pair_episodeKind,
+                  articles.sourceId AS sourceId, articles.originId AS originId,
+                  sources.kind AS sourceKind, sources.title AS sourceName, sources.paused AS sourcePaused,
+                  COALESCE(publications.title, articles.originTitle) AS publicationTitle FROM edition_articles
            LEFT JOIN articles ON articles.id = edition_articles.articleId
            LEFT JOIN articles AS pair ON pair.sourceId = articles.sourceId AND pair.guid = articles.episodePair
-           WHERE editionId = :editionId ORDER BY position""",
+           LEFT JOIN sources ON sources.id = articles.sourceId
+           LEFT JOIN publications ON publications.sourceId = articles.sourceId AND publications.key = articles.originId
+           WHERE editionId = :editionId ORDER BY edition_articles.position""",
     )
     fun observeContents(editionId: Long): Flow<List<EditionContent>>
 
