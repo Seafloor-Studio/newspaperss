@@ -99,7 +99,7 @@ it, and every mistake found later is added to it. It's the thing to fall back to
 - Find public examples of each shape. Label them by reading each one.
 - Exit: about 60 labelled posts covering every row of the table; the test runs, with no
   detector yet, as a list of what's expected.
-- **Done, October 2026:** 421 posts from 41 public feeds, 139 of them episode posts or
+- **Done, October 2026:** 433 posts from 42 public feeds, 142 of them episode posts or
   transcripts and the rest look-alikes and ordinary posts.
 
 ### R2. A detector as a tool, not in the app (about a cycle)
