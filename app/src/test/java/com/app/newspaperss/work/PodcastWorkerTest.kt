@@ -84,6 +84,82 @@ class PodcastWorkerTest {
     private suspend fun run(updater: ForegroundUpdater) =
         TestListenableWorkerBuilder<PodcastWorker>(app).setForegroundUpdater(updater).build().doWork()
 
+    /**
+     * Every heat Android can report is named, and every one it calls moderate or worse stops the
+     * run. A number nobody has a name for still reads as something in the log.
+     */
+    @Test
+    fun everyHeatWorseThanLightStopsTheRunAndIsNamed() = runTest {
+        unrestricted(true)
+        val hot = listOf(
+            PowerManager.THERMAL_STATUS_MODERATE to "moderate",
+            PowerManager.THERMAL_STATUS_SEVERE to "severe",
+            PowerManager.THERMAL_STATUS_CRITICAL to "critical",
+            PowerManager.THERMAL_STATUS_EMERGENCY to "emergency",
+            PowerManager.THERMAL_STATUS_SHUTDOWN to "shutdown",
+        )
+        for ((status, name) in hot) {
+            thermal(status)
+            shown = null
+            assertTrue(run(allowed) is ListenableWorker.Result.Success)
+            assertNull("heat $name should have held the run back", shown)
+            assertTrue(
+                "the log should name heat $name",
+                app.container.podcastLog.read().any { it.contains(name) },
+            )
+        }
+    }
+
+    /** A status Android grew since this was written still reads as something in the log. */
+    @Test
+    fun everyHeatAndroidCanReportIsNamed() {
+        val statuses = listOf(
+            PowerManager.THERMAL_STATUS_NONE,
+            PowerManager.THERMAL_STATUS_LIGHT,
+            PowerManager.THERMAL_STATUS_MODERATE,
+            PowerManager.THERMAL_STATUS_SEVERE,
+            PowerManager.THERMAL_STATUS_CRITICAL,
+            PowerManager.THERMAL_STATUS_EMERGENCY,
+            PowerManager.THERMAL_STATUS_SHUTDOWN,
+        )
+        val names = statuses.map { PodcastWorker.thermalName(it) }
+        assertEquals(statuses.size, names.distinct().size)
+        assertEquals("moderate", PodcastWorker.thermalName(PowerManager.THERMAL_STATUS_MODERATE))
+        assertEquals("status 99", PodcastWorker.thermalName(99))
+    }
+
+    /** The number alone sent a session guessing at reason 6; reason 4 is the one that means heat. */
+    @Test
+    fun androidsStopReasonsAreNamed() {
+        val reasons = listOf(
+            WorkInfo.STOP_REASON_CANCELLED_BY_APP,
+            WorkInfo.STOP_REASON_PREEMPT,
+            WorkInfo.STOP_REASON_TIMEOUT,
+            WorkInfo.STOP_REASON_DEVICE_STATE,
+            WorkInfo.STOP_REASON_CONSTRAINT_BATTERY_NOT_LOW,
+            WorkInfo.STOP_REASON_CONSTRAINT_CHARGING,
+            WorkInfo.STOP_REASON_CONSTRAINT_CONNECTIVITY,
+            WorkInfo.STOP_REASON_CONSTRAINT_DEVICE_IDLE,
+            WorkInfo.STOP_REASON_CONSTRAINT_STORAGE_NOT_LOW,
+            WorkInfo.STOP_REASON_QUOTA,
+            WorkInfo.STOP_REASON_BACKGROUND_RESTRICTION,
+            WorkInfo.STOP_REASON_APP_STANDBY,
+            WorkInfo.STOP_REASON_USER,
+            WorkInfo.STOP_REASON_SYSTEM_PROCESSING,
+            WorkInfo.STOP_REASON_ESTIMATED_APP_LAUNCH_TIME_CHANGED,
+            WorkInfo.STOP_REASON_FOREGROUND_SERVICE_TIMEOUT,
+            WorkInfo.STOP_REASON_NOT_STOPPED,
+            WorkInfo.STOP_REASON_UNKNOWN,
+        )
+        val names = reasons.map { PodcastWorker.stopReasonName(it) }
+        // One arm per reason: a copy-paste that named two the same would read as the wrong stop.
+        assertEquals(reasons.size, names.distinct().size)
+        assertTrue(names.none { it == "unnamed" })
+        assertEquals("unplugged", PodcastWorker.stopReasonName(WorkInfo.STOP_REASON_CONSTRAINT_CHARGING))
+        assertEquals("device state, heat most likely", PodcastWorker.stopReasonName(WorkInfo.STOP_REASON_DEVICE_STATE))
+        assertEquals("unnamed", PodcastWorker.stopReasonName(-99))
+    }
+
     @Test
     fun aHotPhoneIsLeftAloneAndTriedAgainLater() = runTest {
         unrestricted(true)

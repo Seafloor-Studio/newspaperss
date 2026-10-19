@@ -311,8 +311,9 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             else -> "unnamed"
         }
 
+        /** Android's heat by name, for the log. Internal so a test can ask for every one of them. */
         @RequiresApi(Build.VERSION_CODES.Q)
-        private fun thermalName(status: Int) = when (status) {
+        internal fun thermalName(status: Int) = when (status) {
             PowerManager.THERMAL_STATUS_NONE -> "none"
             PowerManager.THERMAL_STATUS_LIGHT -> "light"
             PowerManager.THERMAL_STATUS_MODERATE -> "moderate"

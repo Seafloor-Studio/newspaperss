@@ -21,9 +21,12 @@ object KokoroSupport {
      * raised after Kokoro shipped, and taking a working voice away from someone who has already
      * downloaded 384 MB of it would be its own harm; the heat is handled at that point by
      * [com.app.newspaperss.work.PodcastWorker] stopping when the phone gets hot.
+     *
+     * [sixtyFourBit] is a parameter so a test can be either: it reads the ABI the app is running
+     * as, which a test can't choose.
      */
-    fun why(context: Context, installed: Boolean): String? {
-        if (!KokoroInstall.supported) return "Kokoro needs a 64-bit phone, and this one is 32-bit."
+    fun why(context: Context, installed: Boolean, sixtyFourBit: Boolean = KokoroInstall.supported): String? {
+        if (!sixtyFourBit) return "Kokoro needs a 64-bit phone, and this one is 32-bit."
         if (installed) return null
         if (Build.VERSION.SDK_INT < MIN_SDK) {
             return "Kokoro needs Android 10 or newer, where the phone can say when it's overheating."
