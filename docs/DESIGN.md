@@ -620,7 +620,10 @@ whose Kindle and KOReader answers ask for more on the same page).
     tinted as it reaches about their share of it, and a tap plays from about
     there. Above the page: "Playing its recorded reading · 12 min" with
     **Have the voice read it instead**, kept for that article, and back with
-    **Play its recorded reading**; the podcast log records each switch. A
+    **Play its recorded reading**. The podcast log records each switch, how
+    far each recording got when it stopped or ended, and, as an edition
+    opens, which pages play a recording and which transcripts could play
+    their episode, against how long the transcript takes read aloud. A
     recording that won't play (offline, gone) hands back to the voice from
     where it got. See [episodes-design.md](research/episodes-design.md).
   - Between one article and the next, in either voice, a pause of about

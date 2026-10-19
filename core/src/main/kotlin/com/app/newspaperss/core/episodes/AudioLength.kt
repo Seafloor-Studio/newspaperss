@@ -44,6 +44,9 @@ object AudioLength {
         return abs(audioSeconds - read) <= read * MARGIN
     }
 
+    /** How long [words] take read aloud, at Listen's 160 a minute. */
+    fun readSeconds(words: Int): Int = (words / WORDS_PER_MINUTE * 60).toInt()
+
     private const val WORDS_PER_MINUTE = 160.0
     private const val MARGIN = 0.25
 
