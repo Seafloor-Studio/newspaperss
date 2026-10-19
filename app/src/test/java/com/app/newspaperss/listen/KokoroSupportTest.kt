@@ -21,8 +21,8 @@ class KokoroSupportTest {
     private fun lowMemory(yes: Boolean) =
         shadowOf(app.getSystemService(ActivityManager::class.java)).setIsLowRamDevice(yes)
 
-    private fun why(installed: Boolean = false, sixtyFourBit: Boolean = true) =
-        KokoroSupport.why(app, installed = installed, sixtyFourBit = sixtyFourBit)
+    private fun why(installed: Boolean = false, sixtyFourBit: Boolean = true, cores: Int = 8) =
+        KokoroSupport.why(app, installed = installed, sixtyFourBit = sixtyFourBit, cores = cores)
 
     @Test
     fun aPhoneThatCanMakeAPodcastIsOfferedOne() {
@@ -38,6 +38,16 @@ class KokoroSupportTest {
     fun aLowMemoryPhoneIsNotOfferedIt() {
         lowMemory(true)
         assertEquals("Kokoro needs more memory than this phone has.", why())
+    }
+
+    @Test
+    fun aPhoneWithTooFewCoresIsNotOfferedIt() {
+        assertTrue(why(cores = 4)!!.contains("with 4 this phone would overheat"))
+    }
+
+    @Test
+    fun aPhoneThatAlreadyHasItKeepsItEvenWithFewCores() {
+        assertNull(why(installed = true, cores = 4))
     }
 
     @Test

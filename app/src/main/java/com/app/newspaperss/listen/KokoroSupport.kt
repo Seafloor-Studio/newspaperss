@@ -22,10 +22,17 @@ object KokoroSupport {
      * downloaded 384 MB of it would be its own harm; the heat is handled at that point by
      * [com.app.newspaperss.work.PodcastWorker] stopping when the phone gets hot.
      *
-     * [sixtyFourBit] is a parameter so a test can be either: it reads the ABI the app is running
-     * as, which a test can't choose.
+     * [sixtyFourBit] and [cores] are parameters so a test can be any phone: they read the ABI the
+     * app runs as and the processors it has, neither of which a test can choose. A test that left
+     * them to the machine would assert the machine — a CI runner with four cores failed this one
+     * while the laptop beside it passed.
      */
-    fun why(context: Context, installed: Boolean, sixtyFourBit: Boolean = KokoroInstall.supported): String? {
+    fun why(
+        context: Context,
+        installed: Boolean,
+        sixtyFourBit: Boolean = KokoroInstall.supported,
+        cores: Int = Runtime.getRuntime().availableProcessors(),
+    ): String? {
         if (!sixtyFourBit) return "Kokoro needs a 64-bit phone, and this one is 32-bit."
         if (installed) return null
         if (Build.VERSION.SDK_INT < MIN_SDK) {
@@ -33,7 +40,6 @@ object KokoroSupport {
         }
         val memory = context.getSystemService(ActivityManager::class.java)
         if (memory?.isLowRamDevice == true) return "Kokoro needs more memory than this phone has."
-        val cores = Runtime.getRuntime().availableProcessors()
         if (cores < MIN_CORES) {
             return "Kokoro keeps several cores busy for hours; with $cores this phone would overheat before a podcast was made."
         }
