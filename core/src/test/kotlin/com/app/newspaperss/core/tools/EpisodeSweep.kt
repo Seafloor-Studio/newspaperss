@@ -2,9 +2,11 @@ package com.app.newspaperss.core.tools
 
 import com.app.newspaperss.core.episodes.EpisodeDetector
 import com.app.newspaperss.core.episodes.EpisodeFeed
+import com.app.newspaperss.core.feed.FeedParser
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import org.jsoup.Jsoup
 import java.io.File
 
 /**
@@ -21,15 +23,16 @@ fun main(args: Array<String>) {
     val json = buildJsonArray {
         for (file in files) {
             // One broken feed shouldn't end a sweep of a hundred.
-            val (feed, verdicts) = runCatching { EpisodeFeed.parse(file.readText()).let { it to EpisodeDetector.classify(it) } }
+            val (feed, verdicts) = runCatching { EpisodeFeed.of(FeedParser.parse(file.readText(), "https://example.com/").let { it.items }).let { it to EpisodeDetector.classify(it) } }
                 .onFailure { println("${file.name}: $it") }.getOrNull() ?: continue
             for (post in feed.posts) {
                 val v = verdicts.getValue(post.guid)
                 add(buildJsonObject {
-                    put("file", file.name); put("feed", feed.title); put("guid", post.guid); put("title", post.title); put("link", post.link)
+                    put("file", file.name); put("guid", post.guid); put("title", post.title); put("link", post.link)
                     put("detected", v.kind.label); put("pair", v.pair); put("why", v.why); put("signals", v.signals.toString())
                     put("audio", v.signals.audio); put("words", v.signals.words)
-                    put("start", post.text.take(400)); put("end", post.text.takeLast(200))
+                    val text = Jsoup.parseBodyFragment(post.html).text()
+                    put("start", text.take(400)); put("end", text.takeLast(200))
                 })
             }
         }

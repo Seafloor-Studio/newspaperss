@@ -1,5 +1,6 @@
 package com.app.newspaperss.core.ttrss
 
+import com.app.newspaperss.core.feed.Enclosure
 import com.app.newspaperss.core.net.HttpBytes
 import com.app.newspaperss.core.net.HttpClient
 import com.app.newspaperss.core.net.HttpResponse
@@ -50,7 +51,9 @@ class TtrssClientTest {
           {"id":12345,"guid":"SHA1:abc","unread":true,"marked":false,"published":false,"updated":1759125600,
            "is_updated":false,"title":"The Title","link":"https://news.example/story","feed_id":111,"tags":[""],
            "content":"<p>Full text</p>","labels":[],"feed_title":"Example News","comments_count":0,"comments_link":"",
-           "always_display_attachments":false,"author":"Ada","score":0,"note":null,"lang":"en","flavor_image":"","flavor_stream":""},
+           "always_display_attachments":false,"author":"Ada","score":0,"note":null,"lang":"en","flavor_image":"","flavor_stream":"",
+           "attachments":[{"id":96,"content_url":"https://cdn.example/ep713.mp3","content_type":"audio/mpeg","title":"","duration":"129603900",
+             "width":0,"height":0,"post_id":106},{"id":97,"content_url":"","content_type":"image/jpeg","duration":"0"}]},
           {"id":"123","title":"Older","link":"https://blog.example/post","feed_id":"7","content":"","author":"",
            "feed_title":"A Blog","updated":1759000000}
         ]""",
@@ -84,7 +87,7 @@ class TtrssClientTest {
         val request = server.sent[1]
         assertEquals(
             Json.parseToJsonElement(
-                """{"sid":"sid-1","op":"getHeadlines","feed_id":-4,"view_mode":"unread","show_content":true,"limit":50,"since_id":99}""",
+                """{"sid":"sid-1","op":"getHeadlines","feed_id":-4,"view_mode":"unread","show_content":true,"include_attachments":true,"limit":50,"since_id":99}""",
             ),
             request,
         )
@@ -98,6 +101,8 @@ class TtrssClientTest {
             assertEquals(1759125600L, updated)
             assertEquals("Example News", feedTitle)
             assertEquals("111", feedId)
+            // The size comes in what tt-rss calls "duration"; an attachment with no address is dropped.
+            assertEquals(listOf(Enclosure("https://cdn.example/ep713.mp3", "audio/mpeg", 129603900)), attachments)
         }
         // Older servers send ids as strings, and blank fields mean "none".
         with(items[1]) {
@@ -105,6 +110,7 @@ class TtrssClientTest {
             assertEquals("7", feedId)
             assertNull(content)
             assertNull(author)
+            assertTrue(attachments.isEmpty())
         }
     }
 

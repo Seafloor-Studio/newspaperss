@@ -1,12 +1,22 @@
 package com.app.newspaperss.core.tools
 
+import com.app.newspaperss.core.feed.FeedParser
 import com.app.newspaperss.core.net.OkHttpHttpClient
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.jsoup.Jsoup
 import org.jsoup.nodes.CDataNode
 import org.jsoup.nodes.Document
 import org.jsoup.parser.Parser
 import java.io.File
+import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
 /**
@@ -22,17 +32,57 @@ import java.util.zip.GZIPOutputStream
  *   ./gradlew :core:episodeCorpus --args="name https://example.com/feed 12"
  *   ./gradlew :core:episodeCorpus --args="name /path/to/saved-feed.xml 12 https://example.com/feed"
  *   ./gradlew :core:episodeCorpus --args="--batch /path/to/list"     # one set of arguments a line
+ *   ./gradlew :core:episodeCorpus --args="--ttrss name /path/to/getHeadlines.json"
  *
  * A saved file is for feeds that refuse the app's client; the last argument records where it came
  * from. It runs in core/, so give a saved file's path in full.
  */
 fun main(args: Array<String>) = runBlocking {
     // A batch: one "name source count url" line per feed.
-    if (args[0] == "--batch") {
+    if (args[0] == "--ttrss") {
+        ttrss(args[1], File(args[2]))
+    } else if (args[0] == "--batch") {
         File(args[1]).readLines().filter { it.isNotBlank() }.forEach { collect(it.trim().split(Regex("\\s+"))) }
     } else {
         collect(args.toList())
     }
+}
+
+/**
+ * What tt-rss's API answered for a corpus feed (getHeadlines with show_content and
+ * include_attachments, as the app asks), saved beside its feed snapshot as ttrss.json.gz with
+ * the same scramble. Recorded from a tt-rss reading the saved feed; see EpisodeTtrssTest.
+ */
+private fun ttrss(name: String, saved: File) {
+    val dir = File("src/test/resources/episodes/$name")
+    check(dir.isDirectory) { "no corpus feed called $name" }
+    // Only the posts the feed snapshot has, so both are judged on the same posts.
+    val snapshot = GZIPInputStream(File(dir, "feed.xml.gz").inputStream()).use { it.readBytes().toString(Charsets.UTF_8) }
+    val links = FeedParser.parse(snapshot, File(dir, "source.txt").readText().trim()).items.map { it.url }.toSet()
+    val headlines = Json.parseToJsonElement(saved.readText()).jsonArray.map { it.jsonObject }
+        .filter { it["link"]?.jsonPrimitive?.content in links }
+    val kept = buildJsonArray {
+        for (h in headlines) {
+            add(
+                buildJsonObject {
+                    listOf("id", "link", "feed_id", "updated").forEach { key -> h[key]?.let { put(key, it) } }
+                    put("title", Scrambler.text(h["title"]?.jsonPrimitive?.content.orEmpty()))
+                    put("content", EpisodeSnapshot.html(h["content"]?.jsonPrimitive?.content.orEmpty()))
+                    put(
+                        "attachments",
+                        JsonArray(
+                            (h["attachments"] as? JsonArray).orEmpty().map { a ->
+                                val o = a.jsonObject
+                                buildJsonObject { listOf("content_url", "content_type", "duration").forEach { key -> o[key]?.let { put(key, it) } } }
+                            },
+                        ),
+                    )
+                },
+            )
+        }
+    }
+    GZIPOutputStream(File(dir, "ttrss.json.gz").outputStream()).use { it.write(kept.toString().toByteArray()) }
+    println("$name: ${headlines.size} headlines from tt-rss")
 }
 
 private suspend fun collect(args: List<String>) {
@@ -91,13 +141,16 @@ internal object EpisodeSnapshot {
         doc.select("channel > itunes|category").forEach { it.children().remove() }
         doc.select("title").forEach { it.text(Scrambler.text(it.wholeText())) }
         doc.select(HTML.joinToString(", ") { it.replace(":", "|") }).forEach { el ->
-            val html = clean(Scrambler.fragment(el.wholeText()))
+            val html = html(el.wholeText())
             el.empty()
             el.appendChild(CDataNode(html))
         }
         doc.select("podcast|transcript").forEach { el -> el.attributes().toList().filter { it.key != "url" && it.key != "type" }.forEach { el.removeAttr(it.key) } }
         return EMAIL.replace((doc as Document).outerHtml(), "someone@example.com")
     }
+
+    /** A post's HTML as the snapshot keeps it: scrambled, then stripped to what detection reads. */
+    fun html(raw: String): String = EMAIL.replace(clean(Scrambler.fragment(raw)), "someone@example.com")
 
     private fun clean(html: String): String {
         val body = Jsoup.parseBodyFragment(html).body()

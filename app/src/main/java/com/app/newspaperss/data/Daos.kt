@@ -1,5 +1,6 @@
 package com.app.newspaperss.data
 
+import com.app.newspaperss.core.episodes.EpisodeKind
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Embedded
@@ -300,7 +301,8 @@ interface ArticleDao {
      */
     @Query(
         """SELECT id, sourceId, guid, url, title, author, published, NULL AS feedHtml, discoveredAt, state, starredAt,
-           originId, originTitle, pageWords, reportedRead, viaUrl, paidOnly, paidSkipped, unreadable
+           originId, originTitle, pageWords, reportedRead, viaUrl, paidOnly, paidSkipped, unreadable,
+           audioUrl, audioType, audioBytes, episodeKind, episodePair
            FROM articles WHERE (state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')) AND unreadable IS NULL""",
     )
     suspend fun buildCandidates(): List<ArticleEntity>
@@ -622,6 +624,28 @@ interface ArticleDao {
     /** Of [guids], those a source already has. */
     @Query("SELECT guid FROM articles WHERE sourceId = :sourceId AND guid IN (:guids)")
     suspend fun knownGuids(sourceId: Long, guids: List<String>): List<String>
+
+    /**
+     * A source's articles found since [since], newest first: what a new post is judged beside, so
+     * a narration that arrives a sync after its post, or alone through tt-rss, still finds it.
+     * [originId] narrows a tt-rss account to one of its feeds.
+     */
+    @Query(
+        """SELECT * FROM articles WHERE sourceId = :sourceId AND discoveredAt >= :since
+           AND (:originId IS NULL OR originId = :originId) ORDER BY discoveredAt DESC LIMIT :limit""",
+    )
+    suspend fun recentForEpisodes(sourceId: Long, originId: String?, since: Instant, limit: Int): List<ArticleEntity>
+
+    /**
+     * Pairs an article found earlier with a post that arrived since, unless it's paired already,
+     * with what it's judged to be now the other is there to judge it beside.
+     */
+    @Query("UPDATE articles SET episodePair = :pair, episodeKind = :kind WHERE sourceId = :sourceId AND guid = :guid AND episodePair IS NULL")
+    suspend fun pairEpisode(sourceId: Long, guid: String, pair: String, kind: EpisodeKind)
+
+    /** Sets what an article found earlier is, now that more of its source has been seen. */
+    @Query("UPDATE articles SET episodeKind = :kind WHERE sourceId = :sourceId AND guid = :guid")
+    suspend fun setEpisodeKind(sourceId: Long, guid: String, kind: EpisodeKind)
 
     /**
      * Old articles keep their row, whose guid stops a feed offering them again, but not the

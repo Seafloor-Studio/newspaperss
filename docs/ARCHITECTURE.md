@@ -134,7 +134,10 @@ The steps, with where they live:
    through `FeedParser`, tt-rss through `TtrssClient`, curated lists
    through `CuratedLists`; once a day a tt-rss sync also asks for the
    account's whole feed list (`listTtrssFeeds`) to name its
-   publications. It then
+   publications. Each new article keeps the audio file its feed attached,
+   and `EpisodeDetector` (`core/episodes`) judges it beside the rest of its
+   feed: an article, an episode's notes or transcript, or the audio version
+   of another post. Nothing reads that yet. It then
    expires old waiting articles, forgets delivered links after a year and
    drops old feed text.
 2. **Start.** `EditionBuilder.build` (`app/edition/EditionBuilder.kt`)
@@ -419,6 +422,8 @@ erDiagram
         enum state
         instant starredAt
         string originId "tt-rss feed"
+        string audioUrl "the feed's audio attachment"
+        enum episodeKind "notes, transcript, audio version"
     }
     editions {
         long id PK
