@@ -59,8 +59,13 @@ import androidx.compose.ui.unit.dp
 import com.app.newspaperss.core.plural
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleState
+import com.app.newspaperss.data.EpisodePair
+import com.app.newspaperss.core.episodes.EpisodeKind
+import com.app.newspaperss.core.plural
 import com.app.newspaperss.data.SourceRepository
 import com.app.newspaperss.ui.components.ArticleRowFrame
+import com.app.newspaperss.ui.components.EpisodeLabelTag
+import com.app.newspaperss.ui.components.episodeLabel
 import com.app.newspaperss.ui.components.LocalClock
 import com.app.newspaperss.ui.components.StarToggle
 import com.app.newspaperss.ui.components.openInBrowser
@@ -228,6 +233,8 @@ internal fun RecentArticle(
     onToggleRead: () -> Unit,
     onSelect: () -> Unit,
     onStartSelecting: () -> Unit,
+    /** The posts the source's articles pair with, by guid, for their episode labels. */
+    pairs: Map<String, EpisodePair> = emptyMap(),
 ) {
     val context = LocalContext.current
     val clock = LocalClock.current
@@ -284,7 +291,12 @@ internal fun RecentArticle(
                 color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
             )
         },
-        details = { Text(details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+        details = {
+            Column {
+                Text(details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                episodeLabel(article.episodeKind, article.episodePair?.let(pairs::get))?.let { EpisodeLabelTag(it) }
+            }
+        },
         // Nothing to change on an article already in an unsent edition: it's going out. Its slot
         // stays empty so the titles line up.
         trailing = if (article.state == ArticleState.IN_EDITION) null else {
@@ -326,4 +338,15 @@ private fun statusMark(article: ArticleEntity) = when (article.state) {
     ArticleState.NEW, ArticleState.IN_EDITION -> "●"
     ArticleState.DELIVERED -> "✓"
     ArticleState.SKIPPED, ArticleState.EXPIRED -> "○"
+}
+
+/**
+ * How often the source posts podcast episodes, among its newest [articles] the episode detector
+ * has judged; null when none is an episode, which is most sources. One per episode: its notes,
+ * or a transcript with no notes post beside it. A reading of a written post isn't an episode.
+ */
+internal fun episodesLine(articles: List<ArticleEntity>): String? {
+    val judged = articles.filter { it.episodeKind != null }
+    val episodes = judged.count { it.episodeKind == EpisodeKind.NOTES || it.episodeKind == EpisodeKind.TRANSCRIPT && it.episodePair == null }
+    return if (episodes == 0) null else "Posts episodes: $episodes of the last ${plural(judged.size, "post")}"
 }

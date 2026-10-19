@@ -16,7 +16,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] Another tt-rss user, or another server, still meets the first one's delivered links: `delivered_urls` is shared, so a story the first user received is skipped for the second, and marked read on their server. Small, but partners often follow the same blogs. Forget the delivered links that came only from the old source when it goes? *(review, 16 Oct)*
 - [ ] Restored onto a new phone, the database comes back without the tt-rss login (it's left out of backups), so whoever signs in next keeps the waiting and starred articles, as the same user would. Ask on sign-in whether it's the same account? *(review, 16 Oct)*
 - [ ] About 100 view models built directly in tests (Today, Settings, Sources…) are still never stopped, as the source page's were; `testutil/ViewModels` stops them, so adopt it as those tests are touched *(today B3)*
-- [ ] Compose tests that wait 30 s for a screen time out now and then in a full run, never on their own: `PodcastSettingsTest.choosingToReadLiveDuringTheDownloadStopsIt` (once in six runs, on a machine running other builds) and `ArticlePreviewScreenTest.everyArticleEndsInALineToTheNextAndTheLastSaysThePaperEnds` (once, 19 Oct; passed alone on the same tree and in the next full run). Both wait on the condition, not a fixed time, so it looks like the deadline is too short under load rather than a race. Watch it; if it goes on, the deadline is the thing to look at *(today B9)*
+- [ ] `PodcastSettingsTest` times out under load, at its 30 s wait for the settings screen: once in six full runs on 16 Oct, and on 19 Oct in 3 of 7 full runs on one branch (passing 3 of 3 alone), while main's suite timed out once in 2, in `KindleEmailScreensTest`, and once in `ArticlePreviewScreenTest.everyArticleEndsInALineToTheNextAndTheLastSaysThePaperEnds`. Both wait for a screen while the machine runs other builds. Next: count it on main over 20 runs, with the results saved before each re-run *(today B9, 19 Oct)*
 - [ ] CLAUDE.md says its shared sections match claude-playground's; several rules have drifted (tests "waits for the condition", the review's background-work bullet, the PR template, "merge only when asked"). Your call whether to bring them across
 - Next audit of this kind: after 30–40 more cycles, or before a release
 
@@ -37,6 +37,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 
 ### Delivery and schedule
 - [ ] **Save a copy of an edition to the phone** *(you asked)*: there's no easy way to keep the EPUB file itself. Android's share sheet often offers no Files target, so **Send another way** can't save it. Add "Save a copy…", opening the system's save dialog (`ACTION_CREATE_DOCUMENT`), beside Send another way in the edition's ⋮ menu
+- [ ] **A deleted edition's title is reused when it was never sent** *(you asked)*: after deleting an edition, the next one made the same day is called "Tuesday Morning Edition, Oct 13 (2)". The " (2)" is there because Send to Kindle silently drops a document whose title it has already received, so a deleted edition keeps its title (`EditionTitles`, the `DELETED` row). One deleted without ever being delivered never reached a Kindle, so its title can go to the next edition. Open: one sent by a route the app can't see (Mark as sent never tapped) would then repeat a title; the rule could count only editions released as not sent or deleted while ready
 - [ ] Dropbox connection (OAuth PKCE) so Kobo delivery is automatic; waiting on an app key ([#18](https://github.com/Seafloor-Studio/newspaperss/issues/18)) *(personas)*
 - [ ] Boox: offer folder delivery into the Books folder, so editions stay in the library *(personas)*
 - [ ] Folder delivery: tt-rss marks articles read as soon as the file is saved, before Syncthing has synced; old editions pile up in the folder *(personas)*
@@ -253,6 +254,12 @@ The phone's voice reading an edition, and Settings › Listening for it, are bui
   - **Test with papers that aren't all English:** an article in French or German among English ones plays in the phone's voice, switching only between articles; an English article quoting French or naming people from elsewhere still reads sensibly in Kokoro; an article with no language tag; a paper that's entirely in another language.
 - **A natural voice in other languages.** The Kokoro model already downloaded has voices for French, Spanish, Italian, Portuguese, Hindi and Japanese, and their pronunciation data comes with the English download; Chinese needs 17 MB more. Fewer voices than English, of unknown quality: listen first. Each article would pick a voice in its own language, with the phone's voice for languages Kokoro lacks.
   - **Measured on a Pixel 8 (Tensor G3):** the full model makes speech at 0.8× real time cool and 1.4× warm within 7 minutes, so it can't read live; a 30-minute paper takes 40–50 minutes. The compressed int8 model (170 MB) whines at 4.8 and 9.6 kHz and is no faster. 4 threads was fastest; with 1 thread the same text came out longer (17.6 s, not 14 s), which needs explaining.
+- **Kokoro made in the cloud, by Claude Code** *(you asked)*. A phone that's too slow, or isn't charging overnight, would hand the edition's text to a Claude Code cloud session, started with the reader's own routine API token. The session runs Kokoro on a server, as was done for the episode simulations, and the phone downloads the audio. Open:
+  - **Privacy:** the edition's articles leave the phone, which the store listing says never happens. So it's opt-in, says what's sent, and stays in debug builds.
+  - **The token:** it can start sessions on the reader's account, so it's stored like the tt-rss password, and asked for only by someone who chooses this.
+  - **Where the audio waits:** a session can't send files to a phone. It needs a place both can reach, such as a private release or the reader's Dropbox.
+  - **Whether it's allowed:** check the terms for using Claude Code sessions as a speech farm, and what it costs against the reader's usage limits.
+  - **Timing:** a session takes minutes to start and needs the phone online overnight; it would start when the book is written.
 - **🔊 in the article preview**, starting the same player at that article.
 - **A sleep timer**, and a way in from Today's card.
 - **Save as audio:** the edition as a file with a chapter per article, for a podcast or audiobook app. With the audio made, it's already most of the way there.
@@ -307,67 +314,31 @@ article without leaving the page.
 Recommendation: build step 1, use it for a week, then decide on step 2.
 
 ### Podcast episodes in feeds *(you asked)*
-Research plan, and the episode corpus to test it on: [research/podcast-episodes.md](research/podcast-episodes.md).
-Some posts are podcast episodes, and the paper treats them as articles. Measured on one real
-reading list (91 feeds, about 1,450 recent posts), about 4% carried podcast audio, in 12 feeds.
-They came in these shapes, with what the paper does with each today:
-- **An audio-only feed.** The app reads the show's web page instead, which runs several
-  episodes' notes together: every episode came out as the same 350-word jumble.
-- **An episode post with only notes.** Either a timestamped list of topics (270–660 words) or
-  sponsors, links and timestamps (1,200–2,200 words). Each is printed as if it were an article.
-- **A transcript.** About 9 posts (0.6%), from 5 feeds: 7,600–25,000 words, so 30–105 minutes
-  to read. One alone can be three times a 30-minute paper. Most came from one interview show
-  that posts a transcript beside every episode's notes; the rest were one-offs inside a feed's
-  usual posts.
-- **An episode with a real write-up** (1,700–3,300 words of essay or takeaways). It reads well
-  as an article; nothing needs to change.
-- **The same episode twice.** Notes and transcript as two posts sharing one audio file; a
-  serial's audio version posted beside its written chapter (a 100-word stub next to 2,000
-  words); a long write-up and a podcast post on the same subject.
-- **Not podcasts at all.** Audio and video embeds were mostly music: Spotify tracks, albums and
-  playlists outnumbered its episodes two to one, and a music blog embeds SoundCloud. YouTube
-  embeds are video versions of podcasts as often as plain videos.
+The plan is [research/episodes-design.md](research/episodes-design.md); the research and the
+labelled corpus are [research/podcast-episodes.md](research/podcast-episodes.md). Debug builds only.
+- [x] **Step 1:** posts keep their audio, and each is judged at sync (#313)
+- [x] **Step 2:** labels on the edition, article and source screens, and wrong labels sent for a look (#320, #321)
+- [x] **Step 3:** recorded readings play in an article's place in Listen, with a switch back to the voice (#322, #323). Built before the planned two weeks of labels, at madCode's request
+- [ ] **The two weeks of labels:** what the design's "Before readings go into Listen" asks, now checked alongside step 3 rather than before it
+- [ ] **Rule 3's silent stub:** an audio version's own short post is still read by the voice when it's in the same edition as its article. Listen needs a way to pass over a page
+- [ ] **Readings for editions made before #322:** their audio was never timed, so an article's own audio isn't played. Time what's missing when Listen opens an edition
+- [ ] **Step 4:** transcripts play their episode in place; notes are read without their furniture and their episode plays at the end; streamed
+- [ ] **Step 5:** downloads for listening offline
+- [x] **The `handle-issues` skill** handles "Episode label:" and "Extraction:" issues: CLAUDE.md's "Issues the app files" says how
+- [x] **An `episodes` label** on the repo, for the wrong-label reports to carry (`extraction` too)
 
-What the feeds give to tell them apart:
-- **Reliable:**
-  - An audio file attached to the post, from the big hosts (Substack, art19, Spotify for
-    Podcasters).
-  - The same audio file on two posts.
-  - "Transcript" in a title.
-  - A list of ten or more timestamps.
-  - A Spotify embed's kind: an episode, not a track.
-- **Not reliable:**
-  - The episode's length: Substack gives none, so text length can't be compared with audio
-    length from the feed alone.
-  - Conversation formatting ("Name:" turns). Written Q&A interviews, fiction told in dialogue
-    and conference write-ups look the same: 12 such posts against 9 real transcripts, and the
-    written interviews are what their readers subscribe for.
-- **Neither path keeps attachments today.** The feed parser and the tt-rss sync both drop
-  them, so detection starts by storing them (tt-rss reports them with each article).
-
-Proposed:
-- **Each post gets a kind when synced:** article, episode notes, episode transcript, or the
-  audio version of another post. When in doubt it stays an article: wrongly dropping reading is
-  worse than printing one stub.
-- **Episode notes, and audio-only feeds, aren't printed as articles.** They go in a short
-  "Episodes" list at the end of the edition: show, title, and length when known. It takes almost
-  nothing from the edition's length.
-- **Pairs keep the readable one.** Of notes and transcript, or a stub and its written chapter,
-  the paper takes the transcript or the chapter, and drops the other.
-- **A transcript is one only when tied to an episode:** audio attached to the post itself, the
-  same audio as another post, or "Transcript" in its title. Conversation formatting alone never
-  makes one, so written interviews stay articles.
-- **A show that posts notes and a transcript for each episode** gets the episode listed once
-  under Episodes; printing its transcripts is that source's opt-in. A one-off transcript among a
-  feed's usual posts stays an article, under a long-read cap so it can't take over the paper.
-- **Visible on the source's page:** "Posts episodes: notes only", with one control.
-- **Test corpus:** made-up feed items in each shape above, with the music-embed and link-roundup
-  cases kept as checks against false alarms.
-- **Later, if the list proves useful:** Listen plays an episode's own audio, downloaded on Wi-Fi
-  while charging. One voice reading a conversation's transcript is the worst of both.
-- **Open question:** whether to fetch an episode's length (a quick request for the audio file's
-  size) to tell a short write-up from notes for a two-hour show; the shapes above suggest
-  timestamps and word counts are enough.
+#### From the 19 Oct audits *(audit)*
+The middle and end architecture and code-simplicity audits of the episodes work. Their small findings are fixed in #324; these are the larger ones, each checked against the code.
+- [ ] **One place decides what plays an article.** `ReadingSpeaker` wraps `PodcastSpeaker`, and each has its own `choose()`; the recording's heading reaches the podcast speaker as plain speech so it doesn't play the article. One choice per article (recording, podcast or phone voice) over the phone speaker would remove that, and the two fallbacks to the voice (`restart` and `PodcastSpeaker.asked`)
+- [ ] **`StreamAudio` copies `Media3Audio`** almost line for line; one player taking a list of media items would do for both, and `StreamAudio` has no test of its own meanwhile
+- [ ] **Line reporting is written twice**, in `ReadingSpeaker` and `PodcastSpeaker` (from a line and a position, report each line's start, and the end)
+- [ ] **`useVoiceInstead` lives in `AppContainer`** and isn't tested; it belongs on the player
+- [ ] **A speaker's listener is set by whoever comes last:** `ReadingSpeaker` takes over the voice's in its constructor, and only the debug-build checks in `AppContainer` keep something else from taking it back
+- [ ] **The rules for updating earlier posts at sync** (`FeedSync.episodes`) are a three-way condition explained in comments; as one pure function beside the detector, they could be tested in `:core`
+- [ ] **`Readings` repeats the contents' pair join** (`observeContents`) with two queries a page; the contents could carry the audio fields
+- [ ] **Four tables name the same four kinds** (`EpisodeKind.label`, `kindName`, `labelName`, `episodeLabel`), and the label lookup is written twice (`EpisodeKind.of` and the Room converter)
+- [ ] **The debug-build flag is checked at several layers** where one gate in `FeedSync` and one in Listen would do, and `FeedSync`'s `episodesOn` defaults to on
+- [ ] **Choices to read an article in the voice are kept for ever** (`StoredReadingChoices`), one small key each; drop them with their edition
 
 ### Backup *(you asked)*
 Android's Auto Backup already copies the database and settings (sources, reading list, edition

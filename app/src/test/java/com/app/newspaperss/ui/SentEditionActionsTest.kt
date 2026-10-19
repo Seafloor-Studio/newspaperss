@@ -31,6 +31,7 @@ import com.app.newspaperss.settings.Device
 import com.app.newspaperss.settings.Settings
 import com.app.newspaperss.settings.offersOpen
 import com.app.newspaperss.testutil.TestApp
+import com.app.newspaperss.testutil.ViewModels
 import com.app.newspaperss.testutil.clearFileProviderCache
 import com.app.newspaperss.testutil.closeAfter
 import com.app.newspaperss.testutil.idleUntil
@@ -63,6 +64,7 @@ class SentEditionActionsTest {
     @get:Rule(order = 0) val closeDb = closeAfter { db.close() }
     @get:Rule(order = 1) val tmp = TemporaryFolder()
     @get:Rule(order = 2) val compose = createComposeRule()
+    @get:Rule(order = 3) val viewModels = ViewModels()
 
     private val app = ApplicationProvider.getApplicationContext<Application>()
     private val db = Room.inMemoryDatabaseBuilder(app, AppDatabase::class.java).allowMainThreadQueries().build()
@@ -90,13 +92,13 @@ class SentEditionActionsTest {
     )
 
     private fun today(device: Device, sentToKindle: Map<Long, KindleSend> = emptyMap(), onOpenEdition: (Long) -> Unit = {}) {
-        val vm = TodayViewModel(repo, flowOf(null), settings = flowOf(Settings(device = device)), sentToKindle = flowOf(sentToKindle)) {}
+        val vm = viewModels.add(TodayViewModel(repo, flowOf(null), settings = flowOf(Settings(device = device)), sentToKindle = flowOf(sentToKindle)) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = onOpenEdition) }
         idleUntil { compose.waitForIdle(); compose.onAllNodes(hasText("Tuesday Morning Edition")).fetchSemanticsNodes().isNotEmpty() }
     }
 
     private fun page(id: Long, device: Device) {
-        val vm = EditionDetailViewModel(repo, id) {}
+        val vm = viewModels.add(EditionDetailViewModel(repo, id) {})
         compose.setContent {
             EditionDetailScreen(vm, onBack = {}, preferOpen = device == Device.BOOX, offerOpen = device.offersOpen, kindleReader = device == Device.KINDLE)
         }

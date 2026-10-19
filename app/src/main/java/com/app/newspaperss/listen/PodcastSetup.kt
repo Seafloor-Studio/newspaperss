@@ -19,8 +19,8 @@ import kotlinx.coroutines.withContext
 
 /** Where getting Kokoro onto this phone stands, for Settings › Listening. */
 sealed interface KokoroState {
-    /** A 32-bit phone: Kokoro can't run. */
-    data object Unsupported : KokoroState
+    /** Kokoro can't run on this phone; [why] says so in a sentence, from [KokoroSupport]. */
+    data class Unsupported(val why: String) : KokoroState
 
     /** Not downloaded, or part way and stopped. */
     data object Absent : KokoroState
@@ -53,7 +53,8 @@ class PodcastSetup(
     private val work: Flow<WorkInfo?>,
     private val start: (mobileData: Boolean) -> Unit,
     private val stop: () -> Unit,
-    private val supported: Boolean,
+    /** Why Kokoro can't run here, or null; asked with whether it's already on the phone. */
+    private val unsupported: (installed: Boolean) -> String?,
     private val engine: (PodcastVoice) -> PodcastEngine,
     private val podcasts: Podcasts,
     private val now: () -> Long = System::nanoTime,
@@ -67,7 +68,8 @@ class PodcastSetup(
     val state: Flow<KokoroState> = combine(settings.settings, work) { s, info -> withContext(Dispatchers.IO) { stateOf(s, info) } }
 
     private fun stateOf(s: Settings, info: WorkInfo?): KokoroState {
-        if (!supported) return KokoroState.Unsupported
+        val installed = install.complete
+        unsupported(installed)?.let { return KokoroState.Unsupported(it) }
         when (info?.state) {
             WorkInfo.State.RUNNING -> return if (info.progress.getString(PHASE) == PHASE_CHECK) {
                 KokoroState.Checking
@@ -82,7 +84,7 @@ class PodcastSetup(
             else -> {}
         }
         val pace = s.podcastPace
-        if (pace != null && install.complete) return KokoroState.Ready(pace.toDouble())
+        if (pace != null && installed) return KokoroState.Ready(pace.toDouble())
         if (info?.state == WorkInfo.State.FAILED) return KokoroState.Failed(info.outputData.getString(ERROR) ?: "Kokoro couldn't be set up.")
         return KokoroState.Absent
     }
@@ -192,7 +194,7 @@ class PodcastSetup(
         // One Kokoro at a time, a podcast being made included: a cancelled check keeps speaking
         // (native code doesn't stop), and two at once would hold the model twice and time each
         // other too slow.
-        KokoroEngine.lock.withLock {
+        kokoroLock.withLock {
             // Marked first, counting checks that started and never finished: sherpa can abort in
             // native code, and two in a row that took the app down aren't run again on the next
             // start, only when asked afresh. One could be the app swiped away.

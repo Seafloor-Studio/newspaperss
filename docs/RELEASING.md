@@ -108,6 +108,9 @@ dailylog uses (`com.app.dailylog` in fdroiddata).
     SherpaTTS, the other sherpa-onnx app on F-Droid, declares.
   - sherpa-onnx comes from JitPack, which F-Droid's scanner allows; SherpaTTS
     uses the same library the same way.
+  - While the natural voice is debug-only (tested for safe resource usage first), a release build has neither
+    sherpa-onnx nor a way to download Kokoro, so `NonFreeNet` is there for
+    when it ships.
 
 The store text and screenshots come from `fastlane/metadata/android/en-US/`.
 

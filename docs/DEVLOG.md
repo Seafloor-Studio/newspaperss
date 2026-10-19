@@ -8,9 +8,43 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Status
 
-- **Lately:** six overnight cycles on 16 Oct (#234–#239): screenshots on a fixed clock, bot checks, other-language furniture, players, oversized feed items, and an architecture and test health audit.
-- **Watching:** `PodcastSettingsTest` timed out once in six full runs under load (backlog). The older settings and source-page flakes' likely causes were fixed on 16 Oct (#245, #246); neither reproduced locally in 10 runs before, so they're watched rather than counted. #245 itself made main's tests fail now and then for about an hour, until #267.
-- **Waiting on you:** reading times for saved links (a call on the morning page; titled imports have none either); the `extraction` label for Send for a look. [#18](https://github.com/Seafloor-Studio/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
+- **Lately:** 19 Oct, podcast episodes steps 1–3 in debug builds (#313, #320–#324): posts keep their audio and are labelled, wrong labels can be sent for a look, and Listen plays an article's recorded reading in its place.
+- **Watching:** `PodcastSettingsTest` times out under load (3 of 7 full runs on one branch on 19 Oct; backlog), and main's suite timed out once in `KindleEmailScreensTest`. Count them over 20 runs next.
+- **Waiting on you:** two weeks of episode labels in real use (report a wrong one with Send for a look), and how the recordings sound in Listen; an `episodes` label on the repo; whether the `handle-issues` skill learns about "Episode label:" issues (claude-playground). [#18](https://github.com/Seafloor-Studio/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
+
+## Mon 19 Oct
+
+### Podcast episodes, steps 2 and 3, overnight cycles (debug builds)
+- **What you asked:** build steps 2 and 3 of [episodes-design.md](research/episodes-design.md) tonight, as cycles, with architecture and code-simplicity audits in the middle and near the end.
+- **Step 2, labels (#320, #321):**
+  - An edition's contents and a source's newest articles say what the detector made of a post: "Episode notes", "Transcript of …", "Audio version of “…”", "Has an audio version".
+  - The article screen has the same line above the page.
+  - A source that posts episodes says how often.
+  - Send for a look asks whether the article came out wrong or its label is, and a wrong label opens an "Episode label:" issue.
+- **Step 3a, lengths (#322):** the feed's own length is kept, and the audio Listen may play is timed from its file's first bytes. Database version 16.
+- **Step 3b, readings (#323):**
+  - An article with an audio version, or its own audio within a quarter of its text read aloud, plays that recording after the voice reads its heading and says "Now its recorded reading, 12 minutes."
+  - "Have the voice read it instead" turns an article back to the voice, kept per article and logged.
+  - A recording that won't play hands back to the voice.
+- **Audit (#324):** measuring audio could hold the paper back 30 seconds, so it now runs after delivery. A pair is kept only if it holds both ways. Larger findings are in the backlog.
+- **Also tonight:** FLESH WORLD is in the public corpus (#319), and the design now reads notes aloud without their furniture (#318). The step 3 gate (two weeks of labels) was skipped at your request; every recording can be turned back to the voice.
+- **What the reviews caught:** each PR names its findings. The worst were:
+  - cancelling during measuring failed a finished edition;
+  - with Kokoro on, its podcast played over the recording;
+  - a recording of unknown length restarted from 0:00 on every pause.
+- **Watching:** in full unit-test runs here, `PodcastSettingsTest` timed out in 3 of 7 runs on the readings branch, while passing 3 of 3 on its own. main's suite timed out in `KindleEmailScreensTest` in 1 of 2 runs. Both are 30-second waits for a screen under load.
+
+### Podcast episodes, step 1: attachments kept, kinds stored
+- **Step 1 of [episodes-design.md](research/episodes-design.md):** the feed parser keeps a post's attachments (RSS, Media RSS, Atom, JSON Feed) and its episode length; tt-rss is asked for attachments; each new article stores its audio file and the kind the detector gives it. Database version 15. Nothing on screen changes. Debug builds only: a release keeps no audio and judges nothing.
+- **Checked through tt-rss:** a real tt-rss (in Docker) read 14 corpus feeds; its answers, scrambled, are now a corpus test. With attachments, every post with an audio file is judged as it is from the feed.
+- **Found on the way:** the feed parser drops an entry with no link to open, so a podcast feed whose episodes have none (Buzzsprout's) never reaches the app.
+
+## Sat 17 Oct
+
+### Podcast episodes: the corpus and a prototype detector
+- **Research plan phases R1 and R2** ([podcast-episodes.md](research/podcast-episodes.md)): 421 labelled posts from 41 public feeds, scrambled, and a detector in core's tests that the corpus test holds to the plan's bar. No article misclassed; 9 in 10 notes and transcripts caught; every pair found.
+- **Checked beyond the corpus:** 15 public feeds it hadn't seen, and one reader's own list, locally (its results stay out of the repository). Neither showed an article called anything else.
+- **Not in the app yet:** the feed parser and tt-rss sync still drop attachments, which detection needs first.
 
 ## Fri 16 Oct
 

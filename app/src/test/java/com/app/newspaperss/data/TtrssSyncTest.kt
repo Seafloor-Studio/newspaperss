@@ -1,5 +1,6 @@
 package com.app.newspaperss.data
 
+import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.testutil.TestDataStores
 import kotlinx.coroutines.flow.first
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
@@ -1285,5 +1286,85 @@ class TtrssSyncTest {
         val source = connect()
         http.unreachable += server.apiUrl
         assertEquals("Couldn't reach tt-rss.", ttrss.startFresh(source.id))
+    }
+
+    @Test
+    fun anEpisodesAudioIsKeptAndItsKindJudgedFeedByFeed() = runTest {
+        val source = connect()
+        val essay = (1..400).joinToString(" ") { "word$it" }
+        server.unread += FakeTtrss.Item(1, "Episode 12: a guest", feedId = 7, feedTitle = "A Show", content = "<p>Our guest talks about trains.</p>", audio = "https://traffic.libsyn.com/ashow/12.mp3")
+        server.unread += FakeTtrss.Item(2, "An essay", feedId = 7, feedTitle = "A Show", content = "<p>$essay</p>")
+        server.unread += FakeTtrss.Item(3, "A post", feedId = 8, feedTitle = "A Blog")
+        sync.sync(source)
+
+        val byTitle = db.articles().candidates().associateBy { it.title }
+        with(byTitle.getValue("Episode 12: a guest")) {
+            assertEquals("https://traffic.libsyn.com/ashow/12.mp3", audioUrl)
+            assertEquals("audio/mpeg", audioType)
+            assertNull("tt-rss's size for it was 0: unknown", audioBytes)
+            assertEquals(EpisodeKind.NOTES, episodeKind)
+        }
+        assertEquals(EpisodeKind.ARTICLE, byTitle.getValue("An essay").episodeKind)
+        assertEquals(EpisodeKind.ARTICLE, byTitle.getValue("A post").episodeKind)
+        assertNull(byTitle.getValue("A post").audioUrl)
+    }
+
+    @Test
+    fun aNarrationThatArrivesAloneFindsThePostItReads() = runTest {
+        val source = connect()
+        val letter = (1..1500).joinToString(" ") { "word$it" }
+        server.unread += FakeTtrss.Item(1, "October 15", feedId = 7, feedTitle = "Letters", content = "<p>$letter</p>", link = "https://letters.example/october-15")
+        sync.sync(source)
+        // Read in tt-rss before its reading came out: the reading arrives on its own.
+        server.unread.clear()
+        server.unread += FakeTtrss.Item(
+            2, "Corruption as a Driving Force", feedId = 7, feedTitle = "Letters",
+            content = """<p>To read this letter, <a href="https://letters.example/october-15">click here</a>.</p>""", audio = "https://traffic.libsyn.com/letters/reading.mp3",
+        )
+        sync.sync(source)
+
+        val byTitle = db.articles().candidates().associateBy { it.title }
+        val reading = byTitle.getValue("Corruption as a Driving Force")
+        val written = byTitle.getValue("October 15")
+        assertEquals(EpisodeKind.AUDIO_VERSION, reading.episodeKind)
+        assertEquals(written.guid, reading.episodePair)
+        assertEquals("the letter learns of its reading, and stays an article", reading.guid, written.episodePair)
+        assertEquals(EpisodeKind.ARTICLE, written.episodeKind)
+    }
+
+    @Test
+    fun aReadingOfAPostAlreadyPairedDoesntPairWithItOneWay() = runTest {
+        val source = connect()
+        val letter = (1..1500).joinToString(" ") { "word$it" }
+        server.unread += FakeTtrss.Item(1, "October 15", feedId = 7, feedTitle = "Letters", content = "<p>$letter</p>", link = "https://letters.example/october-15")
+        sync.sync(source)
+        // Already paired with an earlier reading.
+        db.articles().pairEpisode(source.id, "ttrss:1", "ttrss:0", EpisodeKind.ARTICLE)
+        server.unread.clear()
+        server.unread += FakeTtrss.Item(
+            2, "Corruption as a Driving Force", feedId = 7, feedTitle = "Letters",
+            content = """<p>To read this letter, <a href="https://letters.example/october-15">click here</a>.</p>""", audio = "https://traffic.libsyn.com/letters/reading.mp3",
+        )
+        sync.sync(source)
+
+        val byTitle = db.articles().candidates().associateBy { it.title }
+        assertEquals(EpisodeKind.AUDIO_VERSION, byTitle.getValue("Corruption as a Driving Force").episodeKind)
+        assertNull("its letter keeps its own pair, so this one names none", byTitle.getValue("Corruption as a Driving Force").episodePair)
+        assertEquals("ttrss:0", byTitle.getValue("October 15").episodePair)
+    }
+
+    @Test
+    fun aStarredEpisodeKeepsItsAudioAndIsJudged() = runTest {
+        val source = connect()
+        ttrss.setTakeStars(source.id, true)
+        sync.syncAll()
+        // Read in tt-rss, never synced here, then starred there.
+        server.read += FakeTtrss.Item(9, "Episode 9: a guest", feedId = 7, feedTitle = "A Show", content = "<p>Our guest talks about trains.</p>", audio = "https://traffic.libsyn.com/ashow/9.mp3")
+        server.starred += 9L
+        sync.syncAll()
+
+        val starred = db.articles().allForSource(source.id).single { it.guid == "ttrss:9" }
+        assertEquals("https://traffic.libsyn.com/ashow/9.mp3", starred.audioUrl)
+        assertEquals(EpisodeKind.NOTES, starred.episodeKind)
     }
 }

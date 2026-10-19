@@ -39,13 +39,22 @@ import com.app.newspaperss.listen.Listening
 import com.app.newspaperss.listen.Speaker
 import com.app.newspaperss.listen.StoredListenProgress
 import com.app.newspaperss.listen.SystemSpeaker
+import com.app.newspaperss.listen.AudioLengths
 import com.app.newspaperss.listen.KokoroDownload
-import com.app.newspaperss.listen.KokoroEngine
+import com.app.newspaperss.listen.ListenPosition
+import com.app.newspaperss.listen.ReadingSpeaker
+import com.app.newspaperss.listen.Readings
+import com.app.newspaperss.listen.StoredReadingChoices
+import com.app.newspaperss.listen.StreamAudio
+import com.app.newspaperss.listen.kokoroEngine
 import com.app.newspaperss.listen.KokoroInstall
+import com.app.newspaperss.listen.KokoroSupport
+import com.app.newspaperss.listen.KokoroTrial
 import com.app.newspaperss.listen.PodcastSetup
 import com.app.newspaperss.listen.PodcastLog
 import com.app.newspaperss.listen.PodcastMaker
 import com.app.newspaperss.listen.PodcastStore
+import com.app.newspaperss.listen.ProcessDeaths
 import com.app.newspaperss.listen.Podcasts
 import com.app.newspaperss.listen.AacEncoder
 import com.app.newspaperss.work.PodcastWorker
@@ -71,6 +80,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import com.app.newspaperss.settings.ListenVoice
@@ -127,13 +137,16 @@ class AppContainer(
     val ttrss = TtrssRepository(db, http, ttrssAccounts, sources)
     val ttrssSubscriptions = TtrssSubscriptions(ttrss, appScope)
     val feedMoves = FeedMoves(feedMovesData, db, ttrss, schedule = moveFeeds)
-    val feedSync = FeedSync(db, http, ttrssAccounts = ttrssAccounts, onUntitled = fetchReadingListTitles)
+    val feedSync = FeedSync(db, http, ttrssAccounts = ttrssAccounts, onUntitled = fetchReadingListTitles, episodesOn = EPISODES)
     private val content = ExtractorContentProvider(
         ArticleExtractor(http), http, AndroidImageEncoder(), onPaidOnly = sources::markPaidOnly, onUnreadable = db.articles()::setUnreadable,
     ) { sourceId, originId, evidence, text ->
         sources.recordFullText(sourceId, originId, evidence, text.check, text.day)
     }
-    val editionBuilder = EditionBuilder(db, content, editionsDir, cover = CoverRenderer()::render, retiring = feedMoves::retiringIds, onReleased = notifier::dismissFor)
+    private val audioLengths = AudioLengths(db, http)
+    val editionBuilder = EditionBuilder(
+        db, content, editionsDir, cover = CoverRenderer()::render, retiring = feedMoves::retiringIds, onReleased = notifier::dismissFor,
+    )
     val settings = SettingsStore(settingsData)
     /** A live build fetching and installing newer builds; nothing in a release build. */
     val selfUpdates = selfUpdater(context, installedBuild, appScope) { listenMade.isInitialized() && listen.state.value.playing }
@@ -141,7 +154,11 @@ class AppContainer(
     private val folderDelivery = FolderDelivery(context.contentResolver)
     val editionRun = EditionRun(settings, feedSync, editionBuilder, editions, folderDelivery, notifier,
         // Scheduled editions only: one made by hand gets its podcast when asked.
-        onBuilt = { id, scheduled -> if (scheduled) podcasts.request(id) },
+        onBuilt = { id, scheduled ->
+            if (scheduled) podcasts.request(id)
+            // After delivery: the paper doesn't wait for something only Listen uses.
+            if (EPISODES) audioLengths.measureEdition(id)
+        },
     )
 
     /** Reading editions aloud. Made on first use: the voice takes a moment to start. */
@@ -154,6 +171,39 @@ class AppContainer(
      */
     private val logWriter = Dispatchers.IO.limitedParallelism(1)
     private val logPlaying: (String) -> Unit = { message -> appScope.launch(logWriter) { podcastLog.add(message) } }
+
+    /** The recordings that play in an article's place (debug builds; see [ReadingSpeaker]). */
+    private val readings = Readings(db)
+
+    /** Plays a recording, streamed. Focus is [ListenService]'s, as for the phone's voice. */
+    private val readingPlayer: () -> Player = {
+        ExoPlayer.Builder(context)
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), false)
+            // Streamed while the screen is off: the network kept awake too.
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .build()
+    }
+
+    /** Listen's voice, with an article's recording in its place where it has one. */
+    private val readingSpeaker by lazy {
+        ReadingSpeaker(listenSpeaker, StreamAudio(readingPlayer), readings::at, StoredReadingChoices(context), log = logPlaying)
+    }
+
+    /**
+     * The article whose recording plays, or was turned back to the voice, while it's the one
+     * playing. Never made in a release build: it takes over the voice's listener, which the
+     * player there has.
+     */
+    val readingNow: StateFlow<ReadingSpeaker.Now?> get() = if (EPISODES) readingSpeaker.now else MutableStateFlow(null)
+
+    /** Turns the article Listen is on back to the voice, or to its recording, and plays on from where it is. */
+    fun useVoiceInstead(instead: Boolean) {
+        if (!EPISODES) return
+        val state = listen.state.value
+        val editionId = state.editionId ?: return
+        readingSpeaker.setVoiceInstead(editionId, state.at.page, instead, state.at.line)
+        listen.seek(state.at)
+    }
 
     /** Listen's voice: a made podcast where there is one, the phone's elsewhere. */
     private val listenSpeaker by lazy {
@@ -181,11 +231,14 @@ class AppContainer(
 
     private val listenMade: Lazy<ListenPlayer> = lazy {
         ListenPlayer(
-            listenSpeaker, listenProgress, open = { ListenBook.open(editions, it) }, appScope,
+            if (EPISODES) readingSpeaker else listenSpeaker, listenProgress, open = { ListenBook.open(editions, it, readings.takeIf { EPISODES }) }, appScope,
             savedSpeed = settings.settings.map { it.listenSpeed }.distinctUntilChanged(),
             saveSpeed = { speed -> settings.update { it.copy(listenSpeed = speed) } },
             chime = MediaPlayerChime(context),
-        )
+        ).also { player ->
+            // A recording that won't play: on from where it got, in the voice.
+            if (EPISODES) readingSpeaker.restart = { line -> if (player.state.value.editionId == line.editionId) player.seek(ListenPosition(line.page, line.line)) }
+        }
     }
     val listen: ListenPlayer by listenMade
     val listening: Listening by lazy {
@@ -198,7 +251,7 @@ class AppContainer(
             kokoroInstall, settings, KokoroWorker.observe(context),
             start = { KokoroWorker.enqueue(context, it) },
             stop = { KokoroWorker.cancel(context) },
-            supported = KokoroInstall.supported,
+            unsupported = { installed -> KokoroSupport.why(context, installed) },
             engine = podcastEngine,
             podcasts = podcasts,
             log = podcastLog,
@@ -206,8 +259,14 @@ class AppContainer(
     }
 
     /** What the podcast's making and playing did, shown in Settings › Listening while the podcast is debug-only. */
-    val podcastLog = PodcastLog(File(context.filesDir, "podcast-log.txt"))
-    private val podcastEngine = { voice: PodcastVoice -> KokoroEngine(kokoroInstall, voice) }
+    val podcastLog = PodcastLog(
+        File(context.filesDir, "podcast-logs"),
+        legacy = File(context.filesDir, "podcast-log.txt"),
+    )
+    private val podcastEngine = { voice: PodcastVoice -> kokoroEngine(kokoroInstall, voice) }
+
+    /** The maker's, taking the thread count too, so [KokoroTrial] can try two against four. */
+    private val podcastMakerEngine = { voice: PodcastVoice, threads: Int -> kokoroEngine(kokoroInstall, voice, threads) }
     internal val podcastStore = PodcastStore(File(context.filesDir, "podcasts"))
     private val podcasts = Podcasts(podcastStore, settings, kokoroInstall, start = { PodcastWorker.enqueue(context) }, log = podcastLog)
 
@@ -215,7 +274,13 @@ class AppContainer(
     fun stopMakingPodcasts() = podcasts.stopAll()
 
     val podcastMaker: PodcastMaker by lazy {
-        PodcastMaker(editions, podcastStore, kokoroInstall, settings, podcastEngine, AacEncoder, log = podcastLog)
+        PodcastMaker(
+            editions, podcastStore, kokoroInstall, settings, podcastMakerEngine, AacEncoder,
+            lastExit = { ProcessDeaths.last(context) },
+            // Release builds never get here: their kokoroEngine() throws rather than making anything.
+            threads = KokoroTrial::threadsFor,
+            log = podcastLog,
+        )
     }
 
     fun kokoroDownload() = newKokoroDownload(kokoroInstall)

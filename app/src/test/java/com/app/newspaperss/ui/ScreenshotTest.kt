@@ -1,5 +1,9 @@
 package com.app.newspaperss.ui
 
+import com.app.newspaperss.ui.components.EpisodeJudgement
+import com.app.newspaperss.listen.Reading
+import com.app.newspaperss.listen.ReadingSpeaker
+import com.app.newspaperss.core.episodes.EpisodeKind
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.CompositionLocalProvider
 import com.app.newspaperss.testutil.TestDataStores
@@ -370,7 +374,7 @@ class ScreenshotTest {
             (1..2).forEach { db.articles().insertIgnoring(ArticleEntity(sourceId = source, guid = "$it", url = "https://example.com/$it", title = "Starred $it", starredAt = now)) }
         }
         val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
-        val vm = TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {}
+        val vm = viewModels.add(TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {})
         shoot("05-today", ready = { vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm) }
     }
 
@@ -381,7 +385,7 @@ class ScreenshotTest {
             db.editions().insertArticles(sampleArticles(latest))
         }
         val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
-        val vm = TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {}
+        val vm = viewModels.add(TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {})
         shoot(name, ready = { vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm, newerBuild = 464, selfUpdate = selfUpdate) }
     }
 
@@ -410,7 +414,7 @@ class ScreenshotTest {
         val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
         val podcast = Settings(scheduleEnabled = true, listenVoice = ListenVoice.PODCAST, podcastPace = 1.2f)
         val evening = java.time.ZonedDateTime.of(2026, 9, 29, 21, 0, 0, 0, java.time.ZoneOffset.UTC)
-        val vm = TodayViewModel(EditionRepository(db, files, clock), flowOf(null), settings = flowOf(podcast), now = { evening }) {}
+        val vm = viewModels.add(TodayViewModel(EditionRepository(db, files, clock), flowOf(null), settings = flowOf(podcast), now = { evening }) {})
         shoot("05h-today-podcast", ready = { vm.state.value.next != null && vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm) }
     }
 
@@ -446,7 +450,7 @@ class ScreenshotTest {
                 .also { db.editions().insertArticles(sampleArticles(it)) }
         }
         val sent = if (kindleNote) mapOf(latest to KindleSend.APP) else emptyMap()
-        val vm = TodayViewModel(EditionRepository(db, files, clock), flowOf(null), settings = flowOf(Settings(device = device)), sentToKindle = flowOf(sent), now = { clock.instant().atZone(clock.zone) }) {}
+        val vm = viewModels.add(TodayViewModel(EditionRepository(db, files, clock), flowOf(null), settings = flowOf(Settings(device = device)), sentToKindle = flowOf(sent), now = { clock.instant().atZone(clock.zone) }) {})
         shoot(name, ready = { vm.state.value.editions?.isNotEmpty() == true }, act = act) { TodayScreen(vm) }
     }
 
@@ -470,6 +474,35 @@ class ScreenshotTest {
         val vm = sentEdition()
         val listening = listening()
         shoot("05b-edition-detail", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}, listening = listening) }
+    }
+
+    /** Posts the episode detector judged: a letter and its reading, show notes, a transcript, and an article. */
+    @Test
+    fun editionDetailEpisodes() {
+        val id = runBlocking {
+            val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Letter"))
+            val posts = listOf(
+                "October 15" to EpisodeKind.ARTICLE,
+                "A reading of the letter" to EpisodeKind.AUDIO_VERSION,
+                "How a ferry timetable is made, with its planner" to EpisodeKind.NOTES,
+                "Transcript: the ferry planner" to EpisodeKind.TRANSCRIPT,
+                "Why city trees are planted in pairs" to EpisodeKind.ARTICLE,
+            )
+            val ids = posts.mapIndexed { i, (title, _) -> db.articles().insertIgnoring(ArticleEntity(sourceId = source, guid = title, url = "https://example.com/$i", title = title, state = ArticleState.DELIVERED)) }
+            db.articles().pairEpisode(source, posts[0].first, posts[1].first, EpisodeKind.ARTICLE)
+            db.articles().pairEpisode(source, posts[1].first, posts[0].first, EpisodeKind.AUDIO_VERSION)
+            posts.drop(2).forEach { (title, kind) -> db.articles().setEpisodeKind(source, title, kind) }
+            val now = Instant.parse("2026-09-29T06:30:00Z")
+            val edition = db.editions().insert(EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.DELIVERED, fileName = "e.epub", articleCount = 5, minutes = 52.0, deliveredAt = now))
+            db.editions().insertArticles(posts.mapIndexed { i, (title, _) ->
+                EditionArticleEntity(editionId = edition, articleId = ids[i], position = i, title = title, sourceTitle = "The Example Letter", minutes = listOf(10.0, 1.0, 2.0, 30.0, 9.0)[i])
+            })
+            edition
+        }
+        val vm = viewModels.add(EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id) {})
+        shoot("05k-edition-detail-episodes", ready = { vm.detail.value?.contents?.any { it.episodeKind != null } == true }, act = {
+            compose.onNode(hasScrollAction()).performScrollToNode(hasText("Why city trees are planted in pairs"))
+        }) { EditionDetailScreen(vm, onBack = {}) }
     }
 
     /** Not sent before the next was made: released, and can still be marked as sent. */
@@ -531,7 +564,11 @@ class ScreenshotTest {
     @Test
     fun listenPlayingLargerText() = shootListening("11d-listen-larger-text", voice = null, textSize = PreviewTextSize.LARGER)
 
-    private fun shootListening(name: String, voice: PodcastVoice?, instead: PodcastSpeaker.Instead? = null, textSize: PreviewTextSize = PreviewTextSize.DEFAULT) {
+    /** An article playing its recorded reading, with the switch back to the voice. */
+    @Test
+    fun listenPlayingRecording() = shootListening("11e-listen-recording", voice = null, recording = true)
+
+    private fun shootListening(name: String, voice: PodcastVoice?, instead: PodcastSpeaker.Instead? = null, textSize: PreviewTextSize = PreviewTextSize.DEFAULT, recording: Boolean = false) {
         val files = tmp.newFolder()
         val picture = Bitmap.createBitmap(600, 300, Bitmap.Config.ARGB_8888).apply {
             val canvas = Canvas(this)
@@ -566,7 +603,10 @@ class ScreenshotTest {
         player.start(id, ListenPosition(1, 6))
         idleUntil { player.state.value.script != null }
         speaker.startNext()
-        shoot(name, ready = { player.state.value.at.line == 6 }) { ListenScreen(player, onBack = {}, podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), textSize = textSize) }
+        val now = ReadingSpeaker.Now(id, 1, Reading("https://example.com/knots.mp3", 540, own = false, bodyLine = 3, starts = listOf(0.0)), voiceInstead = false).takeIf { recording }
+        shoot(name, ready = { player.state.value.at.line == 6 }) {
+            ListenScreen(player, onBack = {}, podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), textSize = textSize, reading = MutableStateFlow(now))
+        }
     }
 
     @Test
@@ -610,7 +650,7 @@ class ScreenshotTest {
             )
             edition
         }
-        return EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id) {}
+        return viewModels.add(EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id) {})
     }
 
     @Test
@@ -634,6 +674,33 @@ class ScreenshotTest {
             compose.onNodeWithContentDescription("More").performClick()
         }) {
             ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, sourceAt = { "The Example Review" }, onOpenSource = {})
+        }
+    }
+
+    /** An episode post: the line above it says what it is. */
+    @Test
+    fun articlePreviewEpisode() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "How a ferry timetable is made, with its planner", sourceTitle = "The Example Letter", url = "https://example.com/ferry", bodyHtml = "<p>This week's guest plans ferries.</p>", minutes = 2.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05c-article-preview-episode", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, episodeFor = { EpisodeJudgement(EpisodeKind.NOTES) })
+        }
+    }
+
+    /** Send for a look on an episode post: the second reason, a wrong label, picked. */
+    @Test
+    fun articlePreviewSendForALookLabel() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "How a ferry timetable is made, with its planner", sourceTitle = "The Example Letter", url = "https://example.com/ferry", bodyHtml = "<p>This week's guest plans ferries.</p>", minutes = 2.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05e-article-preview-look-label", ready = { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }, act = {
+            compose.onNodeWithContentDescription("More").performClick()
+            compose.onNodeWithText("Send for a look…").performClick()
+            compose.onNodeWithText("It's labelled “Episode notes”, and it's…").performClick()
+            compose.onNodeWithText("An article").performClick()
+        }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, episodeFor = { EpisodeJudgement(EpisodeKind.NOTES) })
         }
     }
 
@@ -733,6 +800,34 @@ class ScreenshotTest {
     fun sourceDetail() {
         val vm = sourceWithArticles()
         shoot("06b-source-detail", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, act = ::scrollToArticles) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** A newsletter that posts episodes: how often, and each one's label. */
+    @Test
+    fun sourceDetailEpisodes() {
+        val repo = SourceRepository(db, clock)
+        val id = runBlocking {
+            val id = repo.addFeed("https://example.com/feed", "The Example Letter")
+            val posts = listOf(
+                "How a ferry timetable is made, with its planner" to EpisodeKind.NOTES,
+                "The case for slower trains" to EpisodeKind.ARTICLE,
+                "Transcript: the ferry planner" to EpisodeKind.TRANSCRIPT,
+                "October 15" to EpisodeKind.ARTICLE,
+                "A reading of the letter" to EpisodeKind.AUDIO_VERSION,
+                "Why city trees are planted in pairs" to EpisodeKind.ARTICLE,
+            )
+            db.articles().insertNew(posts.mapIndexed { i, (title, _) -> ArticleEntity(sourceId = id, guid = title, url = "https://example.com/$i", title = title, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1))) })
+            db.articles().pairEpisode(id, "October 15", "A reading of the letter", EpisodeKind.ARTICLE)
+            db.articles().pairEpisode(id, "A reading of the letter", "October 15", EpisodeKind.AUDIO_VERSION)
+            db.articles().pairEpisode(id, "Transcript: the ferry planner", posts[0].first, EpisodeKind.TRANSCRIPT)
+            posts.filter { it.first !in setOf("October 15", "A reading of the letter", "Transcript: the ferry planner") }.forEach { (title, kind) -> db.articles().setEpisodeKind(id, title, kind) }
+            db.sources().recordSuccess(id, clock.instant(), null, "https://example.com", "")
+            id
+        }
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
+        shoot("06g-source-detail-episodes", ready = { vm.detail.value?.episodePairs?.isNotEmpty() == true }, act = {
+            compose.onNode(hasScrollAction()).performScrollToNode(hasText("Posts episodes", substring = true))
+        }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
     /** A busy source lists only its newest articles, and the heading says so rather than looking like a total. */
@@ -1127,7 +1222,7 @@ class ScreenshotTest {
         installVoice(ApplicationProvider.getApplicationContext())
         runBlocking { store.update { it.copy(podcastPace = pace, listenVoice = if (inUse) ListenVoice.PODCAST else ListenVoice.PHONE) } }
         val setup = PodcastSetup(
-            install, store, work, start = {}, stop = {}, supported = true, engine = { error("not shot") },
+            install, store, work, start = {}, stop = {}, unsupported = { null }, engine = { error("not shot") },
             podcasts = Podcasts(podcasts, store, install) {},
             log = log,
         )
@@ -1176,7 +1271,7 @@ class ScreenshotTest {
 
     @Test
     fun settingsPodcastLog() {
-        val log = PodcastLog(tmp.newFile(), now = { 1_791_000_000_000L })
+        val log = PodcastLog(tmp.newFolder(), now = { 1_791_000_000_000L })
         listOf(
             "Edition 12's audio asked for, in Heart; made once the phone charges",
             "Run started (try 1): asking for the foreground, Android 36, battery unrestricted, plugged in",

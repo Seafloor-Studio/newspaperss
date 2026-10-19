@@ -21,7 +21,7 @@ fun testCipher() = AesGcmCipher { SecretKeySpec(ByteArray(32) { it.toByte() }, "
  * articles read as the real API does.
  */
 class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt-rss/api/") {
-    data class Item(val id: Long, val title: String, val feedId: Int, val feedTitle: String, val content: String = "<p>Text of $title.</p>", val categoryId: Int = 0, val link: String = "https://news.example/$id", val updated: Long = 1_759_125_600L)
+    data class Item(val id: Long, val title: String, val feedId: Int, val feedTitle: String, val content: String = "<p>Text of $title.</p>", val categoryId: Int = 0, val link: String = "https://news.example/$id", val updated: Long = 1_759_125_600L, val audio: String? = null)
 
     var user = "reader"
     var password = "secret"
@@ -164,6 +164,8 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
                     val since = str("since_id")?.toLong() ?: 0
                     val skip = str("skip")?.toInt() ?: 0
                     val withContent = str("show_content") != "false"
+                    // tt-rss sends attachments only when asked.
+                    val withAttachments = str("include_attachments") == "true"
                     if (all && feed == -4 && skip == 0) postsAskedSince += str("since_id")?.toLong()
                     // Newest first, as tt-rss sorts them, or oldest first if asked; a higher id is newer here.
                     (if (all) unread + read else unread).filter { it.id > since }.filter {
@@ -185,6 +187,14 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
                                 put("feed_id", item.feedId)
                                 put("feed_title", item.feedTitle)
                                 put("unread", item in unread)
+                                if (withAttachments) {
+                                    put(
+                                        "attachments",
+                                        buildJsonArray {
+                                            item.audio?.let { url -> add(buildJsonObject { put("content_url", url); put("content_type", "audio/mpeg"); put("duration", "0") }) }
+                                        },
+                                    )
+                                }
                             },
                         )
                     }
@@ -198,6 +208,13 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
                             buildJsonObject {
                                 put("id", item.id); put("title", item.title); put("link", item.link); put("content", item.content)
                                 put("author", ""); put("updated", item.updated); put("feed_id", item.feedId); put("feed_title", item.feedTitle)
+                                // getArticle always sends attachments.
+                                put(
+                                    "attachments",
+                                    buildJsonArray {
+                                        item.audio?.let { url -> add(buildJsonObject { put("content_url", url); put("content_type", "audio/mpeg"); put("duration", "0") }) }
+                                    },
+                                )
                             },
                         )
                     }

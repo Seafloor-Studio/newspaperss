@@ -30,6 +30,14 @@ class HttpResponse(
     val isSuccessful get() = code in 200..299
 }
 
+/**
+ * Part of a file: [body] starts at byte [from] of it ([from] is 0 if the server sent the file from
+ * its start, ignoring the range asked for), and the file is [total] bytes long, if the server said.
+ */
+class HttpRange(val code: Int, val from: Long, val total: Long?, val body: ByteArray) {
+    val isSuccessful get() = code in 200..299
+}
+
 class HttpBytes(
     val code: Int,
     val contentType: String?,
@@ -60,6 +68,12 @@ interface HttpClient {
      * status. Redirects are not followed: a 3xx comes back as is, with its Location as `finalUrl`.
      */
     suspend fun postJson(url: String, body: String): HttpResponse
+
+    /**
+     * Up to [length] bytes of [url] from byte [from], for reading an audio file's header without
+     * downloading the file; throws IOException on network failure, never on an HTTP error status.
+     */
+    suspend fun getRange(url: String, from: Long, length: Int): HttpRange = throw IOException("Ranges aren't supported here.")
 }
 
 /** A body over [OkHttpHttpClient.MAX_BYTES], and what the server said it was: a video, a big file. */
@@ -72,6 +86,8 @@ class OkHttpHttpClient(
     // mustn't push a whole edition past WorkManager's ten-minute limit.
     // No cache for images: a few would push every feed out of it, and each is fetched once anyway.
     private val imageClient = client.newBuilder().callTimeout(20, TimeUnit.SECONDS).cache(null).build()
+    // Short: a few kilobytes of an audio file, read while a finished edition waits to go out.
+    private val rangeClient = client.newBuilder().callTimeout(10, TimeUnit.SECONDS).cache(null).build()
 
     // A POST carries credentials (tt-rss logins). OkHttp re-sends the body on a 307/308, to any
     // host and even from https to http, so redirects are handed back to the caller instead.
@@ -104,6 +120,22 @@ class OkHttpHttpClient(
             // cache, more than the cache holds, which would push every other feed out of it.
             if (tooLarge) call.cancel()
             HttpResponse(r.code, r.request.url.toString(), r.header("Content-Type"), decode(bytes, r.body.contentType()?.charset()), truncated = tooLarge)
+        }
+    }
+
+    override suspend fun getRange(url: String, from: Long, length: Int): HttpRange = withContext(Dispatchers.IO) {
+        rangeClient.newCall(request(url, mapOf("Range" to "bytes=$from-${from + length - 1}"))).await().use { r ->
+            // Read no further than asked: a server that ignores the range sends the whole file.
+            val source = r.body.source()
+            source.request(length.toLong())
+            val body = source.buffer.let { it.readByteArray(minOf(it.size, length.toLong())) }
+            // "bytes 100-4195/52235": where the part sent starts, which may not be where it was asked to.
+            val range = r.header("Content-Range")?.let { Regex("""bytes (\d+)-\d+/(\d+|\*)""").find(it) }
+            if (r.code == 206 && range != null) {
+                HttpRange(r.code, range.groupValues[1].toLong(), range.groupValues[2].toLongOrNull(), body)
+            } else {
+                HttpRange(r.code, 0, r.body.contentLength().takeIf { it >= 0 && r.code == 200 }, body)
+            }
         }
     }
 

@@ -2,6 +2,9 @@ package com.app.newspaperss.ui.settings
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.launch
 import android.media.MediaPlayer
 import android.net.ConnectivityManager
 import androidx.annotation.RawRes
@@ -112,14 +115,14 @@ internal fun ListeningVoices(s: AppSettings, vm: SettingsViewModel, kokoro: Koko
                 OutlinedButton(onClick = onGetPhoneVoice) { Text("Get Speech Services by Google") }
             }
         }
-        val unsupported = kokoro is KokoroState.Unsupported
+        val unsupported = (kokoro as? KokoroState.Unsupported)?.why
         VoiceOption(
             selected = podcast,
             title = "A natural voice",
-            detail = if (unsupported) "Kokoro needs a 64-bit phone, and this one is 32-bit." else "Kokoro · made ahead while your phone charges · $mb",
-            enabled = !unsupported,
+            detail = unsupported ?: "Kokoro · made ahead while your phone charges · $mb",
+            enabled = unsupported == null,
             onSelect = ::pickPodcast,
-            sample = if (unsupported) null else ({ samples.play(context, sampleOf(s.podcastVoice)) }),
+            sample = if (unsupported != null) null else ({ samples.play(context, sampleOf(s.podcastVoice)) }),
         )
     }
 
@@ -296,6 +299,7 @@ private fun DeletePodcasts(vm: SettingsViewModel) {
 @Composable
 private fun PodcastLogButton(vm: SettingsViewModel) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var lines by remember { mutableStateOf<List<String>?>(null) }
     var open by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(open) { lines = if (open) vm.podcastLog() else null }
@@ -319,9 +323,23 @@ private fun PodcastLogButton(vm: SettingsViewModel) {
         confirmButton = {
             TextButton(
                 onClick = {
-                    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
-                    // E-reader firmware may lack the chooser.
-                    runCatching { context.startActivity(Intent.createChooser(send, "Share the audio log")) }
+                    // The file, not the text: the screen shows a couple of nights and the log keeps a
+                    // fortnight, which is more than an intent carries as an extra.
+                    scope.launch {
+                        // A log outside the folder file_paths declares has no content:// uri: the
+                        // text on the screen is less than the file, but better than a crash.
+                        val uri = vm.podcastLogFile()?.let {
+                            runCatching { FileProvider.getUriForFile(context, "${context.packageName}.files", it) }.getOrNull()
+                        }
+                        val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+                        if (uri == null) {
+                            send.putExtra(Intent.EXTRA_TEXT, text)
+                        } else {
+                            send.putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        // E-reader firmware may lack the chooser.
+                        runCatching { context.startActivity(Intent.createChooser(send, "Share the audio log")) }
+                    }
                 },
                 enabled = !text.isNullOrEmpty(),
             ) { Text("Share") }

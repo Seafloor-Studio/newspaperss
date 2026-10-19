@@ -594,13 +594,26 @@ whose Kindle and KOReader answers ask for more on the same page).
   only with a web link) is for an article that came out wrong: it first says the
   report is a public GitHub issue, then opens GitHub's new-issue form in the
   browser with "Extraction: *title*", the article's address and the app's version
-  filled in, for the issue check to compare with the page. Large pictures that stand
+  filled in, for the issue check to compare with the page. On a post the episode
+  detector judged (debug builds), it first asks what's wrong: "The article came
+  out wrong", or "It's labelled “Episode notes”, and it's…" with the other kinds
+  to pick from. A wrong label opens "Episode label: *title*" with the post's
+  address, the label it got and the one picked, so the post can become a case in
+  the episode corpus. Large pictures that stand
   alone fill the width (small ones keep their size), and the page can be
   pinched to zoom into a comic.
   **Delete edition** is in the ⋮ menu, and asks by name, saying what happens
   to the articles (an unsent edition's go back for the next one). An article that went in because it was starred says
   "You starred it". On delivered editions each article has a trailing **☆** to
   bring it back ("Didn't get to one? Tap ☆ to bring it back.").
+- **Episode labels** (debug builds): a post the episode detector judged to be
+  more than an article says so under its title, in an edition's contents and a
+  source's newest articles: "Episode notes", "Transcript of …", "Audio version of
+  “October 15”", or "Has an audio version" on the post a reading belongs to. The
+  article screen has the same as a line above the page, for the article on screen.
+  A source that posts episodes says how often, among its newest judged posts:
+  "Posts episodes: 9 of the last 17 posts". Release builds never judge posts, so
+  show none of this. See [episodes-design.md](research/episodes-design.md).
 - **Listening:** an edition read aloud by the phone's own text-to-speech
   voice, made for a walk with the phone in a pocket and the odd glance at
   it.
@@ -609,6 +622,18 @@ whose Kindle and KOReader answers ask for more on the same page).
     caption or alt text ("Image: Tait's table of knots"), or "An image."
     The date, reading time, link to the original and "Next" line aren't
     read; nor are footnote markers.
+  - **Recorded readings** (debug builds): an article with a recording of
+    itself plays it in its place. That's an audio version posted beside it,
+    or its own audio when that's within a quarter of its text read aloud
+    (an hour's episode isn't a reading of ten minutes' text). The voice
+    reads the source, title and author, says "Now its recorded reading,
+    12 minutes.", and the recording plays the rest, streamed. Sentences are
+    tinted as it reaches about their share of it, and a tap plays from about
+    there. Above the page: "Playing its recorded reading · 12 min" with
+    **Have the voice read it instead**, kept for that article, and back with
+    **Play its recorded reading**; the podcast log records each switch. A
+    recording that won't play (offline, gone) hands back to the voice from
+    where it got. See [episodes-design.md](research/episodes-design.md).
   - Between one article and the next, in either voice, a pause of about
     4 seconds: a moment's quiet, a soft breath of sound with a page
     turning, then the next article, so the listener can change contexts.

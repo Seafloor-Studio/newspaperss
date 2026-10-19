@@ -51,6 +51,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.data.AppDatabase
 import com.app.newspaperss.core.extract.ContentMode
+import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleState
 import com.app.newspaperss.data.SourceRepository
@@ -148,6 +149,36 @@ class SourceDetailScreenTest {
         idleUntil { compose.waitForIdle(); back }
 
         assertEquals(emptyList<Any>(), runBlocking { db.sources().all() })
+    }
+
+    @Test
+    fun episodePostsSayWhatTheyAreAndHowOftenTheSourcePostsThem() {
+        val titles = listOf("October 15", "Corruption as a Driving Force", "Episode 12", "Transcript: Episode 12", "An essay", "Never judged")
+        val id = runBlocking {
+            val id = repo.addFeed("https://example.com/feed", "Letters")
+            db.articles().insertNew(
+                titles.mapIndexed { i, title ->
+                    ArticleEntity(sourceId = id, guid = title, url = "https://example.com/$i", title = title, discoveredAt = clock.instant().minusSeconds(i * 60L))
+                },
+            )
+            db.articles().pairEpisode(id, "October 15", "Corruption as a Driving Force", EpisodeKind.ARTICLE)
+            db.articles().pairEpisode(id, "Corruption as a Driving Force", "October 15", EpisodeKind.AUDIO_VERSION)
+            db.articles().setEpisodeKind(id, "Episode 12", EpisodeKind.NOTES)
+            db.articles().pairEpisode(id, "Transcript: Episode 12", "Episode 12", EpisodeKind.TRANSCRIPT)
+            db.articles().setEpisodeKind(id, "An essay", EpisodeKind.ARTICLE)
+            id
+        }
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
+        compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
+        idleUntil { visible("Newest articles") }
+
+        // One episode, its notes and transcript counted once; a reading isn't an episode, and the
+        // article never judged doesn't count either way.
+        compose.onNodeWithText("Posts episodes: 1 of the last 5 posts").assertExists()
+        val list = compose.onNode(hasScrollAction())
+        list.performScrollToNode(hasText("Audio version of “October 15”"))
+        list.performScrollToNode(hasText("Has an audio version"))
+        list.performScrollToNode(hasText("Transcript of “Episode 12”"))
     }
 
     /** A site's own number stays put when the edition setting changes, until the reader hands it back. */

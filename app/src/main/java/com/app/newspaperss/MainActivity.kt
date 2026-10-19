@@ -16,6 +16,7 @@ import androidx.compose.runtime.mutableStateOf
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import com.app.newspaperss.listen.ListenPosition
+import com.app.newspaperss.ui.components.EpisodeJudgement
 import com.app.newspaperss.ui.listen.ListenScreen
 import android.os.Bundle
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -272,11 +273,13 @@ private fun App(
                     onOpenSource = { position ->
                         goTo(contents, moving, position)?.let { nav.navigate(sourceRoute(it)) { launchSingleTop = true } }
                     },
+                    episodeFor = { article -> contents.getOrNull(article)?.let { c -> c.episodeKind?.let { EpisodeJudgement(it, c.pair) } } },
                 )
             }
             composable(LISTEN) {
                 ListenScreen(
                     container.listen, onBack = { nav.navigateUp() }, podcastVoice = container.podcastPlaying, instead = container.podcastInstead,
+                    reading = container.readingNow, onVoiceInstead = container::useVoiceInstead,
                     textSize = textSize,
                 )
             }

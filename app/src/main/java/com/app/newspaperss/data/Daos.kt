@@ -1,5 +1,6 @@
 package com.app.newspaperss.data
 
+import com.app.newspaperss.core.episodes.EpisodeKind
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Embedded
@@ -300,7 +301,8 @@ interface ArticleDao {
      */
     @Query(
         """SELECT id, sourceId, guid, url, title, author, published, NULL AS feedHtml, discoveredAt, state, starredAt,
-           originId, originTitle, pageWords, reportedRead, viaUrl, paidOnly, paidSkipped, unreadable
+           originId, originTitle, pageWords, reportedRead, viaUrl, paidOnly, paidSkipped, unreadable,
+           audioUrl, audioType, audioBytes, audioSeconds, episodeKind, episodePair
            FROM articles WHERE (state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')) AND unreadable IS NULL""",
     )
     suspend fun buildCandidates(): List<ArticleEntity>
@@ -389,6 +391,13 @@ interface ArticleDao {
            LIMIT :limit""",
     )
     fun observeRecentForFeed(sourceId: Long, originId: String, limit: Int): Flow<List<ArticleEntity>>
+
+    /** The posts a source's articles are paired with ([ArticleEntity.episodePair]). */
+    @Query(
+        """SELECT guid, title, episodeKind FROM articles WHERE sourceId = :sourceId
+           AND guid IN (SELECT episodePair FROM articles WHERE sourceId = :sourceId AND episodePair IS NOT NULL)""",
+    )
+    fun observeEpisodePairs(sourceId: Long): Flow<List<EpisodePair>>
 
     @Query("SELECT * FROM articles WHERE sourceId = :sourceId ORDER BY discoveredAt, id")
     suspend fun allForSource(sourceId: Long): List<ArticleEntity>
@@ -624,6 +633,35 @@ interface ArticleDao {
     suspend fun knownGuids(sourceId: Long, guids: List<String>): List<String>
 
     /**
+     * A source's articles found since [since], newest first: what a new post is judged beside, so
+     * a narration that arrives a sync after its post, or alone through tt-rss, still finds it.
+     * [originId] narrows a tt-rss account to one of its feeds.
+     */
+    @Query(
+        """SELECT * FROM articles WHERE sourceId = :sourceId AND discoveredAt >= :since
+           AND (:originId IS NULL OR originId = :originId) ORDER BY discoveredAt DESC LIMIT :limit""",
+    )
+    suspend fun recentForEpisodes(sourceId: Long, originId: String?, since: Instant, limit: Int): List<ArticleEntity>
+
+    /**
+     * Pairs an article found earlier with a post that arrived since, unless it's paired already,
+     * with what it's judged to be now the other is there to judge it beside.
+     */
+    @Query("UPDATE articles SET episodePair = :pair, episodeKind = :kind WHERE sourceId = :sourceId AND guid = :guid AND episodePair IS NULL")
+    suspend fun pairEpisode(sourceId: Long, guid: String, pair: String, kind: EpisodeKind)
+
+    /** A source's article by its guid: the post another names as its pair ([ArticleEntity.episodePair]). */
+    @Query("SELECT * FROM articles WHERE sourceId = :sourceId AND guid = :guid")
+    suspend fun byGuid(sourceId: Long, guid: String): ArticleEntity?
+
+    @Query("UPDATE articles SET audioSeconds = :seconds WHERE id = :id")
+    suspend fun setAudioSeconds(id: Long, seconds: Int)
+
+    /** Sets what an article found earlier is, now that more of its source has been seen. */
+    @Query("UPDATE articles SET episodeKind = :kind WHERE sourceId = :sourceId AND guid = :guid")
+    suspend fun setEpisodeKind(sourceId: Long, guid: String, kind: EpisodeKind)
+
+    /**
      * Old articles keep their row, whose guid stops a feed offering them again, but not the
      * feed's copy of their text, which would otherwise grow the database without end. Counted
      * from delivery where there was one: a link saved long ago and sent today can still be
@@ -717,6 +755,10 @@ data class EditionContent(
      * [EditionArticleEntity.sourceTitle], which is the byline ("Equator via Longreads").
      */
     val publicationTitle: String? = null,
+    /** What the article is beside podcast episodes ([ArticleEntity.episodeKind]); null if never judged. */
+    val episodeKind: EpisodeKind? = null,
+    /** The post it pairs with ([ArticleEntity.episodePair]), if that is still stored. */
+    @Embedded(prefix = "pair_") val pair: EpisodePair? = null,
 ) {
     /**
      * The page to open for where this article came from, or null when there is none to open: its
@@ -744,6 +786,9 @@ data class EditionContent(
  * within it ([ArticleEntity.originId], which a feed's page is addressed by).
  */
 data class ArticleSource(val id: Long, val kind: SourceKind, val feedKey: String?, val title: String, val paused: Boolean)
+
+/** A post another is paired with, as [ArticleEntity.episodePair] names it. */
+data class EpisodePair(val guid: String, val title: String, val episodeKind: EpisodeKind?)
 
 @Dao
 interface EditionDao {
@@ -814,11 +859,13 @@ interface EditionDao {
     fun observeArticles(editionId: Long): Flow<List<EditionArticleEntity>>
 
     @Query(
-        """SELECT edition_articles.*, articles.state AS state, articles.starredAt AS starredAt,
+        """SELECT edition_articles.*, articles.state AS state, articles.starredAt AS starredAt, articles.episodeKind AS episodeKind,
+                  pair.guid AS pair_guid, pair.title AS pair_title, pair.episodeKind AS pair_episodeKind,
                   articles.sourceId AS sourceId, articles.originId AS originId,
                   sources.kind AS sourceKind, sources.title AS sourceName, sources.paused AS sourcePaused,
                   COALESCE(publications.title, articles.originTitle) AS publicationTitle FROM edition_articles
            LEFT JOIN articles ON articles.id = edition_articles.articleId
+           LEFT JOIN articles AS pair ON pair.sourceId = articles.sourceId AND pair.guid = articles.episodePair
            LEFT JOIN sources ON sources.id = articles.sourceId
            LEFT JOIN publications ON publications.sourceId = articles.sourceId AND publications.key = articles.originId
            WHERE editionId = :editionId ORDER BY edition_articles.position""",

@@ -1,6 +1,12 @@
 package com.app.newspaperss.data
 
+import com.app.newspaperss.core.episodes.EpisodeDetector
+import com.app.newspaperss.core.episodes.EpisodeFeed
+import com.app.newspaperss.core.episodes.EpisodeKind
+import com.app.newspaperss.core.episodes.Verdict
 import com.app.newspaperss.core.extract.ArticleExtractor
+import com.app.newspaperss.core.feed.Enclosure
+import com.app.newspaperss.core.feed.FeedItem
 import com.app.newspaperss.core.feed.FeedParseException
 import com.app.newspaperss.core.feed.FeedParser
 import com.app.newspaperss.core.feed.FeedTooLargeException
@@ -49,6 +55,8 @@ class FeedSync(
      * would otherwise list its picks by site name. Must return quickly.
      */
     private val onUntitled: (articleIds: List<Long>) -> Unit = {},
+    /** Whether to keep posts' audio and judge their episode kind: debug builds only, while it's tried out. */
+    private val episodesOn: Boolean = true,
 ) {
     suspend fun syncAll(): SyncResult = coroutineScope {
         val feeds = db.sources().all().filter { it.kind != SourceKind.READING_LIST && !it.paused }
@@ -73,12 +81,13 @@ class FeedSync(
             if (response.isSuccessful) {
                 body = response.body
                 val feed = FeedParser.parse(response.body, response.finalUrl, response.truncated)
+                val episodes = episodes(source, null, feed.items, feed.podcast, now)
                 val added = db.articles().insertFetched(
                     feed.items.map {
                         ArticleEntity(
                             sourceId = source.id, guid = it.guid, url = it.url, title = it.title,
                             author = it.author, published = it.published, feedHtml = storable(it.contentHtml), discoveredAt = now,
-                        ).linkedToStory(feed.siteUrl ?: source.siteUrl) to it.url
+                        ).episode(it.enclosures, episodes[it.guid], it.durationSeconds).linkedToStory(feed.siteUrl ?: source.siteUrl) to it.url
                     },
                 )
                 // A title that is still the host-name placeholder gives way to the feed's own.
@@ -199,7 +208,8 @@ class FeedSync(
                 db.withTransaction { withUnread.forEach { db.sources().setServerError(source.id, it.id.toString(), it.lastError) } }
                 val unreadFeeds = withUnread.filter { it.id.toString() !in leftOut }
                 val headlines = fromEachFeed(client, unreadFeeds)
-                val articles = headlines.map { it to article(source, it, now) }
+                val episodes = judged(source, headlines, now)
+                val articles = headlines.map { it to article(source, it, now).episode(it.attachments, episodes["$TTRSS_GUID_PREFIX${it.id}"]) }
                 if (source.markReadOnServer) syncReadState(client, source, articles, now)
                 val guids = articles.map { it.second.guid }
                 val known = guids.chunked(500).flatMap { db.articles().knownGuids(source.id, it) }.toSet()
@@ -268,6 +278,77 @@ class FeedSync(
         }
     }
 
+    /**
+     * What each of [items] is beside podcast episodes, judged with the source's recent articles
+     * too ([EPISODE_CONTEXT] of them, found in the last [EPISODE_CONTEXT_DAYS] days): a narration
+     * often arrives a sync after the post it reads, and through tt-rss, which sends only what's
+     * unread, it may arrive alone. An earlier article gets the new post as its pair, and one
+     * judged an episode post can turn out an article. Detection is best effort: a failure leaves the posts unjudged rather
+     * than failing the sync.
+     */
+    private suspend fun episodes(source: SourceEntity, originId: String?, items: List<FeedItem>, podcast: Boolean, now: Instant): Map<String, Verdict> {
+        if (!episodesOn) return emptyMap()
+        val guids = items.map { it.guid }.toSet()
+        // A feed lists the same posts sync after sync; judging them again would only be thrown away.
+        val known = guids.chunked(500).flatMap { db.articles().knownGuids(source.id, it) }.toSet()
+        val fresh = guids - known
+        if (fresh.isEmpty()) return emptyMap()
+        // Stored posts the feed still lists are judged from the feed's copy but updated here like
+        // the rest: they're the ones a new narration or written post most often pairs with.
+        val earlier = db.articles().recentForEpisodes(source.id, originId, now.minus(Duration.ofDays(EPISODE_CONTEXT_DAYS)), EPISODE_CONTEXT)
+        val verdicts = try {
+            EpisodeDetector.classify(EpisodeFeed.of(items + earlier.filter { it.guid !in guids }.map { it.asFeedItem() }, podcast))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return emptyMap()
+        }
+        for (old in earlier) {
+            val verdict = verdicts[old.guid] ?: continue
+            val pair = verdict.pair
+            when {
+                // Pairing makes a narration an audio version; it doesn't make an article notes.
+                pair != null && old.episodePair == null && pair in fresh -> db.articles().pairEpisode(
+                    source.id, old.guid, pair,
+                    if (verdict.kind == EpisodeKind.AUDIO_VERSION || verdict.kind == EpisodeKind.ARTICLE) verdict.kind else old.episodeKind ?: verdict.kind,
+                )
+                // Only toward an article: a magazine's story carrying its episode's audio looks like
+                // notes until the next episode shows the pattern, but a post judged an article
+                // isn't turned into an episode by what came after it.
+                verdict.kind == EpisodeKind.ARTICLE && old.episodeKind != null && old.episodeKind != EpisodeKind.ARTICLE && old.episodePair == null ->
+                    db.articles().setEpisodeKind(source.id, old.guid, EpisodeKind.ARTICLE)
+            }
+        }
+        // A pair is kept only if it holds both ways: it names a new post, or an earlier one above
+        // that's been paired back. Not one already paired with another (which keeps its own), one
+        // stored but older than those (never paired back), nor a guid no post has (the detector's
+        // name for a repeated guid).
+        val real = fresh + earlier.map { it.guid }
+        val taken = earlier.mapNotNull { old -> old.episodePair?.let { old.guid to it } }.toMap()
+        return verdicts.filterKeys { it in fresh }.mapValues { (guid, verdict) ->
+            val pair = verdict.pair ?: return@mapValues verdict
+            if (pair !in real || taken[pair]?.let { it != guid } == true) verdict.copy(pair = null) else verdict
+        }
+    }
+
+    /** [headlines] judged feed by feed, as a feed's own posts are: pairs are two posts of one publication. */
+    private suspend fun judged(source: SourceEntity, headlines: List<TtrssHeadline>, now: Instant): Map<String, Verdict> =
+        headlines.groupBy { it.feedId }.flatMap { (feedId, posts) ->
+            episodes(source, feedId, posts.map { it.asFeedItem() }, podcast = false, now).entries
+        }.associate { it.key to it.value }
+
+    private fun ArticleEntity.episode(enclosures: List<Enclosure>, verdict: Verdict?, seconds: Int? = null) =
+        if (episodesOn) withEpisode(enclosures, verdict, seconds) else this
+
+    private fun ArticleEntity.asFeedItem() = FeedItem(
+        guid = guid, url = viaUrl ?: url, title = title, contentHtml = feedHtml, author = author, published = published,
+        enclosures = listOfNotNull(audioUrl?.let { Enclosure(it, audioType.orEmpty(), audioBytes ?: 0) }),
+    )
+
+    private fun TtrssHeadline.asFeedItem() = FeedItem(
+        guid = "$TTRSS_GUID_PREFIX$id", url = link, title = title, contentHtml = content, author = author, published = null, enclosures = attachments,
+    )
+
     private fun article(source: SourceEntity, h: TtrssHeadline, now: Instant, starredAt: Instant? = null) = ArticleEntity(
         sourceId = source.id, guid = "$TTRSS_GUID_PREFIX${h.id}", url = h.link, title = h.title,
         author = h.author, published = h.updated?.let(Instant::ofEpochSecond), feedHtml = storable(h.content),
@@ -297,7 +378,9 @@ class FeedSync(
             val held = unseen.map { "$TTRSS_GUID_PREFIX$it" }.chunked(500).flatMap { db.articles().inEditionAmong(source.id, it) }.toSet()
             val new = if (source.ttrssStarsNoted) unseen.filter { "$TTRSS_GUID_PREFIX$it" !in held }.take(STARS_PER_SYNC) else emptyList()
             // Only what was asked for: a server answering with more would add them all, starred.
-            val articles = client.articles(new).filter { it.id in new }.map { it to article(source, it, now, starredAt = now) }
+            val starredHeadlines = client.articles(new).filter { it.id in new }
+            val episodes = judged(source, starredHeadlines, now)
+            val articles = starredHeadlines.map { it to article(source, it, now, starredAt = now).episode(it.attachments, episodes["$TTRSS_GUID_PREFIX${it.id}"]) }
             db.withTransaction {
                 // Turned off, or off and on again, during this sync: what was seen belongs to the old setting.
                 val current = sources.byId(source.id)
@@ -372,6 +455,10 @@ class FeedSync(
     companion object {
         private val UNTITLED_LOOKUP_FOR: Duration = Duration.ofDays(2)
         private val LIST_FEEDS_EVERY: Duration = Duration.ofDays(1)
+
+        /** How many of a source's recent articles a new post is judged beside, and how recent. */
+        private const val EPISODE_CONTEXT = 30
+        private const val EPISODE_CONTEXT_DAYS = 14L
 
         /** A feed in the paper with nothing new for this long says so on Sources. */
         val QUIET_AFTER: Duration = Duration.ofDays(21)
@@ -491,6 +578,20 @@ internal suspend fun listTtrssFeeds(db: AppDatabase, client: TtrssClient, source
         sources.setFeedsListed(source.id, now)
         true
     }
+}
+
+/**
+ * With the audio the feed attached and what the detector made of the post; a post it didn't judge stays unjudged.
+ *
+ * @param seconds the feed's length for the audio (`itunes:duration`), when it gives one.
+ */
+internal fun ArticleEntity.withEpisode(enclosures: List<Enclosure>, verdict: Verdict?, seconds: Int? = null): ArticleEntity {
+    val audio = EpisodeDetector.audioOf(enclosures)
+    return copy(
+        audioUrl = audio?.url, audioType = audio?.type?.ifEmpty { null }, audioBytes = audio?.length?.takeIf { it > 0 },
+        audioSeconds = seconds?.takeIf { audio != null && it > 0 },
+        episodeKind = verdict?.kind, episodePair = verdict?.pair,
+    )
 }
 
 /**

@@ -134,7 +134,10 @@ The steps, with where they live:
    through `FeedParser`, tt-rss through `TtrssClient`, curated lists
    through `CuratedLists`; once a day a tt-rss sync also asks for the
    account's whole feed list (`listTtrssFeeds`) to name its
-   publications. It then
+   publications. Each new article keeps the audio file its feed attached,
+   and `EpisodeDetector` (`core/episodes`) judges it beside the rest of its
+   feed: an article, an episode's notes or transcript, or the audio version
+   of another post. Nothing reads that yet. It then
    expires old waiting articles, forgets delivered links after a year and
    drops old feed text.
 2. **Start.** `EditionBuilder.build` (`app/edition/EditionBuilder.kt`)
@@ -171,6 +174,10 @@ The steps, with where they live:
 8. **Deliver.** With folder delivery, `EditionRun` copies the file
    (`FolderDelivery`, through the Storage Access Framework) and marks it
    delivered. Otherwise a timed run posts the "ready" notification.
+   Then, in debug builds, `AudioLengths` times the audio Listen may play in
+   an article's place (an article's own, and the reading paired with one)
+   from the first bytes of each file (`core/episodes/AudioLength.kt`), for
+   at most 30 seconds, so the paper never waits for it.
 
 Failures inside a build mark the edition `FAILED` with a reason the
 reader can read; an exception never escapes as a crash
@@ -303,7 +310,8 @@ flowchart LR
   the manifest `assets/kokoro/files.tsv` pins (a Hugging Face revision,
   each file's size and hash) eight at a time, resuming a stopped file
   and checking each, into `files/kokoro`; then it times `KokoroEngine`
-  (sherpa-onnx) making a paragraph and keeps the pace in Settings. The
+  (sherpa-onnx, in the debug source set only; a release build's `kokoroEngine`
+  refuses) making a paragraph and keeps the pace in Settings. The
   setup reads its state back from WorkManager and the files.
 - **`PodcastMaker`** makes the podcasts `Podcasts` asked for, run by
   `PodcastWorker` while the phone charges. It reads the book a page at a time (articles, then
@@ -419,6 +427,9 @@ erDiagram
         enum state
         instant starredAt
         string originId "tt-rss feed"
+        string audioUrl "the feed's audio attachment"
+        int audioSeconds "how long it plays, from the feed or measured"
+        enum episodeKind "notes, transcript, audio version"
     }
     editions {
         long id PK

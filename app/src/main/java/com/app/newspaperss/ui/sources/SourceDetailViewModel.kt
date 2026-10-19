@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.app.newspaperss.core.extract.ContentMode
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleHistory
+import com.app.newspaperss.data.EpisodePair
 import com.app.newspaperss.data.PaidOnlyCount
 import com.app.newspaperss.data.MarkedRead
 import com.app.newspaperss.data.StarBatch
@@ -39,6 +40,8 @@ data class SourceDetail(
     val history: Map<Long, ArticleHistory> = emptyMap(),
     /** Its paid posts with next to nothing free so far, and how many were left out. */
     val paidOnly: PaidOnlyCount = PaidOnlyCount(0, 0),
+    /** The posts its articles are paired with, by guid (see [ArticleEntity.episodePair]). */
+    val episodePairs: Map<String, EpisodePair> = emptyMap(),
 )
 
 /**
@@ -62,8 +65,9 @@ class SourceDetailViewModel(
         combine(
             combine(repository.observe(id), repository.observeRecentArticles(id, key), defaultMax, ::Triple),
             repository.observePublication(id, key), repository.observeHistory(id), repository.observePaidOnly(id, key),
-        ) { (source, articles, max), publication, history, paidOnly ->
-            SourceDetail(source, articles, max, publication, history, paidOnly)
+            repository.observeEpisodePairs(id),
+        ) { (source, articles, max), publication, history, paidOnly, pairs ->
+            SourceDetail(source, articles, max, publication, history, paidOnly, pairs)
         }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 

@@ -11,6 +11,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.TextButton
@@ -28,6 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import com.app.newspaperss.ui.components.EpisodeJudgement
+import com.app.newspaperss.ui.components.episodeNote
 import com.app.newspaperss.settings.PreviewTextSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -163,6 +167,11 @@ fun ArticlePreviewScreen(
     sourceAt: (Int) -> String? = { null },
     /** Opens the page of where the article at this position came from; null offers no Go to. */
     onOpenSource: ((Int) -> Unit)? = null,
+    /**
+     * What the episode detector made of the article at this position, or null if it never judged
+     * it: said in a line above the page, and a wrong label can be sent for a look.
+     */
+    episodeFor: (Int) -> EpisodeJudgement? = { null },
 ) {
     // Read in the background so the screen shows at once: reading a large edition during
     // composition holds up the frame, and the tap that opened it seems not to have registered.
@@ -183,11 +192,17 @@ fun ArticlePreviewScreen(
     }
     // The page on screen can change under the preview: every article ends in a "Next" link.
     var link by remember(preview) { mutableStateOf((preview as? Preview.Ready)?.link) }
+    // The article [link] belongs to, changed with it: after a rotation the link is the first
+    // article's until the restored page reports itself, whatever article was on screen.
+    var linkArticle by remember(preview) { mutableStateOf<Int?>(position) }
     var pageTitle by remember(preview) { mutableStateOf<String?>(null) }
     // Which article is on screen, for Listen: null on the book's other pages, such as its end,
     // and on any page the book doesn't have, which a link in an article could point to.
     // Kept across rotation: the restored page reports itself only once it has loaded again.
     var shownArticle by rememberSaveable(position) { mutableStateOf<Int?>(position) }
+    // The article the line above the page is about: changed only once the new page is known, not
+    // cleared in between as shownArticle is, so on e-ink a page turn redraws it once, not twice.
+    var noteArticle by rememberSaveable(position) { mutableStateOf<Int?>(position) }
     val shownTitle = pageTitle ?: title
     val scope = rememberCoroutineScope()
     var reading by remember { mutableStateOf<Job?>(null) }
@@ -206,8 +221,10 @@ fun ArticlePreviewScreen(
                 withContext(Dispatchers.Main.immediate) {
                     ensureActive()
                     link = read?.link
+                    linkArticle = article.takeIf { read != null }
                     pageTitle = read?.title
                     shownArticle = article.takeIf { read != null }
+                    noteArticle = shownArticle
                 }
             }
         }
@@ -219,7 +236,7 @@ fun ArticlePreviewScreen(
     // The address asked about, so the question stays up across rotation; asked only about the
     // page it was asked on.
     var lookAt by rememberSaveable(position) { mutableStateOf<String?>(null) }
-    link?.takeIf { it.url == lookAt }?.let { SendForALookDialog(it, onDismiss = { lookAt = null }) }
+    link?.takeIf { it.url == lookAt }?.let { SendForALookDialog(it, linkArticle?.let(episodeFor), onDismiss = { lookAt = null }) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -267,8 +284,15 @@ fun ArticlePreviewScreen(
                 val justify = justifies(textSize, textZoom)
                 // Keyed: the WebView is built once, so a new article needs a new one. A new size or
                 // alignment is applied to it in place.
-                key(p) {
-                    BookView(p.pages, p.xhtml, colors.background.toArgb(), colors.onBackground.toArgb(), textZoom, justify, BOOK_ORIGIN + EpubPages.articleHref(position), { onPage(it, p.pages) }, { link }, place, Modifier.fillMaxSize().padding(padding))
+                Column(Modifier.fillMaxSize().padding(padding)) {
+                    noteArticle?.let(episodeFor)?.let { episodeNote(it.kind, it.pair) }?.let { note ->
+                        // Held to three lines: it stays above the article for the whole read.
+                        Text(note, style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                        HorizontalDivider()
+                    }
+                    key(p) {
+                        BookView(p.pages, p.xhtml, colors.background.toArgb(), colors.onBackground.toArgb(), textZoom, justify, BOOK_ORIGIN + EpubPages.articleHref(position), { onPage(it, p.pages) }, { link }, place, Modifier.fillMaxWidth().weight(1f))
+                    }
                 }
             }
         }

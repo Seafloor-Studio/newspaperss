@@ -34,6 +34,7 @@ import com.app.newspaperss.data.EditionRepository
 import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.testutil.FakeSpeaker
 import com.app.newspaperss.testutil.TestApp
+import com.app.newspaperss.testutil.ViewModels
 import com.app.newspaperss.testutil.closeAfter
 import com.app.newspaperss.testutil.idleUntil
 import com.app.newspaperss.testutil.transparentPng
@@ -65,6 +66,7 @@ import java.time.LocalDate
 class ListenAppTest {
     @get:Rule(order = 0) val closeDb = closeAfter { db.close() }
     @get:Rule(order = 1) val compose = createComposeRule()
+    @get:Rule(order = 2) val viewModels = ViewModels()
 
     private val app = ApplicationProvider.getApplicationContext<Application>()
     private val db = Room.inMemoryDatabaseBuilder(app, AppDatabase::class.java).allowMainThreadQueries().build()
@@ -145,7 +147,7 @@ class ListenAppTest {
         val yesterday = edition("Wednesday Morning Edition", lagos)
         val today = edition()
         progress.set(yesterday, ListenPosition(0, 1))
-        val vm = EditionDetailViewModel(repo, today) {}
+        val vm = viewModels.add(EditionDetailViewModel(repo, today) {})
         var openedPlayer = 0
         compose.setContent { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = { openedPlayer++ }) }
         // 6 minutes to read is 9 to hear.
@@ -179,7 +181,7 @@ class ListenAppTest {
         val yesterday = edition("Wednesday Morning Edition", lagos)
         val today = edition()
         progress.set(yesterday, ListenPosition(0, 1))
-        val vm = EditionDetailViewModel(repo, today) {}
+        val vm = viewModels.add(EditionDetailViewModel(repo, today) {})
         val restoration = StateRestorationTester(compose)
         restoration.setContent { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = {}) }
         idleUntil { compose.onAllNodesWithText("Listen · about 9 min").fetchSemanticsNodes().isNotEmpty() }
@@ -199,7 +201,7 @@ class ListenAppTest {
         val yesterday = edition("Wednesday Morning Edition", lagos)
         val today = edition()
         progress.set(yesterday, ListenPosition(0, 1))
-        val vm = EditionDetailViewModel(repo, today) {}
+        val vm = viewModels.add(EditionDetailViewModel(repo, today) {})
         val restoration = StateRestorationTester(compose)
         restoration.setContent { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = {}) }
         idleUntil { compose.onAllNodesWithText("Listen · about 9 min").fetchSemanticsNodes().isNotEmpty() }
@@ -243,6 +245,30 @@ class ListenAppTest {
         compose.onNodeWithText("Thursday Morning Edition").assertIsDisplayed()
         compose.onNodeWithText("Close").performClick()
         compose.onNodeWithText("Thursday Morning Edition").assertDoesNotExist()
+    }
+
+    @Test
+    fun anArticlePlayingItsRecordingSaysSoAndOffersTheVoiceInstead() {
+        val id = edition()
+        startAndWait(id)
+        val now = kotlinx.coroutines.flow.MutableStateFlow<ReadingSpeaker.Now?>(
+            ReadingSpeaker.Now(id, 0, Reading("https://cdn.example/r.mp3", 130, own = false, bodyLine = 3, starts = listOf(0.0)), voiceInstead = false),
+        )
+        val asked = mutableListOf<Boolean>()
+        compose.setContent { ListenScreen(player, onBack = {}, reading = now, onVoiceInstead = { asked += it }) }
+
+        compose.onNodeWithText("Playing its recorded reading · 2 min.").assertIsDisplayed()
+        compose.onNodeWithText("Have the voice read it instead").performClick()
+        assertEquals(listOf(true), asked)
+
+        now.value = now.value!!.copy(voiceInstead = true)
+        compose.onNodeWithText("Play its recorded reading").performClick()
+        assertEquals(listOf(true, false), asked)
+
+        // Only on its own article.
+        compose.onNodeWithContentDescription("Next article").performClick()
+        idleUntil { player.state.value.at.page == 1 }
+        compose.onNodeWithText("recorded reading", substring = true).assertDoesNotExist()
     }
 
     @Test
