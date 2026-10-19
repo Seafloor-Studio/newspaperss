@@ -15,7 +15,7 @@ caught, and what got in the way. Newest first. Times are Pacific.
 ## Mon 19 Oct
 
 ### Podcast episodes, step 1: attachments kept, kinds stored
-- **Step 1 of [episodes-design.md](research/episodes-design.md):** the feed parser keeps a post's attachments (RSS, Media RSS, Atom, JSON Feed) and its episode length; tt-rss is asked for attachments; each new article stores its audio file and the kind the detector gives it. Database version 15. Nothing on screen changes.
+- **Step 1 of [episodes-design.md](research/episodes-design.md):** the feed parser keeps a post's attachments (RSS, Media RSS, Atom, JSON Feed) and its episode length; tt-rss is asked for attachments; each new article stores its audio file and the kind the detector gives it. Database version 15. Nothing on screen changes. Debug builds only: a release keeps no audio and judges nothing.
 - **Checked through tt-rss:** a real tt-rss (in Docker) read 14 corpus feeds; its answers, scrambled, are now a corpus test. With attachments, every post with an audio file is judged as it is from the feed.
 - **Found on the way:** the feed parser drops an entry with no link to open, so a podcast feed whose episodes have none (Buzzsprout's) never reaches the app.
 

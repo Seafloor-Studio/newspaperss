@@ -129,7 +129,7 @@ class AppContainer(
     val ttrss = TtrssRepository(db, http, ttrssAccounts, sources)
     val ttrssSubscriptions = TtrssSubscriptions(ttrss, appScope)
     val feedMoves = FeedMoves(feedMovesData, db, ttrss, schedule = moveFeeds)
-    val feedSync = FeedSync(db, http, ttrssAccounts = ttrssAccounts, onUntitled = fetchReadingListTitles)
+    val feedSync = FeedSync(db, http, ttrssAccounts = ttrssAccounts, onUntitled = fetchReadingListTitles, episodesOn = EPISODES)
     private val content = ExtractorContentProvider(
         ArticleExtractor(http), http, AndroidImageEncoder(), onPaidOnly = sources::markPaidOnly, onUnreadable = db.articles()::setUnreadable,
     ) { sourceId, originId, evidence, text ->

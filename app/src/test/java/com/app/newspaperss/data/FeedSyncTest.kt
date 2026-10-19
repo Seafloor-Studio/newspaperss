@@ -364,4 +364,20 @@ class FeedSyncTest {
         assertEquals("reading", byGuid.getValue("letter").episodePair)
         assertEquals(EpisodeKind.ARTICLE, byGuid.getValue("letter").episodeKind)
     }
+
+    @Test
+    fun aReleaseBuildKeepsNoAudioAndJudgesNothing() = runTest {
+        repo.addFeed(url, "A Show")
+        http.page(
+            url,
+            """<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel><title>A Show</title><itunes:type>episodic</itunes:type>
+              <item><title>Episode 12</title><link>https://show.example/12</link><guid>e12</guid><description>Our guest talks about trains.</description>
+                <enclosure url="https://cdn.example/12.mp3" type="audio/mpeg" length="54321"/></item></channel></rss>""",
+        )
+        FeedSync(db, http, clock, keepFor = Duration.ofDays(7), episodesOn = false).syncAll()
+
+        val episode = db.articles().candidates().single()
+        assertNull(episode.audioUrl)
+        assertNull(episode.episodeKind)
+    }
 }

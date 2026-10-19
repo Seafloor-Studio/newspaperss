@@ -55,6 +55,8 @@ class FeedSync(
      * would otherwise list its picks by site name. Must return quickly.
      */
     private val onUntitled: (articleIds: List<Long>) -> Unit = {},
+    /** Whether to keep posts' audio and judge their episode kind: debug builds only, while it's tried out. */
+    private val episodesOn: Boolean = true,
 ) {
     suspend fun syncAll(): SyncResult = coroutineScope {
         val feeds = db.sources().all().filter { it.kind != SourceKind.READING_LIST && !it.paused }
@@ -85,7 +87,7 @@ class FeedSync(
                         ArticleEntity(
                             sourceId = source.id, guid = it.guid, url = it.url, title = it.title,
                             author = it.author, published = it.published, feedHtml = storable(it.contentHtml), discoveredAt = now,
-                        ).withEpisode(it.enclosures, episodes[it.guid]).linkedToStory(feed.siteUrl ?: source.siteUrl) to it.url
+                        ).episode(it.enclosures, episodes[it.guid]).linkedToStory(feed.siteUrl ?: source.siteUrl) to it.url
                     },
                 )
                 // A title that is still the host-name placeholder gives way to the feed's own.
@@ -210,7 +212,7 @@ class FeedSync(
                 val episodes = headlines.groupBy { it.feedId }.flatMap { (feedId, posts) ->
                     episodes(source, feedId, posts.map { it.asFeedItem() }, podcast = false, now).entries
                 }.associate { it.key to it.value }
-                val articles = headlines.map { it to article(source, it, now).withEpisode(it.attachments, episodes["$TTRSS_GUID_PREFIX${it.id}"]) }
+                val articles = headlines.map { it to article(source, it, now).episode(it.attachments, episodes["$TTRSS_GUID_PREFIX${it.id}"]) }
                 if (source.markReadOnServer) syncReadState(client, source, articles, now)
                 val guids = articles.map { it.second.guid }
                 val known = guids.chunked(500).flatMap { db.articles().knownGuids(source.id, it) }.toSet()
@@ -288,6 +290,7 @@ class FeedSync(
      * than failing the sync.
      */
     private suspend fun episodes(source: SourceEntity, originId: String?, items: List<FeedItem>, podcast: Boolean, now: Instant): Map<String, Verdict> {
+        if (!episodesOn) return emptyMap()
         val guids = items.map { it.guid }.toSet()
         // A feed lists the same posts sync after sync; judging them again would only be thrown away.
         val known = guids.chunked(500).flatMap { db.articles().knownGuids(source.id, it) }.toSet()
@@ -321,6 +324,8 @@ class FeedSync(
         }
         return verdicts.filterKeys { it in fresh }
     }
+
+    private fun ArticleEntity.episode(enclosures: List<Enclosure>, verdict: Verdict?) = if (episodesOn) withEpisode(enclosures, verdict) else this
 
     private fun ArticleEntity.asFeedItem() = FeedItem(
         guid = guid, url = viaUrl ?: url, title = title, contentHtml = feedHtml, author = author, published = published,
@@ -364,7 +369,7 @@ class FeedSync(
             val episodes = starredHeadlines.groupBy { it.feedId }.flatMap { (feedId, posts) ->
                 episodes(source, feedId, posts.map { it.asFeedItem() }, podcast = false, now).entries
             }.associate { it.key to it.value }
-            val articles = starredHeadlines.map { it to article(source, it, now, starredAt = now).withEpisode(it.attachments, episodes["$TTRSS_GUID_PREFIX${it.id}"]) }
+            val articles = starredHeadlines.map { it to article(source, it, now, starredAt = now).episode(it.attachments, episodes["$TTRSS_GUID_PREFIX${it.id}"]) }
             db.withTransaction {
                 // Turned off, or off and on again, during this sync: what was seen belongs to the old setting.
                 val current = sources.byId(source.id)
