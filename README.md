@@ -116,7 +116,7 @@ The newest debug build is always at
 [newspapeRSS-debug.apk](https://github.com/Seafloor-Studio/newspaperss/releases/download/latest-debug/newspapeRSS-debug.apk)
 (Android 8 or later), for 64-bit ARM: most phones and recent e-readers. An
 older 32-bit e-reader needs `newspapeRSS-debug-armeabi-v7a.apk` from the same
-page, which has everything but the natural voice (a debug-only feature for now). It installs beside a release build, and Settings shows
+page, which has everything but the natural voice (debug builds only, while it's tested for safe resource usage). It installs beside a release build, and Settings shows
 which build it is. The [release page](https://github.com/Seafloor-Studio/newspaperss/releases/tag/latest-debug)
 names the newest build, its commit and date, and has the same file under the
 build's number. After that the test build keeps itself current: it downloads
@@ -140,8 +140,10 @@ each screen under Robolectric into `app/build/screenshots`.
 
 MIT: see [LICENSE](LICENSE).
 
-The natural voice is in debug builds only, for now; a release build reads
-aloud in the phone's own voice. Debug builds include
+The natural voice is in debug builds only while it's tested for safe
+resource usage: making an edition's audio keeps several cores busy for an
+hour or more, so heat, battery and storage are being checked on real phones
+first. A release build reads aloud in the phone's own voice. Debug builds include
 [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)
 (Apache 2.0) and [ONNX Runtime](https://github.com/microsoft/onnxruntime)
 (MIT), which run it. That voice,
