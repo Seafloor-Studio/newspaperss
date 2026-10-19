@@ -112,8 +112,25 @@ public feeds it hadn't seen and on one reader's own list of 91 feeds:
   episode). Detection runs on the post as the feed sends it, and stores its verdict.
 - **The audio's length.** Many feeds give none (Substack doesn't). One small request for the
   file's size gives it, at the file's bitrate. Only needed for posts with audio.
-- **tt-rss.** It reports attachments with each article, but what it keeps, and whether its
-  sanitizer strips players, hasn't been checked (phase R4 of the research plan).
+- **tt-rss.** Checked against a real tt-rss (current version, in Docker) reading 14 corpus
+  feeds, with the API asked exactly as the app asks:
+  - **Attachments are kept**, but only returned when the app asks for them
+    (`include_attachments`), which it doesn't yet. tt-rss keeps the address and type; the file's
+    size lands in a field it calls `duration`; the episode's real length (`itunes:duration`) is
+    dropped.
+  - **Its sanitizer strips every player** (Spotify, YouTube, Anchor, Megaphone) and every
+    `data-` attribute, which removes Substack's player for uploaded audio.
+  - **Asking for `sanitize=false` returns the post as the feed sent it.**
+
+  | Through tt-rss, 161 labelled posts | Right | Articles misclassed |
+  |---|---|---|
+  | As the app asks today | 90 | 0 |
+  | With attachments | 147 | 0 |
+  | With attachments, unsanitized | 159, the same as from the feed | 0 |
+
+  So step 1 asks for attachments and unsanitized content, and cleans tt-rss posts with the
+  app's own cleaner, as it does feed posts; extraction through tt-rss is re-checked against the
+  platform corpus in the same step.
 - **Later: the post's page.** Some sites put the player on the page and leave it out of the
   feed, so a transcript there reads as an article. Reading the page finds the player.
 - **Later: following a player to its audio.** A player isn't an audio file. Anchor and Apple
