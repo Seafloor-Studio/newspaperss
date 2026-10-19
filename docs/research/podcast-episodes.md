@@ -1,8 +1,8 @@
 # Podcast episodes: research plan
 
 How to find out what a good answer to podcast episodes in feeds is, before building it. The
-proposal is in [BACKLOG.md](../BACKLOG.md) under "Podcast episodes in feeds"; this is how to test
-it, and the corpus that keeps it tested.
+design it led to is [episodes-design.md](episodes-design.md); this is how to test it, and the
+corpus that keeps it tested.
 
 ## What we know
 
