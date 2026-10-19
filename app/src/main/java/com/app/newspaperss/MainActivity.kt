@@ -12,7 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import com.app.newspaperss.listen.ListenPosition
-import com.app.newspaperss.ui.components.episodeNote
+import com.app.newspaperss.ui.components.EpisodeJudgement
 import com.app.newspaperss.ui.listen.ListenScreen
 import android.os.Bundle
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -261,7 +261,7 @@ private fun App(
                         container.listening.start(id, ListenPosition(article, 0))
                         nav.navigate(LISTEN) { launchSingleTop = true }
                     },
-                    noteFor = { article -> contents.getOrNull(article)?.let { episodeNote(it.episodeKind, it.pair) } },
+                    episodeFor = { article -> contents.getOrNull(article)?.let { c -> c.episodeKind?.let { EpisodeJudgement(it, c.pair) } } },
                 )
             }
             composable(LISTEN) {
