@@ -611,6 +611,18 @@ whose Kindle and KOReader answers ask for more on the same page).
     caption or alt text ("Image: Tait's table of knots"), or "An image."
     The date, reading time, link to the original and "Next" line aren't
     read; nor are footnote markers.
+  - **Recorded readings** (debug builds): an article with a recording of
+    itself plays it in its place. That's an audio version posted beside it,
+    or its own audio when that's within a quarter of its text read aloud
+    (an hour's episode isn't a reading of ten minutes' text). The voice
+    reads the source, title and author, says "Now its recorded reading,
+    12 minutes.", and the recording plays the rest, streamed. Sentences are
+    tinted as it reaches about their share of it, and a tap plays from about
+    there. Above the page: "Playing its recorded reading · 12 min" with
+    **Have the voice read it instead**, kept for that article, and back with
+    **Play its recorded reading**; the podcast log records each switch. A
+    recording that won't play (offline, gone) hands back to the voice from
+    where it got. See [episodes-design.md](research/episodes-design.md).
   - Between one article and the next, in either voice, a pause of about
     4 seconds: a moment's quiet, a soft breath of sound with a page
     turning, then the next article, so the listener can change contexts.

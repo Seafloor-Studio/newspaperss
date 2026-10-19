@@ -1,5 +1,6 @@
 package com.app.newspaperss.ui.listen
 
+import com.app.newspaperss.listen.ReadingSpeaker
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.ActivityNotFoundException
@@ -116,8 +117,13 @@ fun ListenScreen(
     instead: StateFlow<PodcastSpeaker.Instead?> = MutableStateFlow(null),
     /** Settings › Article text size: the article scaled by the same share as the preview's text. */
     textSize: PreviewTextSize = PreviewTextSize.DEFAULT,
+    /** The article with a recording, while it's the one playing; null when there's none. */
+    reading: StateFlow<ReadingSpeaker.Now?> = MutableStateFlow(null),
+    /** Turns the article back to the voice (true), or to its recording again. */
+    onVoiceInstead: (Boolean) -> Unit = {},
 ) {
     val state by player.state.collectAsStateWithLifecycle()
+    val recording by reading.collectAsStateWithLifecycle()
     val voice by podcastVoice.collectAsStateWithLifecycle()
     val why by instead.collectAsStateWithLifecycle()
     // One quiet line where the voice changes; nothing is said aloud about it.
@@ -153,7 +159,12 @@ fun ListenScreen(
                 state.editionId == null -> Message("Nothing is playing. Open an edition and tap Listen.")
                 script == null -> Message("Opening…")
                 // Only while playing, as the voice's name: paused, the next article's voice isn't chosen yet.
-                else -> Page(state, script, player, voiceNote.takeIf { state.playing && !state.between }, textSize)
+                else -> {
+                    val playing = state.playing && !state.between
+                    val here = recording?.takeIf { playing && it.editionId == state.editionId && it.page == state.at.page }
+                    // While a recording plays, the podcast's note about the voice is about nothing heard.
+                    Page(state, script, player, voiceNote.takeIf { playing && (here == null || here.voiceInstead) }, textSize, here, onVoiceInstead)
+                }
             }
         }
     }
@@ -167,7 +178,15 @@ private fun Message(text: String) {
 }
 
 @Composable
-private fun Page(state: ListenState, script: ListenScript, player: ListenPlayer, voiceNote: String?, textSize: PreviewTextSize) {
+private fun Page(
+    state: ListenState,
+    script: ListenScript,
+    player: ListenPlayer,
+    voiceNote: String?,
+    textSize: PreviewTextSize,
+    recording: ReadingSpeaker.Now? = null,
+    onVoiceInstead: (Boolean) -> Unit = {},
+) {
     val list = rememberLazyListState()
     val scope = rememberCoroutineScope()
     // Following the voice until the reader scrolls away; the chip brings them back.
@@ -176,13 +195,13 @@ private fun Page(state: ListenState, script: ListenScript, player: ListenPlayer,
     LaunchedEffect(dragged) { if (dragged) following = false }
     val layouts = remember(script) { mutableStateMapOf<Int, TextLayoutResult>() }
     // Notes above the article take the first rows.
-    val notes = listOfNotNull(voiceNote, state.missingLanguage, state.error).size
+    val notes = listOfNotNull(recording, voiceNote, state.missingLanguage, state.error).size
     val line = script.lines.getOrNull(state.at.line)
     // Jumps, not animated scrolls: animation smears on e-ink.
     // Keyed on the voice's note too, which comes and goes with play and pause and moves every row;
     // not on an error's, which would scroll the reason out of sight.
     // And on the size: one that changes reflows every block and moves the sentence.
-    LaunchedEffect(line, following, script, voiceNote != null, textSize) {
+    LaunchedEffect(line, following, script, voiceNote != null, recording != null, textSize) {
         if (!following || line == null) return@LaunchedEffect
         list.scrollToItem(notes + line.block)
         // A long paragraph: down to the sentence, a little below the top.
@@ -194,6 +213,7 @@ private fun Page(state: ListenState, script: ListenScript, player: ListenPlayer,
     }
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)) {
+            recording?.let { item { RecordingNote(it, onVoiceInstead) } }
             voiceNote?.let {
                 item {
                     Text(
@@ -447,3 +467,26 @@ private fun Contents(state: ListenState, onPick: (Int) -> Unit, onDismiss: () ->
 internal fun speedLabel(speed: Float): String = (if (speed == speed.roundToInt().toFloat()) speed.roundToInt().toString() else speed.toString()) + "×"
 
 private fun minutes(seconds: Double): String = ReadingTime.format(seconds / 60)
+
+/**
+ * The article plays its recording, or the reader turned it back to the voice: which, and the
+ * switch to the other. Where the voice's note goes, and like it, quiet.
+ */
+@Composable
+private fun RecordingNote(now: ReadingSpeaker.Now, onVoiceInstead: (Boolean) -> Unit) {
+    val minutes = now.reading.seconds?.let { " · ${maxOf(1, (it / 60.0).roundToInt())} min" }.orEmpty()
+    Column(
+        Modifier.fillMaxWidth().padding(bottom = 12.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small)
+            .padding(start = 10.dp, end = 4.dp, top = 6.dp),
+    ) {
+        Text(
+            if (now.voiceInstead) "Read by the voice: it has a recorded reading$minutes." else "Playing its recorded reading$minutes.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = { onVoiceInstead(!now.voiceInstead) }, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text(if (now.voiceInstead) "Play its recorded reading" else "Have the voice read it instead")
+        }
+    }
+}

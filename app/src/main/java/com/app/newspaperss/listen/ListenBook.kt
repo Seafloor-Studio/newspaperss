@@ -5,6 +5,8 @@ import com.app.newspaperss.core.listen.ListenScript
 import com.app.newspaperss.core.listen.ListenTime
 import com.app.newspaperss.data.EditionRepository
 import com.app.newspaperss.ui.edition.EpubPages
+import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -33,20 +35,29 @@ class ListenBook(
     override fun close() = onClose()
 
     companion object {
-        /** The edition's book, or null if the edition or its file is gone. */
-        suspend fun open(editions: EditionRepository, editionId: Long): ListenBook? {
+        /** The edition's book, or null if the edition or its file is gone; [readings] learns which of its pages have a recording. */
+        suspend fun open(editions: EditionRepository, editionId: Long, readings: Readings? = null): ListenBook? {
             val edition = editions.byId(editionId) ?: return null
             val file = editions.fileOf(edition) ?: return null
             val contents = editions.observeContents(editionId).first().sortedBy { it.entry.position }
             val book = EpubPages(file)
             val pages = contents.map { ListenPage(it.entry.title, it.entry.sourceTitle, ListenTime.fromReading(it.entry.minutes)) } +
                 ListenPage(EpubWriter.END_TITLE, null, 0.0, end = true)
-            return ListenBook(editionId, edition.title, pages, read = { index ->
+            val read: suspend (Int) -> ListenScript? = { index ->
                 withContext(Dispatchers.IO) {
                     val xhtml = if (index < contents.size) book.article(contents[index].entry.position) else book.entry("OEBPS/end.xhtml")?.toString(Charsets.UTF_8)
                     xhtml?.let(ListenScript::parse)
                 }
-            }, readImage = { src -> withContext(Dispatchers.IO) { book.entry("OEBPS/$src") } }, onClose = book::close)
+            }
+            // Best effort: without its recordings, the edition is read by the voice.
+            try {
+                readings?.load(editionId, contents, read)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("ListenBook", "Couldn't find the recordings: ${e.javaClass.name}")
+            }
+            return ListenBook(editionId, edition.title, pages, read = read, readImage = { src -> withContext(Dispatchers.IO) { book.entry("OEBPS/$src") } }, onClose = book::close)
         }
     }
 }
