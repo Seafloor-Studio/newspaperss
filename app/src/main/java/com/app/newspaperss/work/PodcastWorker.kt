@@ -20,6 +20,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.app.newspaperss.container
 import com.app.newspaperss.listen.PodcastMaker
+import com.app.newspaperss.listen.ProcessDeaths
 import com.app.newspaperss.notify.Notifier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
@@ -46,6 +47,7 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     private var timedOut = false
 
     override suspend fun doWork(): Result = try {
+        noteLastExit()
         val holdBack = holdBack()
         if (holdBack != null) {
             // Before loading Kokoro: that alone is seconds and 325 MB, and would heat the phone further.
@@ -100,6 +102,17 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     } catch (e: LinkageError) {
         log.add("Kokoro's native code didn't load: ${e.javaClass.name}")
         Result.failure()
+    }
+
+    /**
+     * If the process before this one ended badly, say so once. A kill leaves no log of its own:
+     * the last run simply stops mid-line, which reads like nothing at all.
+     */
+    private fun noteLastExit() {
+        val exit = ProcessDeaths.last(applicationContext) ?: return
+        if (!exit.abnormal || exit.atMs == lastExitNoted) return
+        lastExitNoted = exit.atMs
+        log.add("The process before this one ended: ${exit.description}")
     }
 
     /** What decides whether Android lets the work into the foreground, for the log. */
@@ -242,6 +255,10 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         /** Until when the work doesn't ask for the foreground, after a refusal. Kept only while the app runs. */
         @Volatile
         internal var holdOffUntil = 0L
+
+        /** The death already logged, so every run in a process doesn't repeat the one before it. */
+        @Volatile
+        internal var lastExitNoted = 0L
 
         /**
          * Runs [make] while [keepGoing], checked every [checkMs]; true if it was stopped. Here as

@@ -47,6 +47,7 @@ import com.app.newspaperss.listen.PodcastSetup
 import com.app.newspaperss.listen.PodcastLog
 import com.app.newspaperss.listen.PodcastMaker
 import com.app.newspaperss.listen.PodcastStore
+import com.app.newspaperss.listen.ProcessDeaths
 import com.app.newspaperss.listen.Podcasts
 import com.app.newspaperss.listen.AacEncoder
 import com.app.newspaperss.work.PodcastWorker
@@ -216,7 +217,11 @@ class AppContainer(
     fun stopMakingPodcasts() = podcasts.stopAll()
 
     val podcastMaker: PodcastMaker by lazy {
-        PodcastMaker(editions, podcastStore, kokoroInstall, settings, podcastEngine, AacEncoder, log = podcastLog)
+        PodcastMaker(
+            editions, podcastStore, kokoroInstall, settings, podcastEngine, AacEncoder,
+            lastExit = { ProcessDeaths.last(context) },
+            log = podcastLog,
+        )
     }
 
     fun kokoroDownload() = newKokoroDownload(kokoroInstall)
