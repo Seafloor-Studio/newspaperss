@@ -242,3 +242,13 @@ internal object KokoroThread {
  * and its native code runs on after a stop until the sentence ends.
  */
 val kokoroLock = Mutex()
+
+/**
+ * Threads Kokoro is given unless something says otherwise. Fastest on a Pixel 8's Tensor G3: 1 and
+ * 2 were slower, and all 9 cores slower still — measured cool, which is not the phone a night's
+ * making runs on, and [KokoroTrial] is trying fewer against it.
+ *
+ * Here rather than with the engine: the engine is debug-only since release builds leave out
+ * sherpa-onnx, and what the maker asks for has to be nameable from main.
+ */
+const val KOKORO_THREADS = 4
