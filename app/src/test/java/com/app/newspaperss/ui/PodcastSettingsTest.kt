@@ -73,7 +73,7 @@ class PodcastSettingsTest {
     @After fun stopStore() = stopStores(storeScope)
 
     private lateinit var setup: PodcastSetup
-    private val log by lazy { PodcastLog(tmp.newFile("podcast-log")) }
+    private val log by lazy { PodcastLog(tmp.newFolder("podcast-logs")) }
 
     private fun show(supported: Boolean = true): SettingsViewModel {
         installVoice(context)

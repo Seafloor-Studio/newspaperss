@@ -2,6 +2,9 @@ package com.app.newspaperss.ui.settings
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.launch
 import android.media.MediaPlayer
 import android.net.ConnectivityManager
 import androidx.annotation.RawRes
@@ -296,6 +299,7 @@ private fun DeletePodcasts(vm: SettingsViewModel) {
 @Composable
 private fun PodcastLogButton(vm: SettingsViewModel) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var lines by remember { mutableStateOf<List<String>?>(null) }
     var open by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(open) { lines = if (open) vm.podcastLog() else null }
@@ -319,9 +323,20 @@ private fun PodcastLogButton(vm: SettingsViewModel) {
         confirmButton = {
             TextButton(
                 onClick = {
-                    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
-                    // E-reader firmware may lack the chooser.
-                    runCatching { context.startActivity(Intent.createChooser(send, "Share the audio log")) }
+                    // The file, not the text: the screen shows a couple of nights and the log keeps a
+                    // fortnight, which is more than an intent carries as an extra.
+                    scope.launch {
+                        val file = vm.podcastLogFile()
+                        val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+                        if (file == null) {
+                            send.putExtra(Intent.EXTRA_TEXT, text)
+                        } else {
+                            send.putExtra(Intent.EXTRA_STREAM, FileProvider.getUriForFile(context, "${context.packageName}.files", file))
+                            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        // E-reader firmware may lack the chooser.
+                        runCatching { context.startActivity(Intent.createChooser(send, "Share the audio log")) }
+                    }
                 },
                 enabled = !text.isNullOrEmpty(),
             ) { Text("Share") }
