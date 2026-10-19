@@ -169,6 +169,12 @@ data class ArticleEntity(
     val audioType: String? = null,
     val audioBytes: Long? = null,
     /**
+     * How long its audio plays, in seconds: the feed's own length when it gives one, or measured
+     * from the file's first bytes when an edition takes it or the post it reads
+     * ([com.app.newspaperss.listen.AudioLengths]). Null until known.
+     */
+    val audioSeconds: Int? = null,
+    /**
      * What it is beside the podcast episodes it may belong to, as the detector judged it when it
      * was first synced ([com.app.newspaperss.core.episodes.EpisodeDetector]). Null for an
      * article from before the detector, and for saved links, which it never judges.

@@ -35,6 +35,34 @@ class OkHttpHttpClientTest {
     }
 
     @Test
+    fun aRangeAsksForJustThosePartAndSaysWhereItStarts() = runTest {
+        server.enqueue(MockResponse.Builder().code(206).addHeader("Content-Range", "bytes 100-103/5000").body("abcd").build())
+        val r = OkHttpHttpClient().getRange(server.url("/a.mp3").toString(), 100, 4)
+        assertEquals("bytes=100-103", server.takeRequest().headers["Range"])
+        assertEquals(100L, r.from)
+        assertEquals(5000L, r.total)
+        assertEquals("abcd", String(r.body))
+    }
+
+    @Test
+    fun aPartSentFromElsewhereSaysWhereItStarts() = runTest {
+        server.enqueue(MockResponse.Builder().code(206).addHeader("Content-Range", "bytes 0-3/5000").body("abcd").build())
+        val r = OkHttpHttpClient().getRange(server.url("/a.mp3").toString(), 100, 4)
+        assertEquals("the start the server sent, not the one asked for", 0L, r.from)
+    }
+
+    @Test
+    fun aServerThatIgnoresTheRangeIsReadOnlyAsFarAsAsked() = runTest {
+        val file = ByteArray(1_000_000) { it.toByte() }
+        server.enqueue(MockResponse.Builder().body(okio.Buffer().write(file)).build())
+        val r = OkHttpHttpClient().getRange(server.url("/a.mp3").toString(), 100, 4_096)
+        assertEquals("from the start: the range was ignored", 0L, r.from)
+        assertEquals(1_000_000L, r.total)
+        assertEquals(4_096, r.body.size)
+        assertEquals(file.copyOf(4_096).toList(), r.body.toList())
+    }
+
+    @Test
     fun errorStatusIsAResponseNotAnException() = runTest {
         server.enqueue(MockResponse.Builder().code(503).build())
         assertFalse(OkHttpHttpClient().get(server.url("/").toString()).isSuccessful)

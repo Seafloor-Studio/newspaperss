@@ -321,7 +321,7 @@ class FeedSyncTest {
               <channel><title>A Show</title><itunes:type>episodic</itunes:type>
                 <item><title>Episode 12</title><link>https://show.example/12</link><guid>e12</guid>
                   <description>Our guest talks about trains.</description>
-                  <enclosure url="https://cdn.example/12.mp3" type="audio/mpeg" length="54321"/></item>
+                  <enclosure url="https://cdn.example/12.mp3" type="audio/mpeg" length="54321"/><itunes:duration>38:12</itunes:duration></item>
                 <item><title>An essay</title><link>https://show.example/essay</link><guid>essay</guid>
                   <description>$essay</description></item>
               </channel>
@@ -334,6 +334,7 @@ class FeedSyncTest {
         with(byTitle.getValue("Episode 12")) {
             assertEquals("https://cdn.example/12.mp3", audioUrl)
             assertEquals(54321L, audioBytes)
+            assertEquals("the feed's own length", 38 * 60 + 12, audioSeconds)
             assertEquals(EpisodeKind.NOTES, episodeKind)
             assertNull(episodePair)
         }

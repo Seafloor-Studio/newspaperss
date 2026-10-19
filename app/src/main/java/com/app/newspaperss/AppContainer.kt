@@ -39,6 +39,7 @@ import com.app.newspaperss.listen.Listening
 import com.app.newspaperss.listen.Speaker
 import com.app.newspaperss.listen.StoredListenProgress
 import com.app.newspaperss.listen.SystemSpeaker
+import com.app.newspaperss.listen.AudioLengths
 import com.app.newspaperss.listen.KokoroDownload
 import com.app.newspaperss.listen.kokoroEngine
 import com.app.newspaperss.listen.KokoroInstall
@@ -136,7 +137,11 @@ class AppContainer(
     ) { sourceId, originId, evidence, text ->
         sources.recordFullText(sourceId, originId, evidence, text.check, text.day)
     }
-    val editionBuilder = EditionBuilder(db, content, editionsDir, cover = CoverRenderer()::render, retiring = feedMoves::retiringIds, onReleased = notifier::dismissFor)
+    private val audioLengths = AudioLengths(db, http)
+    val editionBuilder = EditionBuilder(
+        db, content, editionsDir, cover = CoverRenderer()::render, retiring = feedMoves::retiringIds, onReleased = notifier::dismissFor,
+        measureAudio = { ids -> if (EPISODES) audioLengths.measure(ids) },
+    )
     val settings = SettingsStore(settingsData)
     /** A live build fetching and installing newer builds; nothing in a release build. */
     val selfUpdates = selfUpdater(context, installedBuild, appScope) { listenMade.isInitialized() && listen.state.value.playing }
