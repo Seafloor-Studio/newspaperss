@@ -76,10 +76,18 @@ class PodcastLog(
         }
     }
 
+    /**
+     * The days, oldest first, with whatever the single file still holds in front of them.
+     *
+     * [fold] moves that file in, but only on the next write — and a reader who updates after a
+     * night's making and opens the log before anything else runs would otherwise be told there is
+     * nothing, with a fortnight of it sitting on disk and no way to reach it: this folder is
+     * private storage, so the share is the only way out of the phone.
+     */
     private fun entries(): List<String> {
         val dir = dir ?: return emptyList()
         return try {
-            days(dir).flatMap { it.readLines() }
+            legacy?.takeIf { it.isFile }?.readLines().orEmpty() + days(dir).flatMap { it.readLines() }
         } catch (e: Exception) {
             emptyList()
         }

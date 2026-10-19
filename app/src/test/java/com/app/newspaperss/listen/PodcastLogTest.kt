@@ -89,6 +89,37 @@ class PodcastLogTest {
         assertTrue(log.read().any { it.endsWith("fifteen days later") })
     }
 
+    /**
+     * The fold happens on the next write. Until then the old file is all there is, and the screen
+     * and the share have to show it: this folder is private storage, so a reader who can't see it
+     * there can't reach it at all.
+     */
+    @Test
+    fun theOldFileIsReadableBeforeAnythingNewIsWritten() {
+        val dir = tmp.newFolder()
+        val old = tmp.newFile("podcast-log.txt").apply { writeText("10-18 04:55:42  Run started\n10-18 06:41:40  Kept page 5\n") }
+        val log = PodcastLog(dir, legacy = old, now = { clock })
+
+        // Nothing written since the update: no day file exists yet.
+        assertEquals(0, days(dir).size)
+        assertEquals(2, log.read().size)
+        assertTrue(log.read()[0].endsWith("Run started"))
+        assertEquals(2, log.export()!!.readLines().filter { it.isNotEmpty() }.size)
+    }
+
+    @Test
+    fun theOldFileIsntCountedTwiceOnceFolded() {
+        val dir = tmp.newFolder()
+        val old = tmp.newFile("podcast-log.txt").apply { writeText("10-18 04:55:42  Run started\n") }
+        val log = PodcastLog(dir, legacy = old, now = { clock })
+
+        log.add("a new entry")
+
+        assertEquals(2, log.read().size)
+        assertTrue(log.read()[0].endsWith("Run started"))
+        assertTrue(log.read()[1].endsWith("a new entry"))
+    }
+
     @Test
     fun theOneFileItUsedToKeepIsFoldedInAndRemoved() {
         val dir = tmp.newFolder()
