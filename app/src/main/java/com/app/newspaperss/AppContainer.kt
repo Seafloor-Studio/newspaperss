@@ -41,6 +41,11 @@ import com.app.newspaperss.listen.StoredListenProgress
 import com.app.newspaperss.listen.SystemSpeaker
 import com.app.newspaperss.listen.AudioLengths
 import com.app.newspaperss.listen.KokoroDownload
+import com.app.newspaperss.listen.ListenPosition
+import com.app.newspaperss.listen.ReadingSpeaker
+import com.app.newspaperss.listen.Readings
+import com.app.newspaperss.listen.StoredReadingChoices
+import com.app.newspaperss.listen.StreamAudio
 import com.app.newspaperss.listen.kokoroEngine
 import com.app.newspaperss.listen.KokoroInstall
 import com.app.newspaperss.listen.KokoroSupport
@@ -75,6 +80,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import com.app.newspaperss.settings.ListenVoice
@@ -166,6 +172,39 @@ class AppContainer(
     private val logWriter = Dispatchers.IO.limitedParallelism(1)
     private val logPlaying: (String) -> Unit = { message -> appScope.launch(logWriter) { podcastLog.add(message) } }
 
+    /** The recordings that play in an article's place (debug builds; see [ReadingSpeaker]). */
+    private val readings = Readings(db)
+
+    /** Plays a recording, streamed. Focus is [ListenService]'s, as for the phone's voice. */
+    private val readingPlayer: () -> Player = {
+        ExoPlayer.Builder(context)
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), false)
+            // Streamed while the screen is off: the network kept awake too.
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .build()
+    }
+
+    /** Listen's voice, with an article's recording in its place where it has one. */
+    private val readingSpeaker by lazy {
+        ReadingSpeaker(listenSpeaker, StreamAudio(readingPlayer), readings::at, StoredReadingChoices(context), log = logPlaying)
+    }
+
+    /**
+     * The article whose recording plays, or was turned back to the voice, while it's the one
+     * playing. Never made in a release build: it takes over the voice's listener, which the
+     * player there has.
+     */
+    val readingNow: StateFlow<ReadingSpeaker.Now?> get() = if (EPISODES) readingSpeaker.now else MutableStateFlow(null)
+
+    /** Turns the article Listen is on back to the voice, or to its recording, and plays on from where it is. */
+    fun useVoiceInstead(instead: Boolean) {
+        if (!EPISODES) return
+        val state = listen.state.value
+        val editionId = state.editionId ?: return
+        readingSpeaker.setVoiceInstead(editionId, state.at.page, instead, state.at.line)
+        listen.seek(state.at)
+    }
+
     /** Listen's voice: a made podcast where there is one, the phone's elsewhere. */
     private val listenSpeaker by lazy {
         PodcastSpeaker(speaker(), podcastStore, Media3Audio(podcastPlayer), log = logPlaying) {
@@ -192,11 +231,14 @@ class AppContainer(
 
     private val listenMade: Lazy<ListenPlayer> = lazy {
         ListenPlayer(
-            listenSpeaker, listenProgress, open = { ListenBook.open(editions, it) }, appScope,
+            if (EPISODES) readingSpeaker else listenSpeaker, listenProgress, open = { ListenBook.open(editions, it, readings.takeIf { EPISODES }) }, appScope,
             savedSpeed = settings.settings.map { it.listenSpeed }.distinctUntilChanged(),
             saveSpeed = { speed -> settings.update { it.copy(listenSpeed = speed) } },
             chime = MediaPlayerChime(context),
-        )
+        ).also { player ->
+            // A recording that won't play: on from where it got, in the voice.
+            if (EPISODES) readingSpeaker.restart = { line -> if (player.state.value.editionId == line.editionId) player.seek(ListenPosition(line.page, line.line)) }
+        }
     }
     val listen: ListenPlayer by listenMade
     val listening: Listening by lazy {

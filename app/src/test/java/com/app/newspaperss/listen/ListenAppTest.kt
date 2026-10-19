@@ -248,6 +248,30 @@ class ListenAppTest {
     }
 
     @Test
+    fun anArticlePlayingItsRecordingSaysSoAndOffersTheVoiceInstead() {
+        val id = edition()
+        startAndWait(id)
+        val now = kotlinx.coroutines.flow.MutableStateFlow<ReadingSpeaker.Now?>(
+            ReadingSpeaker.Now(id, 0, Reading("https://cdn.example/r.mp3", 130, own = false, bodyLine = 3, starts = listOf(0.0)), voiceInstead = false),
+        )
+        val asked = mutableListOf<Boolean>()
+        compose.setContent { ListenScreen(player, onBack = {}, reading = now, onVoiceInstead = { asked += it }) }
+
+        compose.onNodeWithText("Playing its recorded reading · 2 min.").assertIsDisplayed()
+        compose.onNodeWithText("Have the voice read it instead").performClick()
+        assertEquals(listOf(true), asked)
+
+        now.value = now.value!!.copy(voiceInstead = true)
+        compose.onNodeWithText("Play its recorded reading").performClick()
+        assertEquals(listOf(true, false), asked)
+
+        // Only on its own article.
+        compose.onNodeWithContentDescription("Next article").performClick()
+        idleUntil { player.state.value.at.page == 1 }
+        compose.onNodeWithText("recorded reading", substring = true).assertDoesNotExist()
+    }
+
+    @Test
     fun thePlayingScreenFollowsTheVoiceAndATappedSentenceIsReadFromThere() {
         val id = edition()
         startAndWait(id)

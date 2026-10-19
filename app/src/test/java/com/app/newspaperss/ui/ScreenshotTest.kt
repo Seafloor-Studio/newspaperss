@@ -1,6 +1,8 @@
 package com.app.newspaperss.ui
 
 import com.app.newspaperss.ui.components.EpisodeJudgement
+import com.app.newspaperss.listen.Reading
+import com.app.newspaperss.listen.ReadingSpeaker
 import com.app.newspaperss.core.episodes.EpisodeKind
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.CompositionLocalProvider
@@ -562,7 +564,11 @@ class ScreenshotTest {
     @Test
     fun listenPlayingLargerText() = shootListening("11d-listen-larger-text", voice = null, textSize = PreviewTextSize.LARGER)
 
-    private fun shootListening(name: String, voice: PodcastVoice?, instead: PodcastSpeaker.Instead? = null, textSize: PreviewTextSize = PreviewTextSize.DEFAULT) {
+    /** An article playing its recorded reading, with the switch back to the voice. */
+    @Test
+    fun listenPlayingRecording() = shootListening("11e-listen-recording", voice = null, recording = true)
+
+    private fun shootListening(name: String, voice: PodcastVoice?, instead: PodcastSpeaker.Instead? = null, textSize: PreviewTextSize = PreviewTextSize.DEFAULT, recording: Boolean = false) {
         val files = tmp.newFolder()
         val picture = Bitmap.createBitmap(600, 300, Bitmap.Config.ARGB_8888).apply {
             val canvas = Canvas(this)
@@ -597,7 +603,10 @@ class ScreenshotTest {
         player.start(id, ListenPosition(1, 6))
         idleUntil { player.state.value.script != null }
         speaker.startNext()
-        shoot(name, ready = { player.state.value.at.line == 6 }) { ListenScreen(player, onBack = {}, podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), textSize = textSize) }
+        val now = ReadingSpeaker.Now(id, 1, Reading("https://example.com/knots.mp3", 540, own = false, bodyLine = 3, starts = listOf(0.0)), voiceInstead = false).takeIf { recording }
+        shoot(name, ready = { player.state.value.at.line == 6 }) {
+            ListenScreen(player, onBack = {}, podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), textSize = textSize, reading = MutableStateFlow(now))
+        }
     }
 
     @Test

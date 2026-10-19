@@ -267,6 +267,7 @@ private fun App(
             composable(LISTEN) {
                 ListenScreen(
                     container.listen, onBack = { nav.navigateUp() }, podcastVoice = container.podcastPlaying, instead = container.podcastInstead,
+                    reading = container.readingNow, onVoiceInstead = container::useVoiceInstead,
                     textSize = textSize,
                 )
             }
