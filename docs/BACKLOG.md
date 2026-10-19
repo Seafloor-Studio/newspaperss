@@ -23,7 +23,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 ### Onboarding and setup
 
 ### Sources and fetching
-- [ ] **Rethink Sources for a big subscription list** *(you asked)*: with about 100 feeds there's no way to find where something in an edition came from, or what's waiting, without opening feed after feed. Consider views across feeds, as tt-rss has: all the newest articles in one list, what's starred, what's waiting for the next edition, what went in recently. Also a way from an article in an edition to its feed and its neighbours. Design pass first (what's on Sources, what's a separate view, how it fits the calm, no-badges look), then build
+- [ ] **From an article in your paper to its feed** *(you asked)*: with about 100 feeds, an article in an edition names its source but gives no way to reach it, so leaving a noisy feed out, changing its cap, or marking the article unread means guessing which tt-rss category it's in and hunting for it. Add **Go to *Quanta Magazine*** (the source's name) to the article preview's top-bar ⋮, beside Share and Send for a look. `ArticleEntity` already has `sourceId` and `originId`, and `source/{id}/feed/{key}` is already a route, so it's a menu item and a navigation callback. Not a second thing to tap in the contents row: it's tight at 48dp, already keeps the ☆'s slot, and rows don't take a second icon on e-ink (see **Share the original's link from a row** below). The feed's page does the rest — its status mark marks a delivered article unread, reaching tt-rss at the next sync. This is what's left of **Rethink Sources for a big subscription list**; the views across feeds it also asked for are in Parked and decided against *(narrowed 18 Oct)*
 - [ ] **Platform pass** *(you asked)*: a test corpus of real posts from the big blog and newsletter platforms, from their own feeds and through tt-rss, checked for footnotes, embeds, captions, paywall teasers and link posts; what breaks gets fixed and the corpus keeps it fixed (`PlatformCorpusTest`). Round 1 covered Substack, Ghost, WordPress, Medium, Blogger, Buttondown and Micro.blog; round 2 added a magazine with its own site (New Left Review), Stratechery and a MemberPress site, found by running `extractionSweep` over a real reading list and over `tools/sweep-feeds.opml`, public feeds picked for variety (news, other languages and scripts, static sites, microblogs). Run that list again before a change to extraction. Still to add: Tumblr (it answers 429 to the collector), beehiiv, posts with galleries, tweets and Bluesky embeds, and more footnote styles
 - [x] **Show tt-rss's own feed errors** *(you asked)*: tt-rss's `last_error` for each feed, on the feed's row and page and named in a banner on Sources
 - [ ] Paywalled and summary-only sites: warn when a site is added; keep stubs from eating the budget; drop metered sites from starter packs *(personas)*
@@ -377,6 +377,24 @@ Restoring onto a phone that already has sources asks first whether to replace or
 - **A heart for "loved this / keep it", synced to tt-rss:** skipped by madCode, 16 Oct. The ☆ already
   means "put it in my next edition", and tt-rss's own star means "keep". Whether tt-rss's star should
   feed the ☆ was a separate question: madCode chose an opt-in, one-way setting, built 16 Oct.
+
+### Views across your feeds, and a look at tomorrow's paper (decided against)
+Decided with madCode, 18 Oct, narrowing **Rethink Sources for a big subscription list** to the hop
+from an article to its feed, in Sources and fetching above.
+- **All the newest articles across feeds, as tt-rss has them:** not doing. With about 100 feeds and
+  five unread taken from each at a sync, that list is hundreds of rows — the endless timeline
+  principle 3 exists to avoid. The app is where you edit your paper, not where you read it.
+- **A look at what's in tomorrow's paper:** not doing, because it can't be told truthfully. Feeds
+  sync right before each build (otherwise every 12 hours), so most of what goes into a 6:30 AM paper
+  hasn't arrived the evening before, and turn-taking order depends on which source was featured
+  longest ago. A preview would often not match the paper, and a wrong one is worse than none: it
+  invents a queue to tend. Not knowing is part of a paper that arrives.
+- **What's starred, what's waiting, what went in recently:** already answered where the question
+  comes up. Today's starred line; a feed's page, its newest 30 articles each saying where it stands
+  ("Waiting, 3 days left", "In Thursday's edition", "Sent Wednesday"); and the earlier editions
+  under Today.
+- Bring back if, after living with the hop, there's one slice you keep reaching for. That would be a
+  far narrower brief than this one was.
 
 ### Sections in the paper (taken out)
 Taken out in cycle 80, with OPML folders, the reading list's "Saved for later" heading, tt-rss
