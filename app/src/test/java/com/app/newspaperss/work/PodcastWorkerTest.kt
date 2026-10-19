@@ -1,6 +1,7 @@
 package com.app.newspaperss.work
 
 import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
@@ -37,6 +38,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowActivityManager
 import org.robolectric.annotation.Config
 import java.util.UUID
 
@@ -53,11 +55,13 @@ class PodcastWorkerTest {
     @Before fun setUp() {
         WorkManagerTestInitHelper.initializeTestWorkManager(app)
         PodcastWorker.holdOffUntil = 0
+        PodcastWorker.lastExitNoted = 0
         app.container.notifier.createChannels()
     }
 
     @After fun tearDown() {
         PodcastWorker.holdOffUntil = 0
+        PodcastWorker.lastExitNoted = 0
         WorkManagerTestInitHelper.closeWorkDatabase()
     }
 
@@ -75,6 +79,19 @@ class PodcastWorkerTest {
     private fun unrestricted(yes: Boolean) =
         shadowOf(app.getSystemService(PowerManager::class.java)).setIgnoringBatteryOptimizations(app.packageName, yes)
 
+    private fun processEnded(reason: Int, rss: Long = 0, pss: Long = 0) {
+        val info = ShadowActivityManager.ApplicationExitInfoBuilder.newBuilder()
+            .setProcessName(app.packageName)
+            .setReason(reason)
+            .setRss(rss)
+            .setPss(pss)
+            .setTimestamp(42L)
+            .build()
+        shadowOf(app.getSystemService(ActivityManager::class.java)).addApplicationExitInfo(info)
+    }
+
+    private fun noted(what: String) = app.container.podcastLog.read().count { it.contains(what) }
+
     private fun thermal(status: Int) =
         shadowOf(app.getSystemService(PowerManager::class.java)).setCurrentThermalStatus(status)
 
@@ -83,6 +100,34 @@ class PodcastWorkerTest {
 
     private suspend fun run(updater: ForegroundUpdater) =
         TestListenableWorkerBuilder<PodcastWorker>(app).setForegroundUpdater(updater).build().doWork()
+
+    /**
+     * A kill leaves no log of its own: the run simply stops mid-line. Android's record is read
+     * back once per process, not once per run, so it doesn't crowd out the run that follows.
+     */
+    @Test
+    fun aProcessThatEndedBadlyIsNotedOnceNotEveryRun() = runTest {
+        unrestricted(true)
+        processEnded(ApplicationExitInfo.REASON_LOW_MEMORY, rss = 1_400_000, pss = 1_200_000)
+        val before = noted("out of memory")
+
+        assertTrue(run(allowed) is ListenableWorker.Result.Success)
+        assertEquals(before + 1, noted("out of memory"))
+        assertTrue("the log should say how big it had got", noted("1367 MB resident") >= 1)
+
+        assertTrue(run(allowed) is ListenableWorker.Result.Success)
+        assertEquals("the same death shouldn't be logged twice", before + 1, noted("out of memory"))
+    }
+
+    @Test
+    fun aProcessTheReaderClosedIsNotWorthALine() = runTest {
+        unrestricted(true)
+        processEnded(ApplicationExitInfo.REASON_USER_REQUESTED)
+        val before = noted("ended:")
+
+        assertTrue(run(allowed) is ListenableWorker.Result.Success)
+        assertEquals(before, noted("ended:"))
+    }
 
     /**
      * Every heat Android can report is named, and every one it calls moderate or worse stops the

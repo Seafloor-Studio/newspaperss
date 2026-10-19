@@ -37,6 +37,12 @@ class PodcastMaker(
      * run. This bounds what a stop costs in the time the phone actually spent.
      */
     private val pieceWorkSeconds: Double = PIECE_WORK_SECONDS,
+    /**
+     * What ended the last process, asked only when a line was in flight when it ended. Null means
+     * Android doesn't say, which is below Android 11: then a death counts against the line, as it
+     * did before anything could tell the difference.
+     */
+    private val lastExit: () -> LastExit? = { null },
     private val now: () -> Long = System::nanoTime,
     private val log: PodcastLog = PodcastLog(null),
 ) {
@@ -148,9 +154,21 @@ class PodcastMaker(
         }
         val lines = script.lines
         store.lines(editionId, page, lines.size)
-        val (deadAt, deaths) = store.deaths(editionId, page)
+        val (died, deaths) = store.deaths(editionId, page)
+        // The marker says which line was in flight when the process ended, not that the line
+        // ended it. Android taking the app for memory doesn't make a line unsayable, and two of
+        // those would otherwise hand the page to the phone's voice for good.
+        val exit = if (died >= 0) lastExit() else null
+        val taken = exit != null && !exit.crash
+        val deadAt = if (taken) -1 else died
         val from = store.linesMade(editionId, page)
-        log.add("Edition $editionId page $page: from line $from of ${lines.size}" + if (deadAt >= 0) ", line $deadAt took the app down $deaths times" else "")
+        log.add(
+            "Edition $editionId page $page: from line $from of ${lines.size}" + when {
+                died < 0 -> ""
+                taken -> ", line $died was in flight when the app ended (${exit?.name}); not counted against it"
+                else -> ", line $died took the app down $deaths times (${exit?.name ?: "Android doesn't say why"})"
+            },
+        )
         var piece: Piece? = null
         var next = from
         try {
