@@ -3,6 +3,8 @@ package com.app.newspaperss.listen
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.data.ArticleEntity
+import com.app.newspaperss.data.EditionArticleEntity
+import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.testutil.DbRule
 import com.app.newspaperss.testutil.FakeHttp
@@ -50,6 +52,20 @@ class AudioLengthsTest {
         assertEquals(setOf("https://cdn.example/own.mp3", "https://cdn.example/reading.mp3"), http.ranges.map { it.first }.toSet())
         // The first bytes, then from where the tag ends.
         assertEquals(listOf(0L, 40_010L), http.ranges.filter { it.first.endsWith("own.mp3") }.map { it.second })
+    }
+
+    // runBlocking, not runTest: the timeout must be real time, or it passes while Room works on its own thread.
+    @Test
+    fun aMadeEditionsArticlesAreTimed() = kotlinx.coroutines.runBlocking {
+        val source = db.sources().insert(SourceEntity(url = "https://a.example/feed", title = "A"))
+        http.files["https://cdn.example/own.mp3"] = "audio/mpeg" to mp3
+        val own = post(source, "own", EpisodeKind.ARTICLE, audio = "https://cdn.example/own.mp3")
+        val edition = db.editions().insert(EditionEntity(title = "Tuesday Morning Edition"))
+        db.editions().insertArticles(listOf(EditionArticleEntity(editionId = edition, articleId = own, position = 0, title = "own", sourceTitle = "A", minutes = 1.0)))
+
+        lengths.measureEdition(edition)
+
+        assertEquals(3, db.articles().byId(own)!!.audioSeconds)
     }
 
     @Test

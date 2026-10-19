@@ -650,13 +650,14 @@ interface ArticleDao {
     @Query("UPDATE articles SET episodePair = :pair, episodeKind = :kind WHERE sourceId = :sourceId AND guid = :guid AND episodePair IS NULL")
     suspend fun pairEpisode(sourceId: Long, guid: String, pair: String, kind: EpisodeKind)
 
-    /** Sets what an article found earlier is, now that more of its source has been seen. */
+    /** A source's article by its guid: the post another names as its pair ([ArticleEntity.episodePair]). */
     @Query("SELECT * FROM articles WHERE sourceId = :sourceId AND guid = :guid")
     suspend fun byGuid(sourceId: Long, guid: String): ArticleEntity?
 
     @Query("UPDATE articles SET audioSeconds = :seconds WHERE id = :id")
     suspend fun setAudioSeconds(id: Long, seconds: Int)
 
+    /** Sets what an article found earlier is, now that more of its source has been seen. */
     @Query("UPDATE articles SET episodeKind = :kind WHERE sourceId = :sourceId AND guid = :guid")
     suspend fun setEpisodeKind(sourceId: Long, guid: String, kind: EpisodeKind)
 

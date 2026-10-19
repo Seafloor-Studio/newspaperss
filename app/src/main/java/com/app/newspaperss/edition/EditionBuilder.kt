@@ -35,7 +35,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.time.Clock
 import java.time.Instant
@@ -76,12 +75,6 @@ class EditionBuilder(
     private val retiring: suspend () -> Set<Long> = { emptySet() },
     /** An unsent edition was released for this one: its Ready notification would offer it still. */
     private val onReleased: (editionId: Long) -> Unit = {},
-    /**
-     * Finds how long the audio of the articles just put in an edition plays, for Listen
-     * ([com.app.newspaperss.listen.AudioLengths]). Best effort, and given [MEASURE_FOR] at most:
-     * the edition is made by then, and Listen reads an article whose length isn't known.
-     */
-    private val measureAudio: suspend (articleIds: List<Long>) -> Unit = {},
     private val cover: (CoverInfo) -> EpubImage? = { null },
 ) {
     /**
@@ -110,7 +103,7 @@ class EditionBuilder(
         // would show it as being made forever. Its articles only change state in the final
         // transaction, so a failed edition leaves them all for the next one, except paid posts
         // with nothing free that their source skips: those stay skipped.
-        val result = try {
+        return try {
             // Read only once the edition is BUILDING, which holds off "Mark as read" and unstarring
             // (see ArticleDao.markReadAll): the articles picked here are written into the book, so a
             // change made afterwards would be silently undone when they're marked IN_EDITION.
@@ -137,18 +130,6 @@ class EditionBuilder(
             // Plausible on low-memory e-readers with image-heavy articles; the next build may fit.
             fail(editionId, UNEXPECTED)
         }
-        // Outside the try: the edition is made, so being stopped now mustn't fail it.
-        if (result is BuildResult.Built) {
-            try {
-                val ids = db.editions().articleIds(result.editionId)
-                withTimeoutOrNull(MEASURE_FOR) { measureAudio(ids) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "Couldn't measure the audio: ${e.javaClass.name}")
-            }
-        }
-        return result
     }
 
     private suspend fun fill(
@@ -379,8 +360,6 @@ class EditionBuilder(
          */
         private fun fileNameOf(title: String) = FolderDelivery.fileName(title)
         private const val TAG = "EditionBuilder"
-        /** How long [measureAudio] may hold up a finished edition. */
-        private const val MEASURE_FOR = 30_000L
         // From the app's side: a reader who sent it some other way and didn't say so gets this too.
         const val NOT_SENT = "This one wasn't marked as sent, so its articles went back for your next edition."
         /** NOT_SENT as editions released before its wording changed still have it. */

@@ -1333,6 +1333,27 @@ class TtrssSyncTest {
     }
 
     @Test
+    fun aReadingOfAPostAlreadyPairedDoesntPairWithItOneWay() = runTest {
+        val source = connect()
+        val letter = (1..1500).joinToString(" ") { "word$it" }
+        server.unread += FakeTtrss.Item(1, "October 15", feedId = 7, feedTitle = "Letters", content = "<p>$letter</p>", link = "https://letters.example/october-15")
+        sync.sync(source)
+        // Already paired with an earlier reading.
+        db.articles().pairEpisode(source.id, "ttrss:1", "ttrss:0", EpisodeKind.ARTICLE)
+        server.unread.clear()
+        server.unread += FakeTtrss.Item(
+            2, "Corruption as a Driving Force", feedId = 7, feedTitle = "Letters",
+            content = """<p>To read this letter, <a href="https://letters.example/october-15">click here</a>.</p>""", audio = "https://traffic.libsyn.com/letters/reading.mp3",
+        )
+        sync.sync(source)
+
+        val byTitle = db.articles().candidates().associateBy { it.title }
+        assertEquals(EpisodeKind.AUDIO_VERSION, byTitle.getValue("Corruption as a Driving Force").episodeKind)
+        assertNull("its letter keeps its own pair, so this one names none", byTitle.getValue("Corruption as a Driving Force").episodePair)
+        assertEquals("ttrss:0", byTitle.getValue("October 15").episodePair)
+    }
+
+    @Test
     fun aStarredEpisodeKeepsItsAudioAndIsJudged() = runTest {
         val source = connect()
         ttrss.setTakeStars(source.id, true)
