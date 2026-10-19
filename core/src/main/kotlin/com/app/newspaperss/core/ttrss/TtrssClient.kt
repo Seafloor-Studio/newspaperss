@@ -1,5 +1,6 @@
 package com.app.newspaperss.core.ttrss
 
+import com.app.newspaperss.core.feed.Enclosure
 import com.app.newspaperss.core.net.HttpClient
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -34,6 +35,11 @@ data class TtrssHeadline(
     val feedTitle: String?,
     /** A string because tt-rss sends an int or, in older versions, a string. */
     val feedId: String,
+    /**
+     * The files the feed attached to it. tt-rss keeps an attachment's address and type, and its
+     * size in a field it calls "duration"; the audio's real length it doesn't keep.
+     */
+    val attachments: List<Enclosure> = emptyList(),
 )
 
 /**
@@ -136,6 +142,8 @@ class TtrssClient(
                 if (isCategory) put("is_cat", true)
                 put("view_mode", "unread")
                 put("show_content", true)
+                // Off by default; the audio a post carries is how an episode is told from an article.
+                put("include_attachments", true)
                 put("limit", limit)
                 if (sinceId != null) put("since_id", sinceId)
                 if (newestFirst) put("order_by", "feed_dates")
@@ -479,6 +487,12 @@ class TtrssClient(
             updated = (o["updated"] as? JsonPrimitive)?.longOrNull,
             feedTitle = text("feed_title"),
             feedId = text("feed_id") ?: return null,
+            attachments = (o["attachments"] as? JsonArray).orEmpty().mapNotNull { a ->
+                val att = a as? JsonObject ?: return@mapNotNull null
+                fun field(key: String) = (att[key] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+                val url = field("content_url") ?: return@mapNotNull null
+                Enclosure(url, field("content_type").orEmpty().lowercase(), field("duration")?.toLongOrNull()?.coerceAtLeast(0) ?: 0)
+            },
         )
     }
 

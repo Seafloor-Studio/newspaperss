@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.core.extract.ContentMode
 import com.app.newspaperss.core.extract.FullTextEvidence
 import java.time.Duration
@@ -160,6 +161,21 @@ data class ArticleEntity(
      * the reading list says so, rather than it waiting there for ever.
      */
     val unreadable: String? = null,
+    /**
+     * The audio file the feed attached to it, if any (a podcast's episode, a narration): its
+     * address, type, and size in bytes when the feed gives one.
+     */
+    val audioUrl: String? = null,
+    val audioType: String? = null,
+    val audioBytes: Long? = null,
+    /**
+     * What it is beside the podcast episodes it may belong to, as the detector judged it when it
+     * was first synced ([com.app.newspaperss.core.episodes.EpisodeDetector]). Null for an
+     * article from before the detector, and for saved links, which it never judges.
+     */
+    val episodeKind: EpisodeKind? = null,
+    /** The guid of the other post of the same episode in the same source: notes and transcript, a narration and its post. */
+    val episodePair: String? = null,
 ) {
     /**
      * When it was published, for showing: a date more than a day after it was fetched is a

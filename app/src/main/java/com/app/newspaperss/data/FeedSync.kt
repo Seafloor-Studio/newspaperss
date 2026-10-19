@@ -1,6 +1,11 @@
 package com.app.newspaperss.data
 
+import com.app.newspaperss.core.episodes.EpisodeDetector
+import com.app.newspaperss.core.episodes.EpisodeFeed
+import com.app.newspaperss.core.episodes.Verdict
 import com.app.newspaperss.core.extract.ArticleExtractor
+import com.app.newspaperss.core.feed.Enclosure
+import com.app.newspaperss.core.feed.FeedItem
 import com.app.newspaperss.core.feed.FeedParseException
 import com.app.newspaperss.core.feed.FeedParser
 import com.app.newspaperss.core.feed.FeedTooLargeException
@@ -73,12 +78,13 @@ class FeedSync(
             if (response.isSuccessful) {
                 body = response.body
                 val feed = FeedParser.parse(response.body, response.finalUrl, response.truncated)
+                val episodes = EpisodeDetector.classify(EpisodeFeed.of(feed.items, feed.podcast))
                 val added = db.articles().insertFetched(
                     feed.items.map {
                         ArticleEntity(
                             sourceId = source.id, guid = it.guid, url = it.url, title = it.title,
                             author = it.author, published = it.published, feedHtml = storable(it.contentHtml), discoveredAt = now,
-                        ).linkedToStory(feed.siteUrl ?: source.siteUrl) to it.url
+                        ).withEpisode(it.enclosures, episodes[it.guid]).linkedToStory(feed.siteUrl ?: source.siteUrl) to it.url
                     },
                 )
                 // A title that is still the host-name placeholder gives way to the feed's own.
@@ -199,7 +205,11 @@ class FeedSync(
                 db.withTransaction { withUnread.forEach { db.sources().setServerError(source.id, it.id.toString(), it.lastError) } }
                 val unreadFeeds = withUnread.filter { it.id.toString() !in leftOut }
                 val headlines = fromEachFeed(client, unreadFeeds)
-                val articles = headlines.map { it to article(source, it, now) }
+                // Judged feed by feed, as a feed's own posts are: pairs are two posts of one publication.
+                val episodes = headlines.groupBy { it.feedId }.values.flatMap { posts ->
+                    EpisodeDetector.classify(EpisodeFeed.of(posts.map { it.asFeedItem() })).entries
+                }.associate { it.key to it.value }
+                val articles = headlines.map { it to article(source, it, now).withEpisode(it.attachments, episodes["$TTRSS_GUID_PREFIX${it.id}"]) }
                 if (source.markReadOnServer) syncReadState(client, source, articles, now)
                 val guids = articles.map { it.second.guid }
                 val known = guids.chunked(500).flatMap { db.articles().knownGuids(source.id, it) }.toSet()
@@ -267,6 +277,10 @@ class FeedSync(
             posted.upTo?.let { sources.setTtrssSeenId(source.id, maxOf(it, source.ttrssSeenId ?: 0)) }
         }
     }
+
+    private fun TtrssHeadline.asFeedItem() = FeedItem(
+        guid = "$TTRSS_GUID_PREFIX$id", url = link, title = title, contentHtml = content, author = author, published = null, enclosures = attachments,
+    )
 
     private fun article(source: SourceEntity, h: TtrssHeadline, now: Instant, starredAt: Instant? = null) = ArticleEntity(
         sourceId = source.id, guid = "$TTRSS_GUID_PREFIX${h.id}", url = h.link, title = h.title,
@@ -491,6 +505,15 @@ internal suspend fun listTtrssFeeds(db: AppDatabase, client: TtrssClient, source
         sources.setFeedsListed(source.id, now)
         true
     }
+}
+
+/** With the audio the feed attached and what the detector made of the post; a post it didn't judge stays unjudged. */
+internal fun ArticleEntity.withEpisode(enclosures: List<Enclosure>, verdict: Verdict?): ArticleEntity {
+    val audio = EpisodeDetector.audioOf(enclosures)
+    return copy(
+        audioUrl = audio?.url, audioType = audio?.type?.ifEmpty { null }, audioBytes = audio?.length?.takeIf { it > 0 },
+        episodeKind = verdict?.kind, episodePair = verdict?.pair,
+    )
 }
 
 /**

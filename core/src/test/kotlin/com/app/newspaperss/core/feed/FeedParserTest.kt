@@ -239,4 +239,80 @@ class FeedParserTest {
         val rss = "<rss><channel><title>T</title><item><title>Q</title><link>/search?q=a|b</link></item></channel></rss>"
         assertEquals("https://a.example/search?q=a%7Cb", FeedParser.parse(rss, "https://a.example/feed").items.single().url)
     }
+
+    @Test
+    fun keepsAPodcastsAudioAndLength() {
+        val feed = FeedParser.parse(
+            """
+            <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:media="http://search.yahoo.com/mrss/">
+              <channel>
+                <title>A Show</title>
+                <itunes:category text="Technology"/>
+                <item>
+                  <title>Episode 12</title>
+                  <link>https://show.example/12</link>
+                  <enclosure url="/audio/12.mp3" type="audio/MPEG" length="54321"/>
+                  <media:content url="https://show.example/12.jpg" medium="image"/>
+                  <itunes:duration>1:02:03</itunes:duration>
+                </item>
+                <item>
+                  <title>Episode 11</title>
+                  <link>https://show.example/11</link>
+                  <enclosure url="https://cdn.example/11.mp3" type="audio/mpeg" length="0"/>
+                  <itunes:duration>3725</itunes:duration>
+                </item>
+              </channel>
+            </rss>
+            """.trimIndent(),
+            "https://show.example/feed",
+        )
+        assertTrue(feed.podcast)
+        with(feed.items[0]) {
+            assertEquals(listOf(Enclosure("https://show.example/audio/12.mp3", "audio/mpeg", 54321), Enclosure("https://show.example/12.jpg", "image/*", 0)), enclosures)
+            assertEquals(3723, durationSeconds)
+            // Nothing else about the item changes for having audio.
+            assertEquals("Episode 12", title)
+        }
+        assertEquals(3725, feed.items[1].durationSeconds)
+    }
+
+    @Test
+    fun anAtomEnclosureIsKeptAndIsNotTheLink() {
+        val feed = FeedParser.parse(
+            """
+            <feed xmlns="http://www.w3.org/2005/Atom">
+              <title>A Blog</title>
+              <entry>
+                <id>tag:a,1</id><title>Read aloud</title>
+                <link rel="enclosure" href="https://a.example/1.m4a" type="audio/mp4" length="900"/>
+                <link rel="alternate" href="https://a.example/1"/>
+              </entry>
+            </feed>
+            """.trimIndent(),
+            "https://a.example/feed",
+        )
+        val item = feed.items.single()
+        assertEquals("https://a.example/1", item.url)
+        assertEquals(listOf(Enclosure("https://a.example/1.m4a", "audio/mp4", 900)), item.enclosures)
+        assertFalse(feed.podcast)
+    }
+
+    @Test
+    fun aJsonFeedsAttachmentsAreKept() {
+        val feed = FeedParser.parse(
+            """{"version":"https://jsonfeed.org/version/1.1","title":"J","items":[{"id":"1","url":"https://j.example/1","title":"One",
+              "attachments":[{"url":"https://j.example/1.mp3","mime_type":"audio/mpeg","size_in_bytes":1200,"duration_in_seconds":61.5}]}]}""",
+            "https://j.example/feed.json",
+        )
+        with(feed.items.single()) {
+            assertEquals(listOf(Enclosure("https://j.example/1.mp3", "audio/mpeg", 1200)), enclosures)
+            assertEquals(61, durationSeconds)
+        }
+    }
+
+    @Test
+    fun aDurationThatIsntOneIsLeftOut() {
+        listOf("", "soon", "1:2:3:4", "-5", "12.5").forEach { assertNull(it, FeedDurations.seconds(it)) }
+        assertEquals(59, FeedDurations.seconds(" 59 "))
+    }
 }

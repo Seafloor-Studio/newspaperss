@@ -300,7 +300,8 @@ interface ArticleDao {
      */
     @Query(
         """SELECT id, sourceId, guid, url, title, author, published, NULL AS feedHtml, discoveredAt, state, starredAt,
-           originId, originTitle, pageWords, reportedRead, viaUrl, paidOnly, paidSkipped, unreadable
+           originId, originTitle, pageWords, reportedRead, viaUrl, paidOnly, paidSkipped, unreadable,
+           audioUrl, audioType, audioBytes, episodeKind, episodePair
            FROM articles WHERE (state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')) AND unreadable IS NULL""",
     )
     suspend fun buildCandidates(): List<ArticleEntity>

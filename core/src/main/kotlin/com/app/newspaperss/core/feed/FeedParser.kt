@@ -21,6 +21,8 @@ object FeedParser {
     private const val ATOM_NS = "http://www.w3.org/2005/Atom"
     private const val XHTML_NS = "http://www.w3.org/1999/xhtml"
     private const val RSS1_NS = "http://purl.org/rss/1.0/"
+    private const val MEDIA_NS = "http://search.yahoo.com/mrss/"
+    private const val ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"
     // media:content, itunes:summary and the like share local names with the
     // elements read here, so only RSS/Atom's own namespaces count.
     private val FEED_NAMESPACES = setOf("", RSS1_NS, ATOM_NS)
@@ -97,6 +99,7 @@ object FeedParser {
     private class XmlFeedReader(private val p: XmlPullParser, private val feedUrl: String, private val truncated: Boolean) {
         private var feedTitle: String? = null
         private var siteUrl: String? = null
+        private var podcast = false
         private val items = mutableListOf<FeedItem>()
         private var sawRoot = false
 
@@ -110,7 +113,7 @@ object FeedParser {
                 stoppedAtCut = true
             }
             if (!sawRoot) throw FeedParseException("Empty document")
-            if (!truncated) return Feed(feedTitle, siteUrl, items)
+            if (!truncated) return Feed(feedTitle, siteUrl, items, podcast)
             // Otherwise the parser took the cut for the document's end, closing what it left open
             // (kxml on the JVM) or not (Android's): either way the last item read may be only part
             // of one, so it goes. A whole one lost from a feed this long costs nothing.
@@ -120,7 +123,7 @@ object FeedParser {
             val first = whole.first().published
             val last = whole.last().published
             if (first != null && last != null && first < last) throw FeedTooLargeException("$TOO_LARGE It lists its oldest posts first, so its new ones are past what can be read.")
-            return Feed(feedTitle, siteUrl, whole)
+            return Feed(feedTitle, siteUrl, whole, podcast)
         }
 
         private fun readAll() {
@@ -135,6 +138,7 @@ object FeedParser {
                         sawRoot = true
                     }
                     name == "item" || name == "entry" -> readItem(name)?.let(items::add)
+                    p.namespace == ITUNES_NS && (name == "category" || name == "type") -> podcast = true
                     p.namespace !in FEED_NAMESPACES -> {}
                     name == "title" && feedTitle == null && p.depth <= 3 -> feedTitle = cleanTitle(readText())
                     name == "link" && siteUrl == null && p.depth <= 3 -> readLink()?.let { siteUrl = it }
@@ -153,17 +157,36 @@ object FeedParser {
             var author: String? = null
             var published: String? = null
             var updated: String? = null
+            val enclosures = mutableListOf<Enclosure>()
+            var duration: Int? = null
             while (!(p.next() == XmlPullParser.END_TAG && p.depth == depth && p.name == tag)) {
                 if (p.eventType == XmlPullParser.END_DOCUMENT) break
                 if (p.eventType != XmlPullParser.START_TAG || p.depth != depth + 1) continue
                 val ns = p.namespace
+                if (ns == MEDIA_NS || ns == ITUNES_NS) {
+                    when {
+                        ns == MEDIA_NS && p.name == "content" -> enclosure("url", "fileSize")?.let(enclosures::add)
+                        ns == ITUNES_NS && p.name == "duration" -> duration = FeedDurations.seconds(readText())
+                    }
+                    if (p.eventType == XmlPullParser.START_TAG) skip()
+                    continue
+                }
                 if (ns !in FEED_NAMESPACES && ns != CONTENT_NS && ns != DC_NS) {
                     skip()
                     continue
                 }
                 when (p.name) {
                     "title" -> if (ns in FEED_NAMESPACES) title = readText() else skip()
-                    "link" -> readLink()?.let { if (link == null) link = it }
+                    "link" -> if (p.getAttributeValue(null, "rel") == "enclosure") {
+                        enclosure("href", "length")?.let(enclosures::add)
+                        skip()
+                    } else {
+                        readLink()?.let { if (link == null) link = it }
+                    }
+                    "enclosure" -> {
+                        enclosure("url", "length")?.let(enclosures::add)
+                        skip()
+                    }
                     "guid" -> {
                         guidIsLink = p.getAttributeValue(null, "isPermaLink") != "false"
                         guid = readText()
@@ -191,7 +214,18 @@ object FeedParser {
                 contentHtml = (content?.takeIf { it.isNotBlank() } ?: summary?.takeIf { it.isNotBlank() }),
                 author = author?.trim()?.takeIf { it.isNotEmpty() },
                 published = FeedDates.parse(published) ?: FeedDates.parse(updated),
+                enclosures = enclosures,
+                durationSeconds = duration,
             )
+        }
+
+        /** The attachment the tag at the cursor names, read from its attributes; the tag is left unread. */
+        private fun enclosure(urlAttribute: String, lengthAttribute: String): Enclosure? {
+            val url = p.getAttributeValue(null, urlAttribute)?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            val type = p.getAttributeValue(null, "type")?.trim()
+                ?: p.getAttributeValue(null, "medium")?.trim()?.let { "$it/*" }
+                ?: ""
+            return Enclosure(resolve(url), type.lowercase(), p.getAttributeValue(null, lengthAttribute)?.trim()?.toLongOrNull()?.coerceAtLeast(0) ?: 0)
         }
 
         /** RSS <link>text</link>, or Atom <link rel="alternate" href=...>; other rels give null. */
@@ -282,6 +316,7 @@ object FeedParser {
             val url = (o.str("url") ?: o.str("external_url"))?.let { resolveUrl(feedUrl, it) } ?: return@mapNotNull null
             val author = (o["authors"] as? JsonArray)?.firstOrNull()?.let { (it as? JsonObject)?.str("name") }
                 ?: (o["author"] as? JsonObject)?.str("name")
+            val attachments = (o["attachments"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject) }
             FeedItem(
                 guid = o.str("id") ?: url,
                 url = url,
@@ -289,6 +324,10 @@ object FeedParser {
                 contentHtml = o.str("content_html") ?: o.str("content_text")?.let(HtmlCleaner::textToHtml) ?: o.str("summary"),
                 author = author,
                 published = FeedDates.parse(o.str("date_published")) ?: FeedDates.parse(o.str("date_modified")),
+                enclosures = attachments.mapNotNull { a ->
+                    a.str("url")?.let { Enclosure(resolveUrl(feedUrl, it), a.str("mime_type").orEmpty().lowercase(), a.str("size_in_bytes")?.toLongOrNull()?.coerceAtLeast(0) ?: 0) }
+                },
+                durationSeconds = attachments.firstNotNullOfOrNull { it.str("duration_in_seconds")?.toDoubleOrNull()?.toInt()?.takeIf { s -> s > 0 } },
             )
         }
         return Feed(root.str("title"), root.str("home_page_url"), items)

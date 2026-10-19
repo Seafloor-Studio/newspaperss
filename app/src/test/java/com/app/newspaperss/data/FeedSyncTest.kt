@@ -1,5 +1,6 @@
 package com.app.newspaperss.data
 
+import com.app.newspaperss.core.episodes.EpisodeKind
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.testutil.DbRule
 import com.app.newspaperss.testutil.FakeHttp
@@ -307,5 +308,35 @@ class FeedSyncTest {
         assertEquals("https://example.com/pick", byGuid.getValue("pick-1").viaUrl)
         assertEquals("https://example.com/own?id=2", byGuid.getValue("own-2").url)
         assertNull(byGuid.getValue("own-2").viaUrl)
+    }
+
+    @Test
+    fun aPodcastsEpisodesKeepTheirAudioAndAreJudged() = runTest {
+        repo.addFeed(url, "A Show")
+        val essay = (1..400).joinToString(" ") { "word$it" }
+        http.page(
+            url,
+            """
+            <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+              <channel><title>A Show</title>
+                <item><title>Episode 12</title><link>https://show.example/12</link><guid>e12</guid>
+                  <description>Our guest talks about trains.</description>
+                  <enclosure url="https://cdn.example/12.mp3" type="audio/mpeg" length="54321"/></item>
+                <item><title>An essay</title><link>https://show.example/essay</link><guid>essay</guid>
+                  <description>$essay</description></item>
+              </channel>
+            </rss>
+            """.trimIndent(),
+        )
+        sync.syncAll()
+
+        val byTitle = db.articles().candidates().associateBy { it.title }
+        with(byTitle.getValue("Episode 12")) {
+            assertEquals("https://cdn.example/12.mp3", audioUrl)
+            assertEquals(54321L, audioBytes)
+            assertEquals(EpisodeKind.NOTES, episodeKind)
+            assertNull(episodePair)
+        }
+        assertEquals(EpisodeKind.ARTICLE, byTitle.getValue("An essay").episodeKind)
     }
 }

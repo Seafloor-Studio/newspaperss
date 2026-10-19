@@ -1,5 +1,6 @@
 package com.app.newspaperss.data
 
+import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.testutil.TestDataStores
 import kotlinx.coroutines.flow.first
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
@@ -1285,5 +1286,26 @@ class TtrssSyncTest {
         val source = connect()
         http.unreachable += server.apiUrl
         assertEquals("Couldn't reach tt-rss.", ttrss.startFresh(source.id))
+    }
+
+    @Test
+    fun anEpisodesAudioIsKeptAndItsKindJudgedFeedByFeed() = runTest {
+        val source = connect()
+        val essay = (1..400).joinToString(" ") { "word$it" }
+        server.unread += FakeTtrss.Item(1, "Episode 12: a guest", feedId = 7, feedTitle = "A Show", content = "<p>Our guest talks about trains.</p>", audio = "https://cdn.example/12.mp3")
+        server.unread += FakeTtrss.Item(2, "An essay", feedId = 7, feedTitle = "A Show", content = "<p>$essay</p>")
+        server.unread += FakeTtrss.Item(3, "A post", feedId = 8, feedTitle = "A Blog")
+        sync.sync(source)
+
+        val byTitle = db.articles().candidates().associateBy { it.title }
+        with(byTitle.getValue("Episode 12: a guest")) {
+            assertEquals("https://cdn.example/12.mp3", audioUrl)
+            assertEquals("audio/mpeg", audioType)
+            assertNull("tt-rss's size for it was 0: unknown", audioBytes)
+            assertEquals(EpisodeKind.NOTES, episodeKind)
+        }
+        assertEquals(EpisodeKind.ARTICLE, byTitle.getValue("An essay").episodeKind)
+        assertEquals(EpisodeKind.ARTICLE, byTitle.getValue("A post").episodeKind)
+        assertNull(byTitle.getValue("A post").audioUrl)
     }
 }

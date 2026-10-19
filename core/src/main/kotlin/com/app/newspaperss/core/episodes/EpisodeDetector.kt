@@ -1,21 +1,24 @@
 package com.app.newspaperss.core.episodes
 
+import com.app.newspaperss.core.feed.Enclosure
+import com.app.newspaperss.core.feed.FeedItem
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.TextNode
-import org.jsoup.parser.Parser
 
 /**
- * What a post is, as the paper would treat it (docs/research/podcast-episodes.md). A write-up
+ * What a post is, as an edition would treat it (docs/research/episodes-design.md). A write-up
  * or a narrated article is an [ARTICLE]: it reads well and is printed as one.
+ *
+ * @property label how the corpus's labels.json names it.
  */
-enum class Kind(val label: String) {
+enum class EpisodeKind(val label: String) {
     ARTICLE("article"),
-    /** An episode's notes: listed under Episodes, not printed. */
+    /** The post that comes with an episode: a description, timestamps, sponsors. */
     NOTES("notes"),
-    /** An episode's words in full. */
+    /** An episode's words in full, as its own post or inside the episode's. */
     TRANSCRIPT("transcript"),
-    /** A stub carrying the audio of a written post beside it. */
+    /** A short post carrying the narration of a written post in the same feed. */
     AUDIO_VERSION("audio-version"),
     ;
 
@@ -24,23 +27,19 @@ enum class Kind(val label: String) {
     }
 }
 
-data class Enclosure(val url: String, val type: String, val length: Long)
-
-/** One feed item, with what detection reads from it. */
+/** One feed entry, with what detection reads from it. */
 data class EpisodePost(
     val guid: String,
     val title: String,
     val link: String,
     val html: String,
     val enclosures: List<Enclosure>,
-    /** itunes:duration in seconds, when the feed gives one. */
-    val duration: Int?,
-    /** podcast:transcript links. */
-    val transcripts: List<String>,
+    /** How long its audio runs, when the feed says. */
+    val duration: Int? = null,
 ) {
-    val text: String by lazy { Jsoup.parseBodyFragment(html).text() }
-    val words: Int by lazy { WORD.findAll(text).count() }
     val body: Element by lazy { Jsoup.parseBodyFragment(html).body() }
+    val text: String by lazy { body.text() }
+    val words: Int by lazy { WORD.findAll(text).count() }
 
     private companion object {
         val WORD = Regex("[\\p{L}\\p{N}]+")
@@ -48,54 +47,27 @@ data class EpisodePost(
 }
 
 /**
- * A feed's posts in the order it lists them.
+ * A feed's posts in the order it lists them: detection reads a post beside the others, since
+ * notes and their transcript, or a narration and its post, are two entries of one feed.
  *
- * @property podcast the channel says it is one, with Apple Podcasts' tags.
+ * @property podcast the feed says it is one, with Apple Podcasts' channel tags.
  */
-data class EpisodeFeed(val title: String, val posts: List<EpisodePost>, val podcast: Boolean = false) {
+data class EpisodeFeed(val posts: List<EpisodePost>, val podcast: Boolean = false) {
     companion object {
-        fun parse(xml: String): EpisodeFeed {
-            val doc = Jsoup.parse(xml, "", Parser.xmlParser())
-            val items = doc.select("item").ifEmpty { doc.select("entry") }
-            val title = doc.selectFirst("channel > title, feed > title")?.text().orEmpty()
-            val podcast = doc.select("channel > itunes|category, channel > itunes|type").isNotEmpty()
+        fun of(items: List<FeedItem>, podcast: Boolean = false): EpisodeFeed {
             // A post is known by its guid; a blank or repeated one would merge two posts' verdicts.
             val seen = mutableSetOf<String>()
-            val posts = items.mapIndexed { i, item -> post(item).let { if (it.guid.isBlank() || !seen.add(it.guid)) it.copy(guid = "${it.guid}#$i") else it } }
-            return EpisodeFeed(title, posts, podcast)
-        }
-
-        private fun post(item: Element): EpisodePost {
-            fun child(vararg names: String) = names.firstNotNullOfOrNull { n -> item.children().firstOrNull { it.tagName().equals(n, true) } }
-            val html = listOf("content:encoded", "content", "description", "summary", "itunes:summary")
-                .mapNotNull { child(it)?.wholeText()?.trim() }
-                .maxByOrNull { it.length }.orEmpty()
-            // Atom lists several links; the post's own is the one without a rel, or rel="alternate".
-            val link = item.children().filter { it.tagName() == "link" && it.attr("rel").let { r -> r.isEmpty() || r == "alternate" } }
-                .firstOrNull()?.let { it.attr("href").ifBlank { it.text() } }.orEmpty()
-            val enclosures = item.children().filter { it.tagName() == "enclosure" || it.tagName() == "media:content" || (it.tagName() == "link" && it.attr("rel") == "enclosure") }
-                .map { Enclosure(it.attr("url").ifBlank { it.attr("href") }, it.attr("type"), it.attr("length").toLongOrNull() ?: 0) }
-                .filter { it.url.isNotBlank() }
-            return EpisodePost(
-                guid = child("guid", "id")?.text()?.ifBlank { null } ?: link,
-                title = child("title")?.text().orEmpty(),
-                link = link,
-                html = html,
-                enclosures = enclosures,
-                duration = child("itunes:duration")?.text()?.let(::seconds),
-                transcripts = item.children().filter { it.tagName() == "podcast:transcript" }.map { it.attr("url") },
-            )
-        }
-
-        private fun seconds(s: String): Int? {
-            val parts = s.trim().split(':').map { it.toIntOrNull() ?: return null }
-            return parts.fold(0) { acc, p -> acc * 60 + p }.takeIf { it > 0 }
+            val posts = items.mapIndexed { i, item ->
+                val guid = item.guid.takeIf { it.isNotBlank() && seen.add(it) } ?: "${item.guid}#$i"
+                EpisodePost(guid, item.title, item.url, item.contentHtml.orEmpty(), item.enclosures, item.durationSeconds)
+            }
+            return EpisodeFeed(posts, podcast)
         }
     }
 }
 
 /** A post's kind, why, and the other post of its episode if there is one. */
-data class Verdict(val kind: Kind, val pair: String?, val why: String, val signals: Signals)
+data class Verdict(val kind: EpisodeKind, val pair: String?, val why: String, val signals: Signals)
 
 data class Signals(
     /** The post's own audio: an attached file or a player of the host's. */
@@ -175,11 +147,14 @@ object EpisodeDetector {
     private val STOPWORDS = setOf("the", "and", "with", "for", "from", "that", "this", "what", "how", "why", "are", "was", "you", "our", "your")
     private val STUB_CUES = Regex("\\b(listen to this (article|post|essay|story)|(audio|narrated) version of|audio|narrated|voiceover|listen|podcast|version|read by)\\b", RegexOption.IGNORE_CASE)
 
+    /** The first audio file among [enclosures]. Video files are left out: a blog's clip is attached the same way as a show's episode. */
+    fun audioOf(enclosures: List<Enclosure>): Enclosure? =
+        enclosures.firstOrNull { it.type.startsWith("audio") || (it.type.isBlank() && AUDIO_FILE.containsMatchIn(it.url)) }
+
     fun signals(post: EpisodePost): Signals {
         val embeds = post.body.select("iframe[src], embed[src], a[href]").map { it.attr("src").ifBlank { it.attr("href") } }
         val iframes = post.body.select("iframe[src], embed[src], audio[src], audio source[src]").map { it.attr("src") }
-        // Video files are left out: a blog's clip is attached the same way as a show's episode.
-        val enclosure = post.enclosures.firstOrNull { it.type.startsWith("audio") || (it.type.isBlank() && AUDIO_FILE.containsMatchIn(it.url)) }
+        val enclosure = audioOf(post.enclosures)
         // Substack's own player, for audio uploaded into a post rather than attached to it.
         val upload = post.body.selectFirst("[data-component-name=AudioPlaceholder]")?.attr("data-attrs")
             ?.let { Regex("\"mediaUploadId\":\"([^\"]+)\"").find(it)?.groupValues?.get(1) }?.let { "$UPLOAD$it" }
@@ -240,8 +215,8 @@ object EpisodeDetector {
             val readable = posts.maxBy { it.words }
             val s = signals.getValue(readable.guid)
             if (!s.transcriptTitle && readable.words < TRANSCRIPT_WORDS) continue
-            verdicts[readable.guid] = Verdict(Kind.TRANSCRIPT, other(posts, readable), "shares its audio with a shorter post", s)
-            posts.filter { it !== readable }.forEach { verdicts[it.guid] = Verdict(Kind.NOTES, readable.guid, "shares its audio with a longer post", signals.getValue(it.guid)) }
+            verdicts[readable.guid] = Verdict(EpisodeKind.TRANSCRIPT, other(posts, readable), "shares its audio with a shorter post", s)
+            posts.filter { it !== readable }.forEach { verdicts[it.guid] = Verdict(EpisodeKind.NOTES, readable.guid, "shares its audio with a longer post", signals.getValue(it.guid)) }
         }
 
         // A transcript posted without audio, named after its episode's post.
@@ -253,7 +228,7 @@ object EpisodeDetector {
             // The episode's post stays what it is otherwise (notes, or a post that opens with the episode).
             val own = withAudio(feed, episode, signals, audio)
             if (own.pair != null) continue
-            verdicts[p.guid] = Verdict(Kind.TRANSCRIPT, episode.guid, "\"transcript\" in its title, named after an episode post", s)
+            verdicts[p.guid] = Verdict(EpisodeKind.TRANSCRIPT, episode.guid, "\"transcript\" in its title, named after an episode post", s)
             verdicts[episode.guid] = own.copy(pair = p.guid)
         }
 
@@ -266,20 +241,20 @@ object EpisodeDetector {
             val videos = videos(p)
             verdicts[p.guid] = when {
                 audio[p.guid] != null && readsStories && !EPISODE_TITLE.containsMatchIn(p.title) ->
-                    Verdict(Kind.ARTICLE, null, "a story carrying the episode that reads it", s)
+                    Verdict(EpisodeKind.ARTICLE, null, "a story carrying the episode that reads it", s)
                 audio[p.guid] != null -> withAudio(feed, p, signals, audio)
                 videos.isNotEmpty() && videos.all { it in episodeVideos } -> {
                     val episodes = videos.mapNotNull { episodeVideos[it] }.distinct()
-                    Verdict(Kind.NOTES, episodes.singleOrNull()?.guid, "embeds the video of episode posts in the feed, with no audio of its own", s)
+                    Verdict(EpisodeKind.NOTES, episodes.singleOrNull()?.guid, "embeds the video of episode posts in the feed, with no audio of its own", s)
                 }
-                s.transcriptTitle && s.words >= TRANSCRIPT_WORDS -> Verdict(Kind.TRANSCRIPT, null, "\"transcript\" in its title", s)
+                s.transcriptTitle && s.words >= TRANSCRIPT_WORDS -> Verdict(EpisodeKind.TRANSCRIPT, null, "\"transcript\" in its title", s)
                 s.embed != null && s.turns >= TURNS && s.words >= TRANSCRIPT_WORDS ->
-                    Verdict(Kind.TRANSCRIPT, null, "an episode player and $TURNS or more speaker turns", s)
+                    Verdict(EpisodeKind.TRANSCRIPT, null, "an episode player and $TURNS or more speaker turns", s)
                 s.embed != null && s.timestamps >= TIMESTAMPS && s.words < NOTES_WORDS_WITH_TIMESTAMPS ->
-                    Verdict(Kind.NOTES, null, "an episode player with a list of timestamps", s)
+                    Verdict(EpisodeKind.NOTES, null, "an episode player with a list of timestamps", s)
                 s.video && s.timestamps >= TIMESTAMPS && s.words < NOTES_WORDS_WITH_TIMESTAMPS ->
-                    Verdict(Kind.NOTES, null, "a video with a list of timestamps", s)
-                else -> Verdict(Kind.ARTICLE, null, when {
+                    Verdict(EpisodeKind.NOTES, null, "a video with a list of timestamps", s)
+                else -> Verdict(EpisodeKind.ARTICLE, null, when {
                     s.audio != null -> "audio, but not from a podcast host, in a feed that isn't a podcast"
                     s.embed != null -> "only someone's episode embedded, without timestamps"
                     s.music -> "music, not an episode"
@@ -297,18 +272,18 @@ object EpisodeDetector {
 
     private fun withAudio(feed: EpisodeFeed, p: EpisodePost, signals: Map<String, Signals>, audio: Map<String, String?>): Verdict {
         val s = signals.getValue(p.guid)
-        if (s.transcriptTitle) return Verdict(Kind.TRANSCRIPT, null, "audio, and \"transcript\" in its title", s)
-        if (s.transcriptHeading && s.words >= TRANSCRIPT_HEADING_WORDS) return Verdict(Kind.TRANSCRIPT, null, "audio, and a transcript heading", s)
+        if (s.transcriptTitle) return Verdict(EpisodeKind.TRANSCRIPT, null, "audio, and \"transcript\" in its title", s)
+        if (s.transcriptHeading && s.words >= TRANSCRIPT_HEADING_WORDS) return Verdict(EpisodeKind.TRANSCRIPT, null, "audio, and a transcript heading", s)
         // Turns alone make a written interview look like one; with the episode's audio it is one.
-        if (s.turns >= TURNS && s.words >= TRANSCRIPT_WORDS) return Verdict(Kind.TRANSCRIPT, null, "audio, and $TURNS or more speaker turns", s)
+        if (s.turns >= TURNS && s.words >= TRANSCRIPT_WORDS) return Verdict(EpisodeKind.TRANSCRIPT, null, "audio, and $TURNS or more speaker turns", s)
         if (s.words < STUB_WORDS) {
-            chapter(feed, p, audio)?.let { return Verdict(Kind.AUDIO_VERSION, it.guid, "an audio stub beside a written post of the same title", s) }
-            linked(feed, p, audio)?.let { return Verdict(Kind.AUDIO_VERSION, it.guid, "an audio stub linking to a written post in the feed", s) }
+            chapter(feed, p, audio)?.let { return Verdict(EpisodeKind.AUDIO_VERSION, it.guid, "an audio stub beside a written post of the same title", s) }
+            linked(feed, p, audio)?.let { return Verdict(EpisodeKind.AUDIO_VERSION, it.guid, "an audio stub linking to a written post in the feed", s) }
         }
         // Audio uploaded into a post is a reading or a song as often as a show: not an episode on its own.
-        if (s.audio!!.startsWith(UPLOAD)) return Verdict(Kind.ARTICLE, null, "audio uploaded into the post, not a show's episode", s)
-        if (notesSized(s)) return Verdict(Kind.NOTES, null, if (s.timestamps >= TIMESTAMPS) "audio, timestamps and under ${NOTES_WORDS_WITH_TIMESTAMPS} words" else "audio and under $NOTES_WORDS words", s)
-        return Verdict(Kind.ARTICLE, null, "audio, with a long write-up", s)
+        if (s.audio!!.startsWith(UPLOAD)) return Verdict(EpisodeKind.ARTICLE, null, "audio uploaded into the post, not a show's episode", s)
+        if (notesSized(s)) return Verdict(EpisodeKind.NOTES, null, if (s.timestamps >= TIMESTAMPS) "audio, timestamps and under ${NOTES_WORDS_WITH_TIMESTAMPS} words" else "audio and under $NOTES_WORDS words", s)
+        return Verdict(EpisodeKind.ARTICLE, null, "audio, with a long write-up", s)
     }
 
     private fun notesSized(s: Signals) = s.words < NOTES_WORDS || (s.timestamps >= TIMESTAMPS && s.words < NOTES_WORDS_WITH_TIMESTAMPS)
