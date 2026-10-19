@@ -104,7 +104,15 @@ class PodcastStore(val dir: File) {
     /** The space every podcast's audio takes, in bytes. */
     fun bytes(): Long = audioBytes(dir)
 
-    private fun audioBytes(folder: File) = folder.walk().filter { it.isFile && it.name.endsWith(".$AUDIO") }.sumOf { it.length() }
+    // Not File.walk(): it asserts a folder it entered is still one, and a delete on another thread
+    // can take it away in between, as it can a file (whose length is then 0).
+    private fun audioBytes(folder: File): Long = (folder.listFiles() ?: emptyArray()).sumOf { file ->
+        when {
+            file.isDirectory -> audioBytes(file)
+            file.name.endsWith(".$AUDIO") -> file.length()
+            else -> 0L
+        }
+    }
 
     fun voice(editionId: Long): PodcastVoice? =
         read(editionId, VOICE)?.let { name -> PodcastVoice.entries.firstOrNull { it.name == name } }

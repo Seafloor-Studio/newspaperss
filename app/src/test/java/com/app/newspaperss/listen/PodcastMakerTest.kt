@@ -1,5 +1,6 @@
 package com.app.newspaperss.listen
 
+import android.app.ApplicationExitInfo
 import com.app.newspaperss.testutil.TestDataStores
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -101,8 +102,10 @@ class PodcastMakerTest {
 
     private var started = 0
     private var pieceSeconds = PodcastMaker.PIECE_SECONDS
+    private var pieceWorkSeconds = PodcastMaker.PIECE_WORK_SECONDS
+    private var exit: LastExit? = null
     private val log by lazy { PodcastLog(tmp.newFile("log")) }
-    private val maker by lazy { PodcastMaker(editions, store, install, settings, engine, encoder, pieceSeconds, now = { clock }, log = log) }
+    private val maker by lazy { PodcastMaker(editions, store, install, settings, engine, encoder, pieceSeconds, pieceWorkSeconds, lastExit = { exit }, now = { clock }, log = log) }
     private val podcasts by lazy { Podcasts(store, settings, install) { started++ } }
 
     private val knots = EditionArticle(
@@ -289,6 +292,33 @@ class PodcastMakerTest {
     }
 
     @Test
+    fun aThrottledPhoneKeepsPiecesOnWorkNotOnlyOnAudio() {
+        inUse()
+        // Far more audio than this page holds, so only the work bound can cut a piece.
+        pieceSeconds = 1000.0
+        pieceWorkSeconds = 0.000001
+        val id = edition("Thursday", knots, lagos)
+        request(id)
+        make()
+
+        assertTrue(store.finished(id))
+        assertTrue("the work bound should have cut the page into pieces", store.pieces(id, 0).size > 1)
+    }
+
+    @Test
+    fun aCoolPhoneIsNotCutByTheWorkBound() {
+        inUse()
+        pieceSeconds = 1000.0
+        pieceWorkSeconds = 1000.0
+        val id = edition("Thursday", knots, lagos)
+        request(id)
+        make()
+
+        assertTrue(store.finished(id))
+        assertEquals(1, store.pieces(id, 0).size)
+    }
+
+    @Test
     fun stoppingKeepsWhatsMadeLeavesItUnfinishedAndMakeTheRestCarriesOn() {
         inUse()
         pieceSeconds = 0.1
@@ -435,6 +465,43 @@ class PodcastMakerTest {
         assertTrue(store.made(id, 1))
         assertTrue(store.finished(id))
     }
+
+    /**
+     * The marker says which line was in flight when the process ended, not that the line ended
+     * it. Two memory kills on the same line would otherwise read the page to the phone's voice
+     * for good.
+     */
+    @Test
+    fun aLineAndroidTookTheAppOnIsntBlamedForIt() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        // Twice the process has ended saying the fourth line, both times out of memory.
+        store.saying(id, 0, 3, 2)
+        exit = endedWith(ApplicationExitInfo.REASON_LOW_MEMORY, "the phone was out of memory", crash = false)
+        make()
+
+        assertFalse("the page shouldn't go to the phone's voice", store.live(id, 0))
+        assertTrue(store.made(id, 0))
+        assertTrue(said.contains("Then a teacher counted."))
+    }
+
+    /** When the app did fall over on it, the line is still given up on as before. */
+    @Test
+    fun aLineTheAppFellOverOnIsStillGivenUpOn() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        store.saying(id, 0, 3, 2)
+        exit = endedWith(ApplicationExitInfo.REASON_CRASH_NATIVE, "native crash", crash = true)
+        make()
+
+        assertTrue(store.live(id, 0))
+        assertFalse(said.contains("Then a teacher counted."))
+    }
+
+    private fun endedWith(reason: Int, name: String, crash: Boolean) =
+        LastExit(reason = reason, name = name, rssKb = 0, pssKb = 0, atMs = 1, crash = crash, abnormal = true)
 
     @Test
     fun dyingOnceIsntTakenForACrash() {

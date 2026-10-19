@@ -313,9 +313,10 @@ class ServerAddTest {
         signedIn()
         server.subscribeCode = 5
         http.page("https://science.example/2026/10/comet", """<html><head><link rel="alternate" type="application/rss+xml" href="/feed"></head></html>""")
-        show()
+        val vm = show()
         add("science.example/2026/10/comet")
         waitFor("Subscribe in your tt-rss")
+        idleUntil { compose.waitForIdle(); (vm.add.value as? AddState.Subscribing)?.categories != null }
         compose.onNodeWithText("Subscribe").performClick()
         waitFor("tt-rss couldn't fetch it")
         assertTrue(visible("tt-rss couldn't download it.") && visible("Some sites block servers"))
@@ -330,9 +331,10 @@ class ServerAddTest {
     fun anAccountThatCantSubscribeSaysSoInWords() {
         signedIn()
         server.apiLevel = 4
-        show()
+        val vm = show()
         add("science.example")
         waitFor("Subscribe in your tt-rss")
+        idleUntil { compose.waitForIdle(); (vm.add.value as? AddState.Subscribing)?.categories != null }
         compose.onNodeWithText("Subscribe").performClick()
         waitFor("tt-rss didn't add it")
         assertTrue(visible("Your tt-rss is too old to add feeds from NewspapeRSS."))

@@ -151,7 +151,9 @@ class ArticlePreviewScreenTest {
 
     private fun webView(): WebView {
         var found: WebView? = null
-        idleUntil { found = findWebView(); found != null }
+        // The edition is read in the background; its WebView appears in the next frame, which only
+        // waitForIdle lets Compose draw.
+        idleUntil { compose.waitForIdle(); found = findWebView(); found != null }
         return found!!
     }
 

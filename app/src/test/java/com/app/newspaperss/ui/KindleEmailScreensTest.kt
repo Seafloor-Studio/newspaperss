@@ -27,6 +27,7 @@ import com.app.newspaperss.settings.KindleEmail
 import com.app.newspaperss.settings.Settings
 import com.app.newspaperss.testutil.MAIL_APP
 import com.app.newspaperss.testutil.TestApp
+import com.app.newspaperss.testutil.ViewModels
 import com.app.newspaperss.testutil.clearFileProviderCache
 import com.app.newspaperss.testutil.closeAfter
 import com.app.newspaperss.testutil.idleUntil
@@ -55,6 +56,7 @@ import java.io.File
 class KindleEmailScreensTest {
     @get:Rule(order = 0) val closeDb = closeAfter { db.close() }
     @get:Rule(order = 1) val compose = createComposeRule()
+    @get:Rule(order = 2) val viewModels = ViewModels()
 
     private val app = ApplicationProvider.getApplicationContext<Application>()
     private val db = Room.inMemoryDatabaseBuilder(app, AppDatabase::class.java).allowMainThreadQueries().build()
@@ -90,7 +92,7 @@ class KindleEmailScreensTest {
     fun todaysSendOpensTheMailAppCountsAsSentAndSaysItWasEmailed() {
         installApp(app)
         val (id, article) = readyEdition()
-        val vm = TodayViewModel(repo, flowOf(null), settings = flowOf(settings), sentToKindle = kindleSends.recent) {}
+        val vm = viewModels.add(TodayViewModel(repo, flowOf(null), settings = flowOf(settings), sentToKindle = kindleSends.recent) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
         waitFor("Mark as sent")
 
@@ -113,7 +115,7 @@ class KindleEmailScreensTest {
     fun withTheMailAppTodaysMenuOffersTheShareSheetAsAnotherWay() {
         installApp(app)
         val (id, _) = readyEdition()
-        val vm = TodayViewModel(repo, flowOf(null), settings = flowOf(settings), sentToKindle = kindleSends.recent) {}
+        val vm = viewModels.add(TodayViewModel(repo, flowOf(null), settings = flowOf(settings), sentToKindle = kindleSends.recent) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
         waitFor("Mark as sent")
 
@@ -129,7 +131,7 @@ class KindleEmailScreensTest {
     @Test
     fun withTheMailAppGoneTodaysSendOffersTheShareSheetAndWaitsForAPick() {
         val (id, _) = readyEdition()
-        val vm = TodayViewModel(repo, flowOf(null), settings = flowOf(settings)) {}
+        val vm = viewModels.add(TodayViewModel(repo, flowOf(null), settings = flowOf(settings)) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
         waitFor("Mark as sent")
         // Send is the share sheet already, so there's no other way to offer.
@@ -147,7 +149,7 @@ class KindleEmailScreensTest {
     fun anEditionsSendOpensTheMailAppAndCountsAsSent() {
         installApp(app)
         val (id, _) = readyEdition()
-        val vm = EditionDetailViewModel(repo, id, sentToKindle = kindleSends.recent) {}
+        val vm = viewModels.add(EditionDetailViewModel(repo, id, sentToKindle = kindleSends.recent) {})
         compose.setContent { EditionDetailScreen(vm, onBack = {}, offerOpen = false, kindleEmail = KindleEmail("me_42@kindle.com", MAIL_APP)) }
         idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
 
