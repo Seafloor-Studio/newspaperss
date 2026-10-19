@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    # A PR opened against another branch (one stacked on another PR) is filtered out by
+    # branches above, so it never builds. Retargeting it to main arrives as `edited`, not as
+    # one of the default types, so without this it still never builds and the PR shows every
+    # other check green with the suite never run against it. Closing and reopening doesn't
+    # start it either.
+    types: [opened, synchronize, reopened, edited]
 
 # Read-only unless a job asks for more; the build runs third-party plugins and dependencies.
 permissions:
@@ -13,6 +19,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # `edited` also fires on every title and description edit, which has no bearing on the
+    # build: only a changed base branch does.
+    if: github.event_name != 'pull_request' || github.event.action != 'edited' || github.event.changes.base != null
     # A build takes about four minutes; a hung test would otherwise hold a PR for GitHub's six hours.
     timeout-minutes: 30
     steps:
