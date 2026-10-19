@@ -12,6 +12,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Finds how long a post's audio plays, from the first bytes of its file, when its feed didn't say
@@ -20,6 +21,12 @@ import kotlinx.coroutines.sync.withPermit
  * for the reading paired with an article, which it announces by its length.
  */
 class AudioLengths(private val db: AppDatabase, private val http: HttpClient) {
+    /** [measure]s an edition's articles once it's made, for at most [MEASURE_FOR]: they're for Listen, which reads an article whose length isn't known. */
+    suspend fun measureEdition(editionId: Long) {
+        val ids = db.editions().articleIds(editionId)
+        withTimeoutOrNull(MEASURE_FOR) { measure(ids) }
+    }
+
     /** Measures the audio of [articleIds] that Listen may play, and of the readings they pair with. */
     suspend fun measure(articleIds: Collection<Long>) = coroutineScope {
         val articles = db.articles().byIds(articleIds).filter { it.episodeKind == EpisodeKind.ARTICLE }
@@ -63,5 +70,6 @@ class AudioLengths(private val db: AppDatabase, private val http: HttpClient) {
 
     private companion object {
         const val DAY = 24 * 60 * 60.0
+        const val MEASURE_FOR = 30_000L
     }
 }

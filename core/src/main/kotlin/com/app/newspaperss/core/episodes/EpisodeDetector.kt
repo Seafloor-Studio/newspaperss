@@ -37,8 +37,7 @@ data class EpisodePost(
     val enclosures: List<Enclosure>,
     /** How long its audio runs, when the feed says. */
     val duration: Int? = null,
-) {
-}
+)
 
 /**
  * A feed's posts in the order it lists them: detection reads a post beside the others, since
@@ -362,7 +361,7 @@ object EpisodeDetector {
      * X | Show #12" and "#12 – X". Null when it doesn't, or when their episode numbers differ.
      */
     private fun overlap(a: String, b: String): Double? {
-        fun words(t: String) = Regex("[\\p{L}\\p{N}]+").findAll(t.lowercase()).map { it.value }
+        fun words(t: String) = WORD.findAll(t.lowercase()).map { it.value }
             .filter { (it.length > 2 || it.all(Char::isDigit)) && it !in STOPWORDS && !TRANSCRIPT.matches(it) }.toSet()
         fun numbers(w: Set<String>) = w.filter { it.all(Char::isDigit) }.toSet()
         val (x, y) = words(a) to words(b)

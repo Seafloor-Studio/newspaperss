@@ -208,10 +208,7 @@ class FeedSync(
                 db.withTransaction { withUnread.forEach { db.sources().setServerError(source.id, it.id.toString(), it.lastError) } }
                 val unreadFeeds = withUnread.filter { it.id.toString() !in leftOut }
                 val headlines = fromEachFeed(client, unreadFeeds)
-                // Judged feed by feed, as a feed's own posts are: pairs are two posts of one publication.
-                val episodes = headlines.groupBy { it.feedId }.flatMap { (feedId, posts) ->
-                    episodes(source, feedId, posts.map { it.asFeedItem() }, podcast = false, now).entries
-                }.associate { it.key to it.value }
+                val episodes = judged(source, headlines, now)
                 val articles = headlines.map { it to article(source, it, now).episode(it.attachments, episodes["$TTRSS_GUID_PREFIX${it.id}"]) }
                 if (source.markReadOnServer) syncReadState(client, source, articles, now)
                 val guids = articles.map { it.second.guid }
@@ -322,8 +319,23 @@ class FeedSync(
                     db.articles().setEpisodeKind(source.id, old.guid, EpisodeKind.ARTICLE)
             }
         }
-        return verdicts.filterKeys { it in fresh }
+        // A pair is kept only if it holds both ways: it names a new post, or an earlier one above
+        // that's been paired back. Not one already paired with another (which keeps its own), one
+        // stored but older than those (never paired back), nor a guid no post has (the detector's
+        // name for a repeated guid).
+        val real = fresh + earlier.map { it.guid }
+        val taken = earlier.mapNotNull { old -> old.episodePair?.let { old.guid to it } }.toMap()
+        return verdicts.filterKeys { it in fresh }.mapValues { (guid, verdict) ->
+            val pair = verdict.pair ?: return@mapValues verdict
+            if (pair !in real || taken[pair]?.let { it != guid } == true) verdict.copy(pair = null) else verdict
+        }
     }
+
+    /** [headlines] judged feed by feed, as a feed's own posts are: pairs are two posts of one publication. */
+    private suspend fun judged(source: SourceEntity, headlines: List<TtrssHeadline>, now: Instant): Map<String, Verdict> =
+        headlines.groupBy { it.feedId }.flatMap { (feedId, posts) ->
+            episodes(source, feedId, posts.map { it.asFeedItem() }, podcast = false, now).entries
+        }.associate { it.key to it.value }
 
     private fun ArticleEntity.episode(enclosures: List<Enclosure>, verdict: Verdict?, seconds: Int? = null) =
         if (episodesOn) withEpisode(enclosures, verdict, seconds) else this
@@ -367,9 +379,7 @@ class FeedSync(
             val new = if (source.ttrssStarsNoted) unseen.filter { "$TTRSS_GUID_PREFIX$it" !in held }.take(STARS_PER_SYNC) else emptyList()
             // Only what was asked for: a server answering with more would add them all, starred.
             val starredHeadlines = client.articles(new).filter { it.id in new }
-            val episodes = starredHeadlines.groupBy { it.feedId }.flatMap { (feedId, posts) ->
-                episodes(source, feedId, posts.map { it.asFeedItem() }, podcast = false, now).entries
-            }.associate { it.key to it.value }
+            val episodes = judged(source, starredHeadlines, now)
             val articles = starredHeadlines.map { it to article(source, it, now, starredAt = now).episode(it.attachments, episodes["$TTRSS_GUID_PREFIX${it.id}"]) }
             db.withTransaction {
                 // Turned off, or off and on again, during this sync: what was seen belongs to the old setting.
@@ -570,8 +580,11 @@ internal suspend fun listTtrssFeeds(db: AppDatabase, client: TtrssClient, source
     }
 }
 
-/** With the audio the feed attached and what the detector made of the post; a post it didn't judge stays unjudged. */
-/** @param seconds the feed's length for the audio (`itunes:duration`), when it gives one. */
+/**
+ * With the audio the feed attached and what the detector made of the post; a post it didn't judge stays unjudged.
+ *
+ * @param seconds the feed's length for the audio (`itunes:duration`), when it gives one.
+ */
 internal fun ArticleEntity.withEpisode(enclosures: List<Enclosure>, verdict: Verdict?, seconds: Int? = null): ArticleEntity {
     val audio = EpisodeDetector.audioOf(enclosures)
     return copy(

@@ -1,8 +1,5 @@
 package com.app.newspaperss.edition
 
-import java.io.File
-import org.junit.Assert.assertThrows
-import kotlinx.coroutines.CancellationException
 import com.app.newspaperss.core.extract.FullTextCheck
 import com.app.newspaperss.core.extract.FullTextEvidence
 import com.app.newspaperss.data.FeedChoice
@@ -610,31 +607,6 @@ class EditionBuilderTest {
             assertEquals("only the first article in reading order keeps its image", 1, chapters.count { "<img" in it })
             assertEquals(1, chapters.count { "caption</figcaption>" in it })
         }
-    }
-
-    @Test
-    fun theAudioOfAnEditionsArticlesIsMeasuredAndAFailureThereDoesntCostTheEdition() = runTest {
-        source("a", "a1", "a2")
-        var asked: List<Long>? = null
-        val built = EditionBuilder(db, content, tmp.root, clock, { ZoneOffset.UTC }, measureAudio = { ids ->
-            asked = ids
-            throw java.io.IOException("the audio host is down")
-        }).build(EditionSettings(maxPerSource = 5)) as BuildResult.Built
-
-        assertEquals(db.editions().articleIds(built.editionId), asked)
-        assertEquals(EditionStatus.READY, db.editions().byId(built.editionId)!!.status)
-    }
-
-    @Test
-    fun beingStoppedWhileTheAudioIsMeasuredLeavesTheEditionMade() = runTest {
-        source("a", "a1")
-        val stopping = EditionBuilder(db, content, tmp.root, clock, { ZoneOffset.UTC }, measureAudio = { throw CancellationException("stopped") })
-        assertThrows(CancellationException::class.java) { kotlinx.coroutines.runBlocking { stopping.build(EditionSettings(maxPerSource = 5)) } }
-
-        val edition = db.editions().withStatus(EditionStatus.READY).single()
-        assertEquals(EditionStatus.READY, edition.status)
-        assertTrue("its book is kept", File(tmp.root, edition.fileName!!).exists())
-        assertEquals(listOf(ArticleState.IN_EDITION), db.articles().byIds(db.editions().articleIds(edition.id)).map { it.state })
     }
 
     @Test

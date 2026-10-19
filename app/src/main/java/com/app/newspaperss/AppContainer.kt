@@ -140,7 +140,6 @@ class AppContainer(
     private val audioLengths = AudioLengths(db, http)
     val editionBuilder = EditionBuilder(
         db, content, editionsDir, cover = CoverRenderer()::render, retiring = feedMoves::retiringIds, onReleased = notifier::dismissFor,
-        measureAudio = { ids -> if (EPISODES) audioLengths.measure(ids) },
     )
     val settings = SettingsStore(settingsData)
     /** A live build fetching and installing newer builds; nothing in a release build. */
@@ -149,7 +148,11 @@ class AppContainer(
     private val folderDelivery = FolderDelivery(context.contentResolver)
     val editionRun = EditionRun(settings, feedSync, editionBuilder, editions, folderDelivery, notifier,
         // Scheduled editions only: one made by hand gets its podcast when asked.
-        onBuilt = { id, scheduled -> if (scheduled) podcasts.request(id) },
+        onBuilt = { id, scheduled ->
+            if (scheduled) podcasts.request(id)
+            // After delivery: the paper doesn't wait for something only Listen uses.
+            if (EPISODES) audioLengths.measureEdition(id)
+        },
     )
 
     /** Reading editions aloud. Made on first use: the voice takes a moment to start. */
