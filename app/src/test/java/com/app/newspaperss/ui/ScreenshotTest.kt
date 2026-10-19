@@ -1163,7 +1163,7 @@ class ScreenshotTest {
 
     @Test
     fun settingsPodcastLog() {
-        val log = PodcastLog(tmp.newFile(), now = { 1_791_000_000_000L })
+        val log = PodcastLog(tmp.newFolder(), now = { 1_791_000_000_000L })
         listOf(
             "Edition 12's audio asked for, in Heart; made once the phone charges",
             "Run started (try 1): asking for the foreground, Android 36, battery unrestricted, plugged in",

@@ -104,7 +104,7 @@ class PodcastMakerTest {
     private var pieceSeconds = PodcastMaker.PIECE_SECONDS
     private var pieceWorkSeconds = PodcastMaker.PIECE_WORK_SECONDS
     private var exit: LastExit? = null
-    private val log by lazy { PodcastLog(tmp.newFile("log")) }
+    private val log by lazy { PodcastLog(tmp.newFolder("logs")) }
     private val maker by lazy { PodcastMaker(editions, store, install, settings, engine, encoder, pieceSeconds, pieceWorkSeconds, lastExit = { exit }, now = { clock }, log = log) }
     private val podcasts by lazy { Podcasts(store, settings, install) { started++ } }
 
