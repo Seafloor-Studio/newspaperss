@@ -302,7 +302,7 @@ interface ArticleDao {
     @Query(
         """SELECT id, sourceId, guid, url, title, author, published, NULL AS feedHtml, discoveredAt, state, starredAt,
            originId, originTitle, pageWords, reportedRead, viaUrl, paidOnly, paidSkipped, unreadable,
-           audioUrl, audioType, audioBytes, episodeKind, episodePair
+           audioUrl, audioType, audioBytes, audioSeconds, episodeKind, episodePair
            FROM articles WHERE (state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')) AND unreadable IS NULL""",
     )
     suspend fun buildCandidates(): List<ArticleEntity>
@@ -651,6 +651,12 @@ interface ArticleDao {
     suspend fun pairEpisode(sourceId: Long, guid: String, pair: String, kind: EpisodeKind)
 
     /** Sets what an article found earlier is, now that more of its source has been seen. */
+    @Query("SELECT * FROM articles WHERE sourceId = :sourceId AND guid = :guid")
+    suspend fun byGuid(sourceId: Long, guid: String): ArticleEntity?
+
+    @Query("UPDATE articles SET audioSeconds = :seconds WHERE id = :id")
+    suspend fun setAudioSeconds(id: Long, seconds: Int)
+
     @Query("UPDATE articles SET episodeKind = :kind WHERE sourceId = :sourceId AND guid = :guid")
     suspend fun setEpisodeKind(sourceId: Long, guid: String, kind: EpisodeKind)
 

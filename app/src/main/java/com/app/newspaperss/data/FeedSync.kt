@@ -87,7 +87,7 @@ class FeedSync(
                         ArticleEntity(
                             sourceId = source.id, guid = it.guid, url = it.url, title = it.title,
                             author = it.author, published = it.published, feedHtml = storable(it.contentHtml), discoveredAt = now,
-                        ).episode(it.enclosures, episodes[it.guid]).linkedToStory(feed.siteUrl ?: source.siteUrl) to it.url
+                        ).episode(it.enclosures, episodes[it.guid], it.durationSeconds).linkedToStory(feed.siteUrl ?: source.siteUrl) to it.url
                     },
                 )
                 // A title that is still the host-name placeholder gives way to the feed's own.
@@ -325,7 +325,8 @@ class FeedSync(
         return verdicts.filterKeys { it in fresh }
     }
 
-    private fun ArticleEntity.episode(enclosures: List<Enclosure>, verdict: Verdict?) = if (episodesOn) withEpisode(enclosures, verdict) else this
+    private fun ArticleEntity.episode(enclosures: List<Enclosure>, verdict: Verdict?, seconds: Int? = null) =
+        if (episodesOn) withEpisode(enclosures, verdict, seconds) else this
 
     private fun ArticleEntity.asFeedItem() = FeedItem(
         guid = guid, url = viaUrl ?: url, title = title, contentHtml = feedHtml, author = author, published = published,
@@ -570,10 +571,12 @@ internal suspend fun listTtrssFeeds(db: AppDatabase, client: TtrssClient, source
 }
 
 /** With the audio the feed attached and what the detector made of the post; a post it didn't judge stays unjudged. */
-internal fun ArticleEntity.withEpisode(enclosures: List<Enclosure>, verdict: Verdict?): ArticleEntity {
+/** @param seconds the feed's length for the audio (`itunes:duration`), when it gives one. */
+internal fun ArticleEntity.withEpisode(enclosures: List<Enclosure>, verdict: Verdict?, seconds: Int? = null): ArticleEntity {
     val audio = EpisodeDetector.audioOf(enclosures)
     return copy(
         audioUrl = audio?.url, audioType = audio?.type?.ifEmpty { null }, audioBytes = audio?.length?.takeIf { it > 0 },
+        audioSeconds = seconds?.takeIf { audio != null && it > 0 },
         episodeKind = verdict?.kind, episodePair = verdict?.pair,
     )
 }

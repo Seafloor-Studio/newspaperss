@@ -2,6 +2,7 @@ package com.app.newspaperss.testutil
 
 import com.app.newspaperss.core.net.HttpBytes
 import com.app.newspaperss.core.net.HttpClient
+import com.app.newspaperss.core.net.HttpRange
 import com.app.newspaperss.core.net.HttpResponse
 import java.io.IOException
 
@@ -50,6 +51,22 @@ class FakeHttp : HttpClient {
     override suspend fun getFeed(url: String): HttpResponse {
         val response = get(url)
         return if (url in cutShort) HttpResponse(response.code, response.finalUrl, response.contentType, response.body, truncated = true) else response
+    }
+
+    /** Urls whose server sends the whole file whatever range [getRange] asks for. */
+    val ignoresRanges = mutableSetOf<String>()
+    /** The file size [getRange] claims, by url, where it isn't the file's own. */
+    val claimedSizes = mutableMapOf<String, Long>()
+    /** Each [getRange] asked for, as (url, from). */
+    val ranges = mutableListOf<Pair<String, Long>>()
+
+    /** Serves [files] in part, as a server that honours ranges does unless the url is in [ignoresRanges]. */
+    override suspend fun getRange(url: String, from: Long, length: Int): HttpRange {
+        ranges += url to from
+        if (url in unreachable) throw IOException("unreachable")
+        val (_, bytes) = files[url] ?: return HttpRange(404, 0, null, ByteArray(0))
+        val start = if (url in ignoresRanges) 0 else from.toInt().coerceAtMost(bytes.size)
+        return HttpRange(if (url in ignoresRanges) 200 else 206, start.toLong(), claimedSizes[url] ?: bytes.size.toLong(), bytes.copyOfRange(start, minOf(bytes.size, start + length)))
     }
 
     override suspend fun getBytes(url: String, headers: Map<String, String>): HttpBytes {

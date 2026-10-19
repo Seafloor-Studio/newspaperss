@@ -171,6 +171,10 @@ The steps, with where they live:
    article has changed state, so a failure leaves them all for next time.
    (The one exception: a paid post its publication skips becomes
    `EXPIRED` as soon as its fetch finds it, and stays so.)
+   Then, in debug builds, `AudioLengths` times the audio Listen may play in
+   an article's place (an article's own, and the reading paired with one)
+   from the first bytes of each file (`core/episodes/AudioLength.kt`),
+   for at most 30 seconds; the edition is made either way.
 8. **Deliver.** With folder delivery, `EditionRun` copies the file
    (`FolderDelivery`, through the Storage Access Framework) and marks it
    delivered. Otherwise a timed run posts the "ready" notification.
@@ -424,6 +428,7 @@ erDiagram
         instant starredAt
         string originId "tt-rss feed"
         string audioUrl "the feed's audio attachment"
+        int audioSeconds "how long it plays, from the feed or measured"
         enum episodeKind "notes, transcript, audio version"
     }
     editions {
