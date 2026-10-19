@@ -291,11 +291,13 @@ class FeedSync(
         val guids = items.map { it.guid }.toSet()
         // A feed lists the same posts sync after sync; judging them again would only be thrown away.
         val known = guids.chunked(500).flatMap { db.articles().knownGuids(source.id, it) }.toSet()
-        if (guids.all { it in known }) return emptyMap()
+        val fresh = guids - known
+        if (fresh.isEmpty()) return emptyMap()
+        // Stored posts the feed still lists are judged from the feed's copy but updated here like
+        // the rest: they're the ones a new narration or written post most often pairs with.
         val earlier = db.articles().recentForEpisodes(source.id, originId, now.minus(Duration.ofDays(EPISODE_CONTEXT_DAYS)), EPISODE_CONTEXT)
-            .filter { it.guid !in guids }
         val verdicts = try {
-            EpisodeDetector.classify(EpisodeFeed.of(items + earlier.map { it.asFeedItem() }, podcast))
+            EpisodeDetector.classify(EpisodeFeed.of(items + earlier.filter { it.guid !in guids }.map { it.asFeedItem() }, podcast))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -305,7 +307,11 @@ class FeedSync(
             val verdict = verdicts[old.guid] ?: continue
             val pair = verdict.pair
             when {
-                pair != null && old.episodePair == null && pair in guids -> db.articles().pairEpisode(source.id, old.guid, pair, verdict.kind)
+                // Pairing makes a narration an audio version; it doesn't make an article notes.
+                pair != null && old.episodePair == null && pair in fresh -> db.articles().pairEpisode(
+                    source.id, old.guid, pair,
+                    if (verdict.kind == EpisodeKind.AUDIO_VERSION || verdict.kind == EpisodeKind.ARTICLE) verdict.kind else old.episodeKind ?: verdict.kind,
+                )
                 // Only toward an article: a magazine's story carrying its episode's audio looks like
                 // notes until the next episode shows the pattern, but a post judged an article
                 // isn't turned into an episode by what came after it.
@@ -313,7 +319,7 @@ class FeedSync(
                     db.articles().setEpisodeKind(source.id, old.guid, EpisodeKind.ARTICLE)
             }
         }
-        return verdicts.filterKeys { it in guids }
+        return verdicts.filterKeys { it in fresh }
     }
 
     private fun ArticleEntity.asFeedItem() = FeedItem(

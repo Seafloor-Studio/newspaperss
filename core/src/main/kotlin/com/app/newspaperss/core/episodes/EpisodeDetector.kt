@@ -225,7 +225,10 @@ object EpisodeDetector {
         // Lines, not elements: show notes often run a list of times through one paragraph with
         // <br>s, and a block nested in another would be counted twice.
         body.select("br").forEach { it.replaceWith(TextNode("\n")) }
-        body.select("p, li, h1, h2, h3, h4, h5, h6, div, blockquote, tr").forEach { it.appendChild(TextNode("\n")) }
+        body.select("p, li, ul, ol, h1, h2, h3, h4, h5, h6, div, blockquote, tr").forEach {
+            it.prependChild(TextNode("\n"))
+            it.appendChild(TextNode("\n"))
+        }
         return body.wholeText().lines().sumOf { LISTED.findAll(it.trim()).count() }
     }
 

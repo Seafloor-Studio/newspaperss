@@ -46,5 +46,7 @@ class EpisodeDetectorTest {
         val nested = "<ul><li>Topics<ul>" + (1..6).joinToString("") { "<li>(0$it:00) Part $it</li>" } + "</ul></li></ul>"
         val post = EpisodePost("1", "Episode", "https://a.example/1", nested, emptyList())
         assertEquals(6, EpisodeDetector.signals(post).timestamps)
+        val bare = "<ul><li>Chapters<ul>" + (1..6).joinToString("") { "<li>0$it:00 Part $it</li>" } + "</ul></li></ul>"
+        assertEquals("a bare time starts its own line", 6, EpisodeDetector.signals(post.copy(html = bare)).timestamps)
     }
 }

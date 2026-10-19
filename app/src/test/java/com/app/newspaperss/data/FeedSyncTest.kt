@@ -339,4 +339,29 @@ class FeedSyncTest {
         }
         assertEquals(EpisodeKind.ARTICLE, byTitle.getValue("An essay").episodeKind)
     }
+
+    @Test
+    fun aPostTheFeedStillListsLearnsOfItsReading() = runTest {
+        repo.addFeed(url, "Letters")
+        val letter = (1..1500).joinToString(" ") { "word$it" }
+        val written = """<item><title>October 15</title><link>https://letters.example/october-15</link><guid>letter</guid>
+              <description>$letter</description></item>"""
+        http.page(url, """<rss version="2.0"><channel><title>Letters</title>$written</channel></rss>""")
+        sync.syncAll()
+        http.page(
+            url,
+            """<rss version="2.0"><channel><title>Letters</title>
+              <item><title>Corruption as a Driving Force</title><link>https://letters.example/reading</link><guid>reading</guid>
+                <description>To read this letter, &lt;a href="https://letters.example/october-15"&gt;click here&lt;/a&gt;.</description>
+                <enclosure url="https://traffic.libsyn.com/letters/reading.mp3" type="audio/mpeg" length="1"/></item>
+              $written</channel></rss>""",
+        )
+        sync.syncAll()
+
+        val byGuid = db.articles().candidates().associateBy { it.guid }
+        assertEquals(EpisodeKind.AUDIO_VERSION, byGuid.getValue("reading").episodeKind)
+        assertEquals("letter", byGuid.getValue("reading").episodePair)
+        assertEquals("reading", byGuid.getValue("letter").episodePair)
+        assertEquals(EpisodeKind.ARTICLE, byGuid.getValue("letter").episodeKind)
+    }
 }
