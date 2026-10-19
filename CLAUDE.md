@@ -45,8 +45,7 @@ asserts the intent again raises coverage without covering anything.
 
 **Send for a look…** in the article view opens a GitHub issue with the
 post's address and the app's version filled in. The `handle-issues` skill
-treats both kinds as bugs in an existing feature, labelled once the label
-exists:
+treats both kinds as bugs in an existing feature, each with its label:
 
 - **"Extraction: *title*"** (`extraction`): the article came out wrong.
   Compare the page at the address with what the app made of it, and fix the

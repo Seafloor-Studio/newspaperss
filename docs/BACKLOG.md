@@ -326,7 +326,7 @@ labelled corpus are [research/podcast-episodes.md](research/podcast-episodes.md)
 - [ ] **Step 4:** transcripts play their episode in place; notes are read without their furniture and their episode plays at the end; streamed
 - [ ] **Step 5:** downloads for listening offline
 - [x] **The `handle-issues` skill** handles "Episode label:" and "Extraction:" issues: CLAUDE.md's "Issues the app files" says how
-- [ ] **An `episodes` label** on the repo, for the wrong-label reports to carry *(you)*
+- [x] **An `episodes` label** on the repo, for the wrong-label reports to carry (`extraction` too)
 
 #### From the 19 Oct audits *(audit)*
 The middle and end architecture and code-simplicity audits of the episodes work. Their small findings are fixed in #324; these are the larger ones, each checked against the code.
