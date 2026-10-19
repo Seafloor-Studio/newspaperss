@@ -1308,4 +1308,27 @@ class TtrssSyncTest {
         assertEquals(EpisodeKind.ARTICLE, byTitle.getValue("A post").episodeKind)
         assertNull(byTitle.getValue("A post").audioUrl)
     }
+
+    @Test
+    fun aNarrationThatArrivesAloneFindsThePostItReads() = runTest {
+        val source = connect()
+        val letter = (1..1500).joinToString(" ") { "word$it" }
+        server.unread += FakeTtrss.Item(1, "October 15", feedId = 7, feedTitle = "Letters", content = "<p>$letter</p>", link = "https://letters.example/october-15")
+        sync.sync(source)
+        // Read in tt-rss before its reading came out: the reading arrives on its own.
+        server.unread.clear()
+        server.unread += FakeTtrss.Item(
+            2, "Corruption as a Driving Force", feedId = 7, feedTitle = "Letters",
+            content = """<p>To read this letter, <a href="https://letters.example/october-15">click here</a>.</p>""", audio = "https://cdn.example/reading.mp3",
+        )
+        sync.sync(source)
+
+        val byTitle = db.articles().candidates().associateBy { it.title }
+        val reading = byTitle.getValue("Corruption as a Driving Force")
+        val written = byTitle.getValue("October 15")
+        assertEquals(EpisodeKind.AUDIO_VERSION, reading.episodeKind)
+        assertEquals(written.guid, reading.episodePair)
+        assertEquals("the letter learns of its reading, and stays an article", reading.guid, written.episodePair)
+        assertEquals(EpisodeKind.ARTICLE, written.episodeKind)
+    }
 }

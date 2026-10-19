@@ -78,7 +78,7 @@ class FeedSync(
             if (response.isSuccessful) {
                 body = response.body
                 val feed = FeedParser.parse(response.body, response.finalUrl, response.truncated)
-                val episodes = EpisodeDetector.classify(EpisodeFeed.of(feed.items, feed.podcast))
+                val episodes = episodes(source, null, feed.items, feed.podcast, now)
                 val added = db.articles().insertFetched(
                     feed.items.map {
                         ArticleEntity(
@@ -206,8 +206,8 @@ class FeedSync(
                 val unreadFeeds = withUnread.filter { it.id.toString() !in leftOut }
                 val headlines = fromEachFeed(client, unreadFeeds)
                 // Judged feed by feed, as a feed's own posts are: pairs are two posts of one publication.
-                val episodes = headlines.groupBy { it.feedId }.values.flatMap { posts ->
-                    EpisodeDetector.classify(EpisodeFeed.of(posts.map { it.asFeedItem() })).entries
+                val episodes = headlines.groupBy { it.feedId }.flatMap { (feedId, posts) ->
+                    episodes(source, feedId, posts.map { it.asFeedItem() }, podcast = false, now).entries
                 }.associate { it.key to it.value }
                 val articles = headlines.map { it to article(source, it, now).withEpisode(it.attachments, episodes["$TTRSS_GUID_PREFIX${it.id}"]) }
                 if (source.markReadOnServer) syncReadState(client, source, articles, now)
@@ -277,6 +277,37 @@ class FeedSync(
             posted.upTo?.let { sources.setTtrssSeenId(source.id, maxOf(it, source.ttrssSeenId ?: 0)) }
         }
     }
+
+    /**
+     * What each of [items] is beside podcast episodes, judged with the source's recent articles
+     * too ([EPISODE_CONTEXT] of them, found in the last [EPISODE_CONTEXT_DAYS] days): a narration
+     * often arrives a sync after the post it reads, and through tt-rss, which sends only what's
+     * unread, it may arrive alone. An earlier article gets the new post as its pair; what it was
+     * judged to be stays. Detection is best effort: a failure leaves the posts unjudged rather
+     * than failing the sync.
+     */
+    private suspend fun episodes(source: SourceEntity, originId: String?, items: List<FeedItem>, podcast: Boolean, now: Instant): Map<String, Verdict> {
+        val guids = items.map { it.guid }.toSet()
+        val earlier = db.articles().recentForEpisodes(source.id, originId, now.minus(Duration.ofDays(EPISODE_CONTEXT_DAYS)), EPISODE_CONTEXT)
+            .filter { it.guid !in guids }
+        val verdicts = try {
+            EpisodeDetector.classify(EpisodeFeed.of(items + earlier.map { it.asFeedItem() }, podcast))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return emptyMap()
+        }
+        for (old in earlier) {
+            val pair = verdicts[old.guid]?.pair ?: continue
+            if (old.episodePair == null && pair in guids) db.articles().pairEpisode(source.id, old.guid, pair)
+        }
+        return verdicts.filterKeys { it in guids }
+    }
+
+    private fun ArticleEntity.asFeedItem() = FeedItem(
+        guid = guid, url = viaUrl ?: url, title = title, contentHtml = feedHtml, author = author, published = published,
+        enclosures = listOfNotNull(audioUrl?.let { Enclosure(it, audioType.orEmpty(), audioBytes ?: 0) }),
+    )
 
     private fun TtrssHeadline.asFeedItem() = FeedItem(
         guid = "$TTRSS_GUID_PREFIX$id", url = link, title = title, contentHtml = content, author = author, published = null, enclosures = attachments,
@@ -386,6 +417,10 @@ class FeedSync(
     companion object {
         private val UNTITLED_LOOKUP_FOR: Duration = Duration.ofDays(2)
         private val LIST_FEEDS_EVERY: Duration = Duration.ofDays(1)
+
+        /** How many of a source's recent articles a new post is judged beside, and how recent. */
+        private const val EPISODE_CONTEXT = 30
+        private const val EPISODE_CONTEXT_DAYS = 14L
 
         /** A feed in the paper with nothing new for this long says so on Sources. */
         val QUIET_AFTER: Duration = Duration.ofDays(21)

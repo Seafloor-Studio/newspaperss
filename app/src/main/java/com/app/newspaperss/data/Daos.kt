@@ -625,6 +625,21 @@ interface ArticleDao {
     suspend fun knownGuids(sourceId: Long, guids: List<String>): List<String>
 
     /**
+     * A source's articles found since [since], newest first: what a new post is judged beside, so
+     * a narration that arrives a sync after its post, or alone through tt-rss, still finds it.
+     * [originId] narrows a tt-rss account to one of its feeds.
+     */
+    @Query(
+        """SELECT * FROM articles WHERE sourceId = :sourceId AND discoveredAt >= :since
+           AND (:originId IS NULL OR originId = :originId) ORDER BY discoveredAt DESC LIMIT :limit""",
+    )
+    suspend fun recentForEpisodes(sourceId: Long, originId: String?, since: Instant, limit: Int): List<ArticleEntity>
+
+    /** Pairs an article found earlier with a post that arrived since, unless it's paired already. */
+    @Query("UPDATE articles SET episodePair = :pair WHERE sourceId = :sourceId AND guid = :guid AND episodePair IS NULL")
+    suspend fun pairEpisode(sourceId: Long, guid: String, pair: String)
+
+    /**
      * Old articles keep their row, whose guid stops a feed offering them again, but not the
      * feed's copy of their text, which would otherwise grow the database without end. Counted
      * from delivery where there was one: a link saved long ago and sent today can still be
