@@ -41,6 +41,28 @@ person: [docs/DELIVERY-CHECKS.md](docs/DELIVERY-CHECKS.md) says how, and a
 change to delivery or the EPUB wants it run. Adding a test that
 asserts the intent again raises coverage without covering anything.
 
+## Issues the app files
+
+**Send for a look…** in the article view opens a GitHub issue with the
+post's address and the app's version filled in. The `handle-issues` skill
+treats both kinds as bugs in an existing feature, labelled once the label
+exists:
+
+- **"Extraction: *title*"** (`extraction`): the article came out wrong.
+  Compare the page at the address with what the app made of it, and fix the
+  extractor in `:core` with a test that fails before the fix.
+- **"Episode label: *title*"** (`episodes`, debug builds): the episode
+  detector labelled a post wrongly. The issue gives the label it got and the
+  one picked. Decide which is right by the rules in
+  `docs/research/episodes-design.md`; if the label was right, say why. If it
+  was wrong, the post becomes a case in the episode corpus
+  (`docs/research/podcast-episodes.md`) before the detector changes, and the
+  fix is done when the whole corpus passes.
+
+A reported post may come from the reporter's own feeds. It joins the corpus
+only if its feed is public and well known; otherwise make a made-up post of
+the same shape, and keep the feed's name out of the issue thread and PR.
+
 The sections from Privacy to Pull requests are shared with the projects in
 [claude-playground](https://github.com/madCode/claude-playground/blob/main/CLAUDE.md),
 whose root CLAUDE.md has the same rules for any project; here they're
