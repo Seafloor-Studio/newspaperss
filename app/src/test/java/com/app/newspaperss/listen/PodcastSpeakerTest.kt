@@ -107,6 +107,18 @@ class PodcastSpeakerTest {
     }
 
     @Test
+    fun somethingElseSaidInThePhonesVoiceNoLongerNamesThePodcastsVoice() {
+        made()
+        listen()
+        speaker.speak(id(0), "Quanta", null, 1f, flush = true)
+        assertEquals(PodcastVoice.EMMA, speaker.voice.value)
+        // A recording's heading, or Settings' sample.
+        speaker.speak("heading:${id(0, page = 1)}", "The Example Letter.", null, 1f, flush = true)
+        assertNull(speaker.voice.value)
+        assertEquals("The Example Letter.", phone.said.last().text)
+    }
+
+    @Test
     fun theLogSaysWhereEachPlayStartedAndWhatFailed() {
         made()
         listen()

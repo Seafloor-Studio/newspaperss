@@ -39,7 +39,6 @@ class StoredReadingChoices(context: Context) : ReadingChoices {
  * and moves on as it does for the voice. It's only near: a reading isn't timed sentence by
  * sentence, and an author strays from the text.
  *
- * @param restart plays on from a line, as a tap on it does: the voice takes over when a recording fails.
  */
 class ReadingSpeaker(
     private val voice: Speaker,
@@ -50,6 +49,7 @@ class ReadingSpeaker(
 ) : Speaker {
     override var listener: Speaker.Listener? = null
 
+    /** Plays on from a line, as a tap on it does: the voice takes over there when a recording fails. */
     var restart: (LineId) -> Unit = {}
 
     /** The article that has a recording, while it's the one playing: shown, with the switch. */

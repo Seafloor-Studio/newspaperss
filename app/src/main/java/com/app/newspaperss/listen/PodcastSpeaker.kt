@@ -79,8 +79,11 @@ class PodcastSpeaker(
     override fun speak(id: String, text: String, language: String?, rate: Float, flush: Boolean): Boolean {
         val line = LineId.parse(id)
         if (line == null) {
-            // Not a line of an edition (Settings' sample): the phone's voice, the podcast stopped.
+            // Not a line of an edition (Settings' sample, or a recording's heading): the phone's
+            // voice, the podcast stopped and no longer named as playing.
             stopAudio()
+            _voice.value = null
+            _instead.value = null
             return phone.speak(id, text, language, rate, flush)
         }
         val here = line.editionId to line.page
