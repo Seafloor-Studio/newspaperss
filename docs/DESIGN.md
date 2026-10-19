@@ -590,6 +590,14 @@ whose Kindle and KOReader answers ask for more on the same page).
   to the articles (an unsent edition's go back for the next one). An article that went in because it was starred says
   "You starred it". On delivered editions each article has a trailing **☆** to
   bring it back ("Didn't get to one? Tap ☆ to bring it back.").
+- **Episode labels** (debug builds): a post the episode detector judged to be
+  more than an article says so under its title, in an edition's contents and a
+  source's newest articles: "Episode notes", "Transcript of …", "Audio version of
+  “October 15”", or "Has an audio version" on the post a reading belongs to. The
+  article screen has the same as a line above the page, for the article on screen.
+  A source that posts episodes says how often, among its newest judged posts:
+  "Posts episodes: 9 of the last 17 posts". Release builds never judge posts, so
+  show none of this. See [episodes-design.md](research/episodes-design.md).
 - **Listening:** an edition read aloud by the phone's own text-to-speech
   voice, made for a walk with the phone in a pocket and the odd glance at
   it.

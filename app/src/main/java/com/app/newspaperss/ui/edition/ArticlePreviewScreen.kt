@@ -11,6 +11,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.TextButton
@@ -156,6 +158,8 @@ fun ArticlePreviewScreen(
     onTextSize: (PreviewTextSize) -> Unit = {},
     /** Listens from the start of the article at this position; null offers no Listen. */
     onListen: ((Int) -> Unit)? = null,
+    /** A line about the article at this position, shown above it: what it is beside podcast episodes. */
+    noteFor: (Int) -> String? = { null },
 ) {
     // Read in the background so the screen shows at once: reading a large edition during
     // composition holds up the frame, and the tap that opened it seems not to have registered.
@@ -181,6 +185,9 @@ fun ArticlePreviewScreen(
     // and on any page the book doesn't have, which a link in an article could point to.
     // Kept across rotation: the restored page reports itself only once it has loaded again.
     var shownArticle by rememberSaveable(position) { mutableStateOf<Int?>(position) }
+    // The article the line above the page is about: changed only once the new page is known, not
+    // cleared in between as shownArticle is, so on e-ink a page turn redraws it once, not twice.
+    var noteArticle by rememberSaveable(position) { mutableStateOf<Int?>(position) }
     val shownTitle = pageTitle ?: title
     val scope = rememberCoroutineScope()
     var reading by remember { mutableStateOf<Job?>(null) }
@@ -201,6 +208,7 @@ fun ArticlePreviewScreen(
                     link = read?.link
                     pageTitle = read?.title
                     shownArticle = article.takeIf { read != null }
+                    noteArticle = shownArticle
                 }
             }
         }
@@ -250,8 +258,15 @@ fun ArticlePreviewScreen(
                 val justify = justifies(textSize, textZoom)
                 // Keyed: the WebView is built once, so a new article needs a new one. A new size or
                 // alignment is applied to it in place.
-                key(p) {
-                    BookView(p.pages, p.xhtml, colors.background.toArgb(), colors.onBackground.toArgb(), textZoom, justify, BOOK_ORIGIN + EpubPages.articleHref(position), { onPage(it, p.pages) }, { link }, place, Modifier.fillMaxSize().padding(padding))
+                Column(Modifier.fillMaxSize().padding(padding)) {
+                    noteArticle?.let(noteFor)?.let { note ->
+                        // Held to three lines: it stays above the article for the whole read.
+                        Text(note, style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                        HorizontalDivider()
+                    }
+                    key(p) {
+                        BookView(p.pages, p.xhtml, colors.background.toArgb(), colors.onBackground.toArgb(), textZoom, justify, BOOK_ORIGIN + EpubPages.articleHref(position), { onPage(it, p.pages) }, { link }, place, Modifier.fillMaxWidth().weight(1f))
+                    }
                 }
             }
         }

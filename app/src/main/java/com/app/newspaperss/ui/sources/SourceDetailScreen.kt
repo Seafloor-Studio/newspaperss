@@ -229,6 +229,9 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
                     if (ownsPosts && paidOnly != null && (skip || paidOnly.found > 0)) {
                         PaidPostsOption(skip, paidOnly.skipped, viewModel::setSkipPaidPosts)
                     }
+                    episodesLine(articles)?.let {
+                        Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    }
                     HorizontalDivider(Modifier.padding(top = 16.dp))
                     ArticlesHeading(articles, selecting, onSelect = { selecting = true })
                     if (building && articles.isNotEmpty()) {
@@ -257,6 +260,7 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
                             selecting = true
                             selected = selected + article.id
                         },
+                        pairs = detail?.episodePairs.orEmpty(),
                     )
                     // Inset: full-width rules chopped the list into boxes to track across.
                     HorizontalDivider(Modifier.padding(start = 56.dp), color = MaterialTheme.colorScheme.outlineVariant)

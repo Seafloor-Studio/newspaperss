@@ -61,6 +61,9 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
     fun observeRecentArticles(id: Long, key: String, limit: Int = 30): Flow<List<ArticleEntity>> =
         if (key == PublicationEntity.OWN) observeRecentArticles(id, limit) else db.articles().observeRecentForFeed(id, key, limit)
 
+    /** See [ArticleDao.observeEpisodePairs], by guid. */
+    fun observeEpisodePairs(id: Long): Flow<Map<String, EpisodePair>> = db.articles().observeEpisodePairs(id).map { pairs -> pairs.associateBy { it.guid } }
+
     /** See [ArticleDao.observeHistory], by article. */
     fun observeHistory(id: Long): Flow<Map<Long, ArticleHistory>> = db.articles().observeHistory(id).map { rows -> rows.associateBy { it.articleId } }
 
