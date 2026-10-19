@@ -55,8 +55,9 @@ class PodcastMakerTest {
     private var afterLine: (String) -> Unit = {}
 
     /** A Kokoro making ten samples a character, at 1000 a second. */
-    private val engine = { voice: PodcastVoice ->
+    private val engine = { voice: PodcastVoice, threads: Int ->
         voices += voice
+        threadsUsed += threads
         // Atomic: two engines loaded at once on two threads, each could keep the other's count from showing.
         mostLoaded.accumulateAndGet(loaded.incrementAndGet(), ::maxOf)
         object : PodcastEngine {
@@ -104,8 +105,10 @@ class PodcastMakerTest {
     private var pieceSeconds = PodcastMaker.PIECE_SECONDS
     private var pieceWorkSeconds = PodcastMaker.PIECE_WORK_SECONDS
     private var exit: LastExit? = null
+    private val threadsUsed = mutableListOf<Int>()
+    private var threadsFor: (Long) -> Int = { KOKORO_THREADS }
     private val log by lazy { PodcastLog(tmp.newFolder("logs")) }
-    private val maker by lazy { PodcastMaker(editions, store, install, settings, engine, encoder, pieceSeconds, pieceWorkSeconds, lastExit = { exit }, now = { clock }, log = log) }
+    private val maker by lazy { PodcastMaker(editions, store, install, settings, engine, encoder, pieceSeconds, pieceWorkSeconds, lastExit = { exit }, threads = { threadsFor(it) }, now = { clock }, log = log) }
     private val podcasts by lazy { Podcasts(store, settings, install) { started++ } }
 
     private val knots = EditionArticle(
@@ -502,6 +505,37 @@ class PodcastMakerTest {
 
     private fun endedWith(reason: Int, name: String, crash: Boolean) =
         LastExit(reason = reason, name = name, rssKb = 0, pssKb = 0, atMs = 1, crash = crash, abnormal = true)
+
+    /**
+     * The arm is the edition's, not the run's: a podcast is made over many runs and heat carries
+     * between them, so an edition made half on two threads and half on four measures neither.
+     */
+    @Test
+    fun anEditionIsMadeOnOneThreadCountThroughout() {
+        inUse()
+        threadsFor = { KokoroTrial.FEWER }
+        val id = edition("Thursday", knots, lagos)
+        request(id)
+        make()
+
+        assertTrue(store.finished(id))
+        assertEquals(listOf(KokoroTrial.FEWER), threadsUsed.distinct())
+        assertTrue(log.read().any { it.contains("Kokoro loaded (Heart, 2 threads)") })
+    }
+
+    @Test
+    fun anotherEditionsCountReloadsKokoro() {
+        inUse()
+        val first = edition("Thursday", knots)
+        val second = edition("Friday", lagos)
+        threadsFor = { if (it == first) KokoroTrial.FEWER else KOKORO_THREADS }
+        request(first)
+        request(second)
+        make()
+
+        // Newest edition first, so the second one's arm is the one Kokoro loads with first.
+        assertEquals(listOf(KOKORO_THREADS, KokoroTrial.FEWER), threadsUsed)
+    }
 
     @Test
     fun dyingOnceIsntTakenForACrash() {

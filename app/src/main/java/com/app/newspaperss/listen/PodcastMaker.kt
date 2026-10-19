@@ -27,7 +27,7 @@ class PodcastMaker(
     private val store: PodcastStore,
     private val install: KokoroInstall,
     private val settings: SettingsStore,
-    private val engine: (PodcastVoice) -> PodcastEngine,
+    private val engine: (voice: PodcastVoice, threads: Int) -> PodcastEngine,
     private val encoder: AudioEncoder,
     /** Seconds of audio in a piece: kept that often, so a stop loses at most that much work. */
     private val pieceSeconds: Double = PIECE_SECONDS,
@@ -43,6 +43,11 @@ class PodcastMaker(
      * did before anything could tell the difference.
      */
     private val lastExit: () -> LastExit? = { null },
+    /**
+     * Threads Kokoro is given for an edition. [KokoroTrial] gives two or four, to find out which
+     * finishes a night; anything else here would give every edition the same.
+     */
+    private val threads: (editionId: Long) -> Int = { KOKORO_THREADS },
     private val now: () -> Long = System::nanoTime,
     private val log: PodcastLog = PodcastLog(null),
 ) {
@@ -77,7 +82,7 @@ class PodcastMaker(
 
     private suspend fun makeUnderLock() {
         // Loaded once, and again only for a podcast in another voice: loading takes seconds.
-        var kokoro: Pair<PodcastVoice, PodcastEngine>? = null
+        var kokoro: Triple<PodcastVoice, Int, PodcastEngine>? = null
         try {
             while (true) {
                 val editionId = store.waiting().firstOrNull()
@@ -107,16 +112,17 @@ class PodcastMaker(
                         }
                         // A newer edition asked for since: it goes first, and this one carries on after.
                         if (store.waiting().firstOrNull() != editionId || !store.wanted(editionId, asked)) return@use
-                        if (kokoro?.first != voice) {
-                            kokoro?.second?.release()
+                        val threads = threads(editionId)
+                        if (kokoro?.first != voice || kokoro?.second != threads) {
+                            kokoro?.third?.release()
                             kokoro = null
                             // Loading is part of what a podcast costs: each of Android's stops means another.
                             val began = now()
-                            kokoro = voice to engine(voice)
+                            kokoro = Triple(voice, threads, engine(voice, threads))
                             store.addCost(editionId, now() - began, 0.0)
-                            log.add("Kokoro loaded (${voice.label}) in ${seconds(now() - began)}s")
+                            log.add("Kokoro loaded (${voice.label}, $threads threads) in ${seconds(now() - began)}s")
                         }
-                        makePage(editionId, asked, page, script(book, page), kokoro!!.second)
+                        makePage(editionId, asked, page, script(book, page), kokoro!!.third)
                     }
                     // Stopped during its last page: not finished, so Make the rest can carry on.
                     if (!store.wanted(editionId, asked)) return@use
@@ -128,7 +134,7 @@ class PodcastMaker(
             }
         } finally {
             store.making(null)
-            kokoro?.second?.release()
+            kokoro?.third?.release()
         }
     }
 
