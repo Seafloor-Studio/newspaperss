@@ -128,9 +128,11 @@ public feeds it hadn't seen and on one reader's own list of 91 feeds:
   | With attachments | 147 | 0 |
   | With attachments, unsanitized | 159, the same as from the feed | 0 |
 
-  So step 1 asks for attachments and unsanitized content, and cleans tt-rss posts with the
-  app's own cleaner, as it does feed posts; extraction through tt-rss is re-checked against the
-  platform corpus in the same step.
+  Attachments alone cover what matters for listening: every post the app could hand over to
+  real audio has an audio file. What unsanitized content adds is labels for posts with no file
+  to play (a transcript whose only audio is a player, a newsletter post paired by a video). So
+  step 1 asks for attachments only. Unsanitized content waits until the labels show it matters:
+  it would also change how tt-rss posts are cleaned for the paper.
 - **Later: the post's page.** Some sites put the player on the page and leave it out of the
   feed, so a transcript there reads as an article. Reading the page finds the player.
 - **Later: following a player to its audio.** A player isn't an audio file. Anchor and Apple
@@ -155,12 +157,28 @@ public feeds it hadn't seen and on one reader's own list of 91 feeds:
 
 1. **Keep attachments, and label each post's kind** at sync, from the feed and from tt-rss.
    Nothing visible changes. Everything else depends on it.
-2. **Readings in place:** audio versions and narrated articles (rules 3, 4, 5 and 7). The
+2. **Show the labels, and take corrections.** A post the detector thinks is an episode says so
+   in an edition's contents, at the top of the article and in a source's newest articles; a
+   source's page says how often it posts episodes. "Send for a look…" gains a second reason,
+   "It's labelled X, and it's…", which opens a public issue with the post's address and both
+   labels. Each report becomes a corpus case before it's fixed.
+3. **Readings in place:** audio versions and narrated articles (rules 3, 4, 5 and 7). The
    biggest audible gain for the least risk: same words, same length, a human voice.
-3. **Episodes:** transcripts in place, notes' episodes at the end, streamed (rules 1, 2, 6
+4. **Episodes:** transcripts in place, notes' episodes at the end, streamed (rules 1, 2, 6
    and 8).
-4. **Downloads** for listening offline.
-5. **Later:** reading the post's page; following Anchor and Apple players.
+5. **Downloads** for listening offline.
+6. **Later:** reading the post's page; following Anchor and Apple players; unsanitized content
+   from tt-rss.
+
+### Before readings go into Listen
+
+Step 3 starts once two weeks of labels in real use show:
+- no article labelled as anything else, or each one reported, added to the corpus and fixed;
+- audio versions and their pairs right, since step 3 swaps Kokoro for exactly those readings;
+- the remaining misses of known kinds (a player only on the page, paid audio, a transcript
+  whose only audio is a player);
+- the same labels through tt-rss as from the feeds;
+- the narration margin measured on the corpus, with the audio's length fetched.
 
 ## Open questions
 
