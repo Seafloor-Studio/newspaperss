@@ -309,67 +309,19 @@ article without leaving the page.
 Recommendation: build step 1, use it for a week, then decide on step 2.
 
 ### Podcast episodes in feeds *(you asked)*
-Research plan, and the episode corpus to test it on: [research/podcast-episodes.md](research/podcast-episodes.md).
-Some posts are podcast episodes, and the paper treats them as articles. Measured on one real
-reading list (91 feeds, about 1,450 recent posts), about 4% carried podcast audio, in 12 feeds.
-They came in these shapes, with what the paper does with each today:
-- **An audio-only feed.** The app reads the show's web page instead, which runs several
-  episodes' notes together: every episode came out as the same 350-word jumble.
-- **An episode post with only notes.** Either a timestamped list of topics (270–660 words) or
-  sponsors, links and timestamps (1,200–2,200 words). Each is printed as if it were an article.
-- **A transcript.** About 9 posts (0.6%), from 5 feeds: 7,600–25,000 words, so 30–105 minutes
-  to read. One alone can be three times a 30-minute paper. Most came from one interview show
-  that posts a transcript beside every episode's notes; the rest were one-offs inside a feed's
-  usual posts.
-- **An episode with a real write-up** (1,700–3,300 words of essay or takeaways). It reads well
-  as an article; nothing needs to change.
-- **The same episode twice.** Notes and transcript as two posts sharing one audio file; a
-  serial's audio version posted beside its written chapter (a 100-word stub next to 2,000
-  words); a long write-up and a podcast post on the same subject.
-- **Not podcasts at all.** Audio and video embeds were mostly music: Spotify tracks, albums and
-  playlists outnumbered its episodes two to one, and a music blog embeds SoundCloud. YouTube
-  embeds are video versions of podcasts as often as plain videos.
-
-What the feeds give to tell them apart:
-- **Reliable:**
-  - An audio file attached to the post, from the big hosts (Substack, art19, Spotify for
-    Podcasters).
-  - The same audio file on two posts.
-  - "Transcript" in a title.
-  - A list of ten or more timestamps.
-  - A Spotify embed's kind: an episode, not a track.
-- **Not reliable:**
-  - The episode's length: Substack gives none, so text length can't be compared with audio
-    length from the feed alone.
-  - Conversation formatting ("Name:" turns). Written Q&A interviews, fiction told in dialogue
-    and conference write-ups look the same: 12 such posts against 9 real transcripts, and the
-    written interviews are what their readers subscribe for.
-- **Neither path keeps attachments today.** The feed parser and the tt-rss sync both drop
-  them, so detection starts by storing them (tt-rss reports them with each article).
-
-Proposed:
-- **Each post gets a kind when synced:** article, episode notes, episode transcript, or the
-  audio version of another post. When in doubt it stays an article: wrongly dropping reading is
-  worse than printing one stub.
-- **Episode notes, and audio-only feeds, aren't printed as articles.** They go in a short
-  "Episodes" list at the end of the edition: show, title, and length when known. It takes almost
-  nothing from the edition's length.
-- **Pairs keep the readable one.** Of notes and transcript, or a stub and its written chapter,
-  the paper takes the transcript or the chapter, and drops the other.
-- **A transcript is one only when tied to an episode:** audio attached to the post itself, the
-  same audio as another post, or "Transcript" in its title. Conversation formatting alone never
-  makes one, so written interviews stay articles.
-- **A show that posts notes and a transcript for each episode** gets the episode listed once
-  under Episodes; printing its transcripts is that source's opt-in. A one-off transcript among a
-  feed's usual posts stays an article, under a long-read cap so it can't take over the paper.
-- **Visible on the source's page:** "Posts episodes: notes only", with one control.
-- **Test corpus:** made-up feed items in each shape above, with the music-embed and link-roundup
-  cases kept as checks against false alarms.
-- **Later, if the list proves useful:** Listen plays an episode's own audio, downloaded on Wi-Fi
-  while charging. One voice reading a conversation's transcript is the worst of both.
-- **Open question:** whether to fetch an episode's length (a quick request for the audio file's
-  size) to tell a short write-up from notes for a two-hour show; the shapes above suggest
-  timestamps and word counts are enough.
+Some posts are podcast episodes: an episode's notes, its transcript, or an author's reading of a
+post. Measured on one real reading list, about 4% of posts carried podcast audio, in 12 of 91
+feeds. Proposed, in detail in [research/episodes-design.md](research/episodes-design.md):
+- **The paper doesn't change.** Every post prints, whatever its kind.
+- **The audio edition plays the real audio where it's clearly better:** an author's reading of
+  their post, a show's episode in place of its transcript, and a notes post's episode. Kokoro
+  reads everything else.
+- **Real audio plays in the post's place**, unless it's much longer than the post: a notes
+  post says one line, and its episode plays at the end.
+- **First step:** keep the audio attachments the feed parser and tt-rss sync drop today, and
+  label each post's kind when it syncs.
+- **The research behind it,** and the labelled corpus that tests detection:
+  [research/podcast-episodes.md](research/podcast-episodes.md).
 
 ### Backup *(you asked)*
 Android's Auto Backup already copies the database and settings (sources, reading list, edition
