@@ -40,7 +40,7 @@ import com.app.newspaperss.listen.Speaker
 import com.app.newspaperss.listen.StoredListenProgress
 import com.app.newspaperss.listen.SystemSpeaker
 import com.app.newspaperss.listen.KokoroDownload
-import com.app.newspaperss.listen.KokoroEngine
+import com.app.newspaperss.listen.kokoroEngine
 import com.app.newspaperss.listen.KokoroInstall
 import com.app.newspaperss.listen.KokoroSupport
 import com.app.newspaperss.listen.PodcastSetup
@@ -212,7 +212,7 @@ class AppContainer(
         File(context.filesDir, "podcast-logs"),
         legacy = File(context.filesDir, "podcast-log.txt"),
     )
-    private val podcastEngine = { voice: PodcastVoice -> KokoroEngine(kokoroInstall, voice) }
+    private val podcastEngine = { voice: PodcastVoice -> kokoroEngine(kokoroInstall, voice) }
     internal val podcastStore = PodcastStore(File(context.filesDir, "podcasts"))
     private val podcasts = Podcasts(podcastStore, settings, kokoroInstall, start = { PodcastWorker.enqueue(context) }, log = podcastLog)
 

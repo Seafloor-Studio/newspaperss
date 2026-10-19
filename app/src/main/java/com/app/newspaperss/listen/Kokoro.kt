@@ -5,11 +5,6 @@ import android.os.Build
 import android.os.Process
 import com.app.newspaperss.core.listen.KokoroFile
 import com.app.newspaperss.core.listen.KokoroManifest
-import com.app.newspaperss.settings.PodcastVoice
-import com.k2fsa.sherpa.onnx.OfflineTts
-import com.k2fsa.sherpa.onnx.OfflineTtsConfig
-import com.k2fsa.sherpa.onnx.OfflineTtsKokoroModelConfig
-import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -242,48 +237,8 @@ internal object KokoroThread {
     }
 }
 
-/** Kokoro through sherpa-onnx, on [KokoroThread]. Loading takes a couple of seconds. */
-class KokoroEngine(install: KokoroInstall, voice: PodcastVoice) : PodcastEngine {
-    private val speaker = speakerOf(voice)
-    private val british = voice == PodcastVoice.EMMA || voice == PodcastVoice.GEORGE
-    private val tts = KokoroThread.run { OfflineTts(
-        null,
-        OfflineTtsConfig(
-            model = OfflineTtsModelConfig(
-                kokoro = OfflineTtsKokoroModelConfig(
-                    model = install.file("model.onnx").path,
-                    voices = install.file("voices.bin").path,
-                    tokens = install.file("tokens.txt").path,
-                    dataDir = install.file("espeak-ng-data").path,
-                    lexicon = install.file(if (british) "lexicon-gb-en.txt" else "lexicon-us-en.txt").path,
-                    // espeak's data has no British voice; plain English with the British word list is.
-                    lang = if (british) "en" else "en-us",
-                ),
-                numThreads = THREADS,
-            ),
-        ),
-    ) }
-
-    override fun speak(text: String): Speech = KokoroThread.run { tts.generate(text, speaker, 1f).let { Speech(it.samples, it.sampleRate) } }
-
-    override fun release() = KokoroThread.run { tts.release() }
-
-    companion object {
-        /**
-         * Held while a Kokoro is loaded (the check, or a podcast being made): each holds the
-         * 325 MB model, and its native code runs on after a stop until the sentence ends.
-         */
-        val lock = Mutex()
-
-        /** Fastest on a Pixel 8's Tensor G3: 1 and 2 threads were slower, and all 9 cores slower still. */
-        private const val THREADS = 4
-
-        /** The voice's number in the model (its metadata's speaker2id). */
-        private fun speakerOf(voice: PodcastVoice) = when (voice) {
-            PodcastVoice.HEART -> 3
-            PodcastVoice.MICHAEL -> 16
-            PodcastVoice.EMMA -> 21
-            PodcastVoice.GEORGE -> 26
-        }
-    }
-}
+/**
+ * Held while a Kokoro is loaded (the check, or a podcast being made): each holds the 325 MB model,
+ * and its native code runs on after a stop until the sentence ends.
+ */
+val kokoroLock = Mutex()

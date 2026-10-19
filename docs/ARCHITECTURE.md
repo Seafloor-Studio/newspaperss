@@ -306,7 +306,8 @@ flowchart LR
   the manifest `assets/kokoro/files.tsv` pins (a Hugging Face revision,
   each file's size and hash) eight at a time, resuming a stopped file
   and checking each, into `files/kokoro`; then it times `KokoroEngine`
-  (sherpa-onnx) making a paragraph and keeps the pace in Settings. The
+  (sherpa-onnx, in the debug source set only; a release build's `kokoroEngine`
+  refuses) making a paragraph and keeps the pace in Settings. The
   setup reads its state back from WorkManager and the files.
 - **`PodcastMaker`** makes the podcasts `Podcasts` asked for, run by
   `PodcastWorker` while the phone charges. It reads the book a page at a time (articles, then

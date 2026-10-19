@@ -52,8 +52,8 @@ class PodcastMaker(
         // for it, rather than loading Kokoro twice and writing the same piece.
         val asked = now()
         // A sentence that never ends would hold every run here: this, and no "Kokoro loaded", says so.
-        if (KokoroEngine.lock.isLocked) log.add("Waiting for Kokoro: the last run finishing its sentence, or the speed check")
-        KokoroEngine.lock.withLock {
+        if (kokoroLock.isLocked) log.add("Waiting for Kokoro: the last run finishing its sentence, or the speed check")
+        kokoroLock.withLock {
             val waited = seconds(now() - asked)
             if (waited >= 1) log.add("Waited ${waited}s for the last run's sentence to end")
             store.dropScratch()
