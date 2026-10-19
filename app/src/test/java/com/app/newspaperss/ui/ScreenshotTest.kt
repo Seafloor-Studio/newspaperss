@@ -1,6 +1,6 @@
 package com.app.newspaperss.ui
 
-import com.app.newspaperss.ui.components.episodeNote
+import com.app.newspaperss.ui.components.EpisodeJudgement
 import com.app.newspaperss.core.episodes.EpisodeKind
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.CompositionLocalProvider
@@ -662,7 +662,23 @@ class ScreenshotTest {
         val article = EditionArticle(title = "How a ferry timetable is made, with its planner", sourceTitle = "The Example Letter", url = "https://example.com/ferry", bodyHtml = "<p>This week's guest plans ferries.</p>", minutes = 2.0)
         file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
         shoot("05c-article-preview-episode", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
-            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, noteFor = { episodeNote(EpisodeKind.NOTES, null) })
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, episodeFor = { EpisodeJudgement(EpisodeKind.NOTES) })
+        }
+    }
+
+    /** Send for a look on an episode post: the second reason, a wrong label, picked. */
+    @Test
+    fun articlePreviewSendForALookLabel() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "How a ferry timetable is made, with its planner", sourceTitle = "The Example Letter", url = "https://example.com/ferry", bodyHtml = "<p>This week's guest plans ferries.</p>", minutes = 2.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05e-article-preview-look-label", ready = { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }, act = {
+            compose.onNodeWithContentDescription("More").performClick()
+            compose.onNodeWithText("Send for a look…").performClick()
+            compose.onNodeWithText("It's labelled “Episode notes”, and it's…").performClick()
+            compose.onNodeWithText("An article").performClick()
+        }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, episodeFor = { EpisodeJudgement(EpisodeKind.NOTES) })
         }
     }
 

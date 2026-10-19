@@ -30,6 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import com.app.newspaperss.ui.components.EpisodeJudgement
+import com.app.newspaperss.ui.components.episodeNote
 import com.app.newspaperss.settings.PreviewTextSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -158,8 +160,11 @@ fun ArticlePreviewScreen(
     onTextSize: (PreviewTextSize) -> Unit = {},
     /** Listens from the start of the article at this position; null offers no Listen. */
     onListen: ((Int) -> Unit)? = null,
-    /** A line about the article at this position, shown above it: what it is beside podcast episodes. */
-    noteFor: (Int) -> String? = { null },
+    /**
+     * What the episode detector made of the article at this position, or null if it never judged
+     * it: said in a line above the page, and a wrong label can be sent for a look.
+     */
+    episodeFor: (Int) -> EpisodeJudgement? = { null },
 ) {
     // Read in the background so the screen shows at once: reading a large edition during
     // composition holds up the frame, and the tap that opened it seems not to have registered.
@@ -180,6 +185,9 @@ fun ArticlePreviewScreen(
     }
     // The page on screen can change under the preview: every article ends in a "Next" link.
     var link by remember(preview) { mutableStateOf((preview as? Preview.Ready)?.link) }
+    // The article [link] belongs to, changed with it: after a rotation the link is the first
+    // article's until the restored page reports itself, whatever article was on screen.
+    var linkArticle by remember(preview) { mutableStateOf<Int?>(position) }
     var pageTitle by remember(preview) { mutableStateOf<String?>(null) }
     // Which article is on screen, for Listen: null on the book's other pages, such as its end,
     // and on any page the book doesn't have, which a link in an article could point to.
@@ -206,6 +214,7 @@ fun ArticlePreviewScreen(
                 withContext(Dispatchers.Main.immediate) {
                     ensureActive()
                     link = read?.link
+                    linkArticle = article.takeIf { read != null }
                     pageTitle = read?.title
                     shownArticle = article.takeIf { read != null }
                     noteArticle = shownArticle
@@ -220,7 +229,7 @@ fun ArticlePreviewScreen(
     // The address asked about, so the question stays up across rotation; asked only about the
     // page it was asked on.
     var lookAt by rememberSaveable(position) { mutableStateOf<String?>(null) }
-    link?.takeIf { it.url == lookAt }?.let { SendForALookDialog(it, onDismiss = { lookAt = null }) }
+    link?.takeIf { it.url == lookAt }?.let { SendForALookDialog(it, linkArticle?.let(episodeFor), onDismiss = { lookAt = null }) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -259,7 +268,7 @@ fun ArticlePreviewScreen(
                 // Keyed: the WebView is built once, so a new article needs a new one. A new size or
                 // alignment is applied to it in place.
                 Column(Modifier.fillMaxSize().padding(padding)) {
-                    noteArticle?.let(noteFor)?.let { note ->
+                    noteArticle?.let(episodeFor)?.let { episodeNote(it.kind, it.pair) }?.let { note ->
                         // Held to three lines: it stays above the article for the whole read.
                         Text(note, style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                         HorizontalDivider()

@@ -12,6 +12,25 @@ import androidx.compose.ui.unit.dp
 import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.data.EpisodePair
 
+/** What the episode detector made of a post: its kind, and the post it pairs with, if still stored. */
+data class EpisodeJudgement(val kind: EpisodeKind, val pair: EpisodePair? = null)
+
+/** A kind's name as a reader would say it, after "It's…" in a report of a wrong label. */
+fun kindName(kind: EpisodeKind): String = when (kind) {
+    EpisodeKind.ARTICLE -> "An article"
+    EpisodeKind.NOTES -> "Episode notes"
+    EpisodeKind.TRANSCRIPT -> "A transcript"
+    EpisodeKind.AUDIO_VERSION -> "An audio version of another post"
+}
+
+/** A kind's label, as a list shows it before naming the post it pairs with. */
+fun labelName(kind: EpisodeKind): String = when (kind) {
+    EpisodeKind.ARTICLE -> "Article"
+    EpisodeKind.NOTES -> "Episode notes"
+    EpisodeKind.TRANSCRIPT -> "Transcript"
+    EpisodeKind.AUDIO_VERSION -> "Audio version"
+}
+
 /**
  * What a post is beside podcast episodes, in a few words for a list; null for an ordinary article
  * or one never judged. An article says something only when it's paired, and only once the pair's

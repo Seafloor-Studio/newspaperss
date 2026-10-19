@@ -583,7 +583,12 @@ whose Kindle and KOReader answers ask for more on the same page).
   only with a web link) is for an article that came out wrong: it first says the
   report is a public GitHub issue, then opens GitHub's new-issue form in the
   browser with "Extraction: *title*", the article's address and the app's version
-  filled in, for the issue check to compare with the page. Large pictures that stand
+  filled in, for the issue check to compare with the page. On a post the episode
+  detector judged (debug builds), it first asks what's wrong: "The article came
+  out wrong", or "It's labelled “Episode notes”, and it's…" with the other kinds
+  to pick from. A wrong label opens "Episode label: *title*" with the post's
+  address, the label it got and the one picked, so the post can become a case in
+  the episode corpus. Large pictures that stand
   alone fill the width (small ones keep their size), and the page can be
   pinched to zoom into a comic.
   **Delete edition** is in the ⋮ menu, and asks by name, saying what happens

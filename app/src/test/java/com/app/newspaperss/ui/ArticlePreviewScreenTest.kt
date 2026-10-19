@@ -1,5 +1,12 @@
 package com.app.newspaperss.ui
 
+import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
+import com.app.newspaperss.core.episodes.EpisodeKind
+import com.app.newspaperss.ui.components.EpisodeJudgement
 import com.app.newspaperss.testutil.writeEpub
 import androidx.compose.ui.test.assertIsDisplayed
 import android.view.View
@@ -220,16 +227,18 @@ class ArticlePreviewScreenTest {
         val file = tmp.newFile("n.epub")
         file.writeEpub(listOf("Episode 12", "An essay").map { EditionArticle(title = it, sourceTitle = "S", url = "https://a.example/$it", bodyHtml = "<p>x</p>", minutes = 3.0) })
         val note = "Episode notes: this post comes with a podcast episode."
-        compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "Episode 12", onBack = {}, noteFor = { if (it == 0) note else null }) }
+        compose.setContent {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = "Episode 12", onBack = {}, episodeFor = { if (it == 0) EpisodeJudgement(EpisodeKind.NOTES) else null })
+        }
         val view = webView()
-        compose.onNodeWithText(note).assertIsDisplayed()
+        compose.onNodeWithText(note, substring = true).assertIsDisplayed()
 
         // "Next" to an article that isn't an episode post.
         val client = shadowOf(view).webViewClient
         client.doUpdateVisitedHistory(view, BOOK_ORIGIN + EpubPages.articleHref(1), false)
-        idleUntil { compose.onAllNodesWithText(note).fetchSemanticsNodes().isEmpty() }
+        idleUntil { compose.onAllNodesWithText(note, substring = true).fetchSemanticsNodes().isEmpty() }
         client.doUpdateVisitedHistory(view, BOOK_ORIGIN + EpubPages.articleHref(0), false)
-        idleUntil { compose.onAllNodesWithText(note).fetchSemanticsNodes().isNotEmpty() }
+        idleUntil { compose.onAllNodesWithText(note, substring = true).fetchSemanticsNodes().isNotEmpty() }
     }
 
     @Test
@@ -377,6 +386,71 @@ class ArticlePreviewScreenTest {
         assertTrue(body, body.contains("Article: https://www.a.example/2026/a-story?ref=feed&x=1\n"))
         assertTrue(body, body.contains("App version: "))
         compose.onNodeWithText("public issue on GitHub", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun aWrongLabelIsSentWithWhatThePostIsOnceTheReaderHasSaid() {
+        val file = oneArticleEdition(url = "https://a.example/episode-12")
+        compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "A story", onBack = {}, episodeFor = { EpisodeJudgement(EpisodeKind.NOTES) }) }
+        askForALook()
+
+        compose.onNodeWithText("It's labelled “Episode notes”, and it's…").performClick()
+        compose.onNodeWithText("Episode notes").assertDoesNotExist()
+        compose.onNodeWithText("Open GitHub").assertIsNotEnabled()
+        compose.onNodeWithText("An article").performClick()
+        compose.onNodeWithText("Open GitHub").performClick()
+
+        val form = shadowOf(compose.activity).nextStartedActivity.data!!
+        assertEquals("Episode label: A story", form.getQueryParameter("title"))
+        assertEquals("episodes", form.getQueryParameter("labels"))
+        val body = form.getQueryParameter("body")!!
+        assertTrue(body, body.startsWith("Post: https://a.example/episode-12\nLabelled: notes\nShould be: article\nApp version: "))
+    }
+
+    @Test
+    fun theArticleCanStillBeSentForALookWhenItsLabelIsRight() {
+        val file = oneArticleEdition()
+        compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "A story", onBack = {}, episodeFor = { EpisodeJudgement(EpisodeKind.TRANSCRIPT) }) }
+        askForALook()
+        compose.onNodeWithText("The article came out wrong").assertIsSelected()
+        compose.onNodeWithText("Open GitHub").performClick()
+        assertEquals("Extraction: A story", shadowOf(compose.activity).nextStartedActivity.data!!.getQueryParameter("title"))
+    }
+
+    @Test
+    fun aPickedLabelSurvivesTheScreenBeingRecreated() {
+        val file = oneArticleEdition()
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "A story", onBack = {}, episodeFor = { EpisodeJudgement(EpisodeKind.ARTICLE) }) }
+        askForALook()
+        compose.onNodeWithText("It's taken for an ordinary article, but it's…").performClick()
+        compose.onNodeWithText("A transcript").performClick()
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        idleUntil { compose.onAllNodesWithText("A transcript").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("A transcript").assertIsSelected()
+        compose.onNodeWithText("Open GitHub").assertIsEnabled()
+    }
+
+    @Test
+    fun afterARotationTheLabelSentIsTheLinkedArticlesNotTheOneLastOnScreen() {
+        val file = tmp.newFile("n.epub")
+        file.writeEpub(listOf("An essay", "Episode 12").map { EditionArticle(title = it, sourceTitle = "S", url = "https://a.example/$it", bodyHtml = "<p>x</p>", minutes = 3.0) })
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = "An essay", onBack = {}, episodeFor = { if (it == 1) EpisodeJudgement(EpisodeKind.NOTES) else null })
+        }
+        val view = webView()
+        shadowOf(view).webViewClient.doUpdateVisitedHistory(view, BOOK_ORIGIN + EpubPages.articleHref(1), false)
+        idleUntil { compose.onAllNodesWithText("Episode notes", substring = true).fetchSemanticsNodes().isNotEmpty() }
+
+        // Restored, and asked before the page reports itself: the link is still the essay's.
+        restoration.emulateSavedInstanceStateRestore()
+        askForALook()
+
+        compose.onNodeWithText("Send this article for a look?").assertIsDisplayed()
+        compose.onNode(hasText("Episode notes", substring = true) and hasAnyAncestor(isDialog())).assertDoesNotExist()
     }
 
     @Test
