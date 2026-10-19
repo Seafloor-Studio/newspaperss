@@ -1292,14 +1292,14 @@ class TtrssSyncTest {
     fun anEpisodesAudioIsKeptAndItsKindJudgedFeedByFeed() = runTest {
         val source = connect()
         val essay = (1..400).joinToString(" ") { "word$it" }
-        server.unread += FakeTtrss.Item(1, "Episode 12: a guest", feedId = 7, feedTitle = "A Show", content = "<p>Our guest talks about trains.</p>", audio = "https://cdn.example/12.mp3")
+        server.unread += FakeTtrss.Item(1, "Episode 12: a guest", feedId = 7, feedTitle = "A Show", content = "<p>Our guest talks about trains.</p>", audio = "https://traffic.libsyn.com/ashow/12.mp3")
         server.unread += FakeTtrss.Item(2, "An essay", feedId = 7, feedTitle = "A Show", content = "<p>$essay</p>")
         server.unread += FakeTtrss.Item(3, "A post", feedId = 8, feedTitle = "A Blog")
         sync.sync(source)
 
         val byTitle = db.articles().candidates().associateBy { it.title }
         with(byTitle.getValue("Episode 12: a guest")) {
-            assertEquals("https://cdn.example/12.mp3", audioUrl)
+            assertEquals("https://traffic.libsyn.com/ashow/12.mp3", audioUrl)
             assertEquals("audio/mpeg", audioType)
             assertNull("tt-rss's size for it was 0: unknown", audioBytes)
             assertEquals(EpisodeKind.NOTES, episodeKind)
@@ -1319,7 +1319,7 @@ class TtrssSyncTest {
         server.unread.clear()
         server.unread += FakeTtrss.Item(
             2, "Corruption as a Driving Force", feedId = 7, feedTitle = "Letters",
-            content = """<p>To read this letter, <a href="https://letters.example/october-15">click here</a>.</p>""", audio = "https://cdn.example/reading.mp3",
+            content = """<p>To read this letter, <a href="https://letters.example/october-15">click here</a>.</p>""", audio = "https://traffic.libsyn.com/letters/reading.mp3",
         )
         sync.sync(source)
 
@@ -1330,5 +1330,20 @@ class TtrssSyncTest {
         assertEquals(written.guid, reading.episodePair)
         assertEquals("the letter learns of its reading, and stays an article", reading.guid, written.episodePair)
         assertEquals(EpisodeKind.ARTICLE, written.episodeKind)
+    }
+
+    @Test
+    fun aStarredEpisodeKeepsItsAudioAndIsJudged() = runTest {
+        val source = connect()
+        ttrss.setTakeStars(source.id, true)
+        sync.syncAll()
+        // Read in tt-rss, never synced here, then starred there.
+        server.read += FakeTtrss.Item(9, "Episode 9: a guest", feedId = 7, feedTitle = "A Show", content = "<p>Our guest talks about trains.</p>", audio = "https://traffic.libsyn.com/ashow/9.mp3")
+        server.starred += 9L
+        sync.syncAll()
+
+        val starred = db.articles().allForSource(source.id).single { it.guid == "ttrss:9" }
+        assertEquals("https://traffic.libsyn.com/ashow/9.mp3", starred.audioUrl)
+        assertEquals(EpisodeKind.NOTES, starred.episodeKind)
     }
 }

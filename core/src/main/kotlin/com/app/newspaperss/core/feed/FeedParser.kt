@@ -221,11 +221,11 @@ object FeedParser {
 
         /** The attachment the tag at the cursor names, read from its attributes; the tag is left unread. */
         private fun enclosure(urlAttribute: String, lengthAttribute: String): Enclosure? {
-            val url = p.getAttributeValue(null, urlAttribute)?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            val url = p.getAttributeValue(null, urlAttribute)?.trim()?.takeIf { it.isNotEmpty() }?.let(::resolve)?.takeIf(::isWebAddress) ?: return null
             val type = p.getAttributeValue(null, "type")?.trim()
                 ?: p.getAttributeValue(null, "medium")?.trim()?.let { "$it/*" }
                 ?: ""
-            return Enclosure(resolve(url), type.lowercase(), p.getAttributeValue(null, lengthAttribute)?.trim()?.toLongOrNull()?.coerceAtLeast(0) ?: 0)
+            return Enclosure(url, type.lowercase(), p.getAttributeValue(null, lengthAttribute)?.trim()?.toLongOrNull()?.coerceAtLeast(0) ?: 0)
         }
 
         /** RSS <link>text</link>, or Atom <link rel="alternate" href=...>; other rels give null. */
@@ -325,7 +325,8 @@ object FeedParser {
                 author = author,
                 published = FeedDates.parse(o.str("date_published")) ?: FeedDates.parse(o.str("date_modified")),
                 enclosures = attachments.mapNotNull { a ->
-                    a.str("url")?.let { Enclosure(resolveUrl(feedUrl, it), a.str("mime_type").orEmpty().lowercase(), a.str("size_in_bytes")?.toLongOrNull()?.coerceAtLeast(0) ?: 0) }
+                    a.str("url")?.let { resolveUrl(feedUrl, it) }?.takeIf(::isWebAddress)
+                        ?.let { Enclosure(it, a.str("mime_type").orEmpty().lowercase(), a.str("size_in_bytes")?.toLongOrNull()?.coerceAtLeast(0) ?: 0) }
                 },
                 durationSeconds = attachments.firstNotNullOfOrNull { it.str("duration_in_seconds")?.toDoubleOrNull()?.toInt()?.takeIf { s -> s > 0 } },
             )
@@ -345,6 +346,9 @@ object FeedParser {
     }
 
 }
+
+/** An http or https address: an attachment anywhere else (file:, content:, javascript:) is no one's episode. */
+fun isWebAddress(url: String): Boolean = url.startsWith("https://", ignoreCase = true) || url.startsWith("http://", ignoreCase = true)
 
 /**
  * [url] made absolute against [base]. A link java.net.URI refuses (a `|` or a brace in its query)

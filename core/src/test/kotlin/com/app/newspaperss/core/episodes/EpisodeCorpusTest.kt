@@ -8,6 +8,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -33,6 +34,9 @@ class EpisodeCorpusTest {
         // Read once for every test: JUnit makes a new instance per test method.
         private val results: List<Result> by lazy { read() }
 
+        /** Labelled posts the app's parser leaves out, counted while reading. */
+        private var unread = 0
+
         private fun read(): List<Result> = root.listFiles().orEmpty().filter { File(it, "labels.json").exists() }.sortedBy { it.name }.flatMap { dir ->
             val xml = GZIPInputStream(File(dir, "feed.xml.gz").inputStream()).use { it.readBytes().toString(Charsets.UTF_8) }
             // Through the app's own parser, so the corpus tests what sync will see.
@@ -44,6 +48,7 @@ class EpisodeCorpusTest {
             // The app's parser leaves out an entry with no link to open (some podcast hosts give
             // none), so those labels have no post here; every post it reads must have one.
             check(feed.posts.map { it.guid }.toSet().let { it.size == feed.posts.size && items.keys.containsAll(it) }) { "${dir.name}: labels.json doesn't label every post" }
+            unread += items.size - feed.posts.size
             feed.posts.map { post ->
                 val l = items.getValue(post.guid).jsonObject
                 fun s(k: String) = l[k]?.jsonPrimitive?.contentOrNull
@@ -57,6 +62,14 @@ class EpisodeCorpusTest {
         assertTrue("the corpus is empty", results.isNotEmpty())
         write()
         print(report())
+    }
+
+    @Test
+    fun theAppReadsEveryLabelledPostThatHasALink() {
+        assertTrue(results.isNotEmpty())
+        // An audio-only show's episodes with no link to open, which the parser has always left out.
+        // More would mean the parser now drops posts it used to read.
+        assertEquals(11, unread)
     }
 
     @Test

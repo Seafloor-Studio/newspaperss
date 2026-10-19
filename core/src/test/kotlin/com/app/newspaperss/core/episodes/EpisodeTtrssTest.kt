@@ -35,9 +35,24 @@ class EpisodeTtrssTest {
             val snapshot = FeedParser.parse(read(File(dir, "feed.xml.gz")), File(dir, "source.txt").readText().trim())
             val labelOf = snapshot.items.associate { it.url to EpisodeKind.of(labels.getValue(it.guid).jsonObject.getValue("kind").jsonPrimitive.content) }
             val headlines = runBlocking { TtrssClient(Recorded(read(File(dir, "ttrss.json.gz"))), API, "reader", "secret").unreadHeadlines() }
-            val items = headlines.map { FeedItem(it.link, it.link, it.title, it.content, null, null, it.attachments) }
-            val verdicts = EpisodeDetector.classify(EpisodeFeed.of(items))
-            items.map { Judged(dir.name, it.title, labelOf.getValue(it.url), verdicts.getValue(it.guid).kind, EpisodeDetector.audioOf(it.enclosures) != null) }
+            // Oldest first, a few at a time, each judged beside those already seen: tt-rss sends a
+            // few unread posts from each feed per sync, and sync judges them beside the source's
+            // recent articles (FeedSync.episodes).
+            val items = headlines.sortedBy { it.updated ?: 0 }.map { FeedItem(it.link, it.link, it.title, it.content, null, null, it.attachments) }
+            val seen = mutableListOf<FeedItem>()
+            val kinds = mutableMapOf<String, EpisodeKind>()
+            for (batch in items.chunked(PER_SYNC)) {
+                val context = seen.takeLast(CONTEXT).reversed()
+                val verdicts = EpisodeDetector.classify(EpisodeFeed.of(batch + context))
+                batch.forEach { kinds[it.guid] = verdicts.getValue(it.guid).kind }
+                // As FeedSync: an earlier post can turn out an article, or be paired with a new one.
+                context.forEach { old ->
+                    val v = verdicts.getValue(old.guid)
+                    if (v.pair != null && v.pair in batch.map { it.guid } || v.kind == EpisodeKind.ARTICLE) kinds[old.guid] = v.kind
+                }
+                seen += batch
+            }
+            items.map { Judged(dir.name, it.title, labelOf.getValue(it.url), kinds.getValue(it.guid), EpisodeDetector.audioOf(it.enclosures) != null) }
         }
     }
 
@@ -70,6 +85,9 @@ class EpisodeTtrssTest {
 
     private companion object {
         const val API = "https://rss.example.com/tt-rss/api/"
+        /** As FeedSync: unread posts taken from each feed per sync, and recent articles judged beside them. */
+        const val PER_SYNC = 5
+        const val CONTEXT = 30
         fun read(f: File) = GZIPInputStream(f.inputStream()).use { it.readBytes().toString(Charsets.UTF_8) }
     }
 }

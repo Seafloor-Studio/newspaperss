@@ -315,4 +315,20 @@ class FeedParserTest {
         listOf("", "soon", "1:2:3:4", "-5", "12.5").forEach { assertNull(it, FeedDurations.seconds(it)) }
         assertEquals(59, FeedDurations.seconds(" 59 "))
     }
+
+    @Test
+    fun anAttachmentThatIsntOnTheWebIsLeftOut() {
+        val feed = FeedParser.parse(
+            """
+            <rss version="2.0"><channel><title>T</title>
+              <item><title>One</title><link>https://t.example/1</link>
+                <enclosure url="file:///data/data/x/db" type="audio/mpeg"/>
+                <enclosure url="javascript:alert(1)" type="audio/mpeg"/>
+                <enclosure url="https://t.example/1.mp3" type="audio/mpeg"/></item>
+            </channel></rss>
+            """.trimIndent(),
+            "https://t.example/feed",
+        )
+        assertEquals(listOf("https://t.example/1.mp3"), feed.items.single().enclosures.map { it.url })
+    }
 }

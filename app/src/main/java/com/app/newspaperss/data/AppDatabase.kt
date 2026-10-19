@@ -8,11 +8,17 @@ import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.app.newspaperss.core.episodes.EpisodeKind
 import java.time.Instant
 
 class Converters {
     @TypeConverter fun instantToLong(i: Instant?): Long? = i?.toEpochMilli()
     @TypeConverter fun longToInstant(l: Long?): Instant? = l?.let(Instant::ofEpochMilli)
+
+    // By label, not the Kotlin name, and an unknown one reads as unjudged: renaming a kind, or
+    // dropping one, mustn't make every article unreadable.
+    @TypeConverter fun episodeKindToText(k: EpisodeKind?): String? = k?.label
+    @TypeConverter fun textToEpisodeKind(s: String?): EpisodeKind? = EpisodeKind.entries.firstOrNull { it.label == s }
 }
 
 @Database(

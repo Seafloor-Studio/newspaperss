@@ -1,5 +1,6 @@
 package com.app.newspaperss.data
 
+import com.app.newspaperss.core.episodes.EpisodeKind
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Embedded
@@ -635,9 +636,16 @@ interface ArticleDao {
     )
     suspend fun recentForEpisodes(sourceId: Long, originId: String?, since: Instant, limit: Int): List<ArticleEntity>
 
-    /** Pairs an article found earlier with a post that arrived since, unless it's paired already. */
-    @Query("UPDATE articles SET episodePair = :pair WHERE sourceId = :sourceId AND guid = :guid AND episodePair IS NULL")
-    suspend fun pairEpisode(sourceId: Long, guid: String, pair: String)
+    /**
+     * Pairs an article found earlier with a post that arrived since, unless it's paired already,
+     * with what it's judged to be now the other is there to judge it beside.
+     */
+    @Query("UPDATE articles SET episodePair = :pair, episodeKind = :kind WHERE sourceId = :sourceId AND guid = :guid AND episodePair IS NULL")
+    suspend fun pairEpisode(sourceId: Long, guid: String, pair: String, kind: EpisodeKind)
+
+    /** Sets what an article found earlier is, now that more of its source has been seen. */
+    @Query("UPDATE articles SET episodeKind = :kind WHERE sourceId = :sourceId AND guid = :guid")
+    suspend fun setEpisodeKind(sourceId: Long, guid: String, kind: EpisodeKind)
 
     /**
      * Old articles keep their row, whose guid stops a feed offering them again, but not the

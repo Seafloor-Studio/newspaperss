@@ -208,6 +208,13 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
                             buildJsonObject {
                                 put("id", item.id); put("title", item.title); put("link", item.link); put("content", item.content)
                                 put("author", ""); put("updated", item.updated); put("feed_id", item.feedId); put("feed_title", item.feedTitle)
+                                // getArticle always sends attachments.
+                                put(
+                                    "attachments",
+                                    buildJsonArray {
+                                        item.audio?.let { url -> add(buildJsonObject { put("content_url", url); put("content_type", "audio/mpeg"); put("duration", "0") }) }
+                                    },
+                                )
                             },
                         )
                     }

@@ -318,7 +318,7 @@ class FeedSyncTest {
             url,
             """
             <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
-              <channel><title>A Show</title>
+              <channel><title>A Show</title><itunes:type>episodic</itunes:type>
                 <item><title>Episode 12</title><link>https://show.example/12</link><guid>e12</guid>
                   <description>Our guest talks about trains.</description>
                   <enclosure url="https://cdn.example/12.mp3" type="audio/mpeg" length="54321"/></item>

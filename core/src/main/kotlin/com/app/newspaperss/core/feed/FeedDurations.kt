@@ -5,6 +5,6 @@ internal object FeedDurations {
     fun seconds(text: String): Int? {
         val parts = text.trim().split(':')
         if (parts.size > 3 || parts.any { it.isEmpty() || !it.all(Char::isDigit) || it.length > 6 }) return null
-        return parts.fold(0) { total, part -> total * 60 + part.toInt() }.takeIf { it > 0 }
+        return parts.fold(0L) { total, part -> total * 60 + part.toLong() }.takeIf { it in 1..Int.MAX_VALUE }?.toInt()
     }
 }

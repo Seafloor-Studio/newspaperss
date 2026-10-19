@@ -2,6 +2,7 @@ package com.app.newspaperss.data
 
 import com.app.newspaperss.core.episodes.EpisodeDetector
 import com.app.newspaperss.core.episodes.EpisodeFeed
+import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.core.episodes.Verdict
 import com.app.newspaperss.core.extract.ArticleExtractor
 import com.app.newspaperss.core.feed.Enclosure
@@ -282,12 +283,15 @@ class FeedSync(
      * What each of [items] is beside podcast episodes, judged with the source's recent articles
      * too ([EPISODE_CONTEXT] of them, found in the last [EPISODE_CONTEXT_DAYS] days): a narration
      * often arrives a sync after the post it reads, and through tt-rss, which sends only what's
-     * unread, it may arrive alone. An earlier article gets the new post as its pair; what it was
-     * judged to be stays. Detection is best effort: a failure leaves the posts unjudged rather
+     * unread, it may arrive alone. An earlier article gets the new post as its pair, and one
+     * judged an episode post can turn out an article. Detection is best effort: a failure leaves the posts unjudged rather
      * than failing the sync.
      */
     private suspend fun episodes(source: SourceEntity, originId: String?, items: List<FeedItem>, podcast: Boolean, now: Instant): Map<String, Verdict> {
         val guids = items.map { it.guid }.toSet()
+        // A feed lists the same posts sync after sync; judging them again would only be thrown away.
+        val known = guids.chunked(500).flatMap { db.articles().knownGuids(source.id, it) }.toSet()
+        if (guids.all { it in known }) return emptyMap()
         val earlier = db.articles().recentForEpisodes(source.id, originId, now.minus(Duration.ofDays(EPISODE_CONTEXT_DAYS)), EPISODE_CONTEXT)
             .filter { it.guid !in guids }
         val verdicts = try {
@@ -298,8 +302,16 @@ class FeedSync(
             return emptyMap()
         }
         for (old in earlier) {
-            val pair = verdicts[old.guid]?.pair ?: continue
-            if (old.episodePair == null && pair in guids) db.articles().pairEpisode(source.id, old.guid, pair)
+            val verdict = verdicts[old.guid] ?: continue
+            val pair = verdict.pair
+            when {
+                pair != null && old.episodePair == null && pair in guids -> db.articles().pairEpisode(source.id, old.guid, pair, verdict.kind)
+                // Only toward an article: a magazine's story carrying its episode's audio looks like
+                // notes until the next episode shows the pattern, but a post judged an article
+                // isn't turned into an episode by what came after it.
+                verdict.kind == EpisodeKind.ARTICLE && old.episodeKind != null && old.episodeKind != EpisodeKind.ARTICLE && old.episodePair == null ->
+                    db.articles().setEpisodeKind(source.id, old.guid, EpisodeKind.ARTICLE)
+            }
         }
         return verdicts.filterKeys { it in guids }
     }
@@ -342,7 +354,11 @@ class FeedSync(
             val held = unseen.map { "$TTRSS_GUID_PREFIX$it" }.chunked(500).flatMap { db.articles().inEditionAmong(source.id, it) }.toSet()
             val new = if (source.ttrssStarsNoted) unseen.filter { "$TTRSS_GUID_PREFIX$it" !in held }.take(STARS_PER_SYNC) else emptyList()
             // Only what was asked for: a server answering with more would add them all, starred.
-            val articles = client.articles(new).filter { it.id in new }.map { it to article(source, it, now, starredAt = now) }
+            val starredHeadlines = client.articles(new).filter { it.id in new }
+            val episodes = starredHeadlines.groupBy { it.feedId }.flatMap { (feedId, posts) ->
+                episodes(source, feedId, posts.map { it.asFeedItem() }, podcast = false, now).entries
+            }.associate { it.key to it.value }
+            val articles = starredHeadlines.map { it to article(source, it, now, starredAt = now).withEpisode(it.attachments, episodes["$TTRSS_GUID_PREFIX${it.id}"]) }
             db.withTransaction {
                 // Turned off, or off and on again, during this sync: what was seen belongs to the old setting.
                 val current = sources.byId(source.id)

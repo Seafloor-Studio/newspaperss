@@ -1,6 +1,7 @@
 package com.app.newspaperss.core.ttrss
 
 import com.app.newspaperss.core.feed.Enclosure
+import com.app.newspaperss.core.feed.isWebAddress
 import com.app.newspaperss.core.net.HttpClient
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -490,7 +491,7 @@ class TtrssClient(
             attachments = (o["attachments"] as? JsonArray).orEmpty().mapNotNull { a ->
                 val att = a as? JsonObject ?: return@mapNotNull null
                 fun field(key: String) = (att[key] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
-                val url = field("content_url") ?: return@mapNotNull null
+                val url = field("content_url")?.takeIf(::isWebAddress) ?: return@mapNotNull null
                 Enclosure(url, field("content_type").orEmpty().lowercase(), field("duration")?.toLongOrNull()?.coerceAtLeast(0) ?: 0)
             },
         )

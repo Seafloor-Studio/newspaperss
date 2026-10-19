@@ -6,6 +6,7 @@ import com.app.newspaperss.core.feed.FeedParser
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import org.jsoup.Jsoup
 import java.io.File
 
 /**
@@ -30,7 +31,8 @@ fun main(args: Array<String>) {
                     put("file", file.name); put("guid", post.guid); put("title", post.title); put("link", post.link)
                     put("detected", v.kind.label); put("pair", v.pair); put("why", v.why); put("signals", v.signals.toString())
                     put("audio", v.signals.audio); put("words", v.signals.words)
-                    put("start", post.text.take(400)); put("end", post.text.takeLast(200))
+                    val text = Jsoup.parseBodyFragment(post.html).text()
+                    put("start", text.take(400)); put("end", text.takeLast(200))
                 })
             }
         }
