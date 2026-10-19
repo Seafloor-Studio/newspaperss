@@ -7,10 +7,11 @@ import com.k2fsa.sherpa.onnx.OfflineTtsKokoroModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 
 /** Kokoro, which only debug builds offer and carry the native code for. */
-internal fun kokoroEngine(install: KokoroInstall, voice: PodcastVoice): PodcastEngine = KokoroEngine(install, voice)
+internal fun kokoroEngine(install: KokoroInstall, voice: PodcastVoice, threads: Int = KOKORO_THREADS): PodcastEngine =
+    KokoroEngine(install, voice, threads)
 
 /** Kokoro through sherpa-onnx, on [KokoroThread]. Loading takes a couple of seconds. */
-class KokoroEngine(install: KokoroInstall, voice: PodcastVoice) : PodcastEngine {
+class KokoroEngine(install: KokoroInstall, voice: PodcastVoice, threads: Int = KOKORO_THREADS) : PodcastEngine {
     private val speaker = speakerOf(voice)
     private val british = voice == PodcastVoice.EMMA || voice == PodcastVoice.GEORGE
     private val tts = KokoroThread.run { OfflineTts(
@@ -26,7 +27,7 @@ class KokoroEngine(install: KokoroInstall, voice: PodcastVoice) : PodcastEngine 
                     // espeak's data has no British voice; plain English with the British word list is.
                     lang = if (british) "en" else "en-us",
                 ),
-                numThreads = THREADS,
+                numThreads = threads,
             ),
         ),
     ) }
@@ -36,9 +37,6 @@ class KokoroEngine(install: KokoroInstall, voice: PodcastVoice) : PodcastEngine 
     override fun release() = KokoroThread.run { tts.release() }
 
     companion object {
-        /** Fastest on a Pixel 8's Tensor G3: 1 and 2 threads were slower, and all 9 cores slower still. */
-        private const val THREADS = 4
-
         /** The voice's number in the model (its metadata's speaker2id). */
         private fun speakerOf(voice: PodcastVoice) = when (voice) {
             PodcastVoice.HEART -> 3

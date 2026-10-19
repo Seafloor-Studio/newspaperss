@@ -43,6 +43,7 @@ import com.app.newspaperss.listen.KokoroDownload
 import com.app.newspaperss.listen.kokoroEngine
 import com.app.newspaperss.listen.KokoroInstall
 import com.app.newspaperss.listen.KokoroSupport
+import com.app.newspaperss.listen.KokoroTrial
 import com.app.newspaperss.listen.PodcastSetup
 import com.app.newspaperss.listen.PodcastLog
 import com.app.newspaperss.listen.PodcastMaker
@@ -213,6 +214,9 @@ class AppContainer(
         legacy = File(context.filesDir, "podcast-log.txt"),
     )
     private val podcastEngine = { voice: PodcastVoice -> kokoroEngine(kokoroInstall, voice) }
+
+    /** The maker's, taking the thread count too, so [KokoroTrial] can try two against four. */
+    private val podcastMakerEngine = { voice: PodcastVoice, threads: Int -> kokoroEngine(kokoroInstall, voice, threads) }
     internal val podcastStore = PodcastStore(File(context.filesDir, "podcasts"))
     private val podcasts = Podcasts(podcastStore, settings, kokoroInstall, start = { PodcastWorker.enqueue(context) }, log = podcastLog)
 
@@ -221,8 +225,10 @@ class AppContainer(
 
     val podcastMaker: PodcastMaker by lazy {
         PodcastMaker(
-            editions, podcastStore, kokoroInstall, settings, podcastEngine, AacEncoder,
+            editions, podcastStore, kokoroInstall, settings, podcastMakerEngine, AacEncoder,
             lastExit = { ProcessDeaths.last(context) },
+            // Release builds never get here: their kokoroEngine() throws rather than making anything.
+            threads = KokoroTrial::threadsFor,
             log = podcastLog,
         )
     }

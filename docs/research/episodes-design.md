@@ -9,8 +9,8 @@ tests detection, are in [podcast-episodes.md](podcast-episodes.md).
 - **The paper doesn't change.** Every post prints, whatever kind it is.
 - **The audio edition uses the real audio where it's clearly better:** a show's episode, or an
   author's reading of their own post. Kokoro reads everything else, as today.
-- **Real audio plays in the post's place**, unless it's much longer than the post. Then the post
-  gets one line in its place, and the audio plays at the end of the edition.
+- **Real audio plays in the post's place**, unless it's much longer than the post. Then Kokoro
+  reads the post's own words in its place, and the audio plays at the end of the edition.
 - **When in doubt, Kokoro reads the post.** A wrong handover plays something the reader didn't
   choose; a missed one only means Kokoro reads.
 - **One tap goes back to Kokoro.** While a recording plays, Listen offers "Read it in Kokoro's
@@ -34,12 +34,12 @@ isn't a kind of its own; it's decided by comparing lengths (below).
 
 ## How good detection is
 
-Measured on the episode corpus (421 labelled posts from 41 public feeds) and checked on 15
+Measured on the episode corpus (433 labelled posts from 42 public feeds) and checked on 15
 public feeds it hadn't seen and on one reader's own list of 91 feeds:
 
 | Call | Right in the corpus | What it misses |
 |---|---|---|
-| Notes | 73 of 75 | A long guest introduction with no timestamps; a bare video post |
+| Notes | 76 of 78 | A long guest introduction with no timestamps; a bare video post |
 | Transcript | 51 of 53 | A transcript whose audio is only in a paid feed; a solo episode's transcript |
 | Audio version | 11 of 11, every pair found | – |
 | Narrated article | not measured yet | – |
@@ -66,7 +66,8 @@ public feeds it hadn't seen and on one reader's own list of 91 feeds:
 | A written post with an audio version | The author's or narrator's reading | In the post's place |
 | A narrated article | Its reading | In the post's place |
 | A transcript | Its episode: its own audio, or its notes post's | In the post's place |
-| Notes | The episode | One line in the post's place; the episode at the end |
+| Notes | The episode | Kokoro reads the notes' prose in the post's place; the episode at the end |
+| An article carrying an episode (a blog post opening with the week's episode) | The episode | Kokoro reads the whole post in its place; the episode at the end |
 | Anything else | Kokoro reads it | In the post's place |
 
 ### The rules behind the table
@@ -76,13 +77,25 @@ public feeds it hadn't seen and on one reader's own list of 91 feeds:
    transcript's episode is close to the transcript read aloud (87 minutes against 99 for one
    Tim Ferriss episode, 3 h 44 min against 3 h 22 min for one Lex Fridman episode). Notes are
    the mismatch: a minute or two of text against an episode of 40 minutes to 4 hours.
-2. **Notes say one line, not their text.** Timestamps, sponsor codes and link lists don't read
-   aloud well. In their place Kokoro says: "Lenny's Newsletter: How Meta designed Muse. An
-   episode, 38 minutes, at the end of this edition."
-3. **Each recording plays once.** An audio version's stub, a notes post whose transcript is in
-   the edition, and a newsletter post about an episode that's already playing are silent in the
-   audio edition. They still print. In one simulated edition, four of nine posts shared another
-   post's audio.
+2. **Notes are read, without their furniture.** Timestamps, sponsor blocks, link lists and
+   subscribe lines don't read aloud well, so Kokoro leaves them out and reads the rest, then
+   says: "The episode, 38 minutes, is at the end of this edition." Most notes say something the
+   episode doesn't replace for someone who never gets to it. In 40 of the corpus's notes posts,
+   the prose left once the furniture is out is about 240 words in the middle one, and 14 have 300
+   words or more:
+   - **a blurb** (The Bulwark, Letters from an American), under about 100 words: a sentence or two;
+   - **a teaser and outline** (Lenny's: an opening and "What you'll learn"), 250–400 words: the
+     gist of the episode;
+   - **a written companion** (The Pragmatic Engineer's "11 takeaways", Ground Truths'
+     commentary), 600 to 1,600 words or more: read in full, as the article it is.
+3. **Each recording plays once.** A post whose recording another post in the edition already
+   plays is still read as rule 2 says, without playing it again. Only an audio version's stub,
+   which is just a pointer to the reading, is silent; it still prints. In one simulated edition,
+   four of nine posts shared another post's audio.
+   - **An article carrying an episode** (Sullivan's weekly post, opening with the episode, then
+     other sections) is read in full, and its episode plays at the end. Its paid "Transcript:"
+     post is labelled a transcript and paired with it, but plays nothing: what prints of it
+     is decided as for any paid post.
 4. **A narrated article is one whose audio is within about 25% of its text read aloud** (160
    words a minute, as Listen reads). In the simulations the two narrations came within 15%;
    a write-up beside an interview, a blog post opening with its episode, a magazine story
@@ -177,7 +190,8 @@ public feeds it hadn't seen and on one reader's own list of 91 feeds:
    labels. Each report becomes a corpus case before it's fixed.
 3. **Readings in place:** audio versions and narrated articles (rules 3, 4, 5, 7 and 8). The
    biggest audible gain for the least risk: same words, same length, a human voice.
-4. **Episodes:** transcripts in place, notes' episodes at the end, streamed (rules 1, 2 and 6).
+4. **Episodes:** transcripts in place, notes read and their episodes at the end, streamed
+   (rules 1, 2, 3 and 6).
 5. **Downloads** for listening offline.
 6. **Later:** reading the post's page; following Anchor and Apple players; unsanitized content
    from tt-rss.
@@ -203,5 +217,6 @@ Step 3 starts once two weeks of labels in real use show:
 - Is 25% the right margin for "narrated"? Measure it on the corpus once lengths are fetched.
 - Should episodes download by default?
 - The line on an episode post in the paper: worth it, or noise?
-- A post of 700–1,000 words with audio and no timestamps (a long guest introduction): read in
-  full, or treated as notes?
+- A post of 700–1,000 words with audio and no timestamps (a long guest introduction) is
+  called an article. Now that notes are read too, the only difference is whether its episode
+  plays at the end. Keep the line at 700 words until step 2's reports say otherwise.
