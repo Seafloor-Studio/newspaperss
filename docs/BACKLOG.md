@@ -16,7 +16,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] Another tt-rss user, or another server, still meets the first one's delivered links: `delivered_urls` is shared, so a story the first user received is skipped for the second, and marked read on their server. Small, but partners often follow the same blogs. Forget the delivered links that came only from the old source when it goes? *(review, 16 Oct)*
 - [ ] Restored onto a new phone, the database comes back without the tt-rss login (it's left out of backups), so whoever signs in next keeps the waiting and starred articles, as the same user would. Ask on sign-in whether it's the same account? *(review, 16 Oct)*
 - [ ] About 100 view models built directly in tests (Today, Settings, Sources…) are still never stopped, as the source page's were; `testutil/ViewModels` stops them, so adopt it as those tests are touched *(today B3)*
-- [ ] `PodcastSettingsTest.choosingToReadLiveDuringTheDownloadStopsIt` timed out once in six full runs, at its 30 s wait for the settings screen to load, on a machine running other builds. Watch it *(today B9)*
+- [ ] `PodcastSettingsTest` times out under load, at its 30 s wait for the settings screen: once in six full runs on 16 Oct, and on 19 Oct in 3 of 7 full runs on one branch (passing 3 of 3 alone), while main's suite timed out once in 2, in `KindleEmailScreensTest`. Both wait for a screen while the machine runs other builds. Next: count it on main over 20 runs, with the results saved before each re-run *(today B9, 19 Oct)*
 - [ ] CLAUDE.md says its shared sections match claude-playground's; several rules have drifted (tests "waits for the condition", the review's background-work bullet, the PR template, "merge only when asked"). Your call whether to bring them across
 - Next audit of this kind: after 30–40 more cycles, or before a release
 
@@ -315,19 +315,31 @@ article without leaving the page.
 Recommendation: build step 1, use it for a week, then decide on step 2.
 
 ### Podcast episodes in feeds *(you asked)*
-Some posts are podcast episodes: an episode's notes, its transcript, or an author's reading of a
-post. Measured on one real reading list, about 4% of posts carried podcast audio, in 12 of 91
-feeds. Proposed, in detail in [research/episodes-design.md](research/episodes-design.md):
-- **The paper doesn't change.** Every post prints, whatever its kind.
-- **The audio edition plays the real audio where it's clearly better:** an author's reading of
-  their post, a show's episode in place of its transcript, and a notes post's episode. Kokoro
-  reads everything else.
-- **Real audio plays in the post's place**, unless it's much longer than the post: a notes
-  post says one line, and its episode plays at the end.
-- **First step:** keep the audio attachments the feed parser and tt-rss sync drop today, and
-  label each post's kind when it syncs.
-- **The research behind it,** and the labelled corpus that tests detection:
-  [research/podcast-episodes.md](research/podcast-episodes.md).
+The plan is [research/episodes-design.md](research/episodes-design.md); the research and the
+labelled corpus are [research/podcast-episodes.md](research/podcast-episodes.md). Debug builds only.
+- [x] **Step 1:** posts keep their audio, and each is judged at sync (#313)
+- [x] **Step 2:** labels on the edition, article and source screens, and wrong labels sent for a look (#320, #321)
+- [x] **Step 3:** recorded readings play in an article's place in Listen, with a switch back to the voice (#322, #323). Built before the planned two weeks of labels, at madCode's request
+- [ ] **The two weeks of labels:** what the design's "Before readings go into Listen" asks, now checked alongside step 3 rather than before it
+- [ ] **Rule 3's silent stub:** an audio version's own short post is still read by the voice when it's in the same edition as its article. Listen needs a way to pass over a page
+- [ ] **Readings for editions made before #322:** their audio was never timed, so an article's own audio isn't played. Time what's missing when Listen opens an edition
+- [ ] **Step 4:** transcripts play their episode in place; notes are read without their furniture and their episode plays at the end; streamed
+- [ ] **Step 5:** downloads for listening offline
+- [ ] **The `handle-issues` skill** doesn't mention "Episode label:" or "Extraction:" issues; it's shared from claude-playground, so it changes there first *(your call)*
+- [ ] **An `episodes` label** on the repo, for the wrong-label reports to carry *(you)*
+
+#### From the 19 Oct audits *(audit)*
+The middle and end architecture and code-simplicity audits of the episodes work. Their small findings are fixed in #324; these are the larger ones, each checked against the code.
+- [ ] **One place decides what plays an article.** `ReadingSpeaker` wraps `PodcastSpeaker`, and each has its own `choose()`; the recording's heading reaches the podcast speaker as plain speech so it doesn't play the article. One choice per article (recording, podcast or phone voice) over the phone speaker would remove that, and the two fallbacks to the voice (`restart` and `PodcastSpeaker.asked`)
+- [ ] **`StreamAudio` copies `Media3Audio`** almost line for line; one player taking a list of media items would do for both, and `StreamAudio` has no test of its own meanwhile
+- [ ] **Line reporting is written twice**, in `ReadingSpeaker` and `PodcastSpeaker` (from a line and a position, report each line's start, and the end)
+- [ ] **`useVoiceInstead` lives in `AppContainer`** and isn't tested; it belongs on the player
+- [ ] **A speaker's listener is set by whoever comes last:** `ReadingSpeaker` takes over the voice's in its constructor, and only the debug-build checks in `AppContainer` keep something else from taking it back
+- [ ] **The rules for updating earlier posts at sync** (`FeedSync.episodes`) are a three-way condition explained in comments; as one pure function beside the detector, they could be tested in `:core`
+- [ ] **`Readings` repeats the contents' pair join** (`observeContents`) with two queries a page; the contents could carry the audio fields
+- [ ] **Four tables name the same four kinds** (`EpisodeKind.label`, `kindName`, `labelName`, `episodeLabel`), and the label lookup is written twice (`EpisodeKind.of` and the Room converter)
+- [ ] **The debug-build flag is checked at several layers** where one gate in `FeedSync` and one in Listen would do, and `FeedSync`'s `episodesOn` defaults to on
+- [ ] **Choices to read an article in the voice are kept for ever** (`StoredReadingChoices`), one small key each; drop them with their edition
 
 ### Backup *(you asked)*
 Android's Auto Backup already copies the database and settings (sources, reading list, edition
