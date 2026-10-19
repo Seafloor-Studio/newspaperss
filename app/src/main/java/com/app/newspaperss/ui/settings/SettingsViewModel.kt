@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.time.DayOfWeek
 import java.time.LocalTime
 
@@ -97,8 +98,11 @@ class SettingsViewModel(
         viewModelScope.launch { podcast?.use() }
     }
 
-    /** What the podcast's making did, newest first. */
+    /** What the podcast's making did, newest first: the screen's worth, not every day kept. */
     suspend fun podcastLog(): List<String> = withContext(Dispatchers.IO) { podcast?.log?.read().orEmpty().asReversed() }
+
+    /** Every day kept, in one file to share: weeks of it is more than an intent will carry as text. */
+    suspend fun podcastLogFile(): File? = withContext(Dispatchers.IO) { podcast?.log?.export() }
 
     /** The space podcasts take, in bytes; null without the podcast. */
     val podcastBytes: StateFlow<Long?> = (podcast?.podcastBytes ?: flowOf(null)).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)

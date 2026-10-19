@@ -208,7 +208,10 @@ class AppContainer(
     }
 
     /** What the podcast's making and playing did, shown in Settings › Listening while the podcast is debug-only. */
-    val podcastLog = PodcastLog(File(context.filesDir, "podcast-log.txt"))
+    val podcastLog = PodcastLog(
+        File(context.filesDir, "podcast-logs"),
+        legacy = File(context.filesDir, "podcast-log.txt"),
+    )
     private val podcastEngine = { voice: PodcastVoice -> kokoroEngine(kokoroInstall, voice) }
     internal val podcastStore = PodcastStore(File(context.filesDir, "podcasts"))
     private val podcasts = Podcasts(podcastStore, settings, kokoroInstall, start = { PodcastWorker.enqueue(context) }, log = podcastLog)
