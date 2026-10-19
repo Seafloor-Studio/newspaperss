@@ -3,6 +3,19 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycles E1–E7 (19 Oct) — build: podcast episodes steps 2 and 3, with two audits
+
+One session, overnight. Built: labels (#320), wrong-label reports (#321), audio lengths (#322), readings in Listen (#323); the two audits' fixes are #324 and their larger findings are in the backlog. See [DEVLOG.md](DEVLOG.md).
+- **`runTest` skips a real timeout.** Under `runTest`, `withTimeoutOrNull` runs on virtual time. That time jumps ahead while Room works on its own thread, so the timeout fires at once and the code inside never runs. Hit twice tonight: the builder's measuring test, then `AudioLengths.measureEdition`'s. Test code that has a timeout under `runBlocking`, or read from the database before the timeout starts. Learned twice in one night, so it's a rule now: proposed for CLAUDE.md's Tests section, a shared rule and so madCode's call.
+- **Save a failed run's results before running again.** A full build failed, the re-run passed, and its results overwrote the failure's, so which test failed was lost. Copy `app/build/test-results` aside first.
+- **A wrapper over another speaker gets one test with the real one beneath it.** `ReadingSpeaker` passed every test with a fake voice. With Kokoro's `PodcastSpeaker` beneath, the podcast played the whole article over the recording. The review found it, and the fix's test uses the real `PodcastSpeaker`.
+- **Stacked PRs and squash merges cost a merge each.** #313 on #307, then #321 on #320, then #323 on #322: each squash put the stacked branch in conflict with main, in files it only shared with its base. Stack only when the second PR needs the first's code, and merge the base the moment it's green.
+- **A falsification that stays green can be the fixture's fault.** Dropping the "second range starts where asked" guard changed nothing, because the test tag was zero padding. Say so in the PR, as #322 does, rather than counting the guard as tested.
+- **Run end check:**
+  - extra worktrees in /home/user (cloudk, design, kdebug, mainwt, notes, shots) are removed at the end;
+  - no emulator was started;
+  - no Docker is running.
+
 ### Area D, closing
 
 - **Shared docs in every PR cost a CI round each time another session merged.** #274 went green four times and was refused three of them for a conflict in BACKLOG, DEVLOG or CYCLES. With four sessions, each session's docs in one closing PR, or merging the moment CI is green, would have saved about an hour and a half.
