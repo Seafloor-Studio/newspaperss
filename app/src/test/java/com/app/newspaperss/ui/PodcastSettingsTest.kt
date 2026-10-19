@@ -44,6 +44,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
@@ -73,7 +74,8 @@ class PodcastSettingsTest {
     @After fun stopStore() = stopStores(storeScope)
 
     private lateinit var setup: PodcastSetup
-    private val log by lazy { PodcastLog(tmp.newFolder("podcast-logs")) }
+    // Where AppContainer puts it: a log outside filesDir has no content:// uri to share.
+    private val log by lazy { PodcastLog(java.io.File(context.filesDir, "podcast-logs")) }
 
     private fun show(supported: Boolean = true): SettingsViewModel {
         installVoice(context)
@@ -223,6 +225,29 @@ class PodcastSettingsTest {
         waitFor("Stopped: unplugged")
         val shown = compose.onNode(hasText("Run started", substring = true)).fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.Text].joinToString()
         assertTrue(shown, shown.indexOf("Stopped: unplugged") < shown.indexOf("Run started"))
+    }
+
+    /** The screen shows a couple of nights; the share has to carry every day kept, so it sends the file. */
+    @Test
+    fun sharingTheLogSendsTheFileNotWhatIsOnTheScreen() {
+        ready(1.2f)
+        runBlocking { store.update { it.copy(listenVoice = ListenVoice.PODCAST) } }
+        log.add("Run started (try 1)")
+        show()
+        compose.onNodeWithText("Audio log").performScrollTo().performClick()
+        waitFor("Run started (try 1)")
+
+        compose.onNodeWithText("Share").performClick()
+        idleUntil { shadowOf(context).peekNextStartedActivity() != null }
+
+        val chooser = shadowOf(context).peekNextStartedActivity()!!
+        val send = chooser.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
+        assertEquals(android.content.Intent.ACTION_SEND, send.action)
+        val uri = send.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)!!
+        assertEquals("content", uri.scheme)
+        assertTrue(uri.toString(), uri.toString().endsWith("audio-log.txt"))
+        assertNull("the file, not the text", send.getStringExtra(android.content.Intent.EXTRA_TEXT))
+        assertTrue(send.flags and android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
     }
 
     @Test

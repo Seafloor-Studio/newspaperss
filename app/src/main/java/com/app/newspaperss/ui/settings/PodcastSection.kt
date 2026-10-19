@@ -326,13 +326,16 @@ private fun PodcastLogButton(vm: SettingsViewModel) {
                     // The file, not the text: the screen shows a couple of nights and the log keeps a
                     // fortnight, which is more than an intent carries as an extra.
                     scope.launch {
-                        val file = vm.podcastLogFile()
+                        // A log outside the folder file_paths declares has no content:// uri: the
+                        // text on the screen is less than the file, but better than a crash.
+                        val uri = vm.podcastLogFile()?.let {
+                            runCatching { FileProvider.getUriForFile(context, "${context.packageName}.files", it) }.getOrNull()
+                        }
                         val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-                        if (file == null) {
+                        if (uri == null) {
                             send.putExtra(Intent.EXTRA_TEXT, text)
                         } else {
-                            send.putExtra(Intent.EXTRA_STREAM, FileProvider.getUriForFile(context, "${context.packageName}.files", file))
-                            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            send.putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
                         // E-reader firmware may lack the chooser.
                         runCatching { context.startActivity(Intent.createChooser(send, "Share the audio log")) }
