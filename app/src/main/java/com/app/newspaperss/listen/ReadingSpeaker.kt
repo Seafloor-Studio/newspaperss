@@ -78,6 +78,8 @@ class ReadingSpeaker(
     /** What's playing: the line it started from, and the last line reported. */
     private var playing: LineId? = null
     private var reported = -1
+    /** How far into the recording it last was, for the log when it stops. */
+    private var atMs = 0L
 
     init {
         voice.listener = object : Speaker.Listener {
@@ -188,6 +190,7 @@ class ReadingSpeaker(
         val share = reading.shareAt(from.line)
         val ms = total?.let { (share * it).toLong() } ?: 0L
         seekWhenKnown = share.takeIf { total == null && it > 0 }
+        atMs = ms
         log("Reading: edition ${from.editionId} page ${from.page} from line ${from.line}: ${reading.url} at ${ms / 1000}s, speed ${"%.1f".format(Locale.ROOT, rate)}")
         audio.play(reading.url, ms, rate)
     }
@@ -200,9 +203,11 @@ class ReadingSpeaker(
         seekWhenKnown?.let { share ->
             if (durationMs <= 0) return
             seekWhenKnown = null
-            audio.play(reading.url, (share * durationMs).toLong(), rate)
+            atMs = (share * durationMs).toLong()
+            audio.play(reading.url, atMs, rate)
             return
         }
+        atMs = ms
         val total = durationMs.takeIf { it > 0 } ?: reading.seconds?.let { it * 1000L } ?: return
         val share = (ms + Media3Audio.TICK_MS).toDouble() / total
         val upTo = reading.bodyLine + reading.starts.indexOfLast { it <= share }
@@ -220,7 +225,8 @@ class ReadingSpeaker(
             reported++
             if (reported >= at.line) listener?.onStart(at.copy(line = reported).toString())
         }
-        stopRecording()
+        reading?.let { r -> (lengths[r.url] ?: r.seconds?.let { it * 1000L })?.let { atMs = it } }
+        stopRecording("played to the end")
         listener?.onDone(at.copy(line = at.lines - 1).toString())
     }
 
@@ -236,17 +242,26 @@ class ReadingSpeaker(
         restart(at.copy(line = line))
     }
 
-    private fun stopRecording() {
+    /**
+     * Stops the recording, logging how far it got when there's a [why]: whether readings are
+     * listened to or left. Every pause, skip and tap stops it, so a stop followed by the same
+     * page playing on is a pause.
+     */
+    private fun stopRecording(why: String? = null) {
         handingOver = null
         seekWhenKnown = null
-        if (playing == null) return
+        val at = playing ?: return
         playing = null
         audio.stop()
+        if (why == null) return
+        val total = reading?.let { r -> lengths[r.url] ?: r.seconds?.let { it * 1000L } }
+        val of = total?.takeIf { it > 0 }?.let { " of ${clock(it)} (${(100 * atMs / it).coerceIn(0, 100)}%)" } ?: ""
+        log("Reading: edition ${at.editionId} page ${at.page} $why at ${clock(atMs)}$of")
     }
 
     override fun stop() {
         waiting = null
-        stopRecording()
+        stopRecording("stopped")
         voice.stop()
     }
 
@@ -262,6 +277,8 @@ class ReadingSpeaker(
 
         /** Ids of the heading lines of an article with a recording, said as plain speech. */
         const val HEADING = "heading:"
+
+        fun clock(ms: Long) = (ms / 1000).let { "%d:%02d".format(Locale.ROOT, it / 60, it % 60) }
 
         fun announce(reading: Reading): String {
             val minutes = reading.seconds?.let { maxOf(1, (it / 60.0).roundToInt()) }

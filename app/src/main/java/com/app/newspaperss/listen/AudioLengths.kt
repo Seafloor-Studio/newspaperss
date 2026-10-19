@@ -18,7 +18,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * Finds how long a post's audio plays, from the first bytes of its file, when its feed didn't say
  * ([ArticleEntity.audioSeconds]). Listen needs it for an article with audio of its own, which it
  * plays in the article's place only when the audio is about as long as the text read aloud, and
- * for the reading paired with an article, which it announces by its length.
+ * for the reading paired with an article, which it announces by its length. A transcript's episode
+ * (its own audio, or its notes post's) is timed too, for the log to say how it compares with the
+ * transcript read aloud.
  */
 class AudioLengths(private val db: AppDatabase, private val http: HttpClient) {
     /** [measure]s an edition's articles once it's made, for at most [MEASURE_FOR]: they're for Listen, which reads an article whose length isn't known. */
@@ -29,10 +31,14 @@ class AudioLengths(private val db: AppDatabase, private val http: HttpClient) {
 
     /** Measures the audio of [articleIds] that Listen may play, and of the readings they pair with. */
     suspend fun measure(articleIds: Collection<Long>) = coroutineScope {
-        val articles = db.articles().byIds(articleIds).filter { it.episodeKind == EpisodeKind.ARTICLE }
+        val posts = db.articles().byIds(articleIds)
+        val articles = posts.filter { it.episodeKind == EpisodeKind.ARTICLE }
+        val transcripts = posts.filter { it.episodeKind == EpisodeKind.TRANSCRIPT }
         val readings = articles.mapNotNull { a -> a.episodePair?.let { db.articles().byGuid(a.sourceId, it) } }
             .filter { it.episodeKind == EpisodeKind.AUDIO_VERSION }
-        val unknown = (articles.filter { it.episodePair == null } + readings)
+        val episodes = transcripts.filter { it.audioUrl == null }.mapNotNull { t -> t.episodePair?.let { db.articles().byGuid(t.sourceId, it) } }
+            .filter { it.episodeKind == EpisodeKind.NOTES }
+        val unknown = (articles.filter { it.episodePair == null } + readings + transcripts + episodes)
             .filter { it.audioUrl != null && it.audioSeconds == null && isMp3(it) }
             .distinctBy { it.id }
         // A few at a time: they're small requests, but an edition can hold twenty articles.

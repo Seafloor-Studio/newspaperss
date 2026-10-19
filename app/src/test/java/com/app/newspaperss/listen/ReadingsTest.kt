@@ -25,7 +25,8 @@ import org.robolectric.annotation.Config
 class ReadingsTest {
     @get:Rule val dbRule = DbRule()
     private val db = dbRule.db
-    private val readings = Readings(db)
+    private val logged = mutableListOf<String>()
+    private val readings = Readings(db, logged::add)
 
     /** A page with a title and a byline, then [words] words of body in sentences of ten. */
     private fun page(words: Int) = ListenScript(
@@ -70,5 +71,34 @@ class ReadingsTest {
         // Another edition opened: only one is kept.
         readings.load(4, emptyList()) { null }
         assertNull(readings.at(3, 0))
+    }
+
+    @Test
+    fun whatPlaysIsLoggedWithTheTranscriptsThatCouldPlayTheirEpisode() = runTest {
+        val source = db.sources().insert(SourceEntity(url = "https://a.example/feed", title = "A"))
+        suspend fun post(guid: String, kind: EpisodeKind, audio: String? = null, seconds: Int? = null, pair: String? = null) = db.articles().insertIgnoring(
+            ArticleEntity(sourceId = source, guid = guid, url = "https://a.example/$guid", title = guid, episodeKind = kind, audioUrl = audio, audioSeconds = seconds, episodePair = pair),
+        )
+        val ids = listOf(
+            post("narrated", EpisodeKind.ARTICLE, audio = "https://cdn.example/narrated.mp3", seconds = 640),
+            post("transcript", EpisodeKind.TRANSCRIPT, audio = "https://cdn.example/episode.mp3", seconds = 5_220),
+            post("paired-transcript", EpisodeKind.TRANSCRIPT, pair = "notes"),
+            post("silent-transcript", EpisodeKind.TRANSCRIPT),
+        )
+        post("notes", EpisodeKind.NOTES, audio = "https://cdn.example/notes.mp3", pair = "paired-transcript")
+        val contents = ids.mapIndexed { i, id -> EditionContent(EditionArticleEntity(editionId = 3, articleId = id, position = i, title = "$i", sourceTitle = "A", minutes = 7.0), state = null) }
+
+        // 1,600 words: ten minutes read aloud.
+        readings.load(3, contents) { page(1_600) }
+
+        assertNull("a transcript doesn't play its episode yet", readings.at(3, 1))
+        assertEquals(
+            "Readings: edition 3, recorded readings: page 0 (its own audio, 11 min); transcripts that could play their episode: " +
+                "page 1 (its own audio, 87 min against 10 min read aloud), page 2 (its notes post's, length unknown against 10 min read aloud)",
+            logged.single(),
+        )
+
+        readings.load(4, emptyList()) { null }
+        assertEquals("Readings: edition 4, recorded readings: none", logged.last())
     }
 }

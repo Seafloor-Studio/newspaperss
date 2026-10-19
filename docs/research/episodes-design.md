@@ -216,6 +216,10 @@ Step 3 starts once two weeks of labels in real use show:
 
 - Is 25% the right margin for "narrated"? Measure it on the corpus once lengths are fetched.
 - Should episodes download by default?
+- **Recorded audio on or off, at three levels:** for everything, per source, and per kind
+  (narrations and audio versions, transcripts, episode notes). Transcripts sit between the
+  other two: their episode is the same words, but with a show's ads and intros. The UX is
+  undecided: where the switches live, and whether they sit with Listen's per-article switch.
 - The line on an episode post in the paper: worth it, or noise?
 - A post of 700–1,000 words with audio and no timestamps (a long guest introduction) is
   called an article. Now that notes are read too, the only difference is whether its episode

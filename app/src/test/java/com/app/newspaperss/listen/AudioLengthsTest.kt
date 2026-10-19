@@ -54,6 +54,22 @@ class AudioLengthsTest {
         assertEquals(listOf(0L, 40_010L), http.ranges.filter { it.first.endsWith("own.mp3") }.map { it.second })
     }
 
+    @Test
+    fun aTranscriptsEpisodeIsTimedItsOwnOrItsNotesPosts() = runTest {
+        val source = db.sources().insert(SourceEntity(url = "https://a.example/feed", title = "A"))
+        listOf("transcript", "notes", "lone-notes").forEach { http.files["https://cdn.example/$it.mp3"] = "audio/mpeg" to mp3 }
+        val transcript = post(source, "transcript", EpisodeKind.TRANSCRIPT, audio = "https://cdn.example/transcript.mp3")
+        val paired = post(source, "paired", EpisodeKind.TRANSCRIPT, pair = "notes")
+        val notes = post(source, "notes", EpisodeKind.NOTES, audio = "https://cdn.example/notes.mp3", pair = "paired")
+        val lone = post(source, "lone-notes", EpisodeKind.NOTES, audio = "https://cdn.example/lone-notes.mp3")
+
+        lengths.measure(listOf(transcript, paired, lone))
+
+        assertEquals(3, db.articles().byId(transcript)!!.audioSeconds)
+        assertEquals("found through the transcript it's paired with", 3, db.articles().byId(notes)!!.audioSeconds)
+        assertNull("notes on their own play at the end, untimed", db.articles().byId(lone)!!.audioSeconds)
+    }
+
     // runBlocking, not runTest: the timeout must be real time, or it passes while Room works on its own thread.
     @Test
     fun aMadeEditionsArticlesAreTimed() = kotlinx.coroutines.runBlocking {

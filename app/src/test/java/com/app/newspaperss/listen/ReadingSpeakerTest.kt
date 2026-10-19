@@ -81,6 +81,35 @@ class ReadingSpeakerTest {
     }
 
     @Test
+    fun howFarARecordingGotIsLoggedWhenItStopsOrEnds() {
+        listen()
+        speaker.speak(id(3), "Line three.", null, 1f, flush = true)
+        audio.listener!!.onPosition(30_000, 100_000)
+        speaker.stop()
+        assertEquals("Reading: edition 7 page 0 stopped at 0:30 of 1:40 (30%)", logged.last())
+
+        speaker.speak(id(4), "It took a week.", null, 1f, flush = true)
+        audio.listener!!.onPosition(90_000, 100_000)
+        audio.listener!!.onEnded()
+        assertEquals("Reading: edition 7 page 0 played to the end at 1:40 of 1:40 (100%)", logged.last())
+        val count = logged.size
+        speaker.stop()
+        assertEquals("nothing playing, nothing to log", count, logged.size)
+    }
+
+    @Test
+    fun aRecordingWhoseLengthWasntKnownLogsWhereItSoughtTo() {
+        val untimed = reading.copy(seconds = null)
+        val speaker = ReadingSpeaker(voice, audio, { _, _ -> untimed }, choices, logged::add)
+        speaker.speak(id(4), "It took a week.", null, 1f, flush = true)
+        // The player learns the length on its first tick, and the recording seeks to the line's share.
+        audio.listener!!.onPosition(0, 200_000)
+        assertEquals(100_000L, audio.played.last().second)
+        speaker.stop()
+        assertEquals("Reading: edition 7 page 0 stopped at 1:40 of 3:20 (50%)", logged.last())
+    }
+
+    @Test
     fun startingAtTheBodysFirstLineAnnouncesTheRecordingFirst() {
         listen()
         speaker.speak(id(2), "Dear friends,", null, 1f, flush = true)
