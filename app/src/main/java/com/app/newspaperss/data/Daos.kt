@@ -707,9 +707,15 @@ data class EditionContent(
     /** Where it came from. All null once its source has been removed, as [EditionArticleEntity.articleId] is. */
     val sourceId: Long? = null,
     val sourceKind: SourceKind? = null,
+    val sourceName: String? = null,
+    val sourcePaused: Boolean? = null,
     /** The tt-rss feed it came from, as [ArticleEntity.originId]; null from a source that is its own publication. */
     val originId: String? = null,
-    /** The publication's title: the tt-rss feed's, else the source's. Not [EditionArticleEntity.sourceTitle], which is the byline ("Equator via Longreads"). */
+    /**
+     * The name of the tt-rss feed it came from, as the account last listed it, else as the article
+     * carries it; null from a source that is its own publication. Not
+     * [EditionArticleEntity.sourceTitle], which is the byline ("Equator via Longreads").
+     */
     val publicationTitle: String? = null,
 ) {
     /**
@@ -721,11 +727,15 @@ data class EditionContent(
         get() {
             val id = sourceId ?: return null
             val kind = sourceKind ?: return null
-            val title = publicationTitle ?: return null
+            val paused = sourcePaused ?: return null
             // A tt-rss account has no page of its own, only its feeds do, so an article that
-            // doesn't name its feed has nowhere to go.
-            if (kind == SourceKind.TTRSS) return originId?.let { ArticleSource(id, kind, it, title) }
-            return ArticleSource(id, kind, null, title)
+            // doesn't name its feed has nowhere to go. Never the account's own name instead: that
+            // would offer a page that isn't there.
+            if (kind == SourceKind.TTRSS) {
+                val key = originId ?: return null
+                return ArticleSource(id, kind, key, publicationTitle ?: return null, paused)
+            }
+            return ArticleSource(id, kind, null, sourceName ?: return null, paused)
         }
 }
 
@@ -733,7 +743,7 @@ data class EditionContent(
  * Where an article came from, as a page to open: its source, and for a tt-rss account the feed
  * within it ([ArticleEntity.originId], which a feed's page is addressed by).
  */
-data class ArticleSource(val id: Long, val kind: SourceKind, val feedKey: String?, val title: String)
+data class ArticleSource(val id: Long, val kind: SourceKind, val feedKey: String?, val title: String, val paused: Boolean)
 
 @Dao
 interface EditionDao {
@@ -805,11 +815,13 @@ interface EditionDao {
 
     @Query(
         """SELECT edition_articles.*, articles.state AS state, articles.starredAt AS starredAt,
-                  articles.sourceId AS sourceId, articles.originId AS originId, sources.kind AS sourceKind,
-                  COALESCE(articles.originTitle, sources.title) AS publicationTitle FROM edition_articles
+                  articles.sourceId AS sourceId, articles.originId AS originId,
+                  sources.kind AS sourceKind, sources.title AS sourceName, sources.paused AS sourcePaused,
+                  COALESCE(publications.title, articles.originTitle) AS publicationTitle FROM edition_articles
            LEFT JOIN articles ON articles.id = edition_articles.articleId
            LEFT JOIN sources ON sources.id = articles.sourceId
-           WHERE editionId = :editionId ORDER BY position""",
+           LEFT JOIN publications ON publications.sourceId = articles.sourceId AND publications.key = articles.originId
+           WHERE editionId = :editionId ORDER BY edition_articles.position""",
     )
     fun observeContents(editionId: Long): Flow<List<EditionContent>>
 

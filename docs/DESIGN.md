@@ -586,7 +586,10 @@ whose Kindle and KOReader answers ask for more on the same page).
   marking it read or unread are. It names the article on screen and follows
   it, as Share does, so a "Next" changes which source it offers. It isn't
   there for an article whose source has since been removed, nor for a tt-rss
-  article that doesn't name its feed, an account having no page of its own.
+  article that doesn't name its feed, an account having no page of its own,
+  nor for a phone feed on its way to tt-rss, which Sources hides as well.
+  A feed is named as the account lists it now, so a feed renamed there is
+  offered under its new name.
   **Send for a look…** in the top bar's ⋮ (also
   only with a web link) is for an article that came out wrong: it first says the
   report is a public GitHub issue, then opens GitHub's new-issue form in the

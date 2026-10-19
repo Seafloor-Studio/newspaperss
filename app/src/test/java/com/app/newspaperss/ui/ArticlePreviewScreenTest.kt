@@ -593,4 +593,15 @@ class ArticlePreviewScreenTest {
         compose.onNodeWithText("Go to Quanta Magazine").performClick()
         assertEquals(listOf(0), opened)
     }
+
+    @Test
+    fun withNeitherALinkNorASourceThereIsNoMenuAtAll() {
+        val file = tmp.newFile("e.epub")
+        file.writeEpub(listOf(EditionArticle(title = "A story", sourceTitle = "S", url = "urn:uuid:5b1f3c8e-0000-4000-8000-000000000002", bodyHtml = "<p>x</p>", minutes = 2.0)))
+        compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "A story", onBack = {}, sourceAt = { null }, onOpenSource = {}) }
+        webView()
+
+        // An empty ⋮ would open onto nothing, so there is no ⋮.
+        assertEquals(0, compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().size)
+    }
 }

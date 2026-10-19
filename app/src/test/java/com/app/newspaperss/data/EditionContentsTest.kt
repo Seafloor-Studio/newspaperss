@@ -42,7 +42,7 @@ class EditionContentsTest {
         val id = edition()
         put(id, 0, article, "Example News")
 
-        assertEquals(ArticleSource(source, SourceKind.FEED, null, "Example News"), contents(id).single().source)
+        assertEquals(ArticleSource(source, SourceKind.FEED, null, "Example News", paused = false), contents(id).single().source)
     }
 
     @Test
@@ -55,7 +55,7 @@ class EditionContentsTest {
         put(id, 0, article, "Quanta Magazine")
 
         // The feed, by the key its page is addressed by, and named for itself: an account has no page.
-        assertEquals(ArticleSource(account, SourceKind.TTRSS, "7", "Quanta Magazine"), contents(id).single().source)
+        assertEquals(ArticleSource(account, SourceKind.TTRSS, "7", "Quanta Magazine", paused = false), contents(id).single().source)
     }
 
     @Test
@@ -93,5 +93,52 @@ class EditionContentsTest {
         put(id, 0, article, SourceRepository.TTRSS_TITLE)
 
         assertNull("an account has no page of its own, so there is nowhere to go", contents(id).single().source)
+    }
+
+    @Test
+    fun attRssFeedIsNamedAsTheAccountListsItNowNotAsTheArticleCarriesIt() = runTest {
+        val account = db.sources().insert(SourceEntity(kind = SourceKind.TTRSS, url = "https://rss.example/api/", title = SourceRepository.TTRSS_TITLE))
+        // Renamed in tt-rss since the article was fetched: the page it opens has the new name on it.
+        db.sources().savePublication(PublicationEntity(account, "7", title = "Quanta"))
+        val article = db.articles().insertIgnoring(
+            ArticleEntity(sourceId = account, guid = "ttrss:7", url = "https://quanta.example/knots", title = "A story", originId = "7", originTitle = "Quanta Magazine"),
+        )
+        val id = edition()
+        put(id, 0, article, "Quanta Magazine")
+
+        assertEquals("Quanta", contents(id).single().source!!.title)
+    }
+
+    @Test
+    fun attRssArticleWithNoNameForItsFeedIsNotOfferedTheAccountsOwnName() = runTest {
+        val account = db.sources().insert(SourceEntity(kind = SourceKind.TTRSS, url = "https://rss.example/api/", title = SourceRepository.TTRSS_TITLE))
+        // tt-rss's headlines carry feed_title as a nullable field, so a feed id can arrive unnamed.
+        val article = db.articles().insertIgnoring(
+            ArticleEntity(sourceId = account, guid = "ttrss:7", url = "https://a.example/1", title = "A story", originId = "7"),
+        )
+        val id = edition()
+        put(id, 0, article, SourceRepository.TTRSS_TITLE)
+
+        assertNull("Tiny Tiny RSS is the account, and an account has no page", contents(id).single().source)
+    }
+
+    @Test
+    fun aSavedLinkPointsAtTheReadingList() = runTest {
+        val list = db.sources().insert(SourceEntity(kind = SourceKind.READING_LIST, url = "newspaperss://reading-list", title = "Reading list"))
+        val article = db.articles().insertIgnoring(ArticleEntity(sourceId = list, guid = "s", url = "https://example.com/saved", title = "A story"))
+        val id = edition()
+        put(id, 0, article, "Reading list")
+
+        assertEquals(SourceKind.READING_LIST, contents(id).single().source!!.kind)
+    }
+
+    @Test
+    fun aPausedSourceSaysSoSoAMovedFeedCanBeTold() = runTest {
+        val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "Example News", paused = true))
+        val article = db.articles().insertIgnoring(ArticleEntity(sourceId = source, guid = "a", url = "https://example.com/a", title = "A story"))
+        val id = edition()
+        put(id, 0, article, "Example News")
+
+        assertEquals(true, contents(id).single().source!!.paused)
     }
 }

@@ -29,6 +29,9 @@ import kotlinx.coroutines.runBlocking
 import androidx.work.testing.WorkManagerTestInitHelper
 import org.junit.After
 import org.junit.Assert.assertEquals
+import com.app.newspaperss.data.EditionContent
+import com.app.newspaperss.data.FeedMoves
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import com.app.newspaperss.settings.FeedsFrom
 import com.app.newspaperss.data.ArticleEntity
@@ -198,5 +201,57 @@ class MainActivityTest {
         compose.onNodeWithText("Go to Quanta Magazine").performClick()
 
         shows("In your tt-rss \u00b7 category Science")
+    }
+
+    /**
+     * A phone feed moved to tt-rss is kept, paused, while editions still take from it, and Sources
+     * hides it: its settings are read from the tt-rss feed it became, and its page's Resume would
+     * start it fetching beside that feed. So the paper doesn't offer it either.
+     */
+    @Test
+    fun aFeedOnItsWayToTtrssIsNotOfferedAsAPageToGoTo() {
+        val wired = EditionContent(
+            entry = EditionArticleEntity(editionId = 1, articleId = 7, position = 0, title = "A story", sourceTitle = "Wired", minutes = 4.0),
+            state = ArticleState.DELIVERED,
+            sourceId = 5,
+            sourceKind = SourceKind.FEED,
+            sourceName = "Wired",
+            sourcePaused = true,
+        )
+        val moving = FeedMoves.State(retiring = mapOf(5L to true))
+
+        assertNull(goTo(listOf(wired), moving, 0))
+        assertEquals("resumed from its page, it's a phone feed again", "Wired", goTo(listOf(wired.copy(sourcePaused = false)), moving, 0)?.title)
+        assertEquals("paused by the reader, not moved: its page is where Resume lives", "Wired", goTo(listOf(wired), FeedMoves.State(), 0)?.title)
+    }
+
+    @Test
+    fun goToTheSourceOnASavedLinkOpensTheReadingList() {
+        val story = "On walking"
+        runBlocking {
+            val db = app.container.db
+            val list = db.sources().insert(SourceEntity(kind = SourceKind.READING_LIST, url = "newspaperss://reading-list", title = "Your reading list"))
+            val article = db.articles().insertIgnoring(
+                ArticleEntity(sourceId = list, guid = "s", url = "https://example.org/essays/on-walking", title = story, state = ArticleState.DELIVERED),
+            )
+            val edition = db.editions().insert(
+                EditionEntity(title = "Monday Morning Edition", createdAt = Instant.parse("2026-10-12T06:00:00Z"), status = EditionStatus.DELIVERED, fileName = "r.epub", articleCount = 1, minutes = 4.0),
+            )
+            db.editions().insertArticles(listOf(EditionArticleEntity(editionId = edition, articleId = article, position = 0, title = story, sourceTitle = "Your reading list", minutes = 4.0)))
+            File(app.filesDir, "editions").apply { mkdirs() }.resolve("r.epub")
+                .writeEpub(listOf(EditionArticle(title = story, sourceTitle = "Your reading list", url = "https://example.org/essays/on-walking", bodyHtml = "<p>x</p>", minutes = 4.0)))
+        }
+        launchWith(onboarded = true)
+        shows("Monday Morning Edition")
+
+        compose.onAllNodesWithText("Monday Morning Edition").onFirst().performClick()
+        shows(story)
+        compose.onAllNodesWithText(story).onFirst().performClick()
+        idleUntil { compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("More").performClick()
+        // The reading list has a screen of its own, not a source page.
+        compose.onNodeWithText("Go to Your reading list").performClick()
+
+        shows("Paste a link")
     }
 }
