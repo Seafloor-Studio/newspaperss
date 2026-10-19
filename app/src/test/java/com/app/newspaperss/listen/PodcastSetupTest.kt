@@ -57,7 +57,7 @@ class PodcastSetupTest {
         install, store, work,
         start = { started += it },
         stop = { stopped++ },
-        supported = supported,
+        unsupported = { if (supported) null else "Kokoro needs a 64-bit phone, and this one is 32-bit." },
         engine = { voiceUsed = it; engine },
         podcasts = podcasts,
         now = { clock },
@@ -73,7 +73,7 @@ class PodcastSetupTest {
 
     @Test
     fun aThirtyTwoBitPhoneCantHaveIt() = runTest {
-        assertEquals(KokoroState.Unsupported, setup(supported = false).state.first())
+        assertEquals(KokoroState.Unsupported("Kokoro needs a 64-bit phone, and this one is 32-bit."), setup(supported = false).state.first())
     }
 
     @Test
