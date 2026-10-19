@@ -194,7 +194,7 @@ class PodcastSetup(
         // One Kokoro at a time, a podcast being made included: a cancelled check keeps speaking
         // (native code doesn't stop), and two at once would hold the model twice and time each
         // other too slow.
-        KokoroEngine.lock.withLock {
+        kokoroLock.withLock {
             // Marked first, counting checks that started and never finished: sherpa can abort in
             // native code, and two in a row that took the app down aren't run again on the next
             // start, only when asked afresh. One could be the app swiped away.

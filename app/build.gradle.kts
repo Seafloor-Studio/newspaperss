@@ -96,7 +96,7 @@ android {
         }
     }
 
-    // One APK per ABI: the podcast voice's native code is about 30 MB per 64-bit ABI, and a
+    // One APK per ABI: a debug build's podcast voice is about 30 MB of native code per 64-bit ABI, and a
     // single APK carried both. Each phone needs only its own. The 32-bit ones are kept, without
     // the voice, for older e-readers. Google Play builds per-device APKs from the bundle itself.
     splits {
@@ -163,7 +163,7 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.coroutines.android)
     implementation(libs.okhttp)
-    implementation(libs.sherpa.onnx) { artifact { type = "aar" } }
+    debugImplementation(libs.sherpa.onnx) { artifact { type = "aar" } }
     implementation(libs.jsoup)
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
