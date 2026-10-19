@@ -34,12 +34,12 @@ isn't a kind of its own; it's decided by comparing lengths (below).
 
 ## How good detection is
 
-Measured on the episode corpus (421 labelled posts from 41 public feeds) and checked on 15
+Measured on the episode corpus (433 labelled posts from 42 public feeds) and checked on 15
 public feeds it hadn't seen and on one reader's own list of 91 feeds:
 
 | Call | Right in the corpus | What it misses |
 |---|---|---|
-| Notes | 73 of 75 | A long guest introduction with no timestamps; a bare video post |
+| Notes | 76 of 78 | A long guest introduction with no timestamps; a bare video post |
 | Transcript | 51 of 53 | A transcript whose audio is only in a paid feed; a solo episode's transcript |
 | Audio version | 11 of 11, every pair found | – |
 | Narrated article | not measured yet | – |

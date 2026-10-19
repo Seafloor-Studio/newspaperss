@@ -1,0 +1,64 @@
+{
+  "items": {
+    "https://jessicadefino.substack.com/p/the-foucault-of-eye-patches": {
+      "kind": "notes",
+      "shape": "notes-in-newsletter",
+      "why": "a collaboration podcast's episode post in the newsletter: its audio, a YouTube video, a topic list with timestamps and credits"
+    },
+    "https://jessicadefino.substack.com/p/should-i-be-grateful-for-my-old-gross": {
+      "kind": "article",
+      "shape": "paywalled",
+      "why": "a paid post, so only its opening; no episode"
+    },
+    "https://jessicadefino.substack.com/p/the-fleshmatrix-presidential-injectables": {
+      "kind": "article",
+      "shape": "roundup",
+      "why": "a monthly roundup with a reading list; no episode"
+    },
+    "https://jessicadefino.substack.com/p/all-about-that-treble": {
+      "kind": "notes",
+      "shape": "notes-in-newsletter",
+      "why": "a collaboration podcast's episode post in the newsletter: its audio, a YouTube video, a topic list with timestamps and credits"
+    },
+    "https://jessicadefino.substack.com/p/the-fleshmatrix-britneys-botox-kims": {
+      "kind": "article",
+      "shape": "paywalled",
+      "why": "a paid post, so only its opening; no episode"
+    },
+    "https://jessicadefino.substack.com/p/be-so-blurreal": {
+      "kind": "article",
+      "shape": "plain",
+      "why": "an ordinary post, no episode"
+    },
+    "https://jessicadefino.substack.com/p/queen-victoria-originator-of-the": {
+      "kind": "article",
+      "shape": "short",
+      "why": "a short post, no episode"
+    },
+    "https://jessicadefino.substack.com/p/all-aboard-the-glambulance": {
+      "kind": "notes",
+      "shape": "notes-in-newsletter",
+      "why": "a collaboration podcast's episode post in the newsletter: its audio, a YouTube video, a topic list with timestamps and credits"
+    },
+    "https://jessicadefino.substack.com/p/gender-essentialism-of-the-nose": {
+      "kind": "article",
+      "shape": "paywalled",
+      "why": "a paid post, so only its opening; no episode"
+    },
+    "https://jessicadefino.substack.com/p/the-fleshmatrix-clittox-crones-and": {
+      "kind": "article",
+      "shape": "roundup",
+      "why": "a monthly roundup with a reading list and a video; no episode"
+    },
+    "https://jessicadefino.substack.com/p/jia-tolentino-plastic-surgery-nightmare": {
+      "kind": "article",
+      "shape": "paywalled",
+      "why": "a paid post, so only its opening; no episode"
+    },
+    "https://jessicadefino.substack.com/p/flesh-world-merch": {
+      "kind": "article",
+      "shape": "short",
+      "why": "a short post, no episode"
+    }
+  }
+}
