@@ -13,6 +13,10 @@ tests detection, are in [podcast-episodes.md](podcast-episodes.md).
   gets one line in its place, and the audio plays at the end of the edition.
 - **When in doubt, Kokoro reads the post.** A wrong handover plays something the reader didn't
   choose; a missed one only means Kokoro reads.
+- **One tap goes back to Kokoro.** While a recording plays, Listen offers "Read it in Kokoro's
+  voice instead", and the log notes it.
+- **Debug builds only**, all of it: the labels, the reports and the recordings in Listen. A
+  release build keeps no audio and judges nothing until it has been tried out.
 
 ## What a post can be
 
@@ -91,8 +95,17 @@ public feeds it hadn't seen and on one reader's own list of 91 feeds:
    Counting them would let one long episode fill several editions.
 7. **Fall back to Kokoro** when the audio won't load, needs a paid sign-in, is much shorter than
    expected (likely a preview), or wasn't downloaded and the phone is offline.
-8. **One switch per source:** "Use this source's own audio", on by default, on the source page.
-   For a feed the detector gets wrong, or a reader who'd rather hear Kokoro.
+8. **Back to Kokoro in one tap, where the recording plays.** While a recording plays, the Listen
+   screen offers "Read it in Kokoro's voice instead". Kokoro reads that post from the start, and
+   the edition goes on as before. Tapping again goes back to the recording. It's in Listen, not
+   Settings, because the reason is usually this one recording: it's a preview, or it's mostly ads,
+   or the narrator is hard to follow.
+   - **The choice sticks for that post**, across restarts, and is made again when the edition's
+     audio is made again.
+   - **The podcast log records each switch**: the post, its kind, the recording, and how far in.
+     That shows which recordings people turn off, and whether some source's always are.
+   - **A per-source switch can come later**, if the log shows one source switched off again and
+     again.
 
 ### Streaming and downloading
 
@@ -162,13 +175,18 @@ public feeds it hadn't seen and on one reader's own list of 91 feeds:
    source's page says how often it posts episodes. "Send for a look…" gains a second reason,
    "It's labelled X, and it's…", which opens a public issue with the post's address and both
    labels. Each report becomes a corpus case before it's fixed.
-3. **Readings in place:** audio versions and narrated articles (rules 3, 4, 5 and 7). The
+3. **Readings in place:** audio versions and narrated articles (rules 3, 4, 5, 7 and 8). The
    biggest audible gain for the least risk: same words, same length, a human voice.
-4. **Episodes:** transcripts in place, notes' episodes at the end, streamed (rules 1, 2, 6
-   and 8).
+4. **Episodes:** transcripts in place, notes' episodes at the end, streamed (rules 1, 2 and 6).
 5. **Downloads** for listening offline.
 6. **Later:** reading the post's page; following Anchor and Apple players; unsanitized content
    from tt-rss.
+
+### Debug builds only
+
+Every step here goes into debug builds only: the kinds stored at sync (step 1), the labels and
+reports (step 2), and the recordings in Listen (steps 3–5). A release build keeps no audio and
+judges nothing. Each is moved to release builds on its own, once it has been tried out.
 
 ### Before readings go into Listen
 
