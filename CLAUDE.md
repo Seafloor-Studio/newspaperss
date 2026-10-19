@@ -85,6 +85,11 @@ worker waits for the condition (`idleUntil`), not a fixed time or a short
 deadline. When a change has no behaviour to test, say so in the PR instead
 of inventing a test.
 
+Under `runTest`, `withTimeoutOrNull` runs on virtual time, which jumps
+ahead while Room works on its own thread: the timeout fires at once and the
+code inside never runs. Test code that has a timeout under `runBlocking`,
+or read from the database before the timeout starts.
+
 ## Documentation
 
 Docs are for people: keep them readable, current and short.
