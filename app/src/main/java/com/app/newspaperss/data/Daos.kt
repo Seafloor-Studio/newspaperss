@@ -704,7 +704,36 @@ data class EditionContent(
     val state: ArticleState?,
     /** The article's current star, as against [EditionArticleEntity.starred], its star when the edition was made. */
     val starredAt: Instant? = null,
-)
+    /** Where it came from. All null once its source has been removed, as [EditionArticleEntity.articleId] is. */
+    val sourceId: Long? = null,
+    val sourceKind: SourceKind? = null,
+    /** The tt-rss feed it came from, as [ArticleEntity.originId]; null from a source that is its own publication. */
+    val originId: String? = null,
+    /** The publication's title: the tt-rss feed's, else the source's. Not [EditionArticleEntity.sourceTitle], which is the byline ("Equator via Longreads"). */
+    val publicationTitle: String? = null,
+) {
+    /**
+     * The page to open for where this article came from, or null when there is none to open: its
+     * source has been removed, or a tt-rss article doesn't name its feed, and a tt-rss account has
+     * no page of its own.
+     */
+    val source: ArticleSource?
+        get() {
+            val id = sourceId ?: return null
+            val kind = sourceKind ?: return null
+            val title = publicationTitle ?: return null
+            // A tt-rss account has no page of its own, only its feeds do, so an article that
+            // doesn't name its feed has nowhere to go.
+            if (kind == SourceKind.TTRSS) return originId?.let { ArticleSource(id, kind, it, title) }
+            return ArticleSource(id, kind, null, title)
+        }
+}
+
+/**
+ * Where an article came from, as a page to open: its source, and for a tt-rss account the feed
+ * within it ([ArticleEntity.originId], which a feed's page is addressed by).
+ */
+data class ArticleSource(val id: Long, val kind: SourceKind, val feedKey: String?, val title: String)
 
 @Dao
 interface EditionDao {
@@ -775,8 +804,11 @@ interface EditionDao {
     fun observeArticles(editionId: Long): Flow<List<EditionArticleEntity>>
 
     @Query(
-        """SELECT edition_articles.*, articles.state AS state, articles.starredAt AS starredAt FROM edition_articles
+        """SELECT edition_articles.*, articles.state AS state, articles.starredAt AS starredAt,
+                  articles.sourceId AS sourceId, articles.originId AS originId, sources.kind AS sourceKind,
+                  COALESCE(articles.originTitle, sources.title) AS publicationTitle FROM edition_articles
            LEFT JOIN articles ON articles.id = edition_articles.articleId
+           LEFT JOIN sources ON sources.id = articles.sourceId
            WHERE editionId = :editionId ORDER BY position""",
     )
     fun observeContents(editionId: Long): Flow<List<EditionContent>>

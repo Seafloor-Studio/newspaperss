@@ -579,7 +579,15 @@ whose Kindle and KOReader answers ask for more on the same page).
   **Share** in the top bar sends the article's original link to Android's share sheet;
   it's hidden when an article has no web link. Selected text shared from the
   page carries that link too, on its own line under the quote, with the
-  article's title as the subject. **Send for a look…** in the top bar's ⋮ (also
+  article's title as the subject.
+  **Go to *Quanta Magazine*** in the top bar's ⋮ opens the page of where the
+  article came from — a tt-rss feed's own page, the reading list, or the
+  source's — which is where its cap, its article text, leaving it out and
+  marking it read or unread are. It names the article on screen and follows
+  it, as Share does, so a "Next" changes which source it offers. It isn't
+  there for an article whose source has since been removed, nor for a tt-rss
+  article that doesn't name its feed, an account having no page of its own.
+  **Send for a look…** in the top bar's ⋮ (also
   only with a web link) is for an article that came out wrong: it first says the
   report is a public GitHub issue, then opens GitHub's new-issue form in the
   browser with "Extraction: *title*", the article's address and the app's version

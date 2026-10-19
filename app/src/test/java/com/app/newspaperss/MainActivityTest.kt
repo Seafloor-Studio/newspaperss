@@ -6,6 +6,14 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
+import com.app.newspaperss.core.epub.EditionArticle
+import com.app.newspaperss.data.PublicationEntity
+import com.app.newspaperss.data.SourceKind
+import com.app.newspaperss.data.SourceRepository
+import com.app.newspaperss.testutil.writeEpub
+import java.io.File
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.core.graphics.Insets
@@ -155,5 +163,40 @@ class MainActivityTest {
         launchWith(onboarded = true)
         shows("Make an edition now")
         shows("Sources")
+    }
+
+    /**
+     * The way back from the paper: an article in an edition opens the page of the feed it came
+     * from, which is where its cap, its article text, leaving it out and marking it unread are. A
+     * tt-rss article goes to its feed's page within the account, not to the account.
+     */
+    @Test
+    fun goToTheSourceOpensTheTtrssFeedsPageTheArticleCameFrom() {
+        val story = "The quiet return of the night train"
+        runBlocking {
+            val db = app.container.db
+            val account = db.sources().insert(SourceEntity(kind = SourceKind.TTRSS, url = "https://rss.example/api/", title = SourceRepository.TTRSS_TITLE))
+            db.sources().savePublication(PublicationEntity(account, "7", title = "Quanta Magazine", feedUrl = "https://quanta.example/feed", category = "Science", listed = true))
+            val article = db.articles().insertIgnoring(
+                ArticleEntity(sourceId = account, guid = "ttrss:7", url = "https://quanta.example/night-train", title = story, state = ArticleState.DELIVERED, originId = "7", originTitle = "Quanta Magazine"),
+            )
+            val edition = db.editions().insert(
+                EditionEntity(title = "Monday Morning Edition", createdAt = Instant.parse("2026-10-12T06:00:00Z"), status = EditionStatus.DELIVERED, fileName = "e.epub", articleCount = 1, minutes = 4.0),
+            )
+            db.editions().insertArticles(listOf(EditionArticleEntity(editionId = edition, articleId = article, position = 0, title = story, sourceTitle = "Quanta Magazine", minutes = 4.0)))
+            File(app.filesDir, "editions").apply { mkdirs() }.resolve("e.epub")
+                .writeEpub(listOf(EditionArticle(title = story, sourceTitle = "Quanta Magazine", url = "https://quanta.example/night-train", bodyHtml = "<p>Sleeper services are coming back.</p>", minutes = 4.0)))
+        }
+        launchWith(onboarded = true)
+        shows("Monday Morning Edition")
+
+        compose.onAllNodesWithText("Monday Morning Edition").onFirst().performClick()
+        shows(story)
+        compose.onAllNodesWithText(story).onFirst().performClick()
+        idleUntil { compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("More").performClick()
+        compose.onNodeWithText("Go to Quanta Magazine").performClick()
+
+        shows("In your tt-rss \u00b7 category Science")
     }
 }

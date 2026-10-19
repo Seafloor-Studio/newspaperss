@@ -156,6 +156,13 @@ fun ArticlePreviewScreen(
     onTextSize: (PreviewTextSize) -> Unit = {},
     /** Listens from the start of the article at this position; null offers no Listen. */
     onListen: ((Int) -> Unit)? = null,
+    /**
+     * The name of where the article at this position came from, for **Go to …**; null for an
+     * article with no page to go to, such as one whose source has since been removed.
+     */
+    sourceAt: (Int) -> String? = { null },
+    /** Opens the page of where the article at this position came from; null offers no Go to. */
+    onOpenSource: ((Int) -> Unit)? = null,
 ) {
     // Read in the background so the screen shows at once: reading a large edition during
     // composition holds up the frame, and the tap that opened it seems not to have registered.
@@ -230,7 +237,17 @@ fun ArticlePreviewScreen(
                         }
                     }
                     textSize?.let { TextSizeMenu(it, onTextSize) }
-                    link?.let { l -> MoreMenu(onSendForALook = { lookAt = l.url }) }
+                    // The page on screen's own source, which following "Next" changes, as Share and
+                    // Listen do. The menu itself is there for whichever of the two it has.
+                    val goTo = shownArticle?.takeIf { onOpenSource != null }?.let { at -> sourceAt(at)?.let { at to it } }
+                    val l = link
+                    if (l != null || goTo != null) {
+                        MoreMenu(
+                            onSendForALook = l?.let { { lookAt = it.url } },
+                            source = goTo?.second,
+                            onOpenSource = goTo?.let { (at, _) -> { onOpenSource?.invoke(at) } },
+                        )
+                    }
                 },
             )
         },
@@ -276,13 +293,21 @@ private fun TextSizeMenu(textSize: PreviewTextSize, onTextSize: (PreviewTextSize
     }
 }
 
+/** @param source the name of where the article came from, for **Go to …**; null leaves it out. */
 @Composable
-private fun MoreMenu(onSendForALook: () -> Unit) {
+private fun MoreMenu(onSendForALook: (() -> Unit)?, source: String?, onOpenSource: (() -> Unit)?) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) { Icon(Icons.Default.MoreVert, contentDescription = "More") }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(text = { Text("Send for a look…") }, onClick = { open = false; onSendForALook() })
+            // First: from an article in the paper, its feed's page is the way to its cap, its
+            // article text, leaving it out, or marking this one unread.
+            if (source != null && onOpenSource != null) {
+                DropdownMenuItem(text = { Text("Go to $source") }, onClick = { open = false; onOpenSource() })
+            }
+            if (onSendForALook != null) {
+                DropdownMenuItem(text = { Text("Send for a look…") }, onClick = { open = false; onSendForALook() })
+            }
         }
     }
 }

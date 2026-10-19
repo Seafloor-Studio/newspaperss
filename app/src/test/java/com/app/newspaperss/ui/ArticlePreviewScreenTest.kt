@@ -530,4 +530,67 @@ class ArticlePreviewScreenTest {
             assertEquals("not an article: left as it is", contents, withNextLine(contents, "contents.xhtml", pages))
         }
     }
+
+    @Test
+    fun goToTheSourceNamesWhereThePageOnScreenCameFromAndOpensIt() {
+        val file = tmp.newFile("g.epub")
+        // Long enough that the first article ends with a "Next" link to the second.
+        val articles = listOf("One", "Two").map {
+            EditionArticle(title = it, sourceTitle = "S", url = "https://a.example/$it", bodyHtml = "<p>x</p>", minutes = 30.0)
+        }
+        file.writeEpub(articles)
+        val names = listOf("Quanta Magazine", "Longreads")
+        val opened = mutableListOf<Int>()
+        compose.setContent {
+            ArticlePreviewScreen(
+                loadFile = { file },
+                position = 0,
+                title = "One",
+                onBack = {},
+                sourceAt = { names.getOrNull(it) },
+                onOpenSource = { opened += it },
+            )
+        }
+        idleUntil { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("More").performClick()
+        compose.onNodeWithText("Go to Quanta Magazine").performClick()
+        assertEquals(listOf(0), opened)
+
+        // Followed "Next" to the second article: it names that one's source, as Share and Listen do.
+        val view = webView()
+        shadowOf(view).webViewClient.doUpdateVisitedHistory(view, BOOK_ORIGIN + EpubPages.articleHref(1), false)
+        idleUntil { compose.onNode(hasText("Two")).isDisplayed() }
+        compose.onNodeWithContentDescription("More").performClick()
+        compose.onNodeWithText("Go to Longreads").performClick()
+        assertEquals(listOf(0, 1), opened)
+    }
+
+    @Test
+    fun withNoSourceToGoToTheMenuLeavesGoToOut() {
+        val file = oneArticleEdition()
+        compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "A story", onBack = {}, sourceAt = { null }, onOpenSource = {}) }
+        idleUntil { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("More").performClick()
+
+        assertEquals(0, compose.onAllNodesWithText("Go to", substring = true).fetchSemanticsNodes().size)
+        compose.onNodeWithText("Send for a look…").assertIsDisplayed()
+    }
+
+    @Test
+    fun anArticleWithNoWebLinkStillOffersGoToItsSource() {
+        val file = tmp.newFile("w.epub")
+        // A feed whose item links to something that isn't a web address: the book prints it as
+        // plain text ("Original: urn:uuid:…") rather than a link, so there is nothing to share.
+        file.writeEpub(listOf(EditionArticle(title = "A story", sourceTitle = "S", url = "urn:uuid:5b1f3c8e-0000-4000-8000-000000000001", bodyHtml = "<p>x</p>", minutes = 2.0)))
+        val opened = mutableListOf<Int>()
+        compose.setContent {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = "A story", onBack = {}, sourceAt = { "Quanta Magazine" }, onOpenSource = { opened += it })
+        }
+        idleUntil { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals("nothing to share", 0, compose.onAllNodes(hasContentDescription("Share link")).fetchSemanticsNodes().size)
+
+        compose.onNodeWithContentDescription("More").performClick()
+        compose.onNodeWithText("Go to Quanta Magazine").performClick()
+        assertEquals(listOf(0), opened)
+    }
 }

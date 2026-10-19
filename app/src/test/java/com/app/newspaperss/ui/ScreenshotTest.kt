@@ -624,6 +624,19 @@ class ScreenshotTest {
         }
     }
 
+    /** The ⋮ on an article: the way to the feed it came from, then Send for a look. */
+    @Test
+    fun articlePreviewMenu() {
+        val file = tmp.newFile("m.epub")
+        val article = EditionArticle(title = "The quiet return of the night train", sourceTitle = "The Example Review", url = "https://example.com/night-train", bodyHtml = "<p>Sleeper services are coming back.</p>", minutes = 4.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05f-article-preview-menu", ready = { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }, act = {
+            compose.onNodeWithContentDescription("More").performClick()
+        }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, sourceAt = { "The Example Review" }, onOpenSource = {})
+        }
+    }
+
     /** Send for a look: what it says before anything is sent. */
     @Test
     fun articlePreviewSendForALook() {

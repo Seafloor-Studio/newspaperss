@@ -1,7 +1,9 @@
 package com.app.newspaperss
 
 import androidx.navigation.NavBackStackEntry
+import com.app.newspaperss.data.ArticleSource
 import com.app.newspaperss.data.PublicationEntity
+import com.app.newspaperss.data.SourceKind
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.net.Uri
 
@@ -260,6 +262,10 @@ private fun App(
                         container.listening.start(id, ListenPosition(article, 0))
                         nav.navigate(LISTEN) { launchSingleTop = true }
                     },
+                    sourceAt = { position -> contents.getOrNull(position)?.source?.title },
+                    onOpenSource = { position ->
+                        contents.getOrNull(position)?.source?.let { nav.navigate(sourceRoute(it)) { launchSingleTop = true } }
+                    },
                 )
             }
             composable(LISTEN) {
@@ -350,6 +356,16 @@ private fun settingsViewModel(container: AppContainer): SettingsViewModel {
 private val NavBackStackEntry.idArg: Long get() = arguments?.getLong("id") ?: 0L
 
 private fun feedRoute(sourceId: Long, key: String) = "source/$sourceId/feed/${Uri.encode(key)}"
+
+/**
+ * The page for where an article came from: a tt-rss account's feed within it, the reading list's
+ * own screen, else the source's page.
+ */
+private fun sourceRoute(source: ArticleSource) = when {
+    source.kind == SourceKind.READING_LIST -> READING_LIST
+    source.feedKey != null -> feedRoute(source.id, source.feedKey)
+    else -> "source/${source.id}"
+}
 
 /** A source's page, or one of a tt-rss account's feeds by its [key]. */
 private fun sourceDetail(container: AppContainer, id: Long, key: String = PublicationEntity.OWN, sync: () -> Unit = {}) =
