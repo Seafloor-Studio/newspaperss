@@ -53,6 +53,12 @@ def nodes():
             yield label.strip(), bounds
 
 
+def screen_size():
+    # "Physical size: 1080x2400", then an "Override size" line when one is set, which is the one in use.
+    w, h = re.findall(r"(\d+)x(\d+)", adb("shell", "wm", "size"))[-1]
+    return int(w), int(h)
+
+
 def find(text):
     found = list(nodes())
     for match in (lambda l: l == text, lambda l: text.lower() in l.lower()):
@@ -87,7 +93,36 @@ def main():
     elif a.command == "wait":
         print(wait(a.arg, a.timeout)[0])
     elif a.command == "tap":
-        label, (x1, y1, x2, y2) = wait(a.arg, a.timeout)
+        label, first = wait(a.arg, a.timeout)
+        x1, y1, x2, y2 = first
+        # A scrolling screen lists what's below the fold too, at bounds off the screen or under a
+        # bar fixed over the list, where a tap lands on something else: swipe it into the open
+        # middle, slowly so the list doesn't fling past it, and tap once it has stopped moving.
+        # A node a swipe doesn't move is fixed itself (a bottom bar's button) and is tapped as is.
+        width, height = screen_size()
+        for _ in range(12):
+            y = (y1 + y2) // 2
+            if height * 0.08 < y < height * 0.85:
+                break
+            down = y >= height * 0.85
+            before = [x1, y1, x2, y2]
+            x = str(width // 2)
+            start, end = (0.65, 0.4) if down else (0.4, 0.65)
+            adb("shell", "input", "swipe", x, str(int(height * start)), x, str(int(height * end)), "600")
+            bounds = None
+            while True:
+                label, now = wait(a.arg, a.timeout)
+                if now == bounds:
+                    break
+                bounds = now
+                time.sleep(0.3)
+            x1, y1, x2, y2 = bounds
+            if bounds == before:
+                break
+        if (x1, y1, x2, y2) != tuple(first):
+            # A touch while a list still drifts only stops it; let it come to rest first.
+            time.sleep(1)
+            label, (x1, y1, x2, y2) = wait(a.arg, a.timeout)
         adb("shell", "input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
         print(f"tapped {label!r}")
     elif a.command == "type":
