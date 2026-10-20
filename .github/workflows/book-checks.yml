@@ -37,8 +37,10 @@ jobs:
           java-version: '21'
           distribution: temurin
           cache: gradle
+      # --rerun: the books are a side effect Gradle doesn't know about, so a test result restored
+      # from its cache leaves none to check.
       - name: Write the books
-        run: ./gradlew :core:test --tests '*EpubCheckTest*'
+        run: ./gradlew :core:test --tests '*EpubCheckTest*' --rerun
       - name: Ace by DAISY
         run: tools/ace-check.sh
       - name: Keep Ace's reports when it fails
