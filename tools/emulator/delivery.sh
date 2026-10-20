@@ -52,13 +52,22 @@ case "${1:-}" in
     $ui shot 20-picker
     $ui tap "Downloads" --timeout 5 > /dev/null 2>&1 || true
     $ui tap "Save"
-    # The picker makes the file empty before the app writes the book into it, so a file alone
-    # proves nothing: wait for the app to say it's done, then look inside.
-    $ui wait "Saved a copy" --timeout 60 > /dev/null || { $ui shot 21-not-saved; exit 1; }
+    # The picker makes the file empty before the app writes the book into it, and the app says
+    # it's done in a toast, which uiautomator can't see: wait for the file to fill and settle.
+    # On a failure the app deletes the file, so it never settles.
+    book="" size=0 last=-1
+    for _ in $(seq 60); do
+      after=$(adb shell 'ls /sdcard/Download/ 2>/dev/null' | grep -c '\.epub' || true)
+      if [ "$after" -gt "$before" ]; then
+        book=$(adb shell 'ls -t /sdcard/Download/*.epub' | head -1 | tr -d '\r')
+        size=$(adb shell stat -c %s "'$book'" 2> /dev/null | tr -d '\r' || echo 0)
+        [ "$size" -gt 0 ] && [ "$size" = "$last" ] && break
+        last=$size
+      fi
+      sleep 1
+    done
     $ui shot 21-after-save
-    after=$(adb shell 'ls /sdcard/Download/ 2>/dev/null' | grep -c '\.epub' || true)
-    [ "$after" -gt "$before" ] || { echo "no new .epub in Downloads ($before before, $after after)" >&2; exit 1; }
-    book=$(adb shell 'ls -t /sdcard/Download/*.epub' | head -1 | tr -d '\r')
+    [ "$size" -gt 0 ] && [ "$size" = "$last" ] || { echo "no whole book in Downloads after 60 s (${book:-none}, $size bytes)" >&2; exit 1; }
     adb shell ls -l "'$book'"
     # An EPUB is a zip whose first entry is "mimetype", stored, holding application/epub+zip.
     head=$(adb exec-out cat "'$book'" | head -c 58 | tail -c 20)
