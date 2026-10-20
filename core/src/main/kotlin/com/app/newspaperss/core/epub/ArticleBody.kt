@@ -57,6 +57,7 @@ internal object ArticleBody {
         val ids = prefixIds(body, idPrefix)
         fixLinks(body, ids)
         fixImages(body, imageHrefs)
+        nameUnnamedLinks(body)
         levelHeadings(body)
         stripInvalidCharacters(body)
 
@@ -214,6 +215,24 @@ internal object ArticleBody {
             img.clearAttributes()
             img.attr("src", src).attr("alt", alt)
             if (id.isNotEmpty()) img.id(id)
+        }
+    }
+
+    /**
+     * Links a screen reader would have no name for (Ace's link-name). One holding only pictures
+     * without alt text is kept, since it often cites the source (a tweet behind its screenshot, a
+     * book behind its cover), and named after the site it goes to. One with nothing in it at all
+     * (an icon whose svg was removed) shows nothing, so it goes; its id stays as a target.
+     */
+    private fun nameUnnamedLinks(root: Element) {
+        for (link in root.select("a[href]")) {
+            if (link.text().isNotBlank() || link.attr("aria-label").isNotBlank()) continue
+            val pictures = link.select("img")
+            when {
+                pictures.isEmpty() -> if (link.id().isEmpty()) link.unwrap() else link.removeAttr("href")
+                pictures.none { it.attr("alt").isNotBlank() } ->
+                    link.attr("aria-label", siteName(link.attr("href"))?.let { "Linked picture, $it" } ?: "Linked picture")
+            }
         }
     }
 

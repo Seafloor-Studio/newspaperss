@@ -245,6 +245,22 @@ class EpubWriterTest {
         assertTrue(some.accessibility("accessibilitySummary").single().contains("Some pictures have no text description"))
     }
 
+    @Test
+    fun aLinkWithNothingToSayIsNamedAfterItsSiteOrGoesWhenEmpty() {
+        val photo = EpubImage("images/a1-0.jpg", "image/jpeg", byteArrayOf(9))
+        val chart = EpubImage("images/a1-1.jpg", "image/jpeg", byteArrayOf(8))
+        val body = "<p><a href=\"https://x.com/someone/status/1\"><img src=\"images/a1-0.jpg\" alt=\"\"></a></p>" +
+            "<p><a href=\"https://example.com/chart\"><img src=\"images/a1-1.jpg\" alt=\"A chart\"></a></p>" +
+            "<p>Share <a href=\"https://example.com/share\"></a> it.</p>"
+        val epub = write(unsectioned(article(body = body, images = listOf(photo, chart))))
+        val page = epub.xml("OEBPS/${epub.articleHrefs().single()}")
+        val links = page.elements("a").associateBy { it.getAttribute("href") }
+        assertEquals("Linked picture, x.com", links.getValue("https://x.com/someone/status/1").getAttribute("aria-label"))
+        assertEquals("", links.getValue("https://example.com/chart").getAttribute("aria-label"))
+        assertFalse("https://example.com/share" in links)
+        assertEquals(2, page.elements("img").size)
+    }
+
     /** The cover is a picture too, with its own description; a GIF may move, so it isn't promised still. */
     @Test
     fun theCoverCountsAndOnlyStillPicturesAreSafe() {

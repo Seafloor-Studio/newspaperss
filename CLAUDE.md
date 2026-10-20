@@ -27,6 +27,8 @@ changed and why.
     ./gradlew :epubsink:installDebug :app:connectedDebugAndroidTest   # device tests (emulator)
     ./gradlew koverHtmlReport            # coverage: build/reports/kover/html
     ./gradlew koverVerify                # fails below 93% line coverage (CI runs it)
+    tools/ace-check.sh                   # Ace by DAISY on the books EpubCheckTest writes (run that first)
+    tools/render-epub.sh <book.epub>     # each page drawn at e-reader size, to core/build/render/
 
 JDK 21 and the Android SDK (compileSdk 37) are required.
 
