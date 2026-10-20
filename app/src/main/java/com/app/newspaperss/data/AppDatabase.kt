@@ -18,7 +18,7 @@ class Converters {
     // By label, not the Kotlin name, and an unknown one reads as unjudged: renaming a kind, or
     // dropping one, mustn't make every article unreadable.
     @TypeConverter fun episodeKindToText(k: EpisodeKind?): String? = k?.label
-    @TypeConverter fun textToEpisodeKind(s: String?): EpisodeKind? = EpisodeKind.entries.firstOrNull { it.label == s }
+    @TypeConverter fun textToEpisodeKind(s: String?): EpisodeKind? = EpisodeKind.of(s)
 }
 
 @Database(

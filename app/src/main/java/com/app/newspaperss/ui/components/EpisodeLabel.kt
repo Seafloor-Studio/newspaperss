@@ -15,21 +15,22 @@ import com.app.newspaperss.data.EpisodePair
 /** What the episode detector made of a post: its kind, and the post it pairs with, if still stored. */
 data class EpisodeJudgement(val kind: EpisodeKind, val pair: EpisodePair? = null)
 
-/** A kind's name as a reader would say it, after "It's…" in a report of a wrong label. */
-fun kindName(kind: EpisodeKind): String = when (kind) {
-    EpisodeKind.ARTICLE -> "An article"
-    EpisodeKind.NOTES -> "Episode notes"
-    EpisodeKind.TRANSCRIPT -> "A transcript"
-    EpisodeKind.AUDIO_VERSION -> "An audio version of another post"
+/**
+ * A kind's words for a reader: [said] as a reader would say it, after "It's…" in a report of a
+ * wrong label, and [label] as a list shows it before naming the post it pairs with.
+ */
+private class KindWords(val said: String, val label: String)
+
+private fun wordsFor(kind: EpisodeKind) = when (kind) {
+    EpisodeKind.ARTICLE -> KindWords("An article", "Article")
+    EpisodeKind.NOTES -> KindWords("Episode notes", "Episode notes")
+    EpisodeKind.TRANSCRIPT -> KindWords("A transcript", "Transcript")
+    EpisodeKind.AUDIO_VERSION -> KindWords("An audio version of another post", "Audio version")
 }
 
-/** A kind's label, as a list shows it before naming the post it pairs with. */
-fun labelName(kind: EpisodeKind): String = when (kind) {
-    EpisodeKind.ARTICLE -> "Article"
-    EpisodeKind.NOTES -> "Episode notes"
-    EpisodeKind.TRANSCRIPT -> "Transcript"
-    EpisodeKind.AUDIO_VERSION -> "Audio version"
-}
+fun kindName(kind: EpisodeKind): String = wordsFor(kind).said
+
+fun labelName(kind: EpisodeKind): String = wordsFor(kind).label
 
 /**
  * What a post is beside podcast episodes, in a few words for a list; null for an ordinary article
@@ -37,7 +38,7 @@ fun labelName(kind: EpisodeKind): String = when (kind) {
  * kind is known: paired with a transcript it isn't the same as paired with its reading.
  */
 fun episodeLabel(kind: EpisodeKind?, pair: EpisodePair?): String? = when (kind) {
-    EpisodeKind.NOTES -> "Episode notes"
+    EpisodeKind.NOTES -> labelName(EpisodeKind.NOTES)
     EpisodeKind.TRANSCRIPT -> pair?.let { "Transcript of “${it.title}”" } ?: "Transcript of an episode"
     EpisodeKind.AUDIO_VERSION -> pair?.let { "Audio version of “${it.title}”" } ?: "Audio version of another post"
     EpisodeKind.ARTICLE -> when (pair?.episodeKind) {
