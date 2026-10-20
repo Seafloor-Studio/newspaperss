@@ -3,7 +3,7 @@
 # core/build/epubcheck/. Ace exits 0 even when a book fails, so this reads its report and fails
 # on any violation, listing each rule once with the first place it was seen.
 #
-#   ./gradlew :core:test --tests '*EpubCheckTest*' && tools/ace-check.sh
+#   ./gradlew :core:test --tests '*EpubCheckTest*' --rerun && tools/ace-check.sh
 #
 # Needs Node. In a cloud session, point Puppeteer at the Chromium already there:
 #   PUPPETEER_EXECUTABLE_PATH=/opt/pw-browsers/chromium tools/ace-check.sh
