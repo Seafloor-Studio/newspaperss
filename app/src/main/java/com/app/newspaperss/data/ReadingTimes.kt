@@ -11,7 +11,8 @@ import android.content.SharedPreferences
  * that won't load, or a run stopped part way, doesn't hold up the links after it. A link still
  * unmeasured at the end of the list waits for the next pass. After [MAX_PASSES] passes the links
  * left are given up on (everything up to the last one tried), rather than fetched twice a day for
- * good; links saved after that get passes of their own.
+ * good; links saved after that get passes of their own (a link saved during the last pass gets
+ * only what's left of it).
  */
 class ReadingTimes(
     private val db: AppDatabase,

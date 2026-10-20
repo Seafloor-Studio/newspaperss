@@ -845,7 +845,7 @@ whose Kindle and KOReader answers ask for more on the same page).
   with its title, gets its reading time later: up to 20 a time, twice a
   day, only on Wi-Fi while charging. A page that won't load is tried on
   three passes through the list, then left without a time; a link saved
-  later gets three tries of its own. Import and export as a Markdown
+  later gets passes of its own, at least one. Import and export as a Markdown
   checklist (compatible with the library); Pocket and Instapaper exports
   import too. **✕** removes a link at once, with **Undo** in a snackbar, since
   removing is routine and a confirm would only be tapped through. Leaving
