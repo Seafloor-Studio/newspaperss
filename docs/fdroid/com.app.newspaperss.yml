@@ -1,6 +1,3 @@
-AntiFeatures:
-  NonFreeNet:
-    en-US: Downloads the natural voice (Kokoro) from Hugging Face
 Categories:
   - News
   - Reading
@@ -16,9 +13,9 @@ RepoType: git
 Repo: https://github.com/Seafloor-Studio/newspaperss.git
 
 Builds:
-  - versionName: 0.1.0
-    versionCode: 11
-    commit: v0.1.0
+  - versionName: 0.1.1
+    versionCode: 21
+    commit: 1fdaff2ba48977a9252edcf71423e40efc47e824
     subdir: app
     sudo:
       - export CPUS_MAX=16
@@ -30,9 +27,9 @@ Builds:
     output: build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
     binary: https://github.com/Seafloor-Studio/newspaperss/releases/download/v%v/NewspapeRSS-%v-armeabi-v7a.apk
 
-  - versionName: 0.1.0
-    versionCode: 12
-    commit: v0.1.0
+  - versionName: 0.1.1
+    versionCode: 22
+    commit: 1fdaff2ba48977a9252edcf71423e40efc47e824
     subdir: app
     sudo:
       - export CPUS_MAX=16
@@ -44,9 +41,9 @@ Builds:
     output: build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
     binary: https://github.com/Seafloor-Studio/newspaperss/releases/download/v%v/NewspapeRSS-%v-arm64-v8a.apk
 
-  - versionName: 0.1.0
-    versionCode: 13
-    commit: v0.1.0
+  - versionName: 0.1.1
+    versionCode: 23
+    commit: 1fdaff2ba48977a9252edcf71423e40efc47e824
     subdir: app
     sudo:
       - export CPUS_MAX=16
@@ -58,9 +55,9 @@ Builds:
     output: build/outputs/apk/release/app-x86-release-unsigned.apk
     binary: https://github.com/Seafloor-Studio/newspaperss/releases/download/v%v/NewspapeRSS-%v-x86.apk
 
-  - versionName: 0.1.0
-    versionCode: 14
-    commit: v0.1.0
+  - versionName: 0.1.1
+    versionCode: 24
+    commit: 1fdaff2ba48977a9252edcf71423e40efc47e824
     subdir: app
     sudo:
       - export CPUS_MAX=16
@@ -81,5 +78,5 @@ VercodeOperation:
   - 10*%c+2
   - 10*%c+3
   - 10*%c+4
-CurrentVersion: 0.1.0
-CurrentVersionCode: 14
+CurrentVersion: 0.1.1
+CurrentVersionCode: 24
