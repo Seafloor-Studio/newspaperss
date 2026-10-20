@@ -28,7 +28,10 @@ changed and why.
     ./gradlew koverHtmlReport            # coverage: build/reports/kover/html
     ./gradlew koverVerify                # fails below 93% line coverage (CI runs it)
 
-JDK 21 and the Android SDK (compileSdk 37) are required.
+JDK 21 and the Android SDK (compileSdk 37) are required. In a cloud
+session, `.claude/hooks/session-start.sh` sets up the SDK, `local.properties`
+and a Maven Central mirror; the first Gradle run then takes about five minutes.
+There is no emulator there (no KVM): device tests run in CI.
 
 Changing a Room entity means bumping the database version, adding a
 Migration with a `MigrationTest` case, and committing the new schema JSON
