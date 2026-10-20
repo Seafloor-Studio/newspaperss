@@ -52,14 +52,17 @@ case "${1:-}" in
     $ui shot 20-picker
     $ui tap "Downloads" --timeout 5 > /dev/null 2>&1 || true
     $ui tap "Save"
-    for _ in $(seq 30); do
-      after=$(adb shell 'ls /sdcard/Download/ 2>/dev/null' | grep -c '\.epub' || true)
-      [ "$after" -gt "$before" ] && break
-      sleep 1
-    done
-    [ "$after" -gt "$before" ] || { echo "no new .epub in Downloads after 30 s ($before before, $after after)" >&2; exit 1; }
-    adb shell 'ls -l /sdcard/Download/*.epub'
+    # The picker makes the file empty before the app writes the book into it, so a file alone
+    # proves nothing: wait for the app to say it's done, then look inside.
+    $ui wait "Saved a copy" --timeout 60 > /dev/null || { $ui shot 21-not-saved; exit 1; }
     $ui shot 21-after-save
+    after=$(adb shell 'ls /sdcard/Download/ 2>/dev/null' | grep -c '\.epub' || true)
+    [ "$after" -gt "$before" ] || { echo "no new .epub in Downloads ($before before, $after after)" >&2; exit 1; }
+    book=$(adb shell 'ls -t /sdcard/Download/*.epub' | head -1 | tr -d '\r')
+    adb shell ls -l "'$book'"
+    # An EPUB is a zip whose first entry is "mimetype", stored, holding application/epub+zip.
+    head=$(adb exec-out cat "'$book'" | head -c 58 | tail -c 20)
+    [ "$head" = "application/epub+zip" ] || { echo "$book isn't an EPUB: it starts ${head:-empty}" >&2; exit 1; }
     echo "save-copy passed: the book is in Downloads" ;;
   koreader)
     abis=$(adb shell getprop ro.product.cpu.abilist | tr -d '\r')
@@ -79,6 +82,8 @@ for abi in abis:
     mkdir -p build/emulator
     [ -f "$apk" ] || curl -fsSL -o "$apk" "https://f-droid.org/repo/org.koreader.launcher.fdroid_$code.apk"
     adb install -r -g "$apk" > /dev/null
+    # KOReader asks for all-files access on its first start and opens nothing until it has it.
+    adb shell appops set --uid org.koreader.launcher.fdroid MANAGE_EXTERNAL_STORAGE allow
     open_edition
     $ui tap "More options"
     $ui tap "Open on this phone"
@@ -93,6 +98,10 @@ for abi in abis:
     # In front isn't drawn: give its first page the time a reader would before looking.
     sleep 10
     $ui shot 30-koreader
+    # Its own pages are invisible to uiautomator, but Android's dialogs over them are not.
+    if $ui texts | grep -qiE 'allow|permission'; then
+      echo "KOReader is asking for something instead of showing the book:" >&2; $ui texts >&2; exit 1
+    fi
     echo "koreader passed: it opened the book; look at build/emulator/30-koreader.png" ;;
   *) sed -n '2,10p' "$0" >&2; exit 2 ;;
 esac
