@@ -74,8 +74,8 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 ### Accessibility *(a11y, you asked for it)*
 A full pass over the app and the book, not just spot fixes:
 - [ ] App: TalkBack walk-through of every screen (labels, headings, focus order), font scale at 200%, display size, touch targets ≥ 48dp, contrast in light and dark, e-ink readability, nothing carried by colour or animation alone. Confirm the new live regions with TalkBack on a device
-- [ ] Book: reading order with a screen reader on a device. The metadata, alt text and heading levels are done, and Ace by DAISY passes a live edition (D5); that run had no pictures, so try one with them *(a11y)*
-- [ ] Tooling: Compose accessibility checks in the Robolectric tests, Accessibility Scanner on a device, Ace by DAISY on a live edition
+- [ ] Book: reading order with a screen reader on a device. The metadata, alt text and heading levels are done, and Ace by DAISY passes the platform corpus with its pictures on every change to the book (`book-checks` workflow) *(a11y)*
+- [ ] Tooling: Compose accessibility checks in the Robolectric tests, Accessibility Scanner on a device
 - [ ] Generate alt text for pictures that have none *(you asked)*. Many feeds' images arrive without a description, so a screen reader (and Listen) says nothing or a file name. Do it when the edition is built, so the book gets it too, and on the phone, so nothing leaves it. Cheapest first, stopping at the first that gives something:
   - The article's own alt text or caption (free, every phone). Never replace it
   - Text in the picture, read with ML Kit text recognition (free, offline, every phone): for charts, screenshots and signs, "Image with text: …"
