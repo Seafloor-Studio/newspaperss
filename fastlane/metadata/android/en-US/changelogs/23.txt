@@ -1,2 +1,2 @@
-• The natural voice (Kokoro) isn't part of this release while it's tested for safe resource usage: making audio overnight could leave a phone hot. The 32 MB of code it needs is gone from the app too, so this version is a third of the size.
 • An article in your paper now takes you to the feed it came from.
+• On a 64-bit phone this version is about a third of the size. The natural voice (Kokoro) isn't part of a release build yet — it's still being tested — and the code it needs no longer ships in one.

@@ -314,7 +314,12 @@ class SettingsScreenTest {
     @Test
     fun theBuildIsNamedAtTheBottomSoFeedbackCanSayWhichOne() {
         show()
-        compose.onNodeWithText(versionLine, substring = true).performScrollTo().assertExists()
+        val shown = compose.onNodeWithText(versionLine, substring = true).performScrollTo()
+            .fetchSemanticsNode().config[SemanticsProperties.Text].single().text
+        // Read from the package, so this isn't a literal to edit on the way to every release, but
+        // still a version: an empty one is how the line stops saying which build, and expected and
+        // actual would both collapse to "NewspapeRSS " without this.
+        assertTrue(shown, Regex("^NewspapeRSS \\d+\\.\\d+\\.\\d+(-debug.*)?$").matches(shown))
     }
 
     @Test
