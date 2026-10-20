@@ -35,6 +35,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import com.app.newspaperss.data.RowLimits
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -79,6 +80,20 @@ class EditionBuilderTest {
 
     private fun stateOf(guid: String) = db.query("SELECT state FROM articles WHERE guid = ?", arrayOf(guid)).use { c ->
         c.moveToFirst(); ArticleState.valueOf(c.getString(0))
+    }
+
+    /** A row over the 2 MB window Android reads a row through fails every query that loads it. */
+    @Test
+    fun aPagesHugeTitleCantMakeTheEditionsContentsUnreadable() = runTest {
+        source("a", "a1")
+        // The title an edition shows is the page's own when the feed gives none.
+        val huge = "語".repeat(1_000_000)
+        val hostile = EditionBuilder(db, { _, _, _, _ -> ArticleContent(huge, null, "<p>Body</p>", wordCount = 2000) }, tmp.root, clock, { ZoneOffset.UTC })
+
+        val built = hostile.build(EditionSettings()) as BuildResult.Built
+
+        val contents = editions.observeContents(built.editionId).first()
+        assertEquals(listOf(RowLimits.MAX_TITLE), contents.map { it.entry.title.length })
     }
 
     @Test

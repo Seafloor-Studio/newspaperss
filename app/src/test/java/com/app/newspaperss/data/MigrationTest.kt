@@ -479,6 +479,9 @@ class MigrationTest {
             // Over the cap but small enough to have been read into an edition, which a 3 MB one can't be.
             article(3, "https://a.example/" + "x".repeat(10_000), "In an unsent edition", null, "IN_EDITION")
             article(4, "https://a.example/4", "Fine", "Ann", "NEW")
+            // The picture's post went out in an edition: that row's link to it has to go with it.
+            db.execSQL("INSERT INTO editions (id, title, createdAt, status, articleCount, minutes) VALUES (1, 'Monday', 0, 'DELIVERED', 1, 3.0)")
+            db.execSQL("INSERT INTO edition_articles (id, editionId, articleId, position, title, sourceTitle, minutes) VALUES (1, 1, 2, 0, 'A picture', 'A', 3.0)")
         }
         helper.runMigrationsAndValidate(DB, 17, true, AppDatabase.MIGRATION_16_17).use { db ->
             db.query("SELECT id, length(title), substr(title, -1), length(author) FROM articles ORDER BY id").use { c ->
@@ -491,6 +494,10 @@ class MigrationTest {
                     ),
                     rows,
                 )
+            }
+            db.query("SELECT articleId FROM edition_articles").use { c ->
+                c.moveToFirst()
+                assertTrue("no link left to a deleted article", c.isNull(0))
             }
             db.query("SELECT length(title), siteUrl FROM sources").use { c ->
                 c.moveToFirst()

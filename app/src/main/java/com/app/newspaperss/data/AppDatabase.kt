@@ -289,10 +289,12 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_16_17 = object : Migration(16, 17) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 val link = RowLimits.MAX_LINK
-                db.execSQL(
-                    """DELETE FROM articles WHERE state != 'IN_EDITION' AND (length(url) > $link OR length(guid) > $link
-                       OR length(viaUrl) > $link OR length(audioUrl) > $link)""",
-                )
+                val tooLong = "state != 'IN_EDITION' AND (length(url) > $link OR length(guid) > $link)"
+                // Foreign keys are off during a migration, so their ON DELETE SET NULL wouldn't run.
+                db.execSQL("UPDATE edition_articles SET articleId = NULL WHERE articleId IN (SELECT id FROM articles WHERE $tooLong)")
+                db.execSQL("DELETE FROM articles WHERE $tooLong")
+                db.execSQL("UPDATE articles SET viaUrl = NULL WHERE length(viaUrl) > $link")
+                db.execSQL("UPDATE articles SET audioUrl = NULL, audioType = NULL, audioBytes = NULL, audioSeconds = NULL WHERE length(audioUrl) > $link")
                 fun cut(table: String, column: String, max: Int) =
                     db.execSQL("UPDATE $table SET $column = rtrim(substr($column, 1, ${max - 1})) || '…' WHERE length($column) > $max")
                 cut("articles", "title", RowLimits.MAX_TITLE)

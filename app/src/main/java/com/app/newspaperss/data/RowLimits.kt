@@ -19,17 +19,22 @@ object RowLimits {
     fun link(url: String?): String? = url?.takeIf { it.length <= MAX_LINK }
 
     /**
-     * [article] as it can be stored, or null when one of its links or its guid is too long to keep:
-     * a link can't be shortened, and a cut guid could match another post's.
+     * [article] as it can be stored, or null when its link or guid is too long to keep: a link
+     * can't be shortened, and a cut guid could match another post's.
      */
     fun storable(article: ArticleEntity): ArticleEntity? {
-        val links = listOfNotNull(article.url, article.guid, article.viaUrl, article.audioUrl)
-        if (links.any { it.length > MAX_LINK }) return null
+        if (article.url.length > MAX_LINK || article.guid.length > MAX_LINK) return null
+        // An attachment or a link post's own link too long to keep loses only that, not the post.
+        val audio = link(article.audioUrl)
         return article.copy(
+            viaUrl = link(article.viaUrl),
+            audioUrl = audio,
+            audioBytes = article.audioBytes.takeIf { audio != null },
+            audioSeconds = article.audioSeconds.takeIf { audio != null },
             title = cut(article.title, MAX_TITLE),
             author = article.author?.let { cut(it, MAX_AUTHOR) },
             originTitle = article.originTitle?.let { cut(it, MAX_TITLE) },
-            audioType = article.audioType?.let { cut(it, MAX_AUTHOR) },
+            audioType = article.audioType?.takeIf { audio != null }?.let { cut(it, MAX_AUTHOR) },
             // Another post's guid: one too long to keep was never stored.
             episodePair = link(article.episodePair),
         )

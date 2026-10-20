@@ -60,7 +60,8 @@ class FeedSyncTest {
             "<rss version=\"2.0\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><channel><title>$huge</title><link>https://example.com/</link>" +
                 "<item><title>$huge</title><link>https://example.com/long</link><guid>long</guid></item>" +
                 "<item><title>A picture</title><link>data:image/png;base64,${"A".repeat(3_000_000)}</link><guid>picture</guid></item>" +
-                "<item><title>Fine</title><link>https://example.com/fine</link><guid>fine</guid><dc:creator>$huge</dc:creator></item>" +
+                "<item><title>Fine</title><link>https://example.com/fine</link><guid>fine</guid><dc:creator>$huge</dc:creator>" +
+                "<enclosure url=\"https://cdn.example/${"a".repeat(RowLimits.MAX_LINK)}.mp3\" type=\"audio/mpeg\" length=\"1000\"/></item>" +
                 "</channel></rss>",
         )
 
@@ -72,6 +73,7 @@ class FeedSyncTest {
         assertEquals(RowLimits.MAX_TITLE, title.length)
         assertTrue(title.startsWith("語語") && title.endsWith("…"))
         assertEquals(RowLimits.MAX_AUTHOR, stored.getValue("fine").author!!.length)
+        assertNull("an attachment too long to keep loses only itself", stored.getValue("fine").audioUrl)
         assertEquals(RowLimits.MAX_TITLE, db.sources().byId(id)!!.title.length)
         assertEquals(setOf("long", "fine"), db.articles().candidates().map { it.guid }.toSet())
     }
