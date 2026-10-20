@@ -50,7 +50,7 @@ Each needs an edition first. "Proof" is what the session checks before calling t
 | Kobo | Settings: Kobo. Send, pick Dropbox, into `Apps/Rakuten Kobo` (make the folder if Kobo never has) | The file is in the folder in the Dropbox app, under its own name |
 | PocketBook | Send by email to the `@pbsync.com` address | The book appears in PocketBook Reader, signed in to the test account |
 | Open on this phone | `tools/emulator/delivery.sh koreader` | KOReader opens the book on its cover (look at the screenshot); turn to the contents |
-| Folder | `tools/emulator/delivery.sh save-copy` | The book is in Downloads, and the edition says delivered |
+| Folder | `tools/emulator/delivery.sh save-copy` | The book is in Downloads and is an EPUB; Save a copy leaves the edition ready to send |
 | Anything else | Send, and pick any app in the share sheet | The edition says sent |
 
 Then the state checks from DELIVERY-CHECKS.md: two editions built without sending the first,
