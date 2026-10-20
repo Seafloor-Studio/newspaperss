@@ -53,6 +53,12 @@ def nodes():
             yield label.strip(), bounds
 
 
+def screen_size():
+    # "Physical size: 1080x2400", then an "Override size" line when one is set, which is the one in use.
+    w, h = re.findall(r"(\d+)x(\d+)", adb("shell", "wm", "size"))[-1]
+    return int(w), int(h)
+
+
 def find(text):
     found = list(nodes())
     for match in (lambda l: l == text, lambda l: text.lower() in l.lower()):
@@ -88,6 +94,17 @@ def main():
         print(wait(a.arg, a.timeout)[0])
     elif a.command == "tap":
         label, (x1, y1, x2, y2) = wait(a.arg, a.timeout)
+        # A scrolling screen lists what's below the fold too, at bounds off the screen, where a tap
+        # lands on nothing: swipe it into view first.
+        width, height = screen_size()
+        for _ in range(10):
+            y = (y1 + y2) // 2
+            if 0 < y < height * 0.9:
+                break
+            down = y >= height * 0.9
+            x = str(width // 2)
+            adb("shell", "input", "swipe", x, str(int(height * (0.7 if down else 0.3))), x, str(int(height * (0.3 if down else 0.7))), "300")
+            label, (x1, y1, x2, y2) = wait(a.arg, a.timeout)
         adb("shell", "input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
         print(f"tapped {label!r}")
     elif a.command == "type":
