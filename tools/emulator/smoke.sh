@@ -6,14 +6,16 @@
 #
 #   tools/emulator/smoke.sh [app-debug.apk]
 #
-# Without an APK it installs the one ./gradlew :app:assembleDebug made.
+# Without an APK it installs the one ./gradlew :app:assembleDebug made for the device's processor:
+# the build splits by ABI, so there is no universal APK.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ui=tools/emulator/ui.py
 pkg=com.app.newspaperss.debug
-apk=${1:-app/build/outputs/apk/debug/app-debug.apk}
 
 adb wait-for-device
+abi=$(adb shell getprop ro.product.cpu.abi | tr -d '\r')
+apk=${1:-app/build/outputs/apk/debug/app-$abi-debug.apk}
 adb install -r -g "$apk" > /dev/null
 adb shell pm clear "$pkg" > /dev/null
 adb shell monkey -p "$pkg" -c android.intent.category.LAUNCHER 1 > /dev/null
