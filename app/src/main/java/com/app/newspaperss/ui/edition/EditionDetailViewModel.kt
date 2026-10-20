@@ -116,7 +116,8 @@ class EditionDetailViewModel(
             _copied.value = try {
                 withContext(Dispatchers.IO) {
                     if (file == null) throw IOException("the book is gone")
-                    resolver.openOutputStream(uri, "wt")?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: throw IOException("no stream")
+                    // "w", not "wt": the dialog's file is new and empty, and some cloud providers refuse "wt".
+                    resolver.openOutputStream(uri, "w")?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: throw IOException("no stream")
                 }
                 "Saved a copy."
             } catch (e: Exception) {
