@@ -27,7 +27,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -328,9 +327,11 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
          */
         suspend fun dropChargingConstraint(context: Context) {
             val work = WorkManager.getInstance(context)
-            val old = work.getWorkInfosForUniqueWorkFlow(UNIQUE).first()
-                .filter { !it.state.isFinished && PodcastWorker::class.java.name in it.tags && it.constraints.requiresCharging() }
             withContext(Dispatchers.IO) {
+                // A one-off read, not the Flow: subscribing and leaving set Room's observers going
+                // on its own thread, which then fail against a database closed in the meantime.
+                val old = work.getWorkInfosForUniqueWork(UNIQUE).get()
+                    .filter { !it.state.isFinished && PodcastWorker::class.java.name in it.tags && it.constraints.requiresCharging() }
                 old.forEach { work.updateWork(OneTimeWorkRequestBuilder<PodcastWorker>().setId(it.id).build()).get() }
             }
         }
