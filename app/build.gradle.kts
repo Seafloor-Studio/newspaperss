@@ -1,3 +1,5 @@
+import java.util.zip.ZipFile
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -6,11 +8,18 @@ plugins {
 }
 
 val ciRun = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
+val ciCommit = System.getenv("GITHUB_SHA")?.take(7)
 
 // Each ABI's APK has version code base * 10 + this. A store offers a device the highest code it
 // can run, so a 64-bit ABI comes after its 32-bit one; F-Droid's recipe uses the same numbers.
 val ABI_CODES = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86" to 3, "x86_64" to 4)
-val ciCommit = System.getenv("GITHUB_SHA")?.take(7)
+
+// sherpa-onnx's libraries, Kokoro's 30-odd MB. Named here because two rules below depend on
+// exactly this list: what the 32-bit APKs leave out, and what a release APK must not contain.
+val KOKORO_LIBS = listOf("libonnxruntime.so", "libsherpa-onnx-c-api.so", "libsherpa-onnx-cxx-api.so", "libsherpa-onnx-jni.so")
+
+/** Kokoro needs a 64-bit phone. The others carry no part of it, in any build type. */
+val ABI_64 = setOf("arm64-v8a", "x86_64")
 
 android {
     namespace = "com.app.newspaperss"
@@ -20,8 +29,8 @@ android {
         applicationId = "com.app.newspaperss"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -91,9 +100,7 @@ android {
     packaging {
         resources.excludes += setOf("META-INF/AL2.0", "META-INF/LGPL2.1", "META-INF/LICENSE*", "META-INF/NOTICE*")
         // Kokoro needs a 64-bit phone, so its ~20 MB of 32-bit native code would never run.
-        jniLibs.excludes += listOf("armeabi-v7a", "x86").flatMap { abi ->
-            listOf("libonnxruntime.so", "libsherpa-onnx-c-api.so", "libsherpa-onnx-cxx-api.so", "libsherpa-onnx-jni.so").map { "lib/$abi/$it" }
-        }
+        jniLibs.excludes += (ABI_CODES.keys - ABI_64).flatMap { abi -> KOKORO_LIBS.map { "lib/$abi/$it" } }
     }
 
     // One APK per ABI: a debug build's podcast voice is about 30 MB of native code per 64-bit ABI, and a
@@ -206,6 +213,15 @@ androidComponents {
             selfUpdates.set(variant.buildType == "debug")
         }
         tasks.named("check") { dependsOn(manifestCheck) }
+        // Reads the built APKs, so check assembles them. CI's `gradlew build` assembles them anyway.
+        val kokoroCheck = tasks.register<KokoroNativeLibsCheck>("check${variant.name.replaceFirstChar { it.uppercase() }}KokoroNativeLibs") {
+            apks.set(variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.APK))
+            voice.set(variant.buildType == "debug")
+            libs.set(KOKORO_LIBS)
+            abis.set(ABI_CODES.keys)
+            sixtyFourBit.set(ABI_64)
+        }
+        tasks.named("check") { dependsOn(kokoroCheck) }
     }
 }
 
@@ -228,6 +244,63 @@ abstract class SelfUpdateManifestCheck : DefaultTask() {
         for (name in listOf("android.permission.REQUEST_INSTALL_PACKAGES", "update.InstallResultReceiver")) {
             if ((name in text) != selfUpdates.get()) {
                 throw GradleException("${manifest.get().asFile}: $name should " + if (selfUpdates.get()) "be there" else "not be there")
+            }
+        }
+    }
+}
+
+/**
+ * Fails when a variant's APKs disagree about Kokoro's native code: the natural voice is offered in
+ * debug builds only ([com.app.newspaperss.listen.KokoroSupport.inThisBuild]), so a release APK must
+ * carry none of sherpa-onnx's libraries, and a 64-bit debug APK must carry all of them.
+ *
+ * Why it is worth a check of its own: v0.1.0 shipped those 32 MB to every 64-bit phone, where no
+ * screen could reach them, because `debugImplementation` was `implementation`. One word puts them
+ * back, and nothing on screen changes when it does. Checking debug as well keeps the release check
+ * from passing because the libraries went missing altogether.
+ *
+ * The 32-bit APKs are checked by the same rule: Kokoro needs a 64-bit phone, so the packaging
+ * excludes its libraries there, and a release of any ABI carries none.
+ */
+abstract class KokoroNativeLibsCheck : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val apks: DirectoryProperty
+
+    /** Whether this build type offers the voice: only then may the libraries be there at all. */
+    @get:Input
+    abstract val voice: Property<Boolean>
+
+    @get:Input
+    abstract val libs: ListProperty<String>
+
+    /** Every ABI an APK is built for, so an APK whose name says none of them fails loudly. */
+    @get:Input
+    abstract val abis: SetProperty<String>
+
+    @get:Input
+    abstract val sixtyFourBit: SetProperty<String>
+
+    @TaskAction
+    fun check() {
+        val names = libs.get().toSet()
+        val apkFiles = apks.get().asFile.listFiles()?.filter { it.name.endsWith(".apk") }?.sorted().orEmpty()
+        if (apkFiles.isEmpty()) throw GradleException("${apks.get().asFile}: no APKs to check")
+        for (apk in apkFiles) {
+            // app-<abi>-<buildType>.apk, plus "-unsigned" when built without the release keystore.
+            // Matched on the ABI between dashes: no ABI's name is part of another's that way.
+            val abi = abis.get().singleOrNull { apk.name.contains("-$it-") }
+                ?: throw GradleException("${apk.name}: can't tell which ABI this APK is for, so its native code can't be checked")
+            val found = ZipFile(apk).use { zip ->
+                zip.entries().asSequence().map { it.name }
+                    .filter { it.startsWith("lib/") && it.substringAfterLast('/') in names }
+                    .toSortedSet()
+            }
+            val expected: Set<String> =
+                if (voice.get() && abi in sixtyFourBit.get()) names.map { "lib/$abi/$it" }.toSortedSet() else sortedSetOf()
+            if (found != expected) {
+                val what = if (expected.isEmpty()) "should carry none of Kokoro's native code" else "should carry ${expected.size} of Kokoro's libraries"
+                throw GradleException("${apk.name} $what, and has ${found.size}: ${found.joinToString()}")
             }
         }
     }

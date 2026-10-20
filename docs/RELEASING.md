@@ -110,7 +110,9 @@ dailylog uses (`com.app.dailylog` in fdroiddata).
     uses the same library the same way.
   - While the natural voice is debug-only (tested for safe resource usage first), a release build has neither
     sherpa-onnx nor a way to download Kokoro, so `NonFreeNet` is there for
-    when it ships.
+    when it ships. `check<Variant>KokoroNativeLibs`, which `check` runs, keeps
+    it that way: v0.1.0 shipped those 32 MB to every 64-bit phone, reachable by
+    nobody, because one `debugImplementation` was an `implementation`.
 
 The store text and screenshots come from `fastlane/metadata/android/en-US/`.
 

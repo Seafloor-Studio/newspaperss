@@ -2,6 +2,7 @@ package com.app.newspaperss.listen
 
 import android.app.ActivityManager
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.os.Build
 
 /**
@@ -14,6 +15,18 @@ import android.os.Build
  * a podcast that never finishes.
  */
 object KokoroSupport {
+    /**
+     * Whether this build offers the voice at all: debug builds only, until a real morning has been
+     * tried with it on a phone (see docs/BACKLOG.md).
+     *
+     * This is the gate, and it is the one that matters: a release build has no sherpa-onnx in it
+     * (`KokoroNativeLibsCheck` in app/build.gradle.kts keeps it that way) and no way to download
+     * Kokoro, so [why]'s bars about the phone are only ever read in a build that offers it.
+     * v0.1.0 shipped the 32 MB of native code to everyone behind this gate, reachable by nobody.
+     */
+    fun inThisBuild(context: Context): Boolean =
+        context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+
     /**
      * Why Kokoro can't run on this phone, as a sentence for Settings, or null if it can.
      *
