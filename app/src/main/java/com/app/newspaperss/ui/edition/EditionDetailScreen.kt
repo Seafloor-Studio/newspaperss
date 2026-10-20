@@ -195,7 +195,15 @@ fun EditionDetailScreen(
                                 }
                                 // Android's share sheet often offers no Files target, so Send another way can't keep the book.
                                 detail?.takeIf { it.file != null }?.edition?.let { edition ->
-                                    DropdownMenuItem(text = { Text("Save a copy…") }, onClick = { menu = false; saveTo.launch(FolderDelivery.fileName(edition.title)) })
+                                    DropdownMenuItem(text = { Text("Save a copy…") }, onClick = {
+                                        menu = false
+                                        // Some e-readers have no save dialog at all.
+                                        try {
+                                            saveTo.launch(FolderDelivery.fileName(edition.title))
+                                        } catch (_: ActivityNotFoundException) {
+                                            Toast.makeText(context, "This device has no way to pick where to save a file. Try Send another way.", Toast.LENGTH_LONG).show()
+                                        }
+                                    })
                                 }
                                 DropdownMenuItem(text = { Text("Delete edition") }, onClick = { menu = false; deleting = true })
                             }

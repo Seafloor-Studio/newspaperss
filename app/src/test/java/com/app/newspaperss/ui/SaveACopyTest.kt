@@ -51,7 +51,7 @@ class SaveACopyTest {
         idleUntil { vm.detail.value?.file != null }
         compose.onNodeWithContentDescription("More options").performClick()
         compose.onNodeWithText("Save a copy…").performClick()
-        return shadowOf(compose.activity).nextStartedActivityForResult.intent
+        return shadowOf(compose.activity).nextStartedActivityForResult?.intent ?: Intent()
     }
 
     /** The toast comes from an effect, which runs on the Compose rule's own dispatcher: idle that as well as the looper. */
@@ -90,6 +90,14 @@ class SaveACopyTest {
         idleUntil { vm.copied.value != null }
         assertEquals("Saved a copy.", vm.copied.value)
         assertEquals(book.toList(), picked.readBytes().toList())
+    }
+
+    @Test
+    fun aDeviceWithNoSaveDialogSaysSoRatherThanClosing() {
+        // E-reader firmware can leave out Android's documents screen.
+        shadowOf(compose.activity.application).checkActivities(true)
+        pickSaveACopy()
+        assertEquals("This device has no way to pick where to save a file. Try Send another way.", ShadowToast.getTextOfLatestToast())
     }
 
     @Test
