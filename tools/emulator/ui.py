@@ -93,7 +93,8 @@ def main():
     elif a.command == "wait":
         print(wait(a.arg, a.timeout)[0])
     elif a.command == "tap":
-        label, (x1, y1, x2, y2) = wait(a.arg, a.timeout)
+        label, first = wait(a.arg, a.timeout)
+        x1, y1, x2, y2 = first
         # A scrolling screen lists what's below the fold too, at bounds off the screen or under a
         # bar fixed over the list, where a tap lands on something else: swipe it into the open
         # middle, slowly so the list doesn't fling past it, and tap once it has stopped moving.
@@ -118,6 +119,10 @@ def main():
             x1, y1, x2, y2 = bounds
             if bounds == before:
                 break
+        if (x1, y1, x2, y2) != tuple(first):
+            # A touch while a list still drifts only stops it; let it come to rest first.
+            time.sleep(1)
+            label, (x1, y1, x2, y2) = wait(a.arg, a.timeout)
         adb("shell", "input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
         print(f"tapped {label!r}")
     elif a.command == "type":

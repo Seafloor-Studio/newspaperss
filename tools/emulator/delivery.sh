@@ -30,8 +30,12 @@ case "${1:-}" in
     $ui tap "Something else"
     $ui tap "Next"
     $ui tap "I'll pick some sites"
-    $ui tap "All of"
-    $ui tap "Next"
+    # Next stays disabled until a pick lands; a tap that only stopped the list scrolling is tried again.
+    for _ in 1 2 3; do
+      $ui tap "All of"
+      $ui tap "Next"
+      $ui wait "Make my first edition" --timeout 10 > /dev/null 2>&1 && break
+    done
     $ui shot 10-size
     $ui tap "Make my first edition"
     $ui wait "edition is ready" --timeout 600
