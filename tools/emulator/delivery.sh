@@ -68,10 +68,11 @@ case "${1:-}" in
     done
     $ui shot 21-after-save
     [ "$size" -gt 0 ] && [ "$size" = "$last" ] || { echo "no whole book in Downloads after 60 s (${book:-none}, $size bytes)" >&2; exit 1; }
-    adb shell ls -l "'$book'"
+    adb pull "$book" build/emulator/saved.epub > /dev/null
     # An EPUB is a zip whose first entry is "mimetype", stored, holding application/epub+zip.
-    head=$(adb exec-out cat "'$book'" | head -c 58 | tail -c 20)
+    head=$(head -c 58 build/emulator/saved.epub | tail -c 20)
     [ "$head" = "application/epub+zip" ] || { echo "$book isn't an EPUB: it starts ${head:-empty}" >&2; exit 1; }
+    echo "$book: $size bytes"
     echo "save-copy passed: the book is in Downloads" ;;
   koreader)
     abis=$(adb shell getprop ro.product.cpu.abilist | tr -d '\r')
