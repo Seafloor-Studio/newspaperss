@@ -3,6 +3,15 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycles F1–F4 (20 Oct) — build: reading times, row caps, episode tidies, Save a copy
+
+One session, a day run alongside other agents on 4 shared cores. Built: #335, #336, #337, #338; see [DEVLOG.md](DEVLOG.md). The flake reproduced (1 in 19) but isn't fixed; its backlog item has the leads.
+- **The scratchpad is shared with other agents.** A file named `pr1.md` at its root was overwritten by another project's session, and a `PATCH` from it put that project's PR text on #335 for a minute. Keep every file in a folder named for the project and never reuse a common name; read a PR body back after writing it.
+- **A Compose effect runs on the test rule's own dispatcher, not the main looper.** `idleUntil` drains only the looper, so a toast from a `LaunchedEffect` never showed in the test until the wait also called `compose.waitForIdle()`. The rule runs each test inside `runTest`; that's the first lead for the `PodcastSettingsTest` flake.
+- **With no subagent tool, a review session works:** `create_session` on the pushed branch, asked to post its findings as one PR comment, then `send_message` to the same session for the second look and the next PR. It found real bugs in two of four PRs.
+- **A squash merge deletes the branch on GitHub,** so the next PR's push is a plain `git push -u`, not `--force-with-lease` (which fails with "stale info").
+- **Run end check:** no emulator was started (none in this container); the extra worktrees in /home/user (nr-item2, nr-small, nr-save, nr-docs, nr-shots) are removed at the end, and Gradle is stopped.
+
 ### Cycles E1–E7 (19 Oct) — build: podcast episodes steps 2 and 3, with two audits
 
 One session, overnight. Built: labels (#320), wrong-label reports (#321), audio lengths (#322), readings in Listen (#323); the two audits' fixes are #324 and their larger findings are in the backlog. See [DEVLOG.md](DEVLOG.md).
