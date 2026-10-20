@@ -220,7 +220,7 @@ interface ArticleDao {
     /**
      * Inserts articles not already known for their source; returns how many were new. One whose
      * link was already delivered (see [DeliveredUrlEntity]) is left out: stored, it would count as
-     * new activity on the Sources screen.
+     * new activity on the Sources screen. Each is cut to [RowLimits] first, or left out if it can't be.
      */
     suspend fun insertNew(articles: List<ArticleEntity>): Int = insertFetched(articles.map { it to it.url })
 
@@ -235,7 +235,9 @@ interface ArticleDao {
         fun linksOf(fetched: Pair<ArticleEntity, String>) = listOfNotNull(fetched.first.url, fetched.first.viaUrl, fetched.second).filter { it.isNotBlank() }
         // Chunked: SQLite before 3.32 (Android before 11) allows at most 999 query parameters.
         val delivered = articles.flatMap(::linksOf).distinct().chunked(500).flatMap { deliveredAmong(it) }.toSet()
-        return articles.filter { fetched -> linksOf(fetched).none { it in delivered } }.count { insertIgnoring(it.first) != -1L }
+        return articles.filter { fetched -> linksOf(fetched).none { it in delivered } }
+            .mapNotNull { RowLimits.storable(it.first) }
+            .count { insertIgnoring(it) != -1L }
     }
 
     @Query("SELECT url FROM delivered_urls WHERE url IN (:urls)")

@@ -91,7 +91,9 @@ class FeedSync(
                     },
                 )
                 // A title that is still the host-name placeholder gives way to the feed's own.
-                db.sources().recordSuccess(source.id, now, feed.title, feed.siteUrl, SourceRepository.hostOf(source.url))
+                db.sources().recordSuccess(
+                    source.id, now, feed.title?.let { RowLimits.cut(it, RowLimits.MAX_TITLE) }, RowLimits.link(feed.siteUrl), SourceRepository.hostOf(source.url),
+                )
                 return added
             }
             ErrorAnswers.message(response.code)
@@ -560,8 +562,8 @@ internal suspend fun listTtrssFeeds(db: AppDatabase, client: TtrssClient, source
             val publication = sources.publication(source.id, key) ?: PublicationEntity(source.id, key)
             sources.savePublication(
                 publication.copy(
-                    title = feed.title.ifBlank { publication.title.orEmpty() }.ifBlank { null },
-                    feedUrl = feed.feedUrl ?: publication.feedUrl,
+                    title = RowLimits.cut(feed.title, RowLimits.MAX_TITLE).ifBlank { publication.title.orEmpty() }.ifBlank { null },
+                    feedUrl = RowLimits.link(feed.feedUrl) ?: publication.feedUrl,
                     // Category 0 is tt-rss's Uncategorized, under whatever name the server's language gives it.
                     category = when (val id = feed.categoryId) {
                         null -> publication.category

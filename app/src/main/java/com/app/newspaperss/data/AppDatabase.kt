@@ -23,7 +23,7 @@ class Converters {
 
 @Database(
     entities = [SourceEntity::class, ArticleEntity::class, EditionEntity::class, EditionArticleEntity::class, DeliveredUrlEntity::class, PublicationEntity::class, TtrssStarEntity::class],
-    version = 16,
+    version = 17,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -281,12 +281,40 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Rows a feed made too big to read back, before [RowLimits]: cut to it, or gone where a
+         * link or guid is too long to keep, as a new row would be. One in an unsent edition stays,
+         * since it was read back to get there. SQL alone, which never reads a row through the window.
+         */
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val link = RowLimits.MAX_LINK
+                db.execSQL(
+                    """DELETE FROM articles WHERE state != 'IN_EDITION' AND (length(url) > $link OR length(guid) > $link
+                       OR length(viaUrl) > $link OR length(audioUrl) > $link)""",
+                )
+                fun cut(table: String, column: String, max: Int) =
+                    db.execSQL("UPDATE $table SET $column = rtrim(substr($column, 1, ${max - 1})) || '…' WHERE length($column) > $max")
+                cut("articles", "title", RowLimits.MAX_TITLE)
+                cut("articles", "author", RowLimits.MAX_AUTHOR)
+                cut("articles", "originTitle", RowLimits.MAX_TITLE)
+                cut("articles", "audioType", RowLimits.MAX_AUTHOR)
+                cut("sources", "title", RowLimits.MAX_TITLE)
+                cut("publications", "title", RowLimits.MAX_TITLE)
+                cut("edition_articles", "title", RowLimits.MAX_TITLE)
+                cut("edition_articles", "sourceTitle", RowLimits.MAX_TITLE)
+                db.execSQL("UPDATE articles SET episodePair = NULL WHERE length(episodePair) > $link")
+                db.execSQL("UPDATE sources SET siteUrl = NULL WHERE length(siteUrl) > $link")
+                db.execSQL("UPDATE publications SET feedUrl = NULL WHERE length(feedUrl) > $link")
+            }
+        }
+
         // Characters per piece: at four bytes each, well inside the window.
         private const val OVERSIZED_PIECE = 200_000
         private const val OVERSIZED_UNREAD = 5_000_000
 
         fun open(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "newspaperss.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16).build()
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17).build()
     }
 }
