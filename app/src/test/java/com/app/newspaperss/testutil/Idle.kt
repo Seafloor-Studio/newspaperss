@@ -73,13 +73,18 @@ private fun hadWorkWaiting(): Boolean = runCatching { !shadowOf(Looper.getMainLo
  */
 private fun interestingThreads(): List<String> = Thread.getAllStackTraces()
     .entries
-    .filter { (thread, stack) ->
-        thread.state == Thread.State.RUNNABLE || thread.state == Thread.State.BLOCKED ||
-            stack.any { frame -> OURS.any(frame.className::startsWith) }
+    .mapNotNull { (thread, stack) ->
+        val ours = stack.any { frame -> OURS.any(frame.className::startsWith) }
+        val busy = thread.state == Thread.State.RUNNABLE || thread.state == Thread.State.BLOCKED
+        if (ours || busy) Triple(if (ours) 0 else 1, thread, stack) else null
     }
-    .sortedBy { it.key.name }
+    // Threads in our own code first. The cap below is arbitrary, and a run on a busy machine has
+    // plenty of the JVM's and the build's own threads: sorting by name alone let them fill the
+    // message and cut the parked worker a stuck test needs named. (A lower-case thread name sorts
+    // after every capitalised one, so it was the first to go.)
+    .sortedWith(compareBy({ it.first }, { it.second.name }))
     .take(14)
-    .map { (thread, stack) ->
+    .map { (_, thread, stack) ->
         val frames = stack.take(8).joinToString("\n") { "      at $it" }
         "  ${thread.name} (${thread.state})\n$frames\n"
     }
