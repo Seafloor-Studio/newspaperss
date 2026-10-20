@@ -107,9 +107,9 @@ for abi in abis:
     [[ $front == *koreader* ]] || { $ui shot 30-not-koreader; echo "KOReader isn't in front after 60 s: $front" >&2; exit 1; }
     # In front isn't drawn: give its first page the time a reader would before looking.
     sleep 10
-    # Android explains full screen the first time an app takes it, over the page.
-    $ui tap "Got it" --timeout 5 > /dev/null 2>&1 && sleep 2 || true
     $ui shot 30-koreader
+    front=$(adb shell dumpsys activity activities | grep -m1 'topResumedActivity' || true)
+    [[ $front == *koreader* ]] || { echo "KOReader left the screen before the screenshot: $front" >&2; exit 1; }
     # Its own pages are invisible to uiautomator, but Android's dialogs over them are not.
     if $ui texts | grep -qiE 'allow|permission'; then
       echo "KOReader is asking for something instead of showing the book:" >&2; $ui texts >&2; exit 1
