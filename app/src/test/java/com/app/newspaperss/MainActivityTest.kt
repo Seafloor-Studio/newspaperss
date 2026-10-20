@@ -132,6 +132,7 @@ class MainActivityTest {
             assertEquals(FeedsFrom.SERVER, app.container.settleFeedsFrom())
         }
         launchWith(onboarded = true)
+        shows("Sources")
         compose.onAllNodes(hasText("Sources") and hasClickAction()).onFirst().performClick()
         shows("Sign in to your tt-rss")
         compose.onNodeWithText("Sign in").performClick()

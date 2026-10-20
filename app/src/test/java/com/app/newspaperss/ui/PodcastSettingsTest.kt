@@ -89,9 +89,17 @@ class PodcastSettingsTest {
         compose.setContent { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
         // Until Kokoro's state is read (off the main thread), picking the podcast can't tell
         // whether to ask about mobile data, and does nothing.
-        idleUntil { vm.settings.value != null && vm.kokoro.value != null }
+        settle { vm.settings.value != null && vm.kokoro.value != null }
         return vm
     }
+
+    /**
+     * [idleUntil] for a view model's state, idling Compose too. The view model's flows only run
+     * once the screen's effects subscribe to them, and those effects run on the Compose test
+     * rule's own dispatcher, which draining the main looper never advances. [waitFor] gets this
+     * from `fetchSemanticsNodes`.
+     */
+    private fun settle(condition: () -> Boolean) = idleUntil { compose.waitForIdle(); condition() }
 
     private fun waitFor(text: String) = idleUntil { compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty() }
 
@@ -292,7 +300,7 @@ class PodcastSettingsTest {
         installVoice(context)
         val vm = SettingsViewModel(store) {}
         compose.setContent { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
-        idleUntil { vm.settings.value != null }
+        settle { vm.settings.value != null }
         waitFor("Your phone's voice")
         assertEquals(0, compose.onAllNodes(hasText("A natural voice", substring = true)).fetchSemanticsNodes().size)
     }
