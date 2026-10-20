@@ -128,13 +128,13 @@ dailylog uses (`com.app.dailylog` in fdroiddata).
 - **Why else it looks as it does:**
   - Four builds, one per ABI, because the app's build splits its APKs; each
     names its APK with `output:`.
-  - `NonFreeNet`: the natural voice (Kokoro) downloads from Hugging Face, as
-    SherpaTTS, the other sherpa-onnx app on F-Droid, declares. **Your call
-    before the merge request:** since 0.1.1 a release build has no way to
-    download anything from Hugging Face, so submitting it with this
-    anti-feature declares something the APK they'd build doesn't do. Dropping
-    it until the voice ships is the honest version, at the cost of an extra
-    one-line merge request then.
+  - **No `NonFreeNet`** (madCode, 20 Oct). Since 0.1.1 a release build has no
+    way to download anything from Hugging Face, so declaring it would
+    describe something the APK F-Droid builds doesn't do. It goes back in —
+    worded as SherpaTTS, the other sherpa-onnx app on F-Droid, words it —
+    in the same merge request that ships the natural voice to release
+    builds. Putting it back is a one-line change to this file's
+    `AntiFeatures:`; shipping the voice without it is the mistake to avoid.
   - sherpa-onnx comes from JitPack, which F-Droid's scanner allows; SherpaTTS
     uses the same library the same way.
   - While the natural voice is debug-only (tested for safe resource usage first), a release build has neither
