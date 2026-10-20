@@ -1,6 +1,7 @@
 package com.app.newspaperss.ui.sources
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -306,7 +307,7 @@ fun MoveSheetDialog(sheet: MoveSheet, mover: PhoneFeedMover) {
                     sheet.categories.orEmpty().forEach { category ->
                         Row(
                             Modifier.fillMaxWidth()
-                                .selectable(selected = category.id == sheet.chosen, role = Role.RadioButton, onClick = { mover.choose(category.id) })
+                                .heightIn(min = 48.dp).selectable(selected = category.id == sheet.chosen, role = Role.RadioButton, onClick = { mover.choose(category.id) })
                                 .padding(vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -341,7 +342,7 @@ private fun MoveSheetFeeds(sheet: MoveSheet, onToggle: (Long) -> Unit, onPick: (
         )
         sheet.feeds.forEach { feed ->
             Row(
-                Modifier.fillMaxWidth().toggleable(value = feed.ticked, role = Role.Checkbox, onValueChange = { onToggle(feed.sourceId) }).padding(vertical = 8.dp),
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = feed.ticked, role = Role.Checkbox, onValueChange = { onToggle(feed.sourceId) }).padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Checkbox(checked = feed.ticked, onCheckedChange = null)

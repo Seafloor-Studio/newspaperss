@@ -169,7 +169,7 @@ private fun DeviceStep(s: OnboardingState, vm: OnboardingViewModel) {
     Title("Where do you read?")
     Device.entries.forEach { device ->
         Row(
-            Modifier.fillMaxWidth().selectable(s.device == device, role = Role.RadioButton) { vm.chooseDevice(device) }.padding(vertical = 10.dp),
+            Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(s.device == device, role = Role.RadioButton) { vm.chooseDevice(device) }.padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             RadioButton(selected = s.device == device, onClick = null)
@@ -352,7 +352,7 @@ private fun SavedLinks(saved: Int, readingList: ReadingListViewModel) {
 @Composable
 private fun FeedCheck(title: String, checked: Boolean, onToggle: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().toggleable(checked, role = Role.Checkbox) { onToggle() }.padding(vertical = 4.dp),
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(checked, role = Role.Checkbox) { onToggle() }.padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(checked = checked, onCheckedChange = null)
@@ -511,7 +511,7 @@ private fun ExtrasStep(s: OnboardingState, vm: OnboardingViewModel, readingList:
     Text("Curated lists", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp).semantics { heading() })
     CuratedLists.all.forEach { list ->
         Row(
-            Modifier.fillMaxWidth().toggleable(list.id in s.lists, role = Role.Checkbox) { vm.toggleList(list.id) }.padding(vertical = 4.dp),
+            Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(list.id in s.lists, role = Role.Checkbox) { vm.toggleList(list.id) }.padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Checkbox(checked = list.id in s.lists, onCheckedChange = null)
@@ -543,7 +543,7 @@ private fun SizeStep(s: OnboardingState, vm: OnboardingViewModel) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Row(
-        Modifier.fillMaxWidth().padding(top = 24.dp).toggleable(s.scheduleEnabled, role = Role.Switch) { vm.setScheduleEnabled(it) },
+        Modifier.fillMaxWidth().padding(top = 24.dp).heightIn(min = 48.dp).toggleable(s.scheduleEnabled, role = Role.Switch) { vm.setScheduleEnabled(it) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("A new edition every day", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
