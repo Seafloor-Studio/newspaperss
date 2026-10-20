@@ -26,6 +26,12 @@ class StoredReadingChoices(context: Context) : ReadingChoices {
     override fun setVoiceInstead(editionId: Long, page: Int, instead: Boolean) {
         prefs.edit().apply { if (instead) putBoolean("$editionId:$page", true) else remove("$editionId:$page") }.apply()
     }
+
+    /** Drops an edition's choices once its book is gone, when Listen can't play it again. */
+    fun forget(editionId: Long) {
+        val keys = prefs.all.keys.filter { it.startsWith("$editionId:") }
+        if (keys.isNotEmpty()) prefs.edit().apply { keys.forEach(::remove) }.apply()
+    }
 }
 
 /**

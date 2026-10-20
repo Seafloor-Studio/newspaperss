@@ -24,7 +24,8 @@ enum class EpisodeKind(val label: String) {
     ;
 
     companion object {
-        fun of(label: String) = entries.first { it.label == label }
+        /** The kind stored as [label]; null for one this version doesn't know. */
+        fun of(label: String?): EpisodeKind? = entries.firstOrNull { it.label == label }
     }
 }
 

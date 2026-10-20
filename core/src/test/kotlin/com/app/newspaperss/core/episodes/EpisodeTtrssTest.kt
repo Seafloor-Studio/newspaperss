@@ -33,7 +33,7 @@ class EpisodeTtrssTest {
         root.listFiles().orEmpty().filter { File(it, "ttrss.json.gz").exists() }.sortedBy { it.name }.flatMap { dir ->
             val labels = Json.parseToJsonElement(File(dir, "labels.json").readText()).jsonObject.getValue("items").jsonObject
             val snapshot = FeedParser.parse(read(File(dir, "feed.xml.gz")), File(dir, "source.txt").readText().trim())
-            val labelOf = snapshot.items.associate { it.url to EpisodeKind.of(labels.getValue(it.guid).jsonObject.getValue("kind").jsonPrimitive.content) }
+            val labelOf = snapshot.items.associate { it.url to EpisodeKind.of(labels.getValue(it.guid).jsonObject.getValue("kind").jsonPrimitive.content)!! }
             val headlines = runBlocking { TtrssClient(Recorded(read(File(dir, "ttrss.json.gz"))), API, "reader", "secret").unreadHeadlines() }
             // Oldest first, a few at a time, each judged beside those already seen: tt-rss sends a
             // few unread posts from each feed per sync, and sync judges them beside the source's

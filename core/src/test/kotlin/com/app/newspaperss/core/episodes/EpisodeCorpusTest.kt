@@ -52,7 +52,7 @@ class EpisodeCorpusTest {
             feed.posts.map { post ->
                 val l = items.getValue(post.guid).jsonObject
                 fun s(k: String) = l[k]?.jsonPrimitive?.contentOrNull
-                Result(Label(dir.name, post.guid, post.title, EpisodeKind.of(s("kind")!!), s("shape")!!, s("pair"), s("why")!!), verdicts.getValue(post.guid))
+                Result(Label(dir.name, post.guid, post.title, EpisodeKind.of(s("kind"))!!, s("shape")!!, s("pair"), s("why")!!), verdicts.getValue(post.guid))
             }
         }
     }
