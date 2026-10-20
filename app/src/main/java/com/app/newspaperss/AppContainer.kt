@@ -113,6 +113,8 @@ class AppContainer(
     feedMovesData: DataStore<Preferences> = context.feedMovesData,
 ) {
     private val editionsDir = File(context.filesDir, "editions")
+    /** Which articles the reader turned back to the voice; cleared with their edition's book. */
+    private val readingChoices = StoredReadingChoices(context)
     /** For work that must outlive the screen that started it, like saving a shared link. */
     val appScope = CoroutineScope(
         SupervisorJob() + Dispatchers.Main +
@@ -131,7 +133,10 @@ class AppContainer(
         // Only if Listen has started: it isn't made just to be told.
         onFileGone = { id ->
             if (listenMade.isInitialized()) appScope.launch { listen.forget(id) }
-            appScope.launch(Dispatchers.IO) { podcastStore.delete(id) }
+            appScope.launch(Dispatchers.IO) {
+                podcastStore.delete(id)
+                readingChoices.forget(id)
+            }
         },
     )
     val feedFinder = FeedFinder(http)
@@ -188,7 +193,7 @@ class AppContainer(
 
     /** Listen's voice, with an article's recording in its place where it has one. */
     private val readingSpeaker by lazy {
-        ReadingSpeaker(listenSpeaker, StreamAudio(readingPlayer), readings::at, StoredReadingChoices(context), log = logPlaying)
+        ReadingSpeaker(listenSpeaker, StreamAudio(readingPlayer), readings::at, readingChoices, log = logPlaying)
     }
 
     /**
