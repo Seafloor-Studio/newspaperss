@@ -53,4 +53,9 @@ class IdleTest {
 
         assertTrue(chooseThreads(listOf(idle)).isEmpty())
     }
+
+    @Test
+    fun aWaitThatPassesReturnsAtOnceWhateverTheDeadline() {
+        idleUntil(timeoutMs = 1) { true }
+    }
 }
