@@ -65,28 +65,36 @@ private fun ranOut(timeoutMs: Long, startedAt: Long, hadWork: Boolean): String {
 /** Whether the main looper has work queued, read before it's drained. */
 private fun hadWorkWaiting(): Boolean = runCatching { !shadowOf(Looper.getMainLooper()).isIdle }.getOrDefault(false)
 
+/** One thread as a dump saw it: enough to choose and print it, and something a test can make up. */
+internal data class ThreadLook(val name: String, val state: Thread.State, val stack: List<StackTraceElement>)
+
 /**
  * The threads worth naming in a failure message, with the top of each stack. Not only the running
  * and blocked ones: a coroutine worker that lost its wakeup is parked in WAITING, and that is the
  * thread a stuck test most needs named. So anything in the app's own code, the libraries it waits
  * on, or Robolectric, whatever its state, and anything running or blocked whoever owns it.
+ *
+ * Ours come first. The cap is arbitrary, and a run on a busy machine has plenty of the JVM's and
+ * the build's own threads; ordering by name alone let those fill the message and cut the thread
+ * the message exists to name.
+ *
+ * Separate from the dump itself so the choosing can be tested on threads a test makes up, rather
+ * than on whichever ones a machine happens to be running.
  */
-private fun interestingThreads(): List<String> = Thread.getAllStackTraces()
-    .entries
-    .mapNotNull { (thread, stack) ->
-        val ours = stack.any { frame -> OURS.any(frame.className::startsWith) }
-        val busy = thread.state == Thread.State.RUNNABLE || thread.state == Thread.State.BLOCKED
-        if (ours || busy) Triple(if (ours) 0 else 1, thread, stack) else null
+internal fun chooseThreads(threads: List<ThreadLook>, cap: Int = 14): List<String> = threads
+    .mapNotNull { look ->
+        val ours = look.stack.any { frame -> OURS.any(frame.className::startsWith) }
+        val busy = look.state == Thread.State.RUNNABLE || look.state == Thread.State.BLOCKED
+        if (ours || busy) (if (ours) 0 else 1) to look else null
     }
-    // Threads in our own code first. The cap below is arbitrary, and a run on a busy machine has
-    // plenty of the JVM's and the build's own threads: sorting by name alone let them fill the
-    // message and cut the parked worker a stuck test needs named. (A lower-case thread name sorts
-    // after every capitalised one, so it was the first to go.)
     .sortedWith(compareBy({ it.first }, { it.second.name }))
-    .take(14)
-    .map { (_, thread, stack) ->
-        val frames = stack.take(8).joinToString("\n") { "      at $it" }
-        "  ${thread.name} (${thread.state})\n$frames\n"
+    .take(cap)
+    .map { (_, look) ->
+        val frames = look.stack.take(8).joinToString("\n") { "      at $it" }
+        "  ${look.name} (${look.state})\n$frames\n"
     }
+
+private fun interestingThreads(): List<String> =
+    chooseThreads(Thread.getAllStackTraces().map { (thread, stack) -> ThreadLook(thread.name, thread.state, stack.toList()) })
 
 private val OURS = listOf("com.app.newspaperss", "androidx.", "kotlinx.coroutines", "org.robolectric")

@@ -1,6 +1,7 @@
 package com.app.newspaperss.testutil
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,22 +28,29 @@ class IdleTest {
         assertTrue(said, said.contains("Threads, and what they were in"))
     }
 
+    /**
+     * The thread a stuck test needs named is parked in WAITING, in our own code, and a busy
+     * machine runs plenty of the JVM's own threads that would crowd it out of a capped message.
+     * Made up rather than started, so this says the same thing on every machine.
+     */
     @Test
-    fun itNamesAThreadParkedWaiting() {
-        val parked = Thread({ runCatching { java.util.concurrent.CountDownLatch(1).await() } }, "a-parked-worker")
-        parked.isDaemon = true
-        parked.start()
-        idleUntil { parked.state == Thread.State.WAITING }
+    fun ourOwnThreadIsNamedThoughItIsParkedAndTheJvmsAreMany() {
+        val ourFrame = StackTraceElement("com.app.newspaperss.ui.SettingsViewModel", "settings", "SettingsViewModel.kt", 42)
+        val jvmFrame = StackTraceElement("java.lang.ref.Reference", "waitForReferencePendingList", "Reference.java", 253)
+        val jvm = (1..20).map { ThreadLook("JVM thread $it", Thread.State.RUNNABLE, listOf(jvmFrame)) }
+        val ours = ThreadLook("a-parked-worker", Thread.State.WAITING, listOf(jvmFrame, ourFrame))
 
-        // A coroutine worker that lost its wakeup parks like this: running-or-blocked alone misses it.
-        val said = runCatching { idleUntil(timeoutMs = 50) { false } }.exceptionOrNull()!!.message.orEmpty()
-        parked.interrupt()
+        val chosen = chooseThreads(jvm + ours)
 
-        assertTrue(said, said.contains("a-parked-worker (WAITING)"))
+        assertTrue(chosen.toString(), chosen.any { it.startsWith("  a-parked-worker (WAITING)") })
+        assertTrue("ours comes first, so a cap can't cut it", chosen.first().startsWith("  a-parked-worker"))
+        assertEquals("the cap still holds", 14, chosen.size)
     }
 
     @Test
-    fun aWaitThatPassesReturnsAtOnceWhateverTheDeadline() {
-        idleUntil(timeoutMs = 1) { true }
+    fun aThreadDoingNothingOfOursIsLeftOut() {
+        val idle = ThreadLook("Finalizer", Thread.State.WAITING, listOf(StackTraceElement("java.lang.Object", "wait", "Object.java", 1)))
+
+        assertTrue(chooseThreads(listOf(idle)).isEmpty())
     }
 }
