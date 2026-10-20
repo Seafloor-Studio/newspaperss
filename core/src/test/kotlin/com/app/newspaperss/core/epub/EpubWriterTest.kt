@@ -479,6 +479,30 @@ class EpubWriterTest {
 
 
     @Test
+    fun anInlineHoldingABlockIsUnwrappedAndOnlyThatOne() {
+        val body = "<i><div><a href=\"https://example.com/p\">Picture</a></div>A caption.</i><p><b>Bold <em>and more</em></b>.</p>"
+        val epub = write(unsectioned(article(body = body)))
+        val page = epub.xml("OEBPS/${epub.articleHrefs().single()}")
+        assertTrue(page.elements("i").isEmpty())
+        assertTrue(page.documentElement.textContent.contains("PictureA caption."))
+        assertEquals("Bold and more", page.elements("b").single().textContent)
+        assertEquals("and more", page.elements("em").single().textContent)
+    }
+
+    @Test
+    fun aHeadingHoldingBlocksStaysAHeadingAndAFootnotesIdStaysOnItsText() {
+        val body = "<p>Text<a id=\"ref1\" href=\"#fn1\">1</a>.</p><h2><div>Part one</div><div>Of two</div></h2>" +
+            "<span id=\"fn1\"><a href=\"#ref1\">1</a><p>The footnote.</p></span>"
+        val epub = write(unsectioned(article(body = body)))
+        val page = epub.xml("OEBPS/${epub.articleHrefs().single()}")
+        val heading = page.elements("h2").single()
+        assertTrue(heading.elements("div").isEmpty())
+        assertEquals(listOf("Part one", "Of two"), heading.childNodes.let { n -> (0 until n.length).map { n.item(it) } }.filter { it.nodeType == Node.TEXT_NODE }.map { it.textContent })
+        val target = page.elements("a").first().getAttribute("href").removePrefix("#")
+        assertEquals("The footnote.", page.elements("*").single { it.getAttribute("id") == target }.textContent)
+    }
+
+    @Test
     fun specialCharactersInTextSurviveEverywhere() {
         val nasty = "Tom & Jerry <3 \"quoted\" 'single' 🎉 é"
         val epub = write(

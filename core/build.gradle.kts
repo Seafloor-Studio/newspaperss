@@ -22,6 +22,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(libs.epubcheck)
 }
 
 // A developer tool, not part of the build: see LiveEdition.kt.

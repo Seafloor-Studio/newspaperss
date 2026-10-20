@@ -25,6 +25,18 @@ internal object ArticleBody {
     // These refer to ids by name; after prefixing they would point at nothing.
     private val ID_REFERENCE_ATTRIBUTES = setOf("for", "headers", "usemap", "aria-labelledby", "aria-describedby", "aria-controls")
 
+    // Elements XHTML lets hold only text and inline elements. Browsers accept a block inside them
+    // (Blogger wraps a captioned picture's divs in <i> or <h2>); epubcheck rejects the book.
+    // An inline one is unwrapped. A heading or pre matters more than its blocks, so they go instead.
+    private const val INLINE =
+        "abbr, b, bdi, bdo, big, cite, code, data, dfn, em, font, i, kbd, label, mark, q, s, samp, small, " +
+            "span, strike, strong, sub, sup, time, tt, u, var"
+    private const val KEPT = "h1, h2, h3, h4, h5, h6, pre, legend, summary"
+    private const val BLOCKS =
+        "address, article, aside, blockquote, center, details, div, dl, dd, dt, fieldset, figcaption, " +
+            "figure, footer, h1, h2, h3, h4, h5, h6, header, hgroup, hr, li, main, menu, nav, ol, p, pre, " +
+            "search, section, table, ul"
+
     /**
      * @param idPrefix prepended to every id (and to the `#fragment` links that point at them) so
      *   ids stay unique across the book. Must start with a letter.
@@ -39,6 +51,7 @@ internal object ArticleBody {
             if (element !== body && !PLAIN_NAME.matches(element.tagName())) element.unwrap()
         }
         body.select("picture").unwrap()
+        unwrapInlinesHoldingBlocks(body)
         cleanAttributes(body)
         fixFootnotes(body)
         val ids = prefixIds(body, idPrefix)
@@ -71,6 +84,34 @@ internal object ArticleBody {
             open.addLast(level to leveled)
             heading.tagName("h$leveled")
         }
+    }
+
+    private fun unwrapInlinesHoldingBlocks(root: Element) {
+        // From the children down: select and selectFirst match the element itself too.
+        fun blocksIn(e: Element, also: String = "") = e.children().flatMap { it.select(BLOCKS + also) }
+        for (kept in root.select(KEPT)) {
+            // A table's rows, or a fieldset's legend, would be left behind it otherwise.
+            for (block in blocksIn(kept, ", caption, legend, summary, tbody, td, tfoot, th, thead, tr")) {
+                // A pre's own line break already parts it from what follows.
+                val next = block.nextSibling()
+                if (next != null && !(next is TextNode && next.wholeText.startsWith("\n"))) block.after(Element("br"))
+                unwrapKeepingId(block)
+            }
+        }
+        root.select(INLINE).filter { blocksIn(it).isNotEmpty() }.forEach(::unwrapKeepingId)
+    }
+
+    /**
+     * Unwraps [e], its id going to the block inside it, which a footnote link's popup shows: not
+     * its first child, often the number linking back.
+     */
+    private fun unwrapKeepingId(e: Element) {
+        val id = e.id()
+        if (id.isNotEmpty()) {
+            val first = e.children().firstOrNull { it.`is`(BLOCKS) } ?: e.children().firstOrNull()
+            if (first != null && !first.hasAttr("id")) first.id(id) else e.before(Element("span").id(id))
+        }
+        e.unwrap()
     }
 
     // "--" inside a comment is not well-formed XML, and comments have no value in a book.
