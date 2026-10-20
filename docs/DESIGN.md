@@ -565,7 +565,9 @@ whose Kindle and KOReader answers ask for more on the same page).
 - **Edition:** the same button as Today's card, and its contents.
   Under them, **Listen · about 9 min** reads the edition aloud (see
   Listening, below). Its ⋮
-  menu has the card's menu, above **Delete edition**. Tap an article to preview it as the e-reader
+  menu has the card's menu, then **Save a copy…** while the book is on the
+  phone (Android's save dialog, to keep the EPUB itself where you pick; the
+  share sheet often has no Files), above **Delete edition**. Tap an article to preview it as the e-reader
   will show it (read straight from the EPUB, with nothing fetched from the
   network), on top of Android's own font size. **Aa** in the top bar sets
   its text size (Small to Largest), the same size as Settings › Article

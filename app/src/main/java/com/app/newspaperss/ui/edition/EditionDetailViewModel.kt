@@ -1,5 +1,8 @@
 package com.app.newspaperss.ui.edition
 
+import android.content.ContentResolver
+import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.newspaperss.data.ArticleState
@@ -16,9 +19,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 
 data class EditionDetail(
     /** Null if the edition doesn't exist (any more). */
@@ -86,5 +94,39 @@ class EditionDetailViewModel(
 
     fun markNotSent() {
         viewModelScope.launch { editions.markNotSent(id) }
+    }
+
+    private val _copied = MutableStateFlow<String?>(null)
+    /** What became of the last Save a copy, to say once; [copySaid] clears it. */
+    val copied: StateFlow<String?> = _copied.asStateFlow()
+
+    fun copySaid() {
+        _copied.value = null
+    }
+
+    /**
+     * Copies the edition's book to [uri], a file the reader made with the system's save dialog.
+     * In the view model, so turning the phone mid-copy doesn't leave half a book.
+     */
+    fun saveCopy(resolver: ContentResolver, uri: Uri) {
+        viewModelScope.launch {
+            // Not [detail]: after Android ends the app while the save dialog is open, the answer
+            // comes before the edition has loaded again.
+            val file = editions.observe(id).first()?.let(editions::fileOf)
+            _copied.value = try {
+                withContext(Dispatchers.IO) {
+                    if (file == null) throw IOException("the book is gone")
+                    // "w", not "wt": the dialog's file is new and empty, and some cloud providers refuse "wt".
+                    resolver.openOutputStream(uri, "w")?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: throw IOException("no stream")
+                }
+                "Saved a copy."
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                // The save dialog has already made the file: an empty or half a book would fail to
+                // open on whatever reads it next.
+                withContext(Dispatchers.IO) { runCatching { DocumentsContract.deleteDocument(resolver, uri) } }
+                "Couldn't save the copy."
+            }
+        }
     }
 }

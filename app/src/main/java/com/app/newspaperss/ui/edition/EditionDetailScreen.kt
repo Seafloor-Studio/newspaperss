@@ -3,6 +3,8 @@ package com.app.newspaperss.ui.edition
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +49,7 @@ import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.delivery.EditionEmail
 import com.app.newspaperss.delivery.EditionIntents
+import com.app.newspaperss.delivery.FolderDelivery
 import com.app.newspaperss.delivery.KindleSend
 import com.app.newspaperss.edition.EditionBuilder
 import com.app.newspaperss.listen.Listening
@@ -116,6 +119,17 @@ fun EditionDetailScreen(
         current.file?.let { EditionIntents.launchSend(context, it, edition.title, edition.id, kindleEmail = null) {} }
     }
 
+    val saveTo = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(EditionIntents.EPUB_MIME)) { uri ->
+        if (uri != null) viewModel.saveCopy(context.contentResolver, uri)
+    }
+    val copied by viewModel.copied.collectAsStateWithLifecycle()
+    LaunchedEffect(copied) {
+        copied?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.copySaid()
+        }
+    }
+
     val kindleApp = rememberKindleApp()
     val emailsKindle = kindleEmail?.let { remember(it) { EditionIntents.mailAppFor(context, it) } } != null
     val choices = detail?.edition?.let {
@@ -176,6 +190,18 @@ fun EditionDetailScreen(
                                             MoreAction.OPEN_HERE -> open()
                                             MoreAction.OPEN_KINDLE_APP -> startKindle(context, kindleApp)
                                             MoreAction.MARK_NOT_SENT -> markingNotSent = true
+                                        }
+                                    })
+                                }
+                                // Android's share sheet often offers no Files target, so Send another way can't keep the book.
+                                detail?.takeIf { it.file != null }?.edition?.let { edition ->
+                                    DropdownMenuItem(text = { Text("Save a copy…") }, onClick = {
+                                        menu = false
+                                        // Some e-readers have no save dialog at all.
+                                        try {
+                                            saveTo.launch(FolderDelivery.fileName(edition.title))
+                                        } catch (_: ActivityNotFoundException) {
+                                            Toast.makeText(context, "This device has no way to pick where to save a file. Try Send another way.", Toast.LENGTH_LONG).show()
                                         }
                                     })
                                 }
