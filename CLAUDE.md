@@ -27,6 +27,7 @@ changed and why.
     ./gradlew :epubsink:installDebug :app:connectedDebugAndroidTest   # device tests (emulator)
     ./gradlew koverHtmlReport            # coverage: build/reports/kover/html
     ./gradlew koverVerify                # fails below 93% line coverage (CI runs it)
+    docker compose -f tools/ttrss-live/compose.yml up -d --wait && TTRSS_LIVE=1 ./gradlew :core:test --tests '*TtrssLiveTest*' --rerun   # the tt-rss client against a real tt-rss
 
 JDK 21 and the Android SDK (compileSdk 37) are required.
 

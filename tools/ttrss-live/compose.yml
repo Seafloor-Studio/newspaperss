@@ -1,0 +1,54 @@
+# A throwaway tt-rss for TtrssLiveTest: a test user with the API on, and feeds/ served on port 80
+# by tt-rss's own nginx, since tt-rss only fetches private addresses on standard ports.
+#
+#   docker compose -f tools/ttrss-live/compose.yml up -d --wait
+#   TTRSS_LIVE=1 ./gradlew :core:test --tests '*TtrssLiveTest*' --rerun
+#   docker compose -f tools/ttrss-live/compose.yml down -v
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ttrss
+      POSTGRES_PASSWORD: ttrss
+      POSTGRES_DB: ttrss
+    healthcheck:
+      test: pg_isready -U ttrss
+      interval: 2s
+      retries: 30
+
+  app:
+    image: ghcr.io/tt-rss/tt-rss:latest
+    environment: &ttrss
+      TTRSS_DB_HOST: db
+      TTRSS_DB_USER: ttrss
+      TTRSS_DB_PASS: ttrss
+      TTRSS_DB_NAME: ttrss
+      TTRSS_SELF_URL_PATH: http://localhost:8280/tt-rss/
+      AUTO_CREATE_USER: reader
+      AUTO_CREATE_USER_PASS: reader-password
+      AUTO_CREATE_USER_ENABLE_API: "true"
+      TTRSS_NO_STARTUP_PLUGIN_UPDATES: "true"
+    volumes:
+      - html:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    image: ghcr.io/tt-rss/tt-rss-web-nginx:latest
+    # Its config also listens on [::]:80, which fails where the kernel has no IPv6 (cloud sessions).
+    entrypoint: ["/bin/sh", "-c", "sed -i '/listen \\[::\\]/d' /etc/nginx/templates/nginx.conf.template && exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
+    ports:
+      - 127.0.0.1:8280:80
+    volumes:
+      - html:/var/www/html
+      - ./feeds:/var/www/html/feeds:ro
+    depends_on:
+      - app
+    healthcheck:
+      test: wget -qO- http://localhost/tt-rss/healthz
+      interval: 2s
+      retries: 60
+
+volumes:
+  html:
