@@ -20,7 +20,9 @@ import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import org.junit.runner.RunWith
+import java.util.concurrent.TimeUnit
 
 /**
  * Google's accessibility checks (touch targets, labels, contrast, text that doesn't fit) on each
@@ -29,7 +31,9 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class AccessibilityChecksTest {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    // Fails with the stuck thread's stack, rather than holding the emulator job for hours.
+    @get:Rule(order = 0) val timeout: Timeout = Timeout.builder().withTimeout(10, TimeUnit.MINUTES).withLookingForStuckThread(true).build()
+    @get:Rule(order = 1) val compose = createAndroidComposeRule<MainActivity>()
 
     @Before fun enableChecks() = compose.enableAccessibilityChecks()
 
