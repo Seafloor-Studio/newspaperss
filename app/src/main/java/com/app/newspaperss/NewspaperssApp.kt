@@ -3,6 +3,7 @@ package com.app.newspaperss
 import android.content.Context
 import android.app.Application
 import com.app.newspaperss.work.EditionScheduler
+import com.app.newspaperss.work.ReadingTimeWorker
 import com.app.newspaperss.work.SyncWorker
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -27,6 +28,7 @@ open class NewspaperssApp : Application() {
         container.appScope.launch { container.feedMoves.resumeIfPending() }
         container.notifier.createChannels()
         SyncWorker.schedulePeriodic(this)
+        ReadingTimeWorker.schedulePeriodic(this)
         container.selfUpdates.start()
         // Arms the timer if none is pending (first run, after an update or a
         // restore); a pending or overdue one is left alone. Again whenever the head start

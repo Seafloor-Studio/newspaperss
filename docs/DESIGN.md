@@ -841,7 +841,11 @@ whose Kindle and KOReader answers ask for more on the same page).
   Getting or leaving a server is in Settings.
 - **Reading list:** links you shared into the app, each with its title,
   site and reading time (looked up in the background). They go first in
-  the next edition. Import and export as a Markdown
+  the next edition. A link saved when there was no lookup, or imported
+  with its title, gets its reading time later: up to 20 a time, twice a
+  day, only on Wi-Fi while charging. A page that won't load is tried on
+  three passes through the list, then left without a time; a link saved
+  later gets passes of its own, at least one. Import and export as a Markdown
   checklist (compatible with the library); Pocket and Instapaper exports
   import too. **✕** removes a link at once, with **Undo** in a snackbar, since
   removing is routine and a confirm would only be tapped through. Leaving

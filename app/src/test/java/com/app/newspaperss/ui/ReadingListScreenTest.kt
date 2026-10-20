@@ -18,6 +18,8 @@ import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.testutil.TestApp
+import com.app.newspaperss.work.ReadingTimeWorker
+import androidx.work.testing.TestListenableWorkerBuilder
 import com.app.newspaperss.ui.readinglist.ReadingListScreen
 import com.app.newspaperss.ui.readinglist.ReadingListViewModel
 import kotlinx.coroutines.runBlocking
@@ -58,6 +60,22 @@ class ReadingListScreenTest {
         val opened = shadowOf(app).nextStartedActivity
         assertEquals(Intent.ACTION_VIEW, opened.action)
         assertEquals("https://b.example/long-read", opened.dataString)
+    }
+
+    @Test
+    fun anImportedLinkGetsItsReadingTimeInTheBackground() {
+        val list = app.container.readingList
+        val words = "word ".repeat(2380)
+        app.http.page("https://b.example/long-read", "<html><head><title>A page</title></head><body><article><p>$words</p></article></body></html>")
+        // A Pocket export gives the title, so nothing looks the page up when it arrives.
+        runBlocking { list.import("title,url,time_added,tags,status\nA long read,https://b.example/long-read,1712345678,,unread\n") }
+        val vm = ReadingListViewModel(list)
+        compose.setContent { ReadingListScreen(vm, onBack = {}) }
+        waitFor("A long read")
+        compose.onNodeWithText("b.example").assertExists()
+
+        runBlocking { TestListenableWorkerBuilder<ReadingTimeWorker>(app).build().doWork() }
+        waitFor("b.example · 10 min read")
     }
 
     @Test
