@@ -81,6 +81,15 @@ class SettingsScreenTest {
 
     private lateinit var vm: SettingsViewModel
 
+    /**
+     * The line names the build from the package itself, so these tests don't have to be edited on
+     * the way to every release: a literal version here is two failures at each bump.
+     */
+    private val versionLine: String
+        get() = ApplicationProvider.getApplicationContext<android.content.Context>().let { context ->
+            "NewspapeRSS " + context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
+        }
+
     @Before
     fun makeStore() {
         store = SettingsStore(PreferenceDataStoreFactory.create(scope = storeScope) { tmp.newFile("s.preferences_pb") })
@@ -305,14 +314,14 @@ class SettingsScreenTest {
     @Test
     fun theBuildIsNamedAtTheBottomSoFeedbackCanSayWhichOne() {
         show()
-        compose.onNodeWithText("NewspapeRSS 0.1.0", substring = true).performScrollTo().assertExists()
+        compose.onNodeWithText(versionLine, substring = true).performScrollTo().assertExists()
     }
 
     @Test
     fun aLongPressCopiesTheBuildForABugReportAndATapDoesNot() {
         show()
         val clipboard = ApplicationProvider.getApplicationContext<android.content.Context>().getSystemService(android.content.ClipboardManager::class.java)
-        val version = compose.onNodeWithText("NewspapeRSS 0.1.0", substring = true).performScrollTo()
+        val version = compose.onNodeWithText(versionLine, substring = true).performScrollTo()
         val shown = version.fetchSemanticsNode().config[SemanticsProperties.Text].single().text
 
         version.performTouchInput { click() }

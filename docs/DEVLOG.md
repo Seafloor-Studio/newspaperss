@@ -8,11 +8,28 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Status
 
-- **Lately:** 19 Oct, podcast episodes steps 1–3 in debug builds (#313, #320–#324): posts keep their audio and are labelled, wrong labels can be sent for a look, and Listen plays an article's recorded reading in its place.
+- **Lately:** 19 Oct, **0.1.1 tagged** (Kokoro's native code out of release builds, a check that keeps it out); podcast episodes steps 1–3 in debug builds (#313, #320–#324): posts keep their audio and are labelled, wrong labels can be sent for a look, and Listen plays an article's recorded reading in its place.
 - **Watching:** `PodcastSettingsTest` times out under load (3 of 7 full runs on one branch on 19 Oct; backlog), and main's suite timed out once in `KindleEmailScreensTest`. Count them over 20 runs next.
-- **Waiting on you:** two weeks of episode labels in real use (report a wrong one with Send for a look), and how the recordings sound in Listen; an `episodes` label on the repo; whether the `handle-issues` skill learns about "Episode label:" issues (claude-playground). [#18](https://github.com/Seafloor-Studio/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
+- **Waiting on you:** 0.1.1's **draft** GitHub release — try the arm64 APK on a phone (onboarding, an edition, a send), then publish the draft the same day, since F-Droid can't see a draft; v0.1.0's release notes still carry the "wait for the next version" warning, to replace with a line pointing at 0.1.1. Then the F-Droid merge request and Play's forms, neither started. Also: two weeks of episode labels in real use (report a wrong one with Send for a look), and how the recordings sound in Listen; an `episodes` label on the repo; whether the `handle-issues` skill learns about "Episode label:" issues (claude-playground). [#18](https://github.com/Seafloor-Studio/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
 
 ## Mon 19 Oct
+
+### 0.1.1: Kokoro's native code out of release builds, and a check that keeps it out
+- **Why now:** v0.1.0 (17 Oct) put sherpa-onnx's 32 MB in every 64-bit release APK, where no screen
+  could reach it: the natural voice is offered only in a debuggable build. #316 made it a
+  `debugImplementation` the next day, and this release is the first to carry that, with #309 (the
+  making stops when the phone gets hot) and #328 (an article in your paper takes you to its feed).
+  A release APK is 18.5 MB on arm64, down from 50.6.
+- **New here, `KokoroNativeLibsCheck`:** it reads each built APK and fails when a variant's APKs
+  disagree about Kokoro — a release APK carrying any of the four libraries, or a 64-bit debug APK
+  missing one. Checked by putting `implementation` back, where it failed and named all four. The
+  gate is now `KokoroSupport.inThisBuild`, with its own tests, so which builds offer the voice is a
+  grep rather than one line inside `MainActivity`'s view-model wiring.
+- **Why it was worth a check:** two sessions read the same code opposite ways this week. The bars in
+  `KokoroSupport.why()` (64-bit, Android 10 or newer, six cores) read as "any new-enough phone", and
+  the build-type gate above them was the untested part. The screen's own branch was already tested
+  (`withoutTheSetupThereIsNoPodcast`); the wiring and the packaging weren't.
+- versionCode 2, versionName 0.1.1, the changelog and its four F-Droid copies.
 
 ### Podcast episodes, steps 2 and 3, overnight cycles (debug builds)
 - **What you asked:** build steps 2 and 3 of [episodes-design.md](research/episodes-design.md) tonight, as cycles, with architecture and code-simplicity audits in the middle and near the end.
