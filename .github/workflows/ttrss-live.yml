@@ -1,0 +1,41 @@
+name: tt-rss
+
+# TtrssLiveTest against a real tt-rss, its latest image on purpose: the client is written to what
+# tt-rss answers, and a change there should fail here before it reaches a reader's sync. A failed
+# scheduled run emails the repository owner.
+on:
+  schedule:
+    - cron: '41 11 * * *'
+  pull_request:
+    paths:
+      - 'core/src/main/kotlin/**/ttrss/**'
+      - 'core/src/test/kotlin/**/ttrss/**'
+      - 'tools/ttrss-live/**'
+      - '.github/workflows/ttrss-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: gradle
+      - name: Start tt-rss
+        run: docker compose -f tools/ttrss-live/compose.yml up -d --wait
+      - name: Run the client against it
+        env:
+          TTRSS_LIVE: '1'
+        run: ./gradlew :core:test --tests '*TtrssLiveTest*' --rerun
+      - name: tt-rss's logs, when it fails
+        if: failure()
+        run: docker compose -f tools/ttrss-live/compose.yml logs --no-color --tail 200
