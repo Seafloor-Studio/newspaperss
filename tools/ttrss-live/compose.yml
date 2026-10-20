@@ -46,7 +46,8 @@ services:
     depends_on:
       - app
     healthcheck:
-      test: wget -qO- http://localhost/tt-rss/healthz
+      # 127.0.0.1, not localhost: where there is IPv6, localhost is ::1, which nginx no longer listens on.
+      test: wget -qO- http://127.0.0.1/tt-rss/healthz
       interval: 2s
       retries: 60
 
