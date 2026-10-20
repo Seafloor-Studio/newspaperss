@@ -38,6 +38,14 @@ class ReadingListTitlesTest {
     }
 
     @Test
+    fun aPagesHugeTitleIsCutSoTheListCanStillBeRead() = runTest {
+        http.page("https://a.example/hostile", page("語".repeat(1_000_000)))
+        list.save("https://a.example/hostile")
+        titles.fetch(untitled)
+        assertEquals(RowLimits.MAX_TITLE, titleOf("https://a.example/hostile").length)
+    }
+
+    @Test
     fun aBotCheckPagesTitleIsNeverTaken() = runTest {
         // It would stick as the headline: the edition prefers a stored title to the page's.
         http.page("https://lemonde.example/story", "<html><head><title>Client Challenge</title></head><body><script src=\"/_fs-ch-1/x.js\"></script></body></html>")

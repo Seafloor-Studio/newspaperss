@@ -9,6 +9,7 @@ import com.app.newspaperss.testutil.rss
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -46,6 +47,35 @@ class FeedSyncTest {
 
         assertEquals(setOf("One", "Two", "Three"), db.articles().candidates().map { it.title }.toSet())
         assertEquals("Example Blog", db.sources().byId(id)!!.title)
+    }
+
+    /** One row over the 2 MB window Android reads a row through fails every query that loads it. */
+    @Test
+    fun aHostileFeedCantMakeARowTooBigToReadBack() = runTest {
+        val id = repo.addFeed(url, title = null)
+        // Three bytes a character: three megabytes each.
+        val huge = "語".repeat(1_000_000)
+        http.page(
+            url,
+            "<rss version=\"2.0\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><channel><title>$huge</title><link>https://example.com/</link>" +
+                "<item><title>$huge</title><link>https://example.com/long</link><guid>long</guid></item>" +
+                "<item><title>A picture</title><link>data:image/png;base64,${"A".repeat(3_000_000)}</link><guid>picture</guid></item>" +
+                "<item><title>Fine</title><link>https://example.com/fine</link><guid>fine</guid><dc:creator>$huge</dc:creator>" +
+                "<enclosure url=\"https://cdn.example/${"a".repeat(RowLimits.MAX_LINK)}.mp3\" type=\"audio/mpeg\" length=\"1000\"/></item>" +
+                "</channel></rss>",
+        )
+
+        assertEquals(2, sync.syncAll().newArticles)
+
+        val stored = db.articles().allForSource(id).associateBy { it.guid }
+        assertEquals("a link can't be cut short, so that post isn't kept", setOf("long", "fine"), stored.keys)
+        val title = stored.getValue("long").title
+        assertEquals(RowLimits.MAX_TITLE, title.length)
+        assertTrue(title.startsWith("語語") && title.endsWith("…"))
+        assertEquals(RowLimits.MAX_AUTHOR, stored.getValue("fine").author!!.length)
+        assertNull("an attachment too long to keep loses only itself", stored.getValue("fine").audioUrl)
+        assertEquals(RowLimits.MAX_TITLE, db.sources().byId(id)!!.title.length)
+        assertEquals(setOf("long", "fine"), db.articles().candidates().map { it.guid }.toSet())
     }
 
     @Test

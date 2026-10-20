@@ -62,6 +62,16 @@ class ReadingListRepositoryTest {
         assertEquals(listOf(byUrl("https://a.example/untitled").id), untitled)
     }
 
+    /** One row over the 2 MB window Android reads a row through fails every query that loads it. */
+    @Test
+    fun aHugeLinkInAnImportOrAHugeSharedTitleCantMakeARowTooBigToReadBack() = runTest {
+        val added = list.import("- [ ] https://a.example/${"x".repeat(3_000_000)}\n- [ ] https://a.example/fine\n").added
+        assertEquals(1, added)
+        list.save("https://a.example/shared", "語".repeat(1_000_000))
+        val titles = db.articles().allForSource(list.sourceId()).associate { it.url to it.title.length }
+        assertEquals(mapOf("https://a.example/fine" to 0, "https://a.example/shared" to RowLimits.MAX_TITLE), titles)
+    }
+
     @Test
     fun aLinkArchivedInInstapaperIsMarkedReadHere() = runTest {
         list.save("https://a.example/1", "One")

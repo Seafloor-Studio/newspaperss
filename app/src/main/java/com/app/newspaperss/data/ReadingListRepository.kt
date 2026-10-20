@@ -52,7 +52,8 @@ class ReadingListRepository(
      * again", and the lookup clears the mark if the page reads now.
      */
     suspend fun save(url: String, title: String? = null): Boolean {
-        val article = ArticleEntity(sourceId = sourceId(), guid = url, url = url, title = title?.trim().orEmpty(), discoveredAt = clock.instant())
+        // The title is whatever subject the sharing app gave.
+        val article = ArticleEntity(sourceId = sourceId(), guid = url, url = url, title = RowLimits.cut(title?.trim().orEmpty(), RowLimits.MAX_TITLE), discoveredAt = clock.instant())
         val articleId = db.articles().insertIgnoring(article)
         if (articleId == -1L) {
             db.articles().allForSource(article.sourceId).firstOrNull { it.guid == url && it.unreadable != null && it.state == ArticleState.NEW }
@@ -83,7 +84,8 @@ class ReadingListRepository(
                     sourceId = id, guid = item.url, url = item.url, title = item.title.orEmpty(), discoveredAt = now,
                     state = if (item.done) ArticleState.DELIVERED else ArticleState.NEW,
                 )
-                db.articles().insertIgnoring(article).takeIf { it != -1L }?.let { article.copy(id = it) }
+                val storable = RowLimits.storable(article) ?: return@mapNotNull null
+                db.articles().insertIgnoring(storable).takeIf { it != -1L }?.let { storable.copy(id = it) }
             }
         }
         val done = file.items.filter { it.done }.map { it.url }.toSet()

@@ -437,7 +437,10 @@ phone restarts.
   after it's delivered or expires; its row stays, so it's never re-offered.
   Feed text is kept to 500,000 characters, well under the 2 MB Android
   reads a row through: a bigger item loses its inlined pictures, or else
-  its text, and its page is fetched instead.
+  its text, and its page is fetched instead. For the same reason a feed's
+  titles are cut to 1,000 characters and an author to 300, and a post
+  whose link or guid is over 4,000 characters (a `data:` link, say) isn't
+  kept, since a cut link would lead somewhere else.
 - **Deleting an edition** removes its file and contents but keeps its title
   reserved, since Send to Kindle would drop a repeat. A ready edition's
   articles go back to the pool; a delivered one's stay used.

@@ -24,6 +24,7 @@ import com.app.newspaperss.core.plural
 import com.app.newspaperss.data.AppDatabase
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleState
+import com.app.newspaperss.data.RowLimits
 import com.app.newspaperss.data.EditionArticleEntity
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionStatus
@@ -257,7 +258,9 @@ class EditionBuilder(
             val here = db.articles().stillHere(arranged.map { it.first.id }).toSet()
             db.editions().insertArticles(
                 arranged.mapIndexed { i, (a, c) ->
-                    EditionArticleEntity(editionId = editionId, articleId = a.id.takeIf { it in here }, position = i, title = c.title, sourceTitle = bylineOf(a, c, sourcesById.getValue(a.sourceId)), minutes = minutesOf(c), starred = a.starredAt != null, stateBefore = a.state)
+                    EditionArticleEntity(editionId = editionId, articleId = a.id.takeIf { it in here }, position = i,
+                        // Both can be the page's own words, which a hostile page makes as long as it likes.
+                        title = RowLimits.cut(c.title, RowLimits.MAX_TITLE), sourceTitle = RowLimits.cut(bylineOf(a, c, sourcesById.getValue(a.sourceId)), RowLimits.MAX_TITLE), minutes = minutesOf(c), starred = a.starredAt != null, stateBefore = a.state)
                 },
             )
             db.articles().setState(arranged.map { it.first.id }, ArticleState.IN_EDITION)

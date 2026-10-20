@@ -142,6 +142,21 @@ class TtrssSyncTest {
     }
 
     @Test
+    fun aHostileFeedInTtrssCantMakeARowTooBigToReadBack() = runTest {
+        val source = connect()
+        val huge = "語".repeat(1_000_000)
+        server.feeds[7] = FakeTtrss.Feed(huge, "https://hostile.example/feed")
+        server.add(1, huge, feedId = 7, feedTitle = huge)
+
+        sync.syncAll()
+
+        val article = db.articles().allForSource(source.id).single()
+        assertEquals(RowLimits.MAX_TITLE, article.title.length)
+        assertEquals(RowLimits.MAX_TITLE, article.originTitle!!.length)
+        assertEquals(listOf(RowLimits.MAX_TITLE), sources.observeFeeds(source.id).first().map { it.title.length })
+    }
+
+    @Test
     fun aQuietFeedIsntCrowdedOutByABusyOne() = runTest {
         val source = connect()
         server.add(1, "A monthly essay", feedId = 7, feedTitle = "Quarterly Review")

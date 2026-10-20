@@ -104,7 +104,7 @@ class MigrationTest {
 
         helper.runMigrationsAndValidate(DB, 3, true, AppDatabase.MIGRATION_2_3).close()
         val room = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java, DB)
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16).allowMainThreadQueries().build()
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16, AppDatabase.MIGRATION_16_17).allowMainThreadQueries().build()
         try {
             runBlocking {
                 assertEquals(7000L, room.articles().byId(4)!!.starredAt?.toEpochMilli())
@@ -455,6 +455,54 @@ class MigrationTest {
                 assertEquals("An episode", c.getString(0))
                 assertEquals("<p>Notes</p>", c.getString(1))
                 assertTrue(c.isNull(2) && c.isNull(3) && c.isNull(4))
+            }
+        }
+    }
+
+    /** A feed's text over the 2 MB window Android reads a row through failed every query loading it. */
+    @Test
+    fun version17CutsWhatAFeedMadeTooBigToReadBack() {
+        val huge = "語".repeat(1_000_000)
+        val hugeLink = "data:image/png;base64," + "A".repeat(3_000_000)
+        helper.createDatabase(DB, 16).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, kind, url, title, siteUrl, position, contentMode, contentModeChosen, fullTextStreak, paused, markReadOnServer, addedAt) " +
+                    "VALUES (1, 'FEED', 'https://a.example/feed', ?, ?, 0, 'AUTO', 0, 0, 0, 1, 0)",
+                arrayOf<Any>(huge, hugeLink),
+            )
+            fun article(id: Int, url: String, title: String, author: String?, state: String) = db.execSQL(
+                "INSERT INTO articles (id, sourceId, guid, url, title, author, discoveredAt, state, reportedRead, paidOnly, paidSkipped) VALUES (?, 1, ?, ?, ?, ?, 0, ?, 0, 0, 0)",
+                arrayOf<Any?>(id, "g$id", url, title, author, state),
+            )
+            article(1, "https://a.example/1", huge, huge, "NEW")
+            article(2, hugeLink, "A picture", null, "NEW")
+            // Over the cap but small enough to have been read into an edition, which a 3 MB one can't be.
+            article(3, "https://a.example/" + "x".repeat(10_000), "In an unsent edition", null, "IN_EDITION")
+            article(4, "https://a.example/4", "Fine", "Ann", "NEW")
+            // The picture's post went out in an edition: that row's link to it has to go with it.
+            db.execSQL("INSERT INTO editions (id, title, createdAt, status, articleCount, minutes) VALUES (1, 'Monday', 0, 'DELIVERED', 1, 3.0)")
+            db.execSQL("INSERT INTO edition_articles (id, editionId, articleId, position, title, sourceTitle, minutes) VALUES (1, 1, 2, 0, 'A picture', 'A', 3.0)")
+        }
+        helper.runMigrationsAndValidate(DB, 17, true, AppDatabase.MIGRATION_16_17).use { db ->
+            db.query("SELECT id, length(title), substr(title, -1), length(author) FROM articles ORDER BY id").use { c ->
+                val rows = buildList { while (c.moveToNext()) add(listOf(c.getInt(0), c.getInt(1), c.getString(2), if (c.isNull(3)) null else c.getInt(3))) }
+                assertEquals(
+                    listOf(
+                        listOf(1, RowLimits.MAX_TITLE, "…", RowLimits.MAX_AUTHOR),
+                        listOf(3, "In an unsent edition".length, "n", null),
+                        listOf(4, 4, "e", 3),
+                    ),
+                    rows,
+                )
+            }
+            db.query("SELECT articleId FROM edition_articles").use { c ->
+                c.moveToFirst()
+                assertTrue("no link left to a deleted article", c.isNull(0))
+            }
+            db.query("SELECT length(title), siteUrl FROM sources").use { c ->
+                c.moveToFirst()
+                assertEquals(RowLimits.MAX_TITLE, c.getInt(0))
+                assertTrue(c.isNull(1))
             }
         }
     }

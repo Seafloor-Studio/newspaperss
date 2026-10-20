@@ -47,7 +47,7 @@ class ReadingListTitles(private val db: AppDatabase, private val http: HttpClien
             measured?.let { db.articles().setPageWords(id, it) }
             val title = PageTitle.of(page.body, page.finalUrl) ?: continue
             // Checked again in the update: an edition may have taken the article while the page loaded.
-            db.articles().setTitleIfUntitled(id, title)
+            db.articles().setTitleIfUntitled(id, RowLimits.cut(title, RowLimits.MAX_TITLE))
         }
         return !unreachable
     }
