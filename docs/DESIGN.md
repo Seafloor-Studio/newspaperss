@@ -843,9 +843,9 @@ whose Kindle and KOReader answers ask for more on the same page).
   site and reading time (looked up in the background). They go first in
   the next edition. A link saved when there was no lookup, or imported
   with its title, gets its reading time later: up to 20 a time, twice a
-  day, only on Wi-Fi while charging, until none are left. A page that
-  won't load is tried on three passes through the list, then left without
-  a time. Feed articles show none. Import and export as a Markdown
+  day, only on Wi-Fi while charging. A page that won't load is tried on
+  three passes through the list, then left without a time; a link saved
+  later gets three tries of its own. Import and export as a Markdown
   checklist (compatible with the library); Pocket and Instapaper exports
   import too. **✕** removes a link at once, with **Undo** in a snackbar, since
   removing is routine and a confirm would only be tapped through. Leaving

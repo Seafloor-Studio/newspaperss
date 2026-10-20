@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.testutil.DbRule
 import com.app.newspaperss.testutil.FakeHttp
 import com.app.newspaperss.testutil.TestApp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -66,6 +67,35 @@ class ReadingTimesTest {
         times.measureNext()
         assertTrue((words("https://b.example/later") ?: 0) > 0)
         assertNull(words("https://a.example/missing"))
+    }
+
+    @Test
+    fun aRunStoppedPartWayGoesOnFromTheLinkItWasOn() = runTest {
+        importTitled("https://a.example/dead", "https://a.example/hangs", "https://b.example/fine")
+        http.page("https://b.example/fine", article(476))
+        var stopped = false
+        // WorkManager stops a worker after ten minutes; a few hanging pages in a batch can take that.
+        http.beforeResponse = {
+            fetched += it
+            if (it.endsWith("hangs") && !stopped) { stopped = true; throw CancellationException("stopped") }
+        }
+
+        assertTrue(runCatching { times.measureNext() }.exceptionOrNull() is CancellationException)
+        times.measureNext()
+
+        assertEquals(listOf("https://a.example/dead", "https://a.example/hangs", "https://a.example/hangs", "https://b.example/fine"), fetched)
+        assertTrue((words("https://b.example/fine") ?: 0) > 0)
+    }
+
+    @Test
+    fun aLinkSavedLongAfterTheBacklogStillGetsThreeTries() = runTest {
+        importTitled("https://a.example/old")
+        http.page("https://a.example/old", article(476))
+        repeat(5) { times.measureNext() }
+
+        importTitled("https://b.example/down-today")
+        repeat(ReadingTimes.MAX_PASSES * 2) { times.measureNext() }
+        assertEquals(ReadingTimes.MAX_PASSES, fetched.count { it == "https://b.example/down-today" })
     }
 
     @Test
