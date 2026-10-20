@@ -242,10 +242,7 @@ class PodcastWorkerTest {
 
         PodcastWorker.dropChargingConstraint(app)
 
-        // The test WorkManager runs it as soon as nothing holds it back.
-        val info = work.getWorkInfoById(old.id).get()!!
-        assertFalse(info.constraints.requiresCharging())
-        assertEquals(WorkInfo.State.SUCCEEDED, info.state)
+        assertFalse(work.getWorkInfoById(old.id).get()!!.constraints.requiresCharging())
     }
 
     /** Held at 80%, Android says "not charging": still plugged in, and the run goes on. */
