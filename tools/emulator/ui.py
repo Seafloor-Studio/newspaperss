@@ -94,17 +94,30 @@ def main():
         print(wait(a.arg, a.timeout)[0])
     elif a.command == "tap":
         label, (x1, y1, x2, y2) = wait(a.arg, a.timeout)
-        # A scrolling screen lists what's below the fold too, at bounds off the screen, where a tap
-        # lands on nothing: swipe it into view first.
+        # A scrolling screen lists what's below the fold too, at bounds off the screen or under a
+        # bar fixed over the list, where a tap lands on something else: swipe it into the open
+        # middle, slowly so the list doesn't fling past it, and tap once it has stopped moving.
+        # A node a swipe doesn't move is fixed itself (a bottom bar's button) and is tapped as is.
         width, height = screen_size()
-        for _ in range(10):
+        for _ in range(12):
             y = (y1 + y2) // 2
-            if 0 < y < height * 0.9:
+            if height * 0.08 < y < height * 0.85:
                 break
-            down = y >= height * 0.9
+            down = y >= height * 0.85
+            before = [x1, y1, x2, y2]
             x = str(width // 2)
-            adb("shell", "input", "swipe", x, str(int(height * (0.7 if down else 0.3))), x, str(int(height * (0.3 if down else 0.7))), "300")
-            label, (x1, y1, x2, y2) = wait(a.arg, a.timeout)
+            start, end = (0.65, 0.4) if down else (0.4, 0.65)
+            adb("shell", "input", "swipe", x, str(int(height * start)), x, str(int(height * end)), "600")
+            bounds = None
+            while True:
+                label, now = wait(a.arg, a.timeout)
+                if now == bounds:
+                    break
+                bounds = now
+                time.sleep(0.3)
+            x1, y1, x2, y2 = bounds
+            if bounds == before:
+                break
         adb("shell", "input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
         print(f"tapped {label!r}")
     elif a.command == "type":
