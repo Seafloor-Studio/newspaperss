@@ -16,9 +16,10 @@ fun idleUntil(timeoutMs: Long = 30_000, condition: () -> Boolean) {
     val started = System.currentTimeMillis()
     val deadline = started + timeoutMs
     while (true) {
+        val hadWork = hadWorkWaiting()
         shadowOf(Looper.getMainLooper()).idle()
         if (condition()) return
-        check(System.currentTimeMillis() < deadline) { ranOut(timeoutMs, started) }
+        check(System.currentTimeMillis() < deadline) { ranOut(timeoutMs, started, hadWork) }
         Thread.sleep(10)
     }
 }
@@ -31,9 +32,10 @@ suspend fun idleUntilYielding(timeoutMs: Long = 30_000, condition: () -> Boolean
     val started = System.currentTimeMillis()
     val deadline = started + timeoutMs
     while (true) {
+        val hadWork = hadWorkWaiting()
         shadowOf(Looper.getMainLooper()).idle()
         if (condition()) return
-        check(System.currentTimeMillis() < deadline) { ranOut(timeoutMs, started) }
+        check(System.currentTimeMillis() < deadline) { ranOut(timeoutMs, started, hadWork) }
         Thread.sleep(10)
         yield()
     }
@@ -41,33 +43,45 @@ suspend fun idleUntilYielding(timeoutMs: Long = 30_000, condition: () -> Boolean
 
 /**
  * What was going on when a wait ran out. Without this a timeout only says that it happened, which
- * can't tell a deadline missed because the machine was busy from a test that is genuinely stuck:
- * the first leaves threads running or parked and the looper drained, the second leaves a thread
- * blocked, or the looper holding work that never ran.
+ * can't tell a deadline missed because the machine was busy from a test that is genuinely stuck.
  *
- * Wall clock, not the deadline: a run far past it is a sign the whole JVM was starved.
+ * Wall clock, not the deadline: a wait that ends on time while the condition never came true is a
+ * race, not a slow machine. [hadWork] is read before the looper is drained, since afterwards it is
+ * idle by construction.
  */
-private fun ranOut(timeoutMs: Long, startedAt: Long): String {
+private fun ranOut(timeoutMs: Long, startedAt: Long, hadWork: Boolean): String {
     val waited = System.currentTimeMillis() - startedAt
-    val looper = runCatching { shadowOf(Looper.getMainLooper()).isIdle }.getOrNull()
-    val threads = runCatching { busyThreads() }.getOrDefault(emptyList())
+    val threads = runCatching { interestingThreads() }.getOrDefault(emptyList())
     return buildString {
         append("Condition not met within $timeoutMs ms (waited $waited ms). ")
-        append("Main looper idle: ${looper ?: "couldn't tell"}.")
-        if (threads.isEmpty()) append(" No thread was running or blocked.") else {
-            append(" Threads running or blocked, and what they were in:\n")
+        append(if (hadWork) "The main looper still had work waiting each time it was drained." else "The main looper had nothing waiting: whatever the wait is for was never posted to it.")
+        if (threads.isEmpty()) append(" No thread to name.") else {
+            append("\nThreads, and what they were in:\n")
             threads.forEach(::append)
         }
     }
 }
 
-/** Every live thread that was running or blocked, with the top of its stack. Bounded: this ends up in a failure message. */
-private fun busyThreads(): List<String> = Thread.getAllStackTraces()
-    .filterKeys { it.state == Thread.State.RUNNABLE || it.state == Thread.State.BLOCKED }
+/** Whether the main looper has work queued, read before it's drained. */
+private fun hadWorkWaiting(): Boolean = runCatching { !shadowOf(Looper.getMainLooper()).isIdle }.getOrDefault(false)
+
+/**
+ * The threads worth naming in a failure message, with the top of each stack. Not only the running
+ * and blocked ones: a coroutine worker that lost its wakeup is parked in WAITING, and that is the
+ * thread a stuck test most needs named. So anything in the app's own code, the libraries it waits
+ * on, or Robolectric, whatever its state, and anything running or blocked whoever owns it.
+ */
+private fun interestingThreads(): List<String> = Thread.getAllStackTraces()
     .entries
+    .filter { (thread, stack) ->
+        thread.state == Thread.State.RUNNABLE || thread.state == Thread.State.BLOCKED ||
+            stack.any { frame -> OURS.any(frame.className::startsWith) }
+    }
     .sortedBy { it.key.name }
-    .take(12)
+    .take(14)
     .map { (thread, stack) ->
         val frames = stack.take(8).joinToString("\n") { "      at $it" }
         "  ${thread.name} (${thread.state})\n$frames\n"
     }
+
+private val OURS = listOf("com.app.newspaperss", "androidx.", "kotlinx.coroutines", "org.robolectric")

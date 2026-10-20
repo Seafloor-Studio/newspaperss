@@ -21,9 +21,24 @@ class IdleTest {
         assertTrue(said, said.startsWith("Condition not met within 50 ms (waited "))
         // The real clock, so a run far past the deadline shows the JVM was starved.
         assertTrue(said, Regex("waited (\\d+) ms").find(said)!!.groupValues[1].toInt() >= 50)
-        assertTrue(said, said.contains("Main looper idle: "))
+        // Read before the looper is drained, so it can say something other than "idle".
+        assertTrue(said, said.contains("The main looper had nothing waiting") || said.contains("still had work waiting"))
         // This thread is running it, so there is always at least one to name.
-        assertTrue(said, said.contains("Threads running or blocked"))
+        assertTrue(said, said.contains("Threads, and what they were in"))
+    }
+
+    @Test
+    fun itNamesAThreadParkedWaiting() {
+        val parked = Thread({ runCatching { java.util.concurrent.CountDownLatch(1).await() } }, "a-parked-worker")
+        parked.isDaemon = true
+        parked.start()
+        idleUntil { parked.state == Thread.State.WAITING }
+
+        // A coroutine worker that lost its wakeup parks like this: running-or-blocked alone misses it.
+        val said = runCatching { idleUntil(timeoutMs = 50) { false } }.exceptionOrNull()!!.message.orEmpty()
+        parked.interrupt()
+
+        assertTrue(said, said.contains("a-parked-worker (WAITING)"))
     }
 
     @Test
