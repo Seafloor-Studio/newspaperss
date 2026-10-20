@@ -3,6 +3,7 @@ package com.app.newspaperss
 import android.content.Context
 import android.app.Application
 import com.app.newspaperss.work.EditionScheduler
+import com.app.newspaperss.work.PodcastWorker
 import com.app.newspaperss.work.ReadingTimeWorker
 import com.app.newspaperss.work.SyncWorker
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -26,6 +27,7 @@ open class NewspaperssApp : Application() {
         container.appScope.launch { container.settleFeedsFrom() }
         // WorkManager keeps work it was given, but not a batch stored just before the app died.
         container.appScope.launch { container.feedMoves.resumeIfPending() }
+        container.appScope.launch { runCatching { PodcastWorker.dropChargingConstraint(this@NewspaperssApp) } }
         container.notifier.createChannels()
         SyncWorker.schedulePeriodic(this)
         ReadingTimeWorker.schedulePeriodic(this)

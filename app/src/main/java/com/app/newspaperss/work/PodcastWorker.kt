@@ -24,9 +24,12 @@ import com.app.newspaperss.listen.PodcastMaker
 import com.app.newspaperss.listen.ProcessDeaths
 import com.app.newspaperss.notify.Notifier
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
@@ -316,6 +319,20 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 .beginUniqueWork(UNIQUE, ExistingWorkPolicy.APPEND_OR_REPLACE, charger)
                 .then(OneTimeWorkRequestBuilder<PodcastWorker>().build())
                 .enqueue()
+        }
+
+        /**
+         * A request queued before [WaitForCharger] keeps the charging constraint in its stored
+         * row, and would be stopped in the foreground just as before; the gate behind it would
+         * wait for it all night. Run at app start.
+         */
+        suspend fun dropChargingConstraint(context: Context) {
+            val work = WorkManager.getInstance(context)
+            val old = work.getWorkInfosForUniqueWorkFlow(UNIQUE).first()
+                .filter { !it.state.isFinished && PodcastWorker::class.java.name in it.tags && it.constraints.requiresCharging() }
+            withContext(Dispatchers.IO) {
+                old.forEach { work.updateWork(OneTimeWorkRequestBuilder<PodcastWorker>().setId(it.id).build()).get() }
+            }
         }
 
         /** Android's stop reasons by name: the number alone sent a session guessing. */

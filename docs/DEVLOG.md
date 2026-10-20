@@ -18,6 +18,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Tue 20 Oct
 
+### The audio wasn't made overnight on a phone holding its charge
+- **What you reported:** an edition's audio was asked for before dawn and never made, with the phone plugged in all night. The audio log showed ten runs, each stopped by Android within a second of starting, "unplugged (reason 6)", while the app's own check said plugged in.
+- **Why:** once the maker is in the foreground, WorkManager checks its charging constraint inside the app and counts only "charging" or "full" as charging. A phone holding its charge at 80% reports "not charging", so WorkManager stopped every run, while Android's scheduler, which counts that phone as charging, kept starting it.
+- **Fix:** a no-op `WaitForCharger` step carries the charging constraint and the maker comes after it without one; the maker checks for itself that the phone is plugged in, as it already did every 30 s. Reason 6 now reads "not charging, or holding its charge", not "unplugged".
+- **Not run here:** a phone held at 80% overnight, which only a phone shows.
+
 ### Four cycles: reading times, hostile feeds, Save a copy, and two episode tidies
 - **What you asked:** the approved reading-times item, then the uncapped feed fields, then the `PodcastSettingsTest` flake if time allowed; then, with the new goal of five fewer open backlog items, small ones from the 19 Oct audits and Save a copy.
 - **Reading times (#335):** saved links with no reading time (saved before pages were measured, or Pocket and Instapaper imports that came with a title) get one in the background: twice a day, Wi-Fi and charging only, 20 links a run. A page that won't load is tried on three passes, then left. The review found a batch stopped by WorkManager's ten-minute limit never saved its place, and a pass count that lasted the app's life; both fixed.
