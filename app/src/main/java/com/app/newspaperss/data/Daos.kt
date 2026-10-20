@@ -415,6 +415,13 @@ interface ArticleDao {
     @Query("UPDATE articles SET pageWords = :words WHERE id = :id")
     suspend fun setPageWords(id: Long, words: Int)
 
+    /** Waiting links of [sourceId] never measured for a reading time, after [afterId], oldest first. */
+    @Query(
+        """SELECT id FROM articles WHERE sourceId = :sourceId AND id > :afterId AND state = 'NEW'
+           AND pageWords IS NULL AND unreadable IS NULL ORDER BY id LIMIT :limit""",
+    )
+    suspend fun unmeasured(sourceId: Long, afterId: Long, limit: Int): List<Long>
+
     @Query("SELECT sourceId, MAX(discoveredAt) AS lastNew FROM articles GROUP BY sourceId")
     fun observeActivity(): Flow<List<SourceActivity>>
 

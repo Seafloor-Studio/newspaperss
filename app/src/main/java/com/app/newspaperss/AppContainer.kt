@@ -17,6 +17,7 @@ import com.app.newspaperss.data.FeedMoves
 import com.app.newspaperss.data.FeedSync
 import com.app.newspaperss.data.ReadingListRepository
 import com.app.newspaperss.data.ReadingListTitles
+import com.app.newspaperss.data.ReadingTimes
 import com.app.newspaperss.data.SecretCipher
 import com.app.newspaperss.data.SourceKind
 import com.app.newspaperss.data.SourceRepository
@@ -122,6 +123,7 @@ class AppContainer(
     val sources = SourceRepository(db)
     val readingList = ReadingListRepository(db, onUntitled = fetchReadingListTitles)
     val readingListTitles = ReadingListTitles(db, http)
+    val readingTimes = ReadingTimes(db, readingListTitles, context.getSharedPreferences("reading-times", Context.MODE_PRIVATE))
     val notifier = Notifier(context)
     val kindleSends = KindleSends()
     // A sent edition's Ready notification comes down: its Send would offer an edition already sent.
