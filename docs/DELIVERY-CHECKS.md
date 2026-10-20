@@ -30,7 +30,7 @@ open with its cover and contents intact?
 | **Folder** | Save to a folder with Android's picker | The file is there, and the edition is marked delivered | Not yet |
 | **Anything else** | The share sheet | Android reports the choice back and the edition is marked sent | Not yet |
 
-Each row needs someone with that device or account, so most are for testers. Update "Last checked"
+Each row needs someone with that device or account, so most are for testers. A local Claude Code session can do most of them on an emulator: [EMULATOR-CHECKS.md](EMULATOR-CHECKS.md) says how. Update "Last checked"
 when one is done (a month is enough).
 
 ## Then check the state it left behind
