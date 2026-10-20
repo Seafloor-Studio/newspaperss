@@ -17,6 +17,7 @@ import androidx.work.ForegroundInfo
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.app.newspaperss.container
 import com.app.newspaperss.listen.PodcastMaker
@@ -38,6 +39,11 @@ import java.util.concurrent.TimeUnit
  * work, Android stops it after 10 minutes and, overnight, lets it run only a minute in several.
  * From Android 12, foreground work can start from the background only if the app's battery use
  * is Unrestricted, or the app is on screen; otherwise it's made as background work, slowly.
+ *
+ * It waits for the charger behind [WaitForCharger] and carries no charging constraint itself:
+ * once work is in the foreground, WorkManager watches its constraints in the app and counts only
+ * "charging" or "full" as charging, so a phone holding its charge at 80% stops it the moment it
+ * starts, every time, all night. Android's own scheduler counts that phone as charging.
  */
 class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     private val log get() = applicationContext.container.podcastLog
@@ -49,7 +55,11 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
     override suspend fun doWork(): Result = try {
         noteLastExit()
         val holdBack = holdBack()
-        if (holdBack != null) {
+        if (!plugged()) {
+            // WorkManager runs it again after a stop without going through WaitForCharger.
+            log.add("Not started (try ${runAttemptCount + 1}): unplugged; waiting for the charger")
+            enqueue(applicationContext)
+        } else if (holdBack != null) {
             // Before loading Kokoro: that alone is seconds and 325 MB, and would heat the phone further.
             log.add("Not started (try ${runAttemptCount + 1}): $holdBack; trying again in ${COOL_OFF_MS / 60_000} min, ${standing()}")
             enqueue(applicationContext, COOL_OFF_MS)
@@ -296,13 +306,16 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
          * this is asked runs again after.
          */
         fun enqueue(context: Context, afterMs: Long = 0L) {
-            val request = OneTimeWorkRequestBuilder<PodcastWorker>()
+            val charger = OneTimeWorkRequestBuilder<WaitForCharger>()
                 .setConstraints(Constraints.Builder().setRequiresCharging(true).setRequiresBatteryNotLow(true).build())
                 // Appended, so a podcast asked for while the phone cools waits for the cool-off too:
                 // the phone being too hot to make speech is the reason either way.
                 .apply { if (afterMs > 0) setInitialDelay(afterMs, TimeUnit.MILLISECONDS) }
                 .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+            WorkManager.getInstance(context)
+                .beginUniqueWork(UNIQUE, ExistingWorkPolicy.APPEND_OR_REPLACE, charger)
+                .then(OneTimeWorkRequestBuilder<PodcastWorker>().build())
+                .enqueue()
         }
 
         /** Android's stop reasons by name: the number alone sent a session guessing. */
@@ -312,7 +325,7 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             WorkInfo.STOP_REASON_TIMEOUT -> "timed out"
             WorkInfo.STOP_REASON_DEVICE_STATE -> "device state, heat most likely"
             WorkInfo.STOP_REASON_CONSTRAINT_BATTERY_NOT_LOW -> "battery low"
-            WorkInfo.STOP_REASON_CONSTRAINT_CHARGING -> "unplugged"
+            WorkInfo.STOP_REASON_CONSTRAINT_CHARGING -> "not charging, or holding its charge"
             WorkInfo.STOP_REASON_CONSTRAINT_CONNECTIVITY -> "no network"
             WorkInfo.STOP_REASON_CONSTRAINT_DEVICE_IDLE -> "phone in use"
             WorkInfo.STOP_REASON_CONSTRAINT_STORAGE_NOT_LOW -> "storage low"
@@ -341,4 +354,12 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             else -> "status $status"
         }
     }
+}
+
+/**
+ * Done as soon as it starts: its constraints are the wait for the charger, so that the
+ * [PodcastWorker] after it needn't carry them.
+ */
+class WaitForCharger(context: Context, params: WorkerParameters) : Worker(context, params) {
+    override fun doWork(): Result = Result.success()
 }

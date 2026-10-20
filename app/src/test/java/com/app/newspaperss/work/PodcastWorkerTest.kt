@@ -5,6 +5,8 @@ import android.app.ApplicationExitInfo
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.os.BatteryManager
 import android.os.PowerManager
 import android.os.Process
 import androidx.test.core.app.ApplicationProvider
@@ -94,6 +96,11 @@ class PodcastWorkerTest {
 
     private fun thermal(status: Int) =
         shadowOf(app.getSystemService(PowerManager::class.java)).setCurrentThermalStatus(status)
+
+    private fun plugged(yes: Boolean) {
+        val plug = if (yes) BatteryManager.BATTERY_PLUGGED_AC else 0
+        app.sendStickyBroadcast(Intent(Intent.ACTION_BATTERY_CHANGED).putExtra(BatteryManager.EXTRA_PLUGGED, plug))
+    }
 
     private fun batterySaver(yes: Boolean) =
         shadowOf(app.getSystemService(PowerManager::class.java)).setIsPowerSaveMode(yes)
@@ -200,9 +207,39 @@ class PodcastWorkerTest {
         // One arm per reason: a copy-paste that named two the same would read as the wrong stop.
         assertEquals(reasons.size, names.distinct().size)
         assertTrue(names.none { it == "unnamed" })
-        assertEquals("unplugged", PodcastWorker.stopReasonName(WorkInfo.STOP_REASON_CONSTRAINT_CHARGING))
+        assertEquals("not charging, or holding its charge", PodcastWorker.stopReasonName(WorkInfo.STOP_REASON_CONSTRAINT_CHARGING))
         assertEquals("device state, heat most likely", PodcastWorker.stopReasonName(WorkInfo.STOP_REASON_DEVICE_STATE))
         assertEquals("unnamed", PodcastWorker.stopReasonName(-99))
+    }
+
+    /**
+     * In the foreground, WorkManager checks a charging constraint in the app and counts a phone
+     * holding its charge at 80% as unplugged: the run was stopped as it started, all night.
+     */
+    @Test
+    fun theMakerWaitsForTheChargerWithoutCarryingTheConstraintIntoTheForeground() {
+        PodcastWorker.enqueue(app)
+
+        val work = WorkManager.getInstance(app).getWorkInfosForUniqueWork("podcast").get()
+        val wait = work.single { WaitForCharger::class.java.name in it.tags }
+        val maker = work.single { PodcastWorker::class.java.name in it.tags }
+        assertTrue(wait.constraints.requiresCharging())
+        assertTrue(wait.constraints.requiresBatteryNotLow())
+        assertFalse(maker.constraints.requiresCharging())
+        assertEquals(WorkInfo.State.BLOCKED, maker.state)
+    }
+
+    @Test
+    fun runAgainUnpluggedItDoesntStartAndWaitsForTheCharger() = runTest {
+        unrestricted(true)
+        plugged(false)
+
+        assertTrue(run(allowed) is ListenableWorker.Result.Success)
+
+        assertNull(shown)
+        assertEquals(1, noted("unplugged; waiting for the charger"))
+        val queued = WorkManager.getInstance(app).getWorkInfosForUniqueWork("podcast").get()
+        assertTrue(queued.single { it.state == WorkInfo.State.ENQUEUED }.constraints.requiresCharging())
     }
 
     @Test
