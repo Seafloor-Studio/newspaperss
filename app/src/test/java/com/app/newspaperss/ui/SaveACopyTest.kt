@@ -75,6 +75,24 @@ class SaveACopyTest {
     }
 
     @Test
+    fun aCopyAnsweredAfterTheAppWasEndedIsStillSaved() {
+        val dir = tmp.newFolder("editions")
+        File(dir, "tuesday.epub").writeBytes(book)
+        val id = runBlocking {
+            dbRule.db.editions().insert(EditionEntity(title = "Tuesday Morning Edition", status = EditionStatus.DELIVERED, fileName = "tuesday.epub"))
+        }
+        // Made again after Android ended the app: the save dialog's answer arrives before anything
+        // has read the edition.
+        val vm = viewModels.add(EditionDetailViewModel(EditionRepository(dbRule.db, dir), id) {})
+        val picked = File(tmp.root, "picked.epub")
+        vm.saveCopy(compose.activity.contentResolver, Uri.fromFile(picked))
+
+        idleUntil { vm.copied.value != null }
+        assertEquals("Saved a copy.", vm.copied.value)
+        assertEquals(book.toList(), picked.readBytes().toList())
+    }
+
+    @Test
     fun aCopyThatCantBeWrittenSaysSo() {
         val asked = pickSaveACopy()
         answer(asked, Uri.fromFile(File(tmp.root, "no-such-folder/picked.epub")))

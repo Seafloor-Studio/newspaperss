@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -108,16 +109,20 @@ class EditionDetailViewModel(
      * In the view model, so turning the phone mid-copy doesn't leave half a book.
      */
     fun saveCopy(resolver: ContentResolver, uri: Uri) {
-        val file = detail.value?.file ?: return
         viewModelScope.launch {
+            // Not [detail]: after Android ends the app while the save dialog is open, the answer
+            // comes before the edition has loaded again.
+            val file = editions.observe(id).first()?.let(editions::fileOf)
             _copied.value = try {
                 withContext(Dispatchers.IO) {
+                    if (file == null) throw IOException("the book is gone")
                     resolver.openOutputStream(uri, "wt")?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: throw IOException("no stream")
                 }
                 "Saved a copy."
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                // Half a book would fail to open on whatever reads it next.
+                // The save dialog has already made the file: an empty or half a book would fail to
+                // open on whatever reads it next.
                 withContext(Dispatchers.IO) { runCatching { DocumentsContract.deleteDocument(resolver, uri) } }
                 "Couldn't save the copy."
             }
