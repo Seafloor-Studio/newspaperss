@@ -1,6 +1,7 @@
 package com.app.newspaperss.ui
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasClickAction
@@ -8,7 +9,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.accessibility.enableAccessibilityChecks
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -33,9 +34,21 @@ import java.util.concurrent.TimeUnit
 class AccessibilityChecksTest {
     // Fails with the stuck thread's stack, rather than holding the emulator job for hours.
     @get:Rule(order = 0) val timeout: Timeout = Timeout.builder().withTimeout(10, TimeUnit.MINUTES).withLookingForStuckThread(true).build()
-    @get:Rule(order = 1) val compose = createAndroidComposeRule<MainActivity>()
+    @get:Rule(order = 1) val compose = createEmptyComposeRule()
 
-    @Before fun enableChecks() = compose.enableAccessibilityChecks()
+    // Not createAndroidComposeRule<MainActivity>: its launch waits for the main thread to go idle,
+    // which the splash screen holds off until settings load, which needs a frame from the test's
+    // clock, which the waiting launch never lets it give.
+    @Before fun launch() {
+        compose.enableAccessibilityChecks()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        context.startActivity(
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        )
+        compose.waitUntil(60_000) {
+            compose.onAllNodes(hasText("Get started") or hasText("Today")).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
 
     private fun checkScreen() {
         compose.waitForIdle()
@@ -88,9 +101,10 @@ class AccessibilityChecksTest {
             tab(label); checkScreen()
         }
         // The same at the largest text Android offers, where labels wrap and buttons grow.
+        // Android recreates the activity for the new font scale by itself.
         shell("settings put system font_scale 2.0")
         try {
-            compose.activityRule.scenario.recreate()
+            compose.waitUntil(30_000) { compose.onAllNodes(hasText("Settings") and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
             for (label in listOf("Today", "Sources", "Settings")) {
                 tab(label); checkScreen()
             }
