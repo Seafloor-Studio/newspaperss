@@ -5,7 +5,8 @@ For the next cycle: what each one should do differently. What was built is in
 
 ### Cycles F1–F4 (20 Oct) — build: reading times, row caps, episode tidies, Save a copy
 
-One session, a day run alongside other agents on 4 shared cores. Built: #335, #336, #337, #338; see [DEVLOG.md](DEVLOG.md). The flake reproduced (1 in 19) but isn't fixed; its backlog item has the leads.
+One session, a day run alongside other agents on 4 shared cores. Built: #335, #336, #337, #338, and the `PodcastSettingsTest` flake (#340); see [DEVLOG.md](DEVLOG.md).
+- **Count a flake's before and after side by side.** The first after-count ran while the machine had gone quiet (load 5, against 12-16 for the before), which proves little for a flake that needs load. Running both versions at once, each loading the other, gave a fair 4 in 20 against 0 in 20.
 - **The scratchpad is shared with other agents.** A file named `pr1.md` at its root was overwritten by another project's session, and a `PATCH` from it put that project's PR text on #335 for a minute. Keep every file in a folder named for the project and never reuse a common name; read a PR body back after writing it.
 - **A Compose effect runs on the test rule's own dispatcher, not the main looper.** `idleUntil` drains only the looper, so a toast from a `LaunchedEffect` never showed in the test until the wait also called `compose.waitForIdle()`. The rule runs each test inside `runTest`; that's the first lead for the `PodcastSettingsTest` flake.
 - **With no subagent tool, a review session works:** `create_session` on the pushed branch, asked to post its findings as one PR comment, then `send_message` to the same session for the second look and the next PR. It found real bugs in two of four PRs.
