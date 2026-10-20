@@ -89,9 +89,33 @@ dailylog uses (`com.app.dailylog` in fdroiddata).
   [fdroiddata](https://gitlab.com/fdroid/fdroiddata) adding
   `metadata/com.app.newspaperss.yml`, from the draft in
   [docs/fdroid/](fdroid/com.app.newspaperss.yml), once
-  `AllowedAPKSigningKeys` is in and `v0.1.0`'s release is published. Its
+  `AllowedAPKSigningKeys` is in and a release is published. Its
   reviewers check that it builds; they may ask for changes (for example if
   their build server doesn't yet support compileSdk 37).
+
+  **Not before late December 2026** (madCode, 20 Oct): F-Droid's
+  [inclusion policy](https://f-droid.org/docs/Inclusion_Policy/) says "the
+  application should have been actively developed for at least 3 months",
+  and this repository's first commit is 29 Sep 2026. Three named exceptions
+  let an app in earlier, and the only one in reach is that it "has been
+  proven to have some users" — so the way to go sooner is readers on the
+  GitHub APK, not a better merge request. There is no point opening one in
+  the meantime: it is the kind of thing their reviewers close.
+
+  **Use the template** (`App inclusion`, in fdroiddata's
+  `.gitlab/merge_request_templates/`), which GitLab offers in the
+  description's dropdown. What it asks for that we don't have by default:
+  - Title exactly `New app: NewspapeRSS`, one app per merge request.
+  - An abstract of what the app does, with screenshots. `fastlane/` has them.
+  - Commits as **full hashes**, not tags or branches — the draft's `commit:`
+    lines are the v0.1.1 hash for that reason. Auto-update writes later
+    entries itself.
+  - **Only the latest version** in `Builds:`, which is why the draft carries
+    0.1.1 (codes 21-24) and not the 0.1.0 entries it was written with.
+  - No `Summary`, `Description`, changelog or images in the metadata: those
+    come from `fastlane/metadata/android/en-US/` in this repository, which is
+    where the draft leaves them.
+  - Every pipeline green on the merge request.
 - **After that:** each new `v*` tag is picked up on its own, one build per
   ABI (`VercodeOperation`). The `latest-debug` tag is ignored, as
   `UpdateCheckMode` only matches `v` tags.
@@ -105,7 +129,12 @@ dailylog uses (`com.app.dailylog` in fdroiddata).
   - Four builds, one per ABI, because the app's build splits its APKs; each
     names its APK with `output:`.
   - `NonFreeNet`: the natural voice (Kokoro) downloads from Hugging Face, as
-    SherpaTTS, the other sherpa-onnx app on F-Droid, declares.
+    SherpaTTS, the other sherpa-onnx app on F-Droid, declares. **Your call
+    before the merge request:** since 0.1.1 a release build has no way to
+    download anything from Hugging Face, so submitting it with this
+    anti-feature declares something the APK they'd build doesn't do. Dropping
+    it until the voice ships is the honest version, at the cost of an extra
+    one-line merge request then.
   - sherpa-onnx comes from JitPack, which F-Droid's scanner allows; SherpaTTS
     uses the same library the same way.
   - While the natural voice is debug-only (tested for safe resource usage first), a release build has neither

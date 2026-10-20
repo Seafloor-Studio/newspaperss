@@ -10,7 +10,23 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 - **Lately:** 19 Oct, **0.1.1 tagged** (Kokoro's native code out of release builds, a check that keeps it out); podcast episodes steps 1–3 in debug builds (#313, #320–#324): posts keep their audio and are labelled, wrong labels can be sent for a look, and Listen plays an article's recorded reading in its place.
 - **Watching:** `PodcastSettingsTest` times out under load (3 of 7 full runs on one branch on 19 Oct; backlog), and main's suite timed out once in `KindleEmailScreensTest`. Count them over 20 runs next.
-- **Waiting on you:** 0.1.1's **draft** GitHub release — try the arm64 APK on a phone (onboarding, an edition, a send), then publish the draft the same day, since F-Droid can't see a draft; v0.1.0's release notes still carry the "wait for the next version" warning, to replace with a line pointing at 0.1.1. Then the F-Droid merge request and Play's forms, neither started. Also: two weeks of episode labels in real use (report a wrong one with Send for a look), and how the recordings sound in Listen; an `episodes` label on the repo; whether the `handle-issues` skill learns about "Episode label:" issues (claude-playground). [#18](https://github.com/Seafloor-Studio/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
+- **Waiting on you:** 0.1.1's **draft** GitHub release — try the arm64 APK on a phone (onboarding, an edition, a send), then publish the draft the same day, since F-Droid can't see a draft; v0.1.0's release notes still carry the "wait for the next version" warning, to replace with a line pointing at 0.1.1. Play's forms, not started. The F-Droid merge request now has a date on it: **not before late December 2026**, three months of active development from this repository's first commit (29 Sep) — the one exception in reach is "proven to have some users", so readers on the GitHub APK are what moves it earlier. `docs/RELEASING.md` has the template's requirements, and one call for you there: whether to submit with the `NonFreeNet` anti-feature, which 0.1.1 doesn't earn. Also: two weeks of episode labels in real use (report a wrong one with Send for a look), and how the recordings sound in Listen; an `episodes` label on the repo; whether the `handle-issues` skill learns about "Episode label:" issues (claude-playground). [#18](https://github.com/Seafloor-Studio/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
+
+## Tue 20 Oct
+
+### 0.1.1 released, and what F-Droid wants
+- **Tagged and built:** the Release workflow signed four APKs and the AAB into a draft, with both
+  Kokoro checks running on the bytes it signed. The signed arm64 APK is 18 MB, down from 50.6, and
+  nothing in it mentions sherpa or onnx. Waiting on you: the phone check, then publishing the draft.
+- **F-Droid has a date, not a queue position** (madCode): the inclusion policy wants three months of
+  active development, which from the first commit (29 Sep) means late December. The `App inclusion`
+  template also wants full commit hashes, only the latest version in `Builds:`, no summary or
+  images in the metadata, and the title `New app: NewspapeRSS`. The draft now points at v0.1.1 by
+  hash; `docs/RELEASING.md` carries the rest.
+- **A claim from the 0.1.1 review, checked and wrong:** the review thought the AAB probably carried
+  the plain `versionCode` rather than the documented `versionCode * 10 + 1`, and the PR left that as
+  a doc fix to make. Read out of the signed bundle's own manifest, it is **21** with versionName
+  0.1.1 — what `RELEASING.md` already says. Neither the doc nor the build number needed changing.
 
 ## Mon 19 Oct
 
