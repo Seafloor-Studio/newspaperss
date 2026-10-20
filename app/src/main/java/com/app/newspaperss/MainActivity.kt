@@ -14,7 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import android.content.Intent
-import android.content.pm.ApplicationInfo
+import com.app.newspaperss.listen.KokoroSupport
 import com.app.newspaperss.listen.ListenPosition
 import com.app.newspaperss.ui.components.EpisodeJudgement
 import com.app.newspaperss.ui.listen.ListenScreen
@@ -354,7 +354,7 @@ private fun settingsViewModel(container: AppContainer): SettingsViewModel {
             container.settings, container.ttrss.observeStatus(),
             hear = { text, speed -> container.listen.sample(text, speed) },
             // Debug builds only until a real morning has been tried with it on a phone (see docs/BACKLOG.md).
-            podcast = container.podcastSetup.takeIf { context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 },
+            podcast = container.podcastSetup.takeIf { KokoroSupport.inThisBuild(context) },
         ) {
             container.appScope.launch { EditionScheduler.reschedule(context, it) }
         }

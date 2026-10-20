@@ -1,10 +1,12 @@
 package com.app.newspaperss.listen
 
 import android.app.ActivityManager
+import android.content.pm.ApplicationInfo
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.testutil.TestApp
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -17,6 +19,12 @@ import org.robolectric.annotation.Config
 @Config(application = TestApp::class)
 class KokoroSupportTest {
     private val app = ApplicationProvider.getApplicationContext<TestApp>()
+
+    private fun debuggable(yes: Boolean) {
+        val flags = app.applicationInfo.flags
+        app.applicationInfo.flags =
+            if (yes) flags or ApplicationInfo.FLAG_DEBUGGABLE else flags and ApplicationInfo.FLAG_DEBUGGABLE.inv()
+    }
 
     private fun lowMemory(yes: Boolean) =
         shadowOf(app.getSystemService(ActivityManager::class.java)).setIsLowRamDevice(yes)
@@ -73,5 +81,22 @@ class KokoroSupportTest {
             "Kokoro needs a 64-bit phone, and this one is 32-bit.",
             why(installed = true, sixtyFourBit = false),
         )
+    }
+
+    /**
+     * The voice is offered in debug builds only. v0.1.0 shipped sherpa-onnx's 32 MB to everyone
+     * behind this one line, reachable by nobody, and a release build now carries none of it
+     * (`KokoroNativeLibsCheck` in app/build.gradle.kts).
+     */
+    @Test
+    fun aReleaseBuildDoesNotOfferTheVoice() {
+        debuggable(false)
+        assertFalse(KokoroSupport.inThisBuild(app))
+    }
+
+    @Test
+    fun aDebugBuildOffersIt() {
+        debuggable(true)
+        assertTrue(KokoroSupport.inThisBuild(app))
     }
 }

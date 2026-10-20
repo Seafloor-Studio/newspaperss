@@ -54,14 +54,17 @@ jobs:
             exit 1
           fi
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
-      # main's CI already ran the tests on this commit; this builds only what's shipped.
+      # main's CI already ran the tests on this commit; this builds only what's shipped. The two
+      # Kokoro checks run here as well as in main's CI, because these are the bytes that get signed
+      # and go out: a tag can sit on a commit main's CI never finished, and the natural voice's
+      # 32 MB coming back is invisible on screen (see KokoroNativeLibsCheck in app/build.gradle.kts).
       - name: Build the signed APK and AAB
         env:
           KEYSTORE_PATH: ${{ runner.temp }}/release.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleRelease bundleRelease
+        run: ./gradlew assembleRelease bundleRelease checkReleaseKokoroNativeLibs checkReleaseKokoroBundle
       - name: Draft the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
