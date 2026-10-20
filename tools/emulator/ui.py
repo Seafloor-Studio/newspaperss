@@ -30,10 +30,22 @@ def adb(*args, binary=False):
     return subprocess.run([ADB, *args], check=True, capture_output=True, text=not binary).stdout
 
 
-def nodes():
-    # Straight to stdout: no file left on the device, and no race with a second dump.
+def dump():
+    """The screen's hierarchy as XML, or None while there is none to give (an app starting up)."""
     raw = adb("exec-out", "uiautomator", "dump", "/dev/tty")
-    xml = raw[raw.find("<?xml"):raw.rfind(">") + 1]
+    if "<hierarchy" not in raw:
+        # Some images write nothing to the terminal; the file on the device is the documented way.
+        subprocess.run([ADB, "shell", "uiautomator", "dump", "/sdcard/ui.xml"], capture_output=True)
+        raw = subprocess.run([ADB, "exec-out", "cat", "/sdcard/ui.xml"], capture_output=True, text=True).stdout
+    if "<hierarchy" not in raw:
+        return None
+    return raw[raw.find("<?xml"):raw.rfind("</hierarchy>") + len("</hierarchy>")]
+
+
+def nodes():
+    xml = dump()
+    if xml is None:
+        return
     for node in ET.fromstring(xml).iter("node"):
         label = node.get("text") or node.get("content-desc") or ""
         bounds = [int(n) for n in re.findall(r"\d+", node.get("bounds", ""))]
