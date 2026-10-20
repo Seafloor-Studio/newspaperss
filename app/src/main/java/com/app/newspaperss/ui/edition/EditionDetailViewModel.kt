@@ -1,5 +1,8 @@
 package com.app.newspaperss.ui.edition
 
+import android.content.ContentResolver
+import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.app.newspaperss.data.ArticleState
@@ -17,8 +20,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 
 data class EditionDetail(
     /** Null if the edition doesn't exist (any more). */
@@ -86,5 +93,34 @@ class EditionDetailViewModel(
 
     fun markNotSent() {
         viewModelScope.launch { editions.markNotSent(id) }
+    }
+
+    private val _copied = MutableStateFlow<String?>(null)
+    /** What became of the last Save a copy, to say once; [copySaid] clears it. */
+    val copied: StateFlow<String?> = _copied.asStateFlow()
+
+    fun copySaid() {
+        _copied.value = null
+    }
+
+    /**
+     * Copies the edition's book to [uri], a file the reader made with the system's save dialog.
+     * In the view model, so turning the phone mid-copy doesn't leave half a book.
+     */
+    fun saveCopy(resolver: ContentResolver, uri: Uri) {
+        val file = detail.value?.file ?: return
+        viewModelScope.launch {
+            _copied.value = try {
+                withContext(Dispatchers.IO) {
+                    resolver.openOutputStream(uri, "wt")?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: throw IOException("no stream")
+                }
+                "Saved a copy."
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                // Half a book would fail to open on whatever reads it next.
+                withContext(Dispatchers.IO) { runCatching { DocumentsContract.deleteDocument(resolver, uri) } }
+                "Couldn't save the copy."
+            }
+        }
     }
 }
