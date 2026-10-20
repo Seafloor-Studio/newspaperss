@@ -27,10 +27,14 @@ changed and why.
     ./gradlew :epubsink:installDebug :app:connectedDebugAndroidTest   # device tests (emulator)
     ./gradlew koverHtmlReport            # coverage: build/reports/kover/html
     ./gradlew koverVerify                # fails below 93% line coverage (CI runs it)
+    docker compose -f tools/ttrss-live/compose.yml up -d --wait && TTRSS_LIVE=1 ./gradlew :core:test --tests '*TtrssLiveTest*' --rerun   # the tt-rss client against a real tt-rss
     tools/ace-check.sh                   # Ace by DAISY on the books EpubCheckTest writes (run that first)
     tools/render-epub.sh <book.epub>     # each page drawn at e-reader size, to core/build/render/
 
-JDK 21 and the Android SDK (compileSdk 37) are required.
+JDK 21 and the Android SDK (compileSdk 37) are required. In a cloud
+session, `.claude/hooks/session-start.sh` sets up the SDK, `local.properties`
+and a Maven Central mirror; the first Gradle run then takes about five minutes.
+There is no emulator there (no KVM): device tests run in CI.
 
 Changing a Room entity means bumping the database version, adding a
 Migration with a `MigrationTest` case, and committing the new schema JSON
