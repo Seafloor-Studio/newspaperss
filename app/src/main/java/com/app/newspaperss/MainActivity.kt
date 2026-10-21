@@ -112,6 +112,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val container = application.container
+        // Only a fresh start at the root of its task has no picker below it left to answer. A start
+        // on top of an existing task, as a launcher tap gets after a notification opened the app,
+        // may have one.
+        if (savedInstanceState == null && isTaskRoot) {
+            AwaitedAnswers(this).forget()
+        }
         // Not when reopened from recents, which hands back the intent that first opened it.
         if (savedInstanceState == null && intent?.flags?.and(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0) {
             opening.value = intent?.getStringExtra(EXTRA_OPEN)
@@ -150,6 +156,29 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    // The result contracts launch through these, so they see every picker (permission requests
+    // go another way, and a lost permission answer is only asked again). A plain startActivity
+    // comes through here too, with -1, and nothing answers it: not held.
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
+        if (requestCode < 0) return super.startActivityForResult(intent, requestCode, options)
+        val awaited = AwaitedAnswers(this)
+        awaited.sent(requestCode)
+        try {
+            super.startActivityForResult(intent, requestCode, options)
+        } catch (e: RuntimeException) {
+            awaited.answered(requestCode)
+            throw e
+        }
+    }
+
+    // Before the callback, which may open another picker that must hold in turn.
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        AwaitedAnswers(this).answered(requestCode)
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onStart() {

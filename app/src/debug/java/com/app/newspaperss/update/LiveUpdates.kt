@@ -11,6 +11,7 @@ import android.os.Build
 import android.util.Log
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.app.newspaperss.AwaitedAnswers
 import com.app.newspaperss.DebugUpdates
 import com.app.newspaperss.InstallTap
 import com.app.newspaperss.SelfUpdate
@@ -59,6 +60,8 @@ internal class LiveUpdates(
     private val commit: suspend (File, Int, suspend () -> Boolean) -> Unit = ApkInstaller(context)::commit,
     private val canInstall: () -> Boolean = { context.packageManager.canRequestPackageInstalls() },
     private val foreground: () -> Boolean = ::inForeground,
+    /** A picker is out: the app is paused, not left, and its answer would be lost with it. */
+    private val awaiting: () -> Boolean = { AwaitedAnswers(context).any },
     private val unmetered: () -> Boolean = { unmeteredNow(context) },
     private val notices: UpdateNotices = UpdateNotices(context),
     private val now: () -> Long = System::currentTimeMillis,
@@ -203,7 +206,7 @@ internal class LiveUpdates(
                 giveUp(ready)
                 return@withContext Outcome.Gone
             }
-            busyReason(runningWork(), listenPlaying(), foreground = !userAsked && foreground())?.let {
+            busyReason(runningWork(), listenPlaying(), foreground = !userAsked && (foreground() || awaiting()))?.let {
                 return@withContext Outcome.Busy(it)
             }
             if (!canInstall()) {
@@ -225,15 +228,20 @@ internal class LiveUpdates(
                 // Asked again just before Android takes it: copying 50 MB into the session takes a
                 // while, and a timed edition may have started meanwhile.
                 commit(apk, ready) {
-                    busy = busyReason(runningWork(), listenPlaying(), foreground = !userAsked && foreground())
+                    busy = busyReason(runningWork(), listenPlaying(), foreground = !userAsked && (foreground() || awaiting()))
                     busy == null
                 }
             } catch (e: CancellationException) {
                 // Stopped, not refused: WorkManager or a closed screen. Not counted toward giving up.
                 throw e
+            } catch (e: IOException) {
+                // Usually no room for Android's copy: the phone's problem, not the build's, so not
+                // counted toward giving up on it. A wait, not a failure, so a tap doesn't send the
+                // reader to a browser download that needs the same room.
+                log("Build $ready couldn't be copied to Android: ${e.message}")
+                return@withContext Outcome.Busy(NO_ROOM)
             } catch (e: Exception) {
-                // PackageInstaller throws IOException and SecurityException, and IllegalStateException
-                // for a session it closed under us.
+                // SecurityException, or IllegalStateException for a session it closed under us.
                 log("Build $ready couldn't be handed to Android: ${e.javaClass.simpleName} ${e.message}")
                 return@withContext if (failed(ready)) Outcome.Failed else Outcome.Retry
             }
@@ -277,7 +285,12 @@ internal class LiveUpdates(
                 log("Build $build can't install (status $status): $message")
                 giveUp(build)
             }
-            // Storage, blocked, a timeout or no reason: maybe not next time, but not forever.
+            // No room, or storage not mounted: the phone's, not the build's. Not counted, and not
+            // queued again here: Android can refuse for want of room before storage counts as low,
+            // so that would retry every half hour for as long as the phone stays full. The next
+            // check, on opening the app or every six hours, queues it again.
+            PackageInstaller.STATUS_FAILURE_STORAGE -> log("Build $build: no room to install ($message)")
+            // Blocked, a timeout or no reason: maybe not next time, but not forever.
             else -> {
                 log("Build $build didn't install (status $status): $message")
                 if (!failed(build)) LiveInstallWorker.enqueue(work, delayMinutes = RETRY_MINUTES)
@@ -372,6 +385,7 @@ internal class LiveUpdates(
         const val DOWNLOAD_TRIES = 5
         const val MAX_INSTALL_FAILURES = 3
         const val RETRY_MINUTES = 30L
+        const val NO_ROOM = "It installs once the phone has room for it."
         private val COMMIT_PENDING_MS = TimeUnit.MINUTES.toMillis(10)
 
         fun of(context: Context): LiveUpdates? = context.container.selfUpdates as? LiveUpdates
