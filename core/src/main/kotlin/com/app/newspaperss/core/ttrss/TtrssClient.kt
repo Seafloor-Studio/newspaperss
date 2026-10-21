@@ -466,8 +466,13 @@ class TtrssClient(
             null
         } ?: throw TtrssException.NotTtrss()
         val content = json["content"] ?: throw TtrssException.NotTtrss()
-        // `as? JsonPrimitive`, not `.jsonPrimitive`, which throws IllegalArgumentException for an object.
-        val error = ((content as? JsonObject)?.get("error") as? JsonPrimitive)?.contentOrNull
+        // An error that isn't text isn't tt-rss. Read as no error, calls that ignore the reply
+        // (marking read) would count it a success.
+        val error = when (val e = (content as? JsonObject)?.get("error")) {
+            null -> null
+            is JsonPrimitive -> e.contentOrNull
+            else -> throw TtrssException.NotTtrss()
+        }
         when (error) {
             null -> return content
             "NOT_LOGGED_IN" -> throw NotLoggedIn()

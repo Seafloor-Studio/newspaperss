@@ -264,6 +264,14 @@ class TtrssClientTest {
     }
 
     @Test
+    fun markReadAnsweredWithAnErrorThatIsntTextFails() = runTest {
+        server.reply(loggedIn)
+        server.reply(ok("""{"error":{}}"""))
+        val thrown = runCatching { client().markRead(listOf(12345L)) }.exceptionOrNull()
+        assertTrue("$thrown", thrown is TtrssException.NotTtrss)
+    }
+
+    @Test
     fun markUnreadSetsTheUnreadFlag() = runTest {
         server.reply(loggedIn)
         server.reply(ok("""{"status":"OK","updated":1}"""))
