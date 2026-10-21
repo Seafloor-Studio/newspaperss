@@ -3,6 +3,9 @@
 # com.app.newspaperss).
 # A failure inside $(...) stops the script too, as it would outside one.
 shopt -s inherit_errexit
+# A failure names its line, as a bare exit code from adb doesn't say where it came from.
+set -E
+trap 'echo "failed: line $LINENO: $BASH_COMMAND" >&2' ERR
 ui=tools/emulator/ui.py
 pkg=${PKG:-com.app.newspaperss.debug}
 

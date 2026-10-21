@@ -99,7 +99,8 @@ case "${1:-}" in
     adb shell am kill "$pkg"
     sleep 2
     if adb shell pidof "$pkg" > /dev/null; then echo "$pkg is still running after am kill" >&2; exit 1; fi
-    adb logcat -c
+    # Clearing sometimes fails on an emulator; the RESULT line is new either way.
+    adb logcat -c || true
     adb shell cmd statusbar expand-notifications
     $ui wait "$t is ready" > /dev/null
     $ui shot 42-notification
