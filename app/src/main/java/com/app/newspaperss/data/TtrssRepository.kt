@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import java.io.IOException
 import java.time.Duration
+import java.time.Instant
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -42,6 +43,14 @@ class TtrssRepository(
     private val sources: SourceRepository,
     private val clock: Clock = Clock.systemUTC(),
 ) {
+    /**
+     * The login and when tt-rss last refused it here. After a refusal, tt-rss refuses that user
+     * for 5 seconds whatever the password, and each try starts the wait again
+     * (`AUTH_MIN_INTERVAL`), so a quickly corrected typo comes back as a wrong password too.
+     * Its answer is the same either way; only the timing tells them apart.
+     */
+    @Volatile private var lastRefusal: Pair<Pair<String, String>, Instant>? = null
+
     sealed interface Check {
         data class Failed(val message: String) : Check
         /**
@@ -53,7 +62,9 @@ class TtrssRepository(
 
     /** Logs in to check the account and reads its categories and feeds if asked, saving nothing. */
     suspend fun check(address: String, user: String, password: String, readCategories: Boolean = true, readFeeds: Boolean = false): Check {
-        val client = TtrssAccount(TtrssClient.apiUrl(address), user.trim(), password).client(http)
+        val account = TtrssAccount(TtrssClient.apiUrl(address), user.trim(), password)
+        val client = account.client(http)
+        val started = clock.instant()
         try {
             client.login()
             // Either is only shown to the reader; failing to read one isn't failing to sign in.
@@ -68,7 +79,11 @@ class TtrssRepository(
             val feeds = if (!readFeeds) null else optional { client.allFeeds() }
             return Check.Passed(categories, feeds)
         } catch (e: TtrssException) {
-            return Check.Failed(e.reason)
+            if (e !is TtrssException.LoginFailed) return Check.Failed(e.reason)
+            val who = account.apiUrl to account.user.lowercase()
+            val soonAfterAnother = lastRefusal?.let { (last, at) -> last == who && started < at + LOCKOUT } == true
+            lastRefusal = who to clock.instant()
+            return Check.Failed(if (soonAfterAnother) REFUSED_SOON_AFTER else e.reason)
         } catch (e: IOException) {
             return Check.Failed(
                 if (FeedSync.tooSlow(e)) "${address.trim()} took too long to answer. Try again in a moment."
@@ -571,6 +586,15 @@ class TtrssRepository(
         val LIST_BEFORE_LEAVING: Duration = Duration.ofSeconds(20)
 
         /** Another login signed in while a move was under way. */
+        /**
+         * How soon after a refusal another one may be tt-rss's wait rather than the password:
+         * its 5 seconds, plus a second because it counts in whole seconds.
+         */
+        private val LOCKOUT: Duration = Duration.ofSeconds(6)
+
+        const val REFUSED_SOON_AFTER = "tt-rss didn't accept that username and password. " +
+            "After a wrong password it turns every sign-in away for a few seconds, so if this one is right, wait 5 seconds and try again."
+
         const val SIGNED_IN_AGAIN = "You signed in to tt-rss again while it was moving. Move it again to put it in this account."
     }
 
