@@ -48,6 +48,23 @@ make_another() {
   return 1
 }
 
+# What the app's database holds about a host, when the screen doesn't say why something is missing.
+# Debug builds only (run-as).
+db_about() {
+  local dir=build/emulator/db
+  mkdir -p "$dir"
+  for f in newspaperss.db newspaperss.db-wal; do
+    adb exec-out run-as "$pkg" cat "databases/$f" > "$dir/$f" 2> /dev/null || true
+  done
+  python3 - "$dir/newspaperss.db" "$1" <<'PY' || true
+import sqlite3, sys
+db = sqlite3.connect(sys.argv[1])
+like = f"%{sys.argv[2]}%"
+print("sources:", db.execute("SELECT id, kind, title, url FROM sources").fetchall())
+print("articles from", sys.argv[2] + ":", db.execute("SELECT sourceId, title, url FROM articles WHERE url LIKE ?", (like,)).fetchall())
+PY
+}
+
 share() {
   adb shell am start -a android.intent.action.SEND -t text/plain -n "$pkg/com.app.newspaperss.ShareActivity" "$@" > /dev/null
 }
@@ -128,7 +145,7 @@ case "${1:-}" in
       sleep 5
     done
     $ui shot 47-sources
-    [ -n "$found" ] || { echo "xkcd isn't in Sources after subscribing from a share; on screen:" >&2; $ui texts >&2; exit 1; }
+    [ -n "$found" ] || { echo "xkcd isn't in Sources after subscribing from a share; on screen:" >&2; $ui texts >&2; db_about xkcd >&2; exit 1; }
     echo "share passed: the page is in the reading list and xkcd in Sources" ;;
   folder)
     # Android doesn't let an app have the whole of Downloads, only a folder in it.
