@@ -275,8 +275,9 @@ private fun SourcesStep(s: OnboardingState, vm: OnboardingViewModel, sources: So
     // first search is an element TalkBack would stop on with nothing to say.
     val status = if (s.searching) "Checking…" else s.findNote.orEmpty()
     val view = LocalView.current
-    // Saveable, so turning the phone doesn't say it again.
-    var said by rememberSaveable { mutableStateOf("") }
+    // Saveable, so turning the phone doesn't say it again; starting from what's there, so coming
+    // back to this step doesn't say an old result again.
+    var said by rememberSaveable { mutableStateOf(status) }
     LaunchedEffect(status) {
         if (status.isNotEmpty() && status != said) {
             @Suppress("DEPRECATION") // Deprecated in favour of live regions, which this can't be.

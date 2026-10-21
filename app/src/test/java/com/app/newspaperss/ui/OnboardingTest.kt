@@ -481,7 +481,7 @@ class OnboardingTest {
 
     /** The status under the field is announced, not a live region: empty, a live region is a stop with nothing to say. */
     @Test
-    fun talkBackHearsTheWebsiteSearchAndItsResult() {
+    fun talkBackHearsAPageSavedInsteadOnce() {
         val access = org.robolectric.Shadows.shadowOf(
             ApplicationProvider.getApplicationContext<TestApp>().getSystemService(android.view.accessibility.AccessibilityManager::class.java),
         )
@@ -489,7 +489,8 @@ class OnboardingTest {
         http.page("https://plain.example/essay", "<html><head><title>An essay</title></head><body><p>Words.</p></body></html>")
         val readingList = com.app.newspaperss.data.ReadingListRepository(db)
         val readingVm = com.app.newspaperss.ui.readinglist.ReadingListViewModel(readingList)
-        compose.setContent { OnboardingScreen(vm, readingList = readingVm) }
+        val restore = androidx.compose.ui.test.junit4.StateRestorationTester(compose)
+        restore.setContent { OnboardingScreen(vm, readingList = readingVm) }
         click("Get started")
         scrollAndClick("Kobo")
         click("Next")
@@ -502,11 +503,19 @@ class OnboardingTest {
         scrollAndClick("Save this page to your reading list instead")
         idleUntil { compose.waitForIdle(); visible("Saved to your reading list") }
 
-        val said = access.sentAccessibilityEvents
+        fun saidSaved() = access.sentAccessibilityEvents
             .filter { it.eventType == android.view.accessibility.AccessibilityEvent.TYPE_ANNOUNCEMENT }
-            .map { it.text.joinToString() }
+            .count { it.text.joinToString() == "Saved to your reading list" }
         // "Checking…" passes within a frame here, where the fake network answers at once.
-        assertEquals(1, said.count { it == "Saved to your reading list" })
+        assertEquals(1, saidSaved())
+
+        restore.emulateSavedInstanceStateRestore()
+        compose.waitForIdle()
+        assertEquals("not again after turning the phone", 1, saidSaved())
+        click("Back")
+        choosePhone()
+        assertEquals(Step.SOURCES, vm.state.value.step)
+        assertEquals("not again coming back to the step", 1, saidSaved())
     }
 
     @Test
