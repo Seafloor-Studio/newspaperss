@@ -11,7 +11,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 
@@ -113,7 +112,7 @@ class TtrssClient(
             put("user", user)
             put("password", password)
         }) as? JsonObject
-        val sid = content?.get("session_id")?.jsonPrimitive?.contentOrNull ?: throw TtrssException.NotTtrss()
+        val sid = (content?.get("session_id") as? JsonPrimitive)?.contentOrNull ?: throw TtrssException.NotTtrss()
         sessionId = sid
         apiLevel = (content["api_level"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull()
         return sid
@@ -462,9 +461,13 @@ class TtrssClient(
             Json.parseToJsonElement(response.body) as? JsonObject
         } catch (e: SerializationException) {
             null
+        } catch (e: StackOverflowError) {
+            // Nested deeply enough, the parser overflows the stack: see FeedParser.parseJson.
+            null
         } ?: throw TtrssException.NotTtrss()
         val content = json["content"] ?: throw TtrssException.NotTtrss()
-        val error = (content as? JsonObject)?.get("error")?.jsonPrimitive?.contentOrNull
+        // `as? JsonPrimitive`, not `.jsonPrimitive`, which throws IllegalArgumentException for an object.
+        val error = ((content as? JsonObject)?.get("error") as? JsonPrimitive)?.contentOrNull
         when (error) {
             null -> return content
             "NOT_LOGGED_IN" -> throw NotLoggedIn()
