@@ -59,7 +59,8 @@ jobs:
   # A real edition from the starter pack's live feeds: slower, and it needs the sites to answer.
   delivery:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # The timed edition can wait up to half an hour, near the default 6:30 one.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

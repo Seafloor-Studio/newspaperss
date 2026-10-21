@@ -36,14 +36,14 @@ pref() {
     sed -n "s/.*name=\"$1\" value=\"\([0-9]*\)\".*/\1/p" | head -1 | grep . || echo 0
 }
 
-# Polls until the timer has fired (its start is recorded) or $1 seconds pass.
+# Polls until the timer has fired (a start other than $before is recorded) or $1 seconds pass.
 fired_within() {
   local until=$(( $(now) + $1 ))
   while [ "$(now)" -lt "$until" ]; do
-    [ "$(pref last_start_epoch_ms)" -gt 0 ] && return 0
+    [ "$(pref last_start_epoch_ms)" != "$before" ] && return 0
     sleep 10
   done
-  [ "$(pref last_start_epoch_ms)" -gt 0 ]
+  [ "$(pref last_start_epoch_ms)" != "$before" ]
 }
 
 # Taps the field showing $1, empties it and types $2.
@@ -53,16 +53,26 @@ set_field() {
   $ui type "$2"
 }
 
+before=0
+
 timed() {
   # Typed into the time picker as 24-hour digits, whatever the device's habit.
   adb shell settings put system time_12_24 24
   $ui tap "Settings" > /dev/null
   $ui tap "Schedule" > /dev/null
   $ui wait "Ready by" --timeout 3 > /dev/null 2>&1 || $ui tap "Make an edition automatically" > /dev/null
-  # A timer fires 30 minutes before its edition is due: due in 32, it fires in about 2.
-  local due
+  # A timer fires 30 minutes before its edition is due: due in 32, it fires in about 2. Not
+  # inside the span EditionScheduler keeps clear after the last timed edition, though: the
+  # default 6:30 one may have just run, if the clock is near it.
+  before=$(pref last_start_epoch_ms)
+  local last_due clear_until due_at due
+  last_due=$(( $(pref last_due_epoch_ms) / 1000 ))
+  clear_until=$(( last_due + (last_due - before / 1000 > 1800 ? last_due - before / 1000 : 1800) ))
+  due_at=$(( $(now) + 32 * 60 ))
+  [ "$last_due" -gt 0 ] && [ "$due_at" -le "$clear_until" ] && due_at=$(( clear_until + 120 ))
+  due_at=$(( (due_at + 59) / 60 * 60 ))
   due=$(python3 -c 'import sys,datetime as d; o=sys.argv[2]; tz=d.timezone(d.timedelta(hours=int(o[:3]),minutes=int(o[0]+o[3:])))
-print(d.datetime.fromtimestamp(int(sys.argv[1])+32*60,tz).strftime("%H %M"))' "$(now)" "$(adb shell date +%z | tr -d '\r')")
+print(d.datetime.fromtimestamp(int(sys.argv[1]),tz).strftime("%H %M"))' "$due_at" "$(adb shell date +%z | tr -d '\r')")
   # The button shows the time in the locale's own style ("6:30 AM", "06:30").
   $ui tap "$($ui texts | grep -E '^[0-9]{1,2}:[0-9]{2}' | head -1)" > /dev/null
   $ui tap "text input mode" > /dev/null
@@ -77,15 +87,15 @@ print(d.datetime.fromtimestamp(int(sys.argv[1])+32*60,tz).strftime("%H %M"))' "$
   $ui shot 39-time-typed
   $ui tap "OK" > /dev/null
   $ui shot 40-schedule
-  # The new time took if the scheduler armed a timer for about two minutes from now.
+  # The new time took if the scheduler armed the timer for it.
   local start=0
   for _ in $(seq 15); do
     start=$(( $(pref pending_start_epoch_ms) / 1000 ))
-    [ $(( start - $(now) )) -gt 0 ] && [ $(( start - $(now) )) -lt 200 ] && break
+    [ "$start" -eq $(( due_at - 1800 )) ] && break
     sleep 2
   done
-  [ $(( start - $(now) )) -gt 0 ] && [ $(( start - $(now) )) -lt 200 ] ||
-    { echo "no timer armed for $due (pending start $start, now $(now))" >&2; exit 1; }
+  [ "$start" -eq $(( due_at - 1800 )) ] ||
+    { echo "no timer armed for $due (pending start $start, expected $(( due_at - 1800 )), now $(now))" >&2; exit 1; }
   echo "timer armed: fires at $(date -u -d @"$start" +%T) UTC, $(( start - $(now) )) s from now"
   on
   # Past its time, with a minute's grace: whether deep sleep held it back.
