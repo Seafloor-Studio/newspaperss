@@ -67,6 +67,17 @@ class MainActivityTest {
         compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
     }
 
+    /** A background install waits while the reader is in a picker or another app this one opened. */
+    @Test
+    fun handingTheReaderToAnotherAppTellsTheUpdater() {
+        runBlocking { app.container.settings.update { it.copy(onboarded = true) } }
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        shows("Sources")
+        val before = app.leftForAnotherApp
+        scenario.onActivity { it.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://example.com/"))) }
+        assertEquals(before + 1, app.leftForAnotherApp)
+    }
+
     @Test
     fun thePlayersNotificationOpensThePlayingScreenAndSoDoesTappingItAgain() {
         runBlocking { app.container.settings.update { it.copy(onboarded = true) } }

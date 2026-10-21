@@ -18,6 +18,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Wed 21 Oct
 
+### The live build's install: another app on top, and a full phone
+- **What you asked:** check this app for the problems Jekyll Poster's review found in the same update design (claude-playground #187), and fix the ones that apply.
+- **Built:** a file picker, the share sheet, a mail app or the browser opened from the app no longer counts as the reader having left: the app marks it on disk when it opens one, and clears the mark when it comes to the front again. Before, the install could replace the app while the reader picked an OPML file or wrote the email to their Kindle.
+- **Built:** no room to copy the build into Android's installer no longer counts toward the three failures that give the build up; the install waits for storage that isn't low, as the download already did.
+- **Not here:** the third problem, a hold kept by a screen and dropped on rotation. Nothing here holds the install from a screen.
+
 ### G5: a documentation pass on the backlog
 - **What you asked:** tick what's done but still open in BACKLOG.md, each checked against the code first.
 - **Ticked (already built, and already in Done):** moving off tt-rss brings the feeds along (`bringFeedsHome`, D6; starred articles stay with the account, which answers the item's open question); tt-rss hears of a delivery two minutes later (`TtrssMarkReadWorker.DELAY`, D3); "mark read when they expire here" (D2); onboarding's "No feed found" offers the reading list (#266). The open copies are gone.

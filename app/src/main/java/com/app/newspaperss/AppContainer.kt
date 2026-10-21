@@ -111,6 +111,8 @@ class AppContainer(
     settingsData: DataStore<Preferences> = context.settingsData,
     ttrssData: DataStore<Preferences> = context.ttrssData,
     feedMovesData: DataStore<Preferences> = context.feedMovesData,
+    // A test's own, to see what the app tells it; otherwise made from [installedBuild].
+    selfUpdatesOverride: SelfUpdater? = null,
 ) {
     private val editionsDir = File(context.filesDir, "editions")
     /** Which articles the reader turned back to the voice; cleared with their edition's book. */
@@ -156,7 +158,8 @@ class AppContainer(
     )
     val settings = SettingsStore(settingsData)
     /** A live build fetching and installing newer builds; nothing in a release build. */
-    val selfUpdates = selfUpdater(context, installedBuild, appScope) { listenMade.isInitialized() && listen.state.value.playing }
+    val selfUpdates = selfUpdatesOverride
+        ?: selfUpdater(context, installedBuild, appScope) { listenMade.isInitialized() && listen.state.value.playing }
     val debugUpdates = DebugUpdates(http, context.getSharedPreferences("debug-updates", Context.MODE_PRIVATE), installedBuild, onNewer = selfUpdates::newerBuild)
     private val folderDelivery = FolderDelivery(context.contentResolver)
     val editionRun = EditionRun(settings, feedSync, editionBuilder, editions, folderDelivery, notifier,

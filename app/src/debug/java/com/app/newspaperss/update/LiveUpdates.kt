@@ -94,8 +94,18 @@ internal class LiveUpdates(
     }
 
     override fun refresh() {
+        // Back from whatever the app opened, or opened afresh: either way the reader is here.
+        prefs.edit().remove(AWAY).commit()
         changed.value++
     }
+
+    override fun leaving() {
+        prefs.edit().putBoolean(AWAY, true).commit()
+    }
+
+    /** On screen, or behind another app's screen it opened ([leaving]): kept on disk, so a process
+     *  started after the app's died still waits for the reader to come back. */
+    private fun open() = foreground() || prefs.getBoolean(AWAY, false)
 
     override suspend fun install(): InstallTap = when (val outcome = install(userAsked = true)) {
         Outcome.Started, Outcome.Done -> InstallTap.Started
@@ -203,7 +213,7 @@ internal class LiveUpdates(
                 giveUp(ready)
                 return@withContext Outcome.Gone
             }
-            busyReason(runningWork(), listenPlaying(), foreground = !userAsked && foreground())?.let {
+            busyReason(runningWork(), listenPlaying(), foreground = !userAsked && open())?.let {
                 return@withContext Outcome.Busy(it)
             }
             if (!canInstall()) {
@@ -225,15 +235,20 @@ internal class LiveUpdates(
                 // Asked again just before Android takes it: copying 50 MB into the session takes a
                 // while, and a timed edition may have started meanwhile.
                 commit(apk, ready) {
-                    busy = busyReason(runningWork(), listenPlaying(), foreground = !userAsked && foreground())
+                    busy = busyReason(runningWork(), listenPlaying(), foreground = !userAsked && open())
                     busy == null
                 }
             } catch (e: CancellationException) {
                 // Stopped, not refused: WorkManager or a closed screen. Not counted toward giving up.
                 throw e
+            } catch (e: IOException) {
+                // Usually no room to copy it into the session: the phone's, not the build's, so not
+                // counted toward giving up. The install work waits for storage that isn't low.
+                log("Build $ready couldn't be copied for Android: ${e.message}")
+                return@withContext Outcome.Busy(NO_ROOM)
             } catch (e: Exception) {
-                // PackageInstaller throws IOException and SecurityException, and IllegalStateException
-                // for a session it closed under us.
+                // PackageInstaller throws SecurityException, and IllegalStateException for a session
+                // it closed under us.
                 log("Build $ready couldn't be handed to Android: ${e.javaClass.simpleName} ${e.message}")
                 return@withContext if (failed(ready)) Outcome.Failed else Outcome.Retry
             }
@@ -368,6 +383,8 @@ internal class LiveUpdates(
         private const val COMMITTED_AT = "committedAt"
         private const val DOWNLOADING = "downloading"
         private const val TRIES = "tries"
+        private const val AWAY = "away"
+        const val NO_ROOM = "It installs once there's room on the phone."
         /** With the backoff, about a quarter of an hour of a bad connection before giving up on the build. */
         const val DOWNLOAD_TRIES = 5
         const val MAX_INSTALL_FAILURES = 3

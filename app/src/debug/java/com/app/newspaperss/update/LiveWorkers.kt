@@ -62,7 +62,7 @@ class LiveDownloadWorker(context: Context, params: WorkerParameters) : Coroutine
     }
 }
 
-/** Installs the downloaded build once nothing is running that installing would kill. */
+/** Installs the downloaded build once nothing is running that installing would kill, and there's room. */
 class LiveInstallWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val updates = LiveUpdates.of(applicationContext) ?: return Result.success()
@@ -79,6 +79,8 @@ class LiveInstallWorker(context: Context, params: WorkerParameters) : CoroutineW
          */
         fun enqueue(work: WorkManager, delayMinutes: Long = 0) {
             val request = OneTimeWorkRequestBuilder<LiveInstallWorker>()
+                // Android copies the 50 MB build before installing it.
+                .setConstraints(Constraints.Builder().setRequiresStorageNotLow(true).build())
                 .setInitialDelay(delayMinutes, TimeUnit.MINUTES)
                 .setBackoffCriteria(BackoffPolicy.LINEAR, LiveUpdates.RETRY_MINUTES, TimeUnit.MINUTES)
                 .build()

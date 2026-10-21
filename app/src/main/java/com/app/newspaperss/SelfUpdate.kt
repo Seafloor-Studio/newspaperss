@@ -51,6 +51,13 @@ interface SelfUpdater {
     /** The app came to the front: the reader may have just allowed installing apps. */
     fun refresh()
 
+    /**
+     * The app is opening another app's screen (a file picker, the share sheet, a mail app, the
+     * browser) and expects the reader back: that takes the app out of the foreground without the
+     * reader having left it, so a background install waits until the app comes to the front again.
+     */
+    fun leaving()
+
     suspend fun install(): InstallTap
 
     companion object {
@@ -59,6 +66,7 @@ interface SelfUpdater {
             override fun start() {}
             override fun newerBuild(build: Int) {}
             override fun refresh() {}
+            override fun leaving() {}
             override suspend fun install(): InstallTap = InstallTap.Unavailable
         }
     }

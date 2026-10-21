@@ -152,6 +152,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Every screen of another app the reader goes to from here passes through this: a plain
+    // startActivity, and the pickers' ActivityResult launchers.
+    @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
+    override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
+        application.container.selfUpdates.leaving()
+        super.startActivityForResult(intent, requestCode, options)
+    }
+
     override fun onStart() {
         super.onStart()
         // Each time the app comes to the front, not just on a cold start: it can sit in recents for days.

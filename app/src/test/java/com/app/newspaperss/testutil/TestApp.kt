@@ -1,5 +1,6 @@
 package com.app.newspaperss.testutil
 
+import com.app.newspaperss.SelfUpdater
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.room.Room
 import com.app.newspaperss.AppContainer
@@ -29,6 +30,9 @@ class TestApp : NewspaperssApp() {
     val titlesRequested = mutableListOf<Long>()
     /** How many times the app asked for the work that moves phone feeds into tt-rss. */
     var movesRequested = 0
+    /** How many times the app told its updater it was sending the reader to another app. */
+    var leftForAnotherApp = 0
+
     /** The voice Listen reads with. */
     val speaker = FakeSpeaker()
 
@@ -62,6 +66,9 @@ class TestApp : NewspaperssApp() {
         settingsData = store("settings"),
         ttrssData = store("ttrss"),
         feedMovesData = store("feed_moves"),
+        selfUpdatesOverride = object : SelfUpdater by SelfUpdater.NONE {
+            override fun leaving() { leftForAnotherApp++ }
+        },
     )
 
     override fun scheduleWork() {}
