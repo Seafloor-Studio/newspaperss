@@ -38,10 +38,11 @@ case "${1:-}" in
     done
     $ui shot 10-size
     $ui tap "Make my first edition"
+    started=$(date +%s)
     # Its card's menu button is there once there's an edition, whatever Today says above it.
     $ui wait "More options for" --timeout 600
     $ui shot 11-today-ready
-    echo "edition: $(title)" ;;
+    echo "edition: $(title), made in $(( $(date +%s) - started )) s" ;;
   save-copy)
     before=$(adb shell 'ls /sdcard/Download/ 2>/dev/null' | grep -c '\.epub' || true)
     open_edition
