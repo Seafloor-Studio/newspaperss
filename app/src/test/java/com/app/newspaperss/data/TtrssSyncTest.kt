@@ -59,6 +59,30 @@ class TtrssSyncTest {
     }
 
     @Test
+    fun aRefusalSoonAfterAnotherSaysTtrssMayBeMakingThemWait() = runTest {
+        var at = now
+        val clock = object : Clock() {
+            override fun getZone() = ZoneOffset.UTC
+            override fun withZone(zone: java.time.ZoneId?) = this
+            override fun instant() = at
+        }
+        server.lockoutClock = clock
+        val ttrss = TtrssRepository(db, http, accounts, sources, clock)
+        val wrong = "tt-rss didn't accept that username and password."
+        assertEquals(wrong, ttrss.connect("rss.example.com/tt-rss", "reader", "wrong"))
+
+        at += Duration.ofSeconds(4)
+        assertEquals("the right password, turned away", TtrssRepository.REFUSED_SOON_AFTER, ttrss.connect("rss.example.com/tt-rss", "Reader", "secret"))
+        at += Duration.ofSeconds(1)
+        assertEquals("another account on the same server isn't held up", wrong, ttrss.connect("rss.example.com/tt-rss", "someone-else", "secret"))
+        at += Duration.ofSeconds(6)
+        assertNull(ttrss.connect("rss.example.com/tt-rss", "reader", "secret"))
+
+        at += Duration.ofSeconds(60)
+        assertEquals("a wrong password a minute later is just that", wrong, ttrss.connect("rss.example.com/tt-rss", "reader", "wrong"))
+    }
+
+    @Test
     fun aRejectedLoginSavesNothingAndSaysWhy() = runTest {
         assertEquals("tt-rss didn't accept that username and password.", ttrss.connect("rss.example.com/tt-rss", "reader", "wrong"))
         server.apiEnabled = false

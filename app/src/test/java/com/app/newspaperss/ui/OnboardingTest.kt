@@ -10,6 +10,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -52,6 +53,10 @@ import com.app.newspaperss.data.StoredAccount
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -84,7 +89,13 @@ class OnboardingTest {
     private val accounts by lazy { TtrssAccountStore(PreferenceDataStoreFactory.create(scope = storeScope) { tmp.newFile("ttrss.preferences_pb") }, testCipher()) }
 
     @After fun stopStore() = stopStores(storeScope)
-    private val ttrss by lazy { TtrssRepository(db, http, accounts, SourceRepository(db)) }
+    private var now = Instant.parse("2026-09-29T06:00:00Z")
+    private val clock = object : Clock() {
+        override fun getZone() = ZoneOffset.UTC
+        override fun withZone(zone: java.time.ZoneId?) = this
+        override fun instant() = now
+    }
+    private val ttrss by lazy { TtrssRepository(db, http, accounts, SourceRepository(db), clock) }
     private val vm by lazy { OnboardingViewModel(store, SourceRepository(db), FeedFinder(http), ttrss) { finished = it } }
 
     private fun click(text: String) = compose.onNodeWithText(text).performClick()
@@ -302,6 +313,25 @@ class OnboardingTest {
         compose.onNodeWithText("rss.example.com/tt-rss").assertExists()
         compose.onNodeWithText("reader").assertExists()
         assertTrue(runBlocking { db.sources().all() }.isEmpty())
+    }
+
+    @Test
+    fun aRightPasswordJustAfterAWrongOneSaysToWaitAndThenWorks() {
+        val server = FakeTtrss(http).apply { lockoutClock = clock }
+        toSignIn(server)
+        typeLogin("wrong")
+        click("Sign in")
+        idleUntil { compose.waitForIdle(); visible("didn't accept that username and password") }
+        assertFalse(visible("wait 5 seconds"))
+
+        now += Duration.ofSeconds(2)
+        compose.onAllNodes(hasSetTextAction())[2].performTextReplacement(server.password)
+        click("Sign in")
+        idleUntil { compose.waitForIdle(); visible("wait 5 seconds and try again") }
+
+        now += Duration.ofSeconds(6)
+        click("Sign in")
+        idleUntil { compose.waitForIdle(); visible("Found 3 feeds in 2 categories") }
     }
 
     @Test

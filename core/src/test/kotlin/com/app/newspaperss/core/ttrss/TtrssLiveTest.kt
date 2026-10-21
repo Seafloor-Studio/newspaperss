@@ -45,12 +45,26 @@ class TtrssLiveTest {
         client.allFeeds().filter { it.feedUrl?.contains(run) == true }.forEach { client.unsubscribeFeed(it.id) }
     }
 
-    // An unknown user, not a wrong password: after a failed login tt-rss refuses every login for
-    // that user for 5 seconds (AUTH_MIN_INTERVAL), the right password too, and each try restarts it.
+    // An unknown user, not a wrong password, which would hold off the other tests' logins (below).
     @Test
     fun anUnknownUserIsALoginFailure() = runBlocking {
         val failure = runCatching { TtrssClient(http, api, "nobody-$run", "not-it").login() }.exceptionOrNull()
         assertTrue("got $failure", failure is TtrssException.LoginFailed)
+    }
+
+    // TtrssRepository tells the reader to wait when a refusal comes this soon after another.
+    @Test
+    fun aWrongPasswordHoldsOffEvenTheRightOneForFiveSeconds() = runBlocking {
+        try {
+            val wrong = runCatching { TtrssClient(http, api, USER, "not-it").login() }.exceptionOrNull()
+            assertTrue("got $wrong", wrong is TtrssException.LoginFailed)
+            val tooSoon = runCatching { TtrssClient(http, api, USER, PASSWORD).login() }.exceptionOrNull()
+            assertTrue("the right password straight after: $tooSoon", tooSoon is TtrssException.LoginFailed)
+        } finally {
+            // Even when failing, so tearDown's login and the tests after this one aren't held off.
+            Thread.sleep(5_000)
+        }
+        assertTrue(TtrssClient(http, api, USER, PASSWORD).login().isNotEmpty())
     }
 
     @Test

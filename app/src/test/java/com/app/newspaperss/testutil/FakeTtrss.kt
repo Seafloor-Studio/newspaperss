@@ -26,6 +26,12 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
     var user = "reader"
     var password = "secret"
     var apiEnabled = true
+    /**
+     * When set, logins are throttled as tt-rss does (`AUTH_MIN_INTERVAL`): for 5 whole seconds
+     * after a failed one every login fails, the right password too, and fails again from then.
+     */
+    var lockoutClock: java.time.Clock? = null
+    private var lastFailedLogin: Long? = null
     val unread = mutableListOf<Item>()
     /** Articles tt-rss still has but as read: marked read through the API, or by [readThere]. */
     val read = mutableListOf<Item>()
@@ -114,7 +120,16 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
         ops += op
         if (!apiEnabled) return error("API_DISABLED")
         if (op == "login") {
-            if (str("user") != user || str("password") != password) return error("LOGIN_ERROR")
+            // Only a user tt-rss has is throttled.
+            val now = lockoutClock?.instant()?.epochSecond?.takeIf { str("user").equals(user, ignoreCase = true) }
+            if (now != null && lastFailedLogin?.let { now - it < 5 } == true) {
+                lastFailedLogin = now
+                return error("LOGIN_ERROR")
+            }
+            if (str("user") != user || str("password") != password) {
+                lastFailedLogin = now ?: lastFailedLogin
+                return error("LOGIN_ERROR")
+            }
             val sid = "sid-${++sessions}"
             live += sid
             return ok(buildJsonObject { put("session_id", sid); put("api_level", apiLevel) })
