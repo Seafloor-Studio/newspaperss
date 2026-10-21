@@ -107,6 +107,10 @@ class FeedFinder(private val http: HttpClient) {
     }
 
     companion object {
+        // A link titled by its format ("Atom 1.0", "RSS Feed", as xkcd's are) names no site: a
+        // source named that never gets a better name, so it's left untitled and named by its host.
+        private val FORMAT_ONLY = Regex("""(?i)(?:rss|atom|json|rdf)?\s*(?:feed)?\s*v?[\d.]*""")
+
         private val FEED_TYPES = setOf(
             "application/rss+xml", "application/atom+xml", "application/feed+json",
             "application/json", "application/rdf+xml", "text/xml", "application/xml",
@@ -212,7 +216,7 @@ class FeedFinder(private val http: HttpClient) {
                 // Comment feeds are rarely what someone subscribing to a site wants, and WordPress's
                 // REST API (type application/json) is a page's data, not a feed.
                 .filterNot { it.attr("title").contains("comments", ignoreCase = true) || "/wp-json/" in it.attr("href") }
-                .map { FoundFeed(it.absUrl("href"), it.attr("title").ifBlank { null }) }
+                .map { FoundFeed(it.absUrl("href"), it.attr("title").trim().takeUnless { t -> t.isEmpty() || FORMAT_ONLY.matches(t) }) }
                 .distinctBy { it.url }
     }
 }
