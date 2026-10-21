@@ -18,6 +18,9 @@ abi=$(adb shell getprop ro.product.cpu.abi | tr -d '\r')
 apk=${1:-app/build/outputs/apk/debug/app-$abi-debug.apk}
 adb install -r -g "$apk" > /dev/null
 adb shell pm clear "$pkg" > /dev/null
+# Clearing takes back what install -g granted. Android 13 and later would ask about notifications
+# over the first edition; earlier versions have no such permission, so a refusal there is fine.
+adb shell pm grant "$pkg" android.permission.POST_NOTIFICATIONS 2> /dev/null || true
 adb shell monkey -p "$pkg" -c android.intent.category.LAUNCHER 1 > /dev/null
 
 $ui wait "Your own newspaper" --timeout 90

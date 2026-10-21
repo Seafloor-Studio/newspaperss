@@ -35,8 +35,9 @@ which isn't committed.
     tools/emulator/ui.py tap "Send"            # tap by text
     tools/emulator/ui.py shot kindle-library   # build/emulator/kindle-library.png, to look at
 
-Read the screen as text first; look at a screenshot when layout or a picture matters. To make an
-edition, finish onboarding with a starter pack and tap **Make an edition now** on Today.
+Read the screen as text first; look at a screenshot when layout or a picture matters.
+`tools/emulator/delivery.sh make` finishes onboarding with a starter pack and waits for the
+first edition; after that, **Make an edition now** on Today makes another.
 
 ## The routes
 
@@ -48,8 +49,8 @@ Each needs an edition first. "Proof" is what the session checks before calling t
 | Kindle app | Settings: the Kindle app. Send, then pick Kindle in the share sheet | The book appears in the Kindle app's library |
 | Kobo | Settings: Kobo. Send, pick Dropbox, into `Apps/Rakuten Kobo` (make the folder if Kobo never has) | The file is in the folder in the Dropbox app, under its own name |
 | PocketBook | Send by email to the `@pbsync.com` address | The book appears in PocketBook Reader, signed in to the test account |
-| Open on this phone | Install KOReader (F-Droid), then ⋮ › Open on this phone | KOReader opens the book on its cover; turn to the contents |
-| Folder | ⋮ › Save a copy…, into Downloads | Files shows the book there, and the edition says delivered |
+| Open on this phone | `tools/emulator/delivery.sh koreader` | KOReader opens the book on its cover (look at the screenshot); turn to the contents |
+| Folder | `tools/emulator/delivery.sh save-copy` | The book is in Downloads and is an EPUB; Save a copy leaves the edition ready to send |
 | Anything else | Send, and pick any app in the share sheet | The edition says sent |
 
 Then the state checks from DELIVERY-CHECKS.md: two editions built without sending the first,
