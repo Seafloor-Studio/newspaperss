@@ -36,6 +36,9 @@ jobs:
           java-version: '21'
           distribution: temurin
           cache: gradle
+      # gradle-wrapper.jar is the first code ./gradlew runs, and a PR that swaps it shows only a
+      # binary diff. This checks it against Gradle's published checksums before it runs.
+      - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
       - name: Build, unit tests and coverage
         run: ./gradlew build koverXmlReport koverHtmlReport koverVerify
       - name: Coverage of the lines this branch changed
@@ -48,7 +51,7 @@ jobs:
         run: |
           # Without pipefail the exit code below comes from tee, and a coverage failure passes.
           set -o pipefail
-          pipx install diff-cover || pip install --quiet diff-cover
+          pipx install diff-cover==10.6.0 || pip install --quiet diff-cover==10.6.0
           roots="app/src/main/java core/src/main/kotlin"
           # Below 20 changed lines the percentage describes the denominator, not the tests: one
           # uncovered default argument in a four-line diff is 75%. Reported, not enforced.
