@@ -67,9 +67,10 @@ print(d.datetime.fromtimestamp(int(sys.argv[1])+32*60,tz).strftime("%H %M"))' "$
   $ui tap "$($ui texts | grep -E '^[0-9]{1,2}:[0-9]{2}' | head -1)" > /dev/null
   $ui tap "text input mode" > /dev/null
   $ui wait "Type in time" > /dev/null
-  # The hour and minute fields, found by the two-digit values they show.
+  # The hour and minute fields, found by the numbers they show.
   local fields
-  mapfile -t fields < <($ui texts | grep -E '^[0-9]{2}$')
+  mapfile -t fields < <($ui texts | grep -E '^[0-9]{1,2}$')
+  [ "${#fields[@]}" -ge 2 ] || { $ui shot 39-no-fields; echo "the time fields aren't both there:" >&2; $ui texts >&2; exit 1; }
   set_field "${fields[0]}" "${due% *}"
   # Typed, the hour now shows the new value; the minutes still show theirs.
   set_field "${fields[1]}" "${due#* }"
