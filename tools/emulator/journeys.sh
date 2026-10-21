@@ -27,7 +27,17 @@ scroll_to() {
 # A new edition from Today, waited for by its title changing from the one given.
 make_another() {
   local old=$1
-  $ui tap "Make another edition" --timeout 5 > /dev/null 2>&1 || { scroll_down; $ui tap "Make another edition" > /dev/null; }
+  # Not offered while the app is still busy after the last edition (Today's build panel), and
+  # below the card: wait for it, scrolling down to look.
+  local offered=""
+  for _ in $(seq 12); do
+    scroll_to "Make another edition" && { offered=1; break; }
+    sleep 5
+  done
+  [ -n "$offered" ] || { echo "Make another edition isn't offered on Today; on screen:" >&2; $ui texts >&2; return 1; }
+  $ui tap "Make another edition" > /dev/null
+  # Back up to the latest edition's card, where its title shows once it's made.
+  for _ in 1 2 3; do scroll_up; done
   for _ in $(seq 600); do
     local now
     now=$(title)
