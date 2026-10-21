@@ -5,7 +5,7 @@
 #
 #   tools/emulator/journeys.sh two-editions   # make another without sending: the first is let go
 #   tools/emulator/journeys.sh cold-send      # app killed; Send from its notification to EPUB sink
-#   tools/emulator/journeys.sh share          # a page saved, and a site subscribed, from a share
+#   tools/emulator/journeys.sh share          # a page saved, and a site subscribed, from a share (debug build)
 #   tools/emulator/journeys.sh folder         # Save to a folder in Settings; the next edition lands there
 #   tools/emulator/journeys.sh listen         # Listen in the phone's voice: it plays, then pauses
 #
@@ -48,9 +48,9 @@ make_another() {
   return 1
 }
 
-# What the app's database holds about a host, when the screen doesn't say why something is missing.
-# Debug builds only (run-as).
-db_about() {
+# The app's database, copied off the device; debug builds only (run-as). Prints the title of the
+# feed source whose address contains $1, or nothing.
+source_titled() {
   local dir=build/emulator/db
   mkdir -p "$dir"
   for f in newspaperss.db newspaperss.db-wal; do
@@ -58,10 +58,9 @@ db_about() {
   done
   python3 - "$dir/newspaperss.db" "$1" <<'PY' || true
 import sqlite3, sys
-db = sqlite3.connect(sys.argv[1])
-like = f"%{sys.argv[2]}%"
-print("sources:", db.execute("SELECT id, kind, title, url FROM sources").fetchall())
-print("articles from", sys.argv[2] + ":", db.execute("SELECT sourceId, title, url FROM articles WHERE url LIKE ?", (like,)).fetchall())
+row = sqlite3.connect(sys.argv[1]).execute(
+    "SELECT title FROM sources WHERE kind = 'FEED' AND url LIKE ?", (f"%{sys.argv[2]}%",)).fetchone()
+if row: print(row[0])
 PY
 }
 
@@ -139,15 +138,19 @@ case "${1:-}" in
     $ui wait "Printing press" > /dev/null || { $ui shot 46-reading-list; exit 1; }
     $ui shot 46-reading-list
     adb shell input keyevent BACK
-    # The feed is found after the dialog has gone, so it may take a moment to be listed.
-    found=""
-    for _ in $(seq 6); do
-      scroll_to "xkcd" && { found=1; break; }
+    # The feed is found after the dialog has gone. Checked in the database, as the list of sources
+    # is longer than this emulator's screen and doesn't scroll for a swipe here.
+    named=""
+    for _ in $(seq 12); do
+      named=$(source_titled xkcd.com)
+      [ -n "$named" ] && break
       sleep 5
     done
     $ui shot 47-sources
-    [ -n "$found" ] || { echo "xkcd isn't in Sources after subscribing from a share; on screen:" >&2; $ui texts >&2; db_about xkcd >&2; exit 1; }
-    echo "share passed: the page is in the reading list and xkcd in Sources" ;;
+    [ -n "$named" ] || { echo "no xkcd source a minute after subscribing from a share" >&2; exit 1; }
+    # A site's name, not its feed link's format ("Atom 1.0").
+    [ "$named" = xkcd.com ] || { echo "the xkcd source is named \"$named\", not xkcd.com" >&2; exit 1; }
+    echo "share passed: the page is in the reading list, and xkcd.com is a source" ;;
   folder)
     # Android doesn't let an app have the whole of Downloads, only a folder in it.
     dir=/sdcard/Download/Editions
