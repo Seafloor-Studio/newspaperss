@@ -18,6 +18,9 @@ if [ ! -x "$sdkmanager" ]; then
   tmp=$(mktemp -d)
   curl -fsSL -o "$tmp/tools.zip" \
     https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip
+  # This hook runs in sessions that can push, so the download is checked before it runs. Google
+  # publishes its SHA-1 in repository2-3.xml; this SHA-256 is of the file that matched it.
+  echo "0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8  $tmp/tools.zip" | sha256sum -c --quiet -
   mkdir -p "$sdk/cmdline-tools"
   unzip -q "$tmp/tools.zip" -d "$tmp"
   rm -rf "$sdk/cmdline-tools/latest"
