@@ -11,7 +11,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ui=tools/emulator/ui.py
-pkg=com.app.newspaperss.debug
+pkg=${PKG:-com.app.newspaperss.debug}
 
 adb wait-for-device
 abi=$(adb shell getprop ro.product.cpu.abi | tr -d '\r')

@@ -10,7 +10,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ui=tools/emulator/ui.py
-pkg=com.app.newspaperss.debug
+pkg=${PKG:-com.app.newspaperss.debug}
 
 state() { adb shell dumpsys deviceidle get deep | tr -d '\r'; }
 

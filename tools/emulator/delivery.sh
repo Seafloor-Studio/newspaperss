@@ -9,27 +9,7 @@
 # make fetches the starter pack's real feeds, so it needs the internet and takes a few minutes.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-ui=tools/emulator/ui.py
-
-# The edition's title, read from its card's menu button ("More options for <title>").
-title() { $ui texts | sed -n 's/^More options for //p' | head -1; }
-
-open_edition() {
-  # In front first: an earlier step (doze.sh timed) may have left it in the background.
-  adb shell monkey -p com.app.newspaperss.debug -c android.intent.category.LAUNCHER 1 > /dev/null
-  $ui wait "Sources" > /dev/null
-  # A tap while it's still coming forward is lost, so try a few times; one may also still be in
-  # the making (a timed edition, say), so the last wait is long.
-  for wait in 10 10 300; do
-    $ui tap "Today" > /dev/null
-    $ui wait "More options for" --timeout "$wait" > /dev/null 2>&1 && break
-  done
-  local t
-  t=$(title)
-  [ -n "$t" ] || { echo "no edition on Today" >&2; exit 1; }
-  $ui tap "$t" > /dev/null
-  $ui wait "More options" > /dev/null
-}
+. tools/emulator/lib.sh
 
 case "${1:-}" in
   make)

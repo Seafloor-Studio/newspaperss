@@ -1,0 +1,163 @@
+#!/bin/bash
+# Journeys past the first edition that need no account, driven on an emulator by what is on
+# screen. Run smoke.sh and delivery.sh make first, then these in this order: each starts from
+# where the one before left the app. Screenshots go to build/emulator/.
+#
+#   tools/emulator/journeys.sh two-editions   # make another without sending: the first is let go
+#   tools/emulator/journeys.sh cold-send      # app killed; Send from its notification to EPUB sink
+#   tools/emulator/journeys.sh share          # a page saved, and a site subscribed, from a share
+#   tools/emulator/journeys.sh folder         # Save to a folder in Settings; the next edition lands there
+#   tools/emulator/journeys.sh listen         # Listen in the phone's voice: it plays, then pauses
+#
+# cold-send needs the test app that stands in for an e-reader's app:
+# ./gradlew :epubsink:assembleDebug, or its APK as SINK_APK.
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+. tools/emulator/lib.sh
+
+# Scrolls down until the text is on screen, for a list longer than the screen.
+scroll_to() {
+  for _ in $(seq 8); do
+    $ui texts | grep -qiF -- "$1" && return
+    scroll_down
+  done
+  $ui texts | grep -qiF -- "$1"
+}
+
+# A new edition from Today, waited for by its title changing from the one given.
+make_another() {
+  local old=$1
+  $ui tap "Make another edition" --timeout 5 > /dev/null 2>&1 || { scroll_down; $ui tap "Make another edition" > /dev/null; }
+  for _ in $(seq 600); do
+    local now
+    now=$(title)
+    [ -n "$now" ] && [ "$now" != "$old" ] && { echo "$now"; return; }
+    sleep 1
+  done
+  echo "no new edition 10 minutes after Make another edition" >&2
+  return 1
+}
+
+share() {
+  adb shell am start -a android.intent.action.SEND -t text/plain -n "$pkg/com.app.newspaperss.ShareActivity" "$@" > /dev/null
+}
+
+case "${1:-}" in
+  two-editions)
+    # An edition still ready when the next is made is marked not sent, and its articles go back
+    # into the pool: the new one has them, so it isn't "No new edition".
+    bring_forward
+    today
+    first=$(title)
+    second=$(make_another "$first")
+    $ui shot 40-second-edition
+    scroll_to "not sent" || { $ui shot 41-no-not-sent; echo "$first isn't marked not sent under Earlier editions" >&2; exit 1; }
+    $ui shot 41-earlier-not-sent
+    echo "two-editions passed: $second made; $first marked not sent" ;;
+  cold-send)
+    sink=${SINK_APK:-epubsink/build/outputs/apk/debug/epubsink-debug.apk}
+    adb install -r "$sink" > /dev/null
+    bring_forward
+    today
+    t=$(title)
+    # Android ending a backgrounded app, as it does overnight: the process goes, the notification
+    # stays. force-stop would take the notification with it.
+    adb shell input keyevent HOME
+    sleep 2
+    adb shell am kill "$pkg"
+    sleep 2
+    if adb shell pidof "$pkg" > /dev/null; then echo "$pkg is still running after am kill" >&2; exit 1; fi
+    adb logcat -c
+    adb shell cmd statusbar expand-notifications
+    $ui wait "$t is ready" > /dev/null
+    $ui shot 42-notification
+    $ui tap "Send" --exact > /dev/null
+    # Android's share sheet: the stand-in app is one of few that take an EPUB on this image.
+    $ui tap "EPUB sink" --timeout 30 > /dev/null
+    got=""
+    for _ in $(seq 30); do
+      got=$(adb logcat -d -s EpubSink | grep -m1 RESULT || true)
+      [ -n "$got" ] && break
+      sleep 1
+    done
+    echo "EPUB sink: ${got:-nothing}"
+    [[ $got == *zip=true* ]] || { echo "the book didn't reach EPUB sink whole after a cold start" >&2; exit 1; }
+    # The share sheet tells the app which app was picked; that marks it sent.
+    open_edition
+    $ui wait "Sent" --exact --timeout 30 > /dev/null || { $ui shot 43-not-marked; echo "$t isn't marked sent" >&2; exit 1; }
+    $ui shot 43-marked-sent
+    echo "cold-send passed: $t reached another app from its notification and is marked sent" ;;
+  share)
+    # A page, then a site's front page, from any app's share sheet; both public and long-lived.
+    share --es android.intent.extra.TEXT https://en.wikipedia.org/wiki/Printing_press --es android.intent.extra.SUBJECT "'Printing press'"
+    $ui wait "Printing press" > /dev/null
+    $ui shot 44-share-page
+    $ui tap "Save to your reading list" > /dev/null
+    share --es android.intent.extra.TEXT https://xkcd.com/
+    $ui wait "Subscribe to this site" > /dev/null
+    $ui shot 45-share-site
+    $ui tap "Subscribe to this site" > /dev/null
+    bring_forward
+    $ui tap "Sources" > /dev/null
+    # The feed is found after the dialog has gone, so it may take a moment to be listed.
+    found=""
+    for _ in $(seq 6); do
+      scroll_to "xkcd" && { found=1; break; }
+      $ui tap "Sources" > /dev/null
+      sleep 5
+    done
+    $ui shot 46-sources
+    [ -n "$found" ] || { echo "xkcd isn't in Sources after subscribing from a share" >&2; exit 1; }
+    $ui tap "Sources" > /dev/null
+    $ui tap "Your reading list" > /dev/null
+    $ui wait "Printing press" > /dev/null || { $ui shot 47-reading-list; exit 1; }
+    $ui shot 47-reading-list
+    echo "share passed: the page is in the reading list and xkcd in Sources" ;;
+  folder)
+    # Android doesn't let an app have the whole of Downloads, only a folder in it.
+    dir=/sdcard/Download/Editions
+    adb shell mkdir -p "$dir"
+    adb shell "rm -f '$dir'/*.epub"
+    bring_forward
+    $ui tap "Settings" > /dev/null
+    $ui tap "Save to a folder" > /dev/null
+    # Android's folder picker, opened wherever it was last; go to Downloads if Editions isn't there.
+    if ! $ui wait "Editions" --exact --timeout 10 > /dev/null 2>&1; then
+      $ui tap "Show roots" --timeout 10 > /dev/null 2>&1 || true
+      $ui tap "Downloads" > /dev/null
+    fi
+    $ui tap "Editions" --exact > /dev/null
+    $ui shot 48-picker
+    $ui tap "Use this folder" > /dev/null
+    $ui tap "Allow" --exact > /dev/null
+    $ui wait "Saved automatically to Editions" > /dev/null
+    $ui shot 49-settings-folder
+    today
+    t=$(make_another "$(title)")
+    book=$(whole_book_in "$dir")
+    pull_epub "$book" folder.epub
+    echo "$book: $(stat -c %s build/emulator/folder.epub) bytes"
+    open_edition
+    $ui wait "Sent" --exact --timeout 30 > /dev/null || { $ui shot 50-not-marked; echo "$t isn't marked sent after saving to the folder" >&2; exit 1; }
+    $ui shot 50-folder-sent
+    echo "folder passed: $t was saved to $dir and is marked sent" ;;
+  listen)
+    echo "text-to-speech engines: $(adb shell cmd package query-services -a android.intent.action.TTS_SERVICE | grep -oE 'packageName=[^ ]+' | sort -u | tr '\n' ' ')"
+    open_edition
+    $ui tap "Listen ·" > /dev/null
+    # Starting may open the player, or leave a way to it on the edition.
+    $ui tap "Open player" --timeout 15 > /dev/null 2>&1 || true
+    $ui wait "Pause" --exact --timeout 60 > /dev/null || { $ui shot 51-not-playing; exit 1; }
+    # Still playing a while later, not stopped on an error the phone's voice gave.
+    sleep 15
+    $ui shot 51-playing
+    if $ui texts | grep -qiE "isn't working|can't be read"; then echo "Listen stopped on an error:" >&2; $ui texts >&2; exit 1; fi
+    state=$(adb shell dumpsys media_session | grep -m1 -oE 'state=(PLAYING|[0-9]+)' | tail -1 || true)
+    echo "media session: $state"
+    [[ $state == state=PLAYING || $state == state=3 ]] || { echo "the media session isn't playing" >&2; exit 1; }
+    $ui tap "Pause" --exact > /dev/null
+    $ui wait "Play" --exact --timeout 10 > /dev/null
+    $ui shot 52-paused
+    echo "listen passed: it played for 15 s in the phone's voice and paused" ;;
+  *) sed -n '2,13p' "$0" >&2; exit 2 ;;
+esac
