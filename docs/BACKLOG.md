@@ -49,7 +49,6 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] Several categories, and tt-rss's Starred and Published as choices
 
 - [ ] Moving off tt-rss: **I pick my own sites** brings the feeds along as phone feeds, the reverse of moving phone feeds in. The daily feed list already has each feed's address, title and category. Feeds in the paper come with their settings (cap, article text, skip paid posts), left-out ones stay left out, and a feed already on the phone or without an address yet is skipped and said so. Open: whether starred articles come too (today they go with the account). About a cycle. Until then the leave dialog points to tt-rss's OPML export *(you asked)*
-- [ ] After a wrong password, tt-rss refuses every login for that user for 5 seconds, the right password too, and each try restarts the wait (`AUTH_MIN_INTERVAL`, found by `TtrssLiveTest`). A reader who corrects a typo quickly is told the password is wrong. Say "wait a few seconds and try again" when a login fails right after another?
 - [ ] Delay tt-rss mark-read a little after sharing, so a quick "Mark as not sent" doesn't flip articles read and then unread again on the server
 - [ ] Articles that expire in the app stay unread in tt-rss: an opt-in "mark read when they expire here"
 - [ ] Read/unread, after trying the toggle *(you asked)*. The status mark on a source's page now marks read and unread, reaching tt-rss at the next sync. If the two toggles don't feel right on the phone, the one-button cycle (option A in the mockups) is the alternative
@@ -422,6 +421,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] **A right password just after a wrong one** *(approved)*: tt-rss turns every sign-in away for 5 seconds after a wrong password, and its answer is the same as for a wrong password. A refusal for the same login less than 6 seconds after the last says "wait 5 seconds and try again"; `TtrssLiveTest` holds tt-rss to the 5 seconds (G2)
 - [x] **Subscribe from a share** *(you asked, #290 option C)*: every share asks Save, Subscribe or Both; a front page leads with Subscribe; the feed is found after the tap, on the phone or in tt-rss, and the page is saved instead if there's nothing to follow (#356)
 - [x] **`PodcastSettingsTest` timing out under load** *(today B9, the flake)*: `show()` waited on the view model's first state by draining the main looper, while the effects that subscribe to it run on the Compose test rule's own clock and dispatcher; under load a frame was resumed on a coroutine worker, either stuck or touching views off the main thread. The wait idles Compose too now. Run side by side under the same load: 4 failures in 20 before (three at that wait, one `CalledFromWrongThreadException`), 0 in 20 after, and 0 in 40 more after on a quieter machine (load 5-11) (#340)
 - [x] **Save a copy… of an edition** *(you asked)*: the edition page's ⋮ opens Android's save dialog and copies the EPUB where you pick; a device with no save dialog says so (#338)

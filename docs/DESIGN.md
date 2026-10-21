@@ -491,7 +491,9 @@ phone restarts.
 6. **With a server, sign in**, then see what's there: the address,
    username and password on the step itself, one message per cause when it
    fails (API off, wrong password, can't reach it), with what was typed
-   kept, and **Use this phone instead**. Signed in, the same step says
+   kept, and **Use this phone instead**. tt-rss turns every sign-in away
+   for 5 seconds after a wrong password, so one refused that soon after
+   another says to wait 5 seconds and try again. Signed in, the same step says
    "Found 58 feeds in 7 categories"; the paper takes from all of them, and
    one category can be chosen later in Settings. Then **Also on this
    phone:** the reading list (with Pocket and Instapaper import) and curated
