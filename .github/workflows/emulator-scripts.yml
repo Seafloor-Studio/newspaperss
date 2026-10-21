@@ -82,7 +82,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: An edition saved to a folder, a timed one through deep sleep, and one opened in KOReader
+      - name: An edition saved to a folder, and a timed one through deep sleep
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: 36
@@ -95,7 +95,6 @@ jobs:
             tools/emulator/delivery.sh make
             tools/emulator/delivery.sh save-copy
             tools/emulator/doze.sh timed
-            tools/emulator/delivery.sh koreader
 
       - name: Keep the screenshots
         if: always()
@@ -106,6 +105,8 @@ jobs:
 
   # The oldest Android the app supports, 32-bit with 2 GB, as on the cheapest phones it may meet.
   # Numbers to compare between runs, not pass marks: the job fails only if the app can't do it.
+  # KOReader runs here too: F-Droid builds it for x86 but not x86_64, where it runs translated
+  # and crashes on start.
   low-end:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -130,7 +131,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Start time, first edition and memory on Android 8 with 2 GB
+      - name: Start time, first edition and memory on Android 8 with 2 GB, then KOReader
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: 26
@@ -145,6 +146,7 @@ jobs:
             tools/emulator/numbers.sh start
             tools/emulator/delivery.sh make
             tools/emulator/numbers.sh memory
+            tools/emulator/delivery.sh koreader
 
       - name: Keep the screenshots
         if: always()

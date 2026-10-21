@@ -85,7 +85,8 @@ case "${1:-}" in
     echo "save-copy passed: the book is in Downloads" ;;
   koreader)
     abis=$(adb shell getprop ro.product.cpu.abilist | tr -d '\r')
-    # F-Droid's builds by ABI; there is no x86_64 one, so x86 serves where the device runs it.
+    # F-Droid's builds by ABI. There is no x86_64 one; an x86_64 emulator without x86 gets the
+    # arm64 build through translation, which crashes on start, so use an x86 or arm64 emulator.
     code=$(curl -fsSL https://f-droid.org/api/v1/packages/org.koreader.launcher.fdroid | python3 -c '
 import json, sys
 abis = sys.argv[1].split(",")
@@ -102,7 +103,8 @@ for abi in abis:
     [ -f "$apk" ] || curl -fsSL -o "$apk" "https://f-droid.org/repo/org.koreader.launcher.fdroid_$code.apk"
     adb install -r -g "$apk" > /dev/null
     # KOReader asks for all-files access on its first start and opens nothing until it has it.
-    adb shell appops set --uid org.koreader.launcher.fdroid MANAGE_EXTERNAL_STORAGE allow
+    # Android 11 and later only; earlier, install -g has granted storage already.
+    adb shell appops set --uid org.koreader.launcher.fdroid MANAGE_EXTERNAL_STORAGE allow 2> /dev/null || true
     open_edition
     $ui tap "More options"
     $ui tap "Open on this phone"
