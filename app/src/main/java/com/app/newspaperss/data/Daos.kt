@@ -810,7 +810,11 @@ interface EditionDao {
     @Query("SELECT * FROM editions WHERE id = :id")
     suspend fun byId(id: Long): EditionEntity?
 
-    @Query("SELECT title FROM editions WHERE createdAt >= :since")
+    /**
+     * Titles a new edition can't take. A deleted edition that never went out frees its title:
+     * Send to Kindle drops only a title it has received.
+     */
+    @Query("SELECT title FROM editions WHERE createdAt >= :since AND NOT (status = 'DELETED' AND deliveredAt IS NULL)")
     suspend fun titlesSince(since: Instant): List<String>
 
     @Query("SELECT * FROM editions WHERE status = :status")
