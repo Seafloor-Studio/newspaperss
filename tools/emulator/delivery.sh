@@ -15,7 +15,15 @@ ui=tools/emulator/ui.py
 title() { $ui texts | sed -n 's/^More options for //p' | head -1; }
 
 open_edition() {
-  $ui tap "Today" > /dev/null
+  # In front first: an earlier step (doze.sh timed) may have left it in the background.
+  adb shell monkey -p com.app.newspaperss.debug -c android.intent.category.LAUNCHER 1 > /dev/null
+  $ui wait "Sources" > /dev/null
+  # A tap while it's still coming forward is lost, so try a few times; one may also still be in
+  # the making (a timed edition, say), so the last wait is long.
+  for wait in 10 10 300; do
+    $ui tap "Today" > /dev/null
+    $ui wait "More options for" --timeout "$wait" > /dev/null 2>&1 && break
+  done
   local t
   t=$(title)
   [ -n "$t" ] || { echo "no edition on Today" >&2; exit 1; }
@@ -38,10 +46,11 @@ case "${1:-}" in
     done
     $ui shot 10-size
     $ui tap "Make my first edition"
+    started=$(date +%s)
     # Its card's menu button is there once there's an edition, whatever Today says above it.
     $ui wait "More options for" --timeout 600
     $ui shot 11-today-ready
-    echo "edition: $(title)" ;;
+    echo "edition: $(title), made in $(( $(date +%s) - started )) s" ;;
   save-copy)
     before=$(adb shell 'ls /sdcard/Download/ 2>/dev/null' | grep -c '\.epub' || true)
     open_edition
@@ -76,7 +85,8 @@ case "${1:-}" in
     echo "save-copy passed: the book is in Downloads" ;;
   koreader)
     abis=$(adb shell getprop ro.product.cpu.abilist | tr -d '\r')
-    # F-Droid's builds by ABI; there is no x86_64 one, so x86 serves where the device runs it.
+    # F-Droid's builds by ABI. There is no x86_64 one; an x86_64 emulator without x86 gets the
+    # arm64 build through translation, which crashes on start, so use an x86 or arm64 emulator.
     code=$(curl -fsSL https://f-droid.org/api/v1/packages/org.koreader.launcher.fdroid | python3 -c '
 import json, sys
 abis = sys.argv[1].split(",")
@@ -93,14 +103,16 @@ for abi in abis:
     [ -f "$apk" ] || curl -fsSL -o "$apk" "https://f-droid.org/repo/org.koreader.launcher.fdroid_$code.apk"
     adb install -r -g "$apk" > /dev/null
     # KOReader asks for all-files access on its first start and opens nothing until it has it.
-    adb shell appops set --uid org.koreader.launcher.fdroid MANAGE_EXTERNAL_STORAGE allow
+    # Android 11 and later only; earlier, install -g has granted storage already.
+    adb shell appops set --uid org.koreader.launcher.fdroid MANAGE_EXTERNAL_STORAGE allow 2> /dev/null || true
     open_edition
     $ui tap "More options"
     $ui tap "Open on this phone"
     # KOReader draws its own pages, out of uiautomator's sight: the screenshot is the proof.
+    # What's in front: topResumedActivity from Android 10, mResumedActivity before.
     front=""
     for _ in $(seq 60); do
-      front=$(adb shell dumpsys activity activities | grep -m1 'topResumedActivity' || true)
+      front=$(adb shell dumpsys activity activities | grep -m1 -E 'topResumedActivity|mResumedActivity' || true)
       [[ $front == *koreader* ]] && break
       sleep 1
     done
@@ -108,8 +120,13 @@ for abi in abis:
     # In front isn't drawn: give its first page the time a reader would before looking.
     sleep 10
     $ui shot 30-koreader
-    front=$(adb shell dumpsys activity activities | grep -m1 'topResumedActivity' || true)
-    [[ $front == *koreader* ]] || { echo "KOReader left the screen before the screenshot: $front" >&2; exit 1; }
+    front=$(adb shell dumpsys activity activities | grep -m1 -E 'topResumedActivity|mResumedActivity' || true)
+    if [[ $front != *koreader* ]]; then
+      echo "KOReader left the screen before the screenshot: $front" >&2
+      # Why, if it says: its own lines and any crash.
+      adb logcat -d | grep -iE 'koreader|FATAL|AndroidRuntime' | tail -40 >&2
+      exit 1
+    fi
     # Its own pages are invisible to uiautomator, but Android's dialogs over them are not.
     if $ui texts | grep -qiE 'allow|permission'; then
       echo "KOReader is asking for something instead of showing the book:" >&2; $ui texts >&2; exit 1

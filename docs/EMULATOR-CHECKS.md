@@ -57,10 +57,13 @@ com.app.newspaperss.debug`).
 
 ## Without any account
 
-- **Timed editions in deep sleep.** Set a timed edition a few minutes ahead, then
-  `tools/emulator/doze.sh on`. Note whether it arrives; `doze.sh window` grants the maintenance
-  window Android would give a few times a night; `doze.sh off` at the end. Today's screen says
-  what happened.
+- **Timed editions in deep sleep.** After `delivery.sh make`, `tools/emulator/doze.sh timed`
+  sets a timed edition through Settings so its timer fires in about two minutes, puts the
+  emulator into deep sleep and says whether the timer fired on time, in a maintenance window or
+  only once awake. CI runs it too. `doze.sh on`, `window` and `off` do the steps by hand.
+- **A slow, small phone.** CI's `low-end` job boots Android 8, 32-bit, with 2 GB, and prints
+  `tools/emulator/numbers.sh`'s cold start times, the first edition's time and the app's memory.
+  Compare them with earlier runs; a debug build overstates them.
 - **Large text.** `adb shell settings put system font_scale 2.0`, then walk Today, an edition,
   Sources and Settings with screenshots. `1.0` puts it back.
 - **TalkBack.** Turn it on in the emulator's Accessibility settings, then use `ui.py texts`
