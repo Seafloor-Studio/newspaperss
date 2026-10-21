@@ -162,10 +162,13 @@ case "${1:-}" in
     # Below the tips for sending by hand.
     scroll_to "Save to a folder" || { echo "no Save to a folder in E-reader & delivery" >&2; $ui texts >&2; exit 1; }
     $ui tap "Save to a folder" > /dev/null
-    # Android's folder picker, opened wherever it was last; go to Downloads if Editions isn't there.
+    # Android's folder picker, opened wherever it was last: at the top of the phone's storage
+    # ("Download"), or in Downloads itself, or elsewhere, where its list of places has Downloads.
     if ! $ui wait "Editions" --exact --timeout 10 > /dev/null 2>&1; then
-      $ui tap "Show roots" --timeout 10 > /dev/null 2>&1 || true
-      $ui tap "Downloads" > /dev/null
+      if ! $ui tap "Download" --exact --timeout 5 > /dev/null 2>&1; then
+        $ui tap "Show roots" --timeout 10 > /dev/null 2>&1 || true
+        $ui tap "Downloads" > /dev/null
+      fi
     fi
     $ui tap "Editions" --exact > /dev/null
     $ui shot 48-picker
