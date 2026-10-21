@@ -441,9 +441,10 @@ phone restarts.
   titles are cut to 1,000 characters and an author to 300, and a post
   whose link or guid is over 4,000 characters (a `data:` link, say) isn't
   kept, since a cut link would lead somewhere else.
-- **Deleting an edition** removes its file and contents but keeps its title
-  reserved, since Send to Kindle would drop a repeat. A ready edition's
-  articles go back to the pool; a delivered one's stay used.
+- **Deleting an edition** removes its file and contents. One that was ever
+  delivered keeps its title reserved, since Send to Kindle would drop a
+  repeat; one that never went out gives its title to the next edition. A
+  ready edition's articles go back to the pool; a delivered one's stay used.
 
 ## 8. Onboarding (target: first edition in under two minutes)
 
