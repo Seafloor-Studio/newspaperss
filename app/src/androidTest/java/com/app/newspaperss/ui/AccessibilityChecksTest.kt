@@ -7,6 +7,7 @@ import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.accessibility.enableAccessibilityChecks
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -92,7 +93,11 @@ class AccessibilityChecksTest {
             tap("Next")
             tap("I'll pick some sites"); checkScreen()
             compose.waitUntil(30_000) { compose.onAllNodes(hasContentDescription("All of", substring = true)).fetchSemanticsNodes().isNotEmpty() }
-            compose.onAllNodes(hasContentDescription("All of", substring = true)).onFirst().performClick()
+            val pack = compose.onAllNodes(hasContentDescription("All of", substring = true)).onFirst()
+            runCatching { pack.performScrollTo() }
+            pack.performClick()
+            // Next stays disabled until the pick lands.
+            compose.waitUntil(30_000) { compose.onAllNodes(hasText("Next") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
             checkScreen()
             tap("Next"); checkScreen()
             tap("Make my first edition")
