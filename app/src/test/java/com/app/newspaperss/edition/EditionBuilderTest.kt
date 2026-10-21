@@ -97,8 +97,8 @@ class EditionBuilderTest {
     }
 
     @Test
-    fun aDeletedEditionsTitleIsntReused() = runTest {
-        // Send to Kindle drops a title it has seen, and the deleted one may already have been sent.
+    fun aDeliveredEditionsTitleIsntReusedOnceDeleted() = runTest {
+        // Send to Kindle drops a title it has seen.
         source("a", "a1")
         val first = builder.build(EditionSettings()) as BuildResult.Built
         editions.markDelivered(first.editionId)
@@ -107,6 +107,62 @@ class EditionBuilderTest {
         source("b", "b1")
         val second = builder.build(EditionSettings()) as BuildResult.Built
 
+        assertEquals("Tuesday Morning Edition, Sep 29 (2)", db.editions().byId(second.editionId)!!.title)
+    }
+
+    @Test
+    fun aDeletedEditionThatWasNeverSentGivesItsTitleToTheNextOne() = runTest {
+        source("a", "a1")
+        val first = builder.build(EditionSettings()) as BuildResult.Built
+        assertTrue(editions.delete(first.editionId))
+
+        val second = builder.build(EditionSettings()) as BuildResult.Built
+
+        assertEquals("Tuesday Morning Edition, Sep 29", db.editions().byId(second.editionId)!!.title)
+        assertTrue(editions.fileOf(db.editions().byId(second.editionId)!!) != null)
+    }
+
+    @Test
+    fun anEditionReleasedAsNotSentKeepsItsTitleTakenOnceDeleted() = runTest {
+        // Its file was here to send, and a share while a build runs isn't recorded.
+        source("a", "a1")
+        val first = builder.build(EditionSettings()) as BuildResult.Built
+        source("b", "b1")
+        val second = builder.build(EditionSettings()) as BuildResult.Built
+        assertEquals(EditionStatus.FAILED, db.editions().byId(first.editionId)!!.status)
+        assertTrue(editions.delete(first.editionId))
+        assertTrue(editions.delete(second.editionId))
+
+        val third = builder.build(EditionSettings()) as BuildResult.Built
+
+        assertEquals("Tuesday Morning Edition, Sep 29 (2)", db.editions().byId(third.editionId)!!.title)
+    }
+
+    @Test
+    fun anEditionMarkedNotSentKeepsItsTitleTakenOnceDeleted() = runTest {
+        // It reached the Kindle's queue once, even if it never arrived.
+        source("a", "a1")
+        val first = builder.build(EditionSettings()) as BuildResult.Built
+        editions.markDelivered(first.editionId)
+        assertTrue(editions.markNotSent(first.editionId))
+        assertTrue(editions.delete(first.editionId))
+
+        val second = builder.build(EditionSettings()) as BuildResult.Built
+
+        assertEquals("Tuesday Morning Edition, Sep 29 (2)", db.editions().byId(second.editionId)!!.title)
+    }
+
+    @Test
+    fun anEditionDeletedWhileItWasGoingOutKeepsItsTitleTaken() = runTest {
+        // A folder copy or a share sheet that finishes after the delete: the book went anyway.
+        source("a", "a1")
+        val first = builder.build(EditionSettings()) as BuildResult.Built
+        assertTrue(editions.delete(first.editionId))
+        editions.markDelivered(first.editionId)
+
+        val second = builder.build(EditionSettings()) as BuildResult.Built
+
+        assertEquals(EditionStatus.DELETED, db.editions().byId(first.editionId)!!.status)
         assertEquals("Tuesday Morning Edition, Sep 29 (2)", db.editions().byId(second.editionId)!!.title)
     }
 
