@@ -3,6 +3,13 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle G5 (21 Oct) — audit: documentation pass on BACKLOG.md
+
+See [DEVLOG.md](DEVLOG.md).
+- **Done items come back as open duplicates.** Four of the five "done but unticked" items already had a ticked line in Done, written by the cycle that built them, which never removed the open one. When ticking, delete the item from *Next* rather than adding a new line to *Done*; grep *Next* for the idea before finishing.
+- **A measurement PR answers part of an item, not all of it.** Copy the numbers into the item and say what's still to measure, rather than ticking it.
+- **Run baseline:** no emulator, no Docker, no Gradle run (docs only).
+
 ### Cycle G4 (21 Oct) — build: onboarding's search result for TalkBack
 
 Built the approved item; see [DEVLOG.md](DEVLOG.md).
