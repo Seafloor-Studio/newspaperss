@@ -175,6 +175,7 @@ class ShareActivityTest {
         tap("Subscribe to this site")
         idleUntil { saved().isNotEmpty() }
         assertEquals("https://news.example/", saved().single().url)
+        idleUntil { ShadowToast.getTextOfLatestToast().startsWith("tt-rss") }
         val told = ShadowToast.getTextOfLatestToast()
         assertTrue(told, told.startsWith("tt-rss didn't add Example News.") && told.endsWith("Saved the page for your next edition instead."))
     }
