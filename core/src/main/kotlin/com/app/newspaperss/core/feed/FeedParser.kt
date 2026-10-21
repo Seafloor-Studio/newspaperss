@@ -309,6 +309,11 @@ object FeedParser {
             Json.parseToJsonElement(text) as? JsonObject
         } catch (e: IllegalArgumentException) {
             throw FeedParseException("Not a readable JSON Feed: ${e.message}", e)
+        } catch (e: StackOverflowError) {
+            // The parser recurses once per level of nested arrays, so a few KB of [ overflows it.
+            // Left as an Error, it gets past every catch (e: Exception) between here and the
+            // edition, and stops every edition while the feed stays subscribed.
+            throw FeedParseException("Not a readable JSON Feed: nested too deeply", e)
         } ?: throw FeedParseException("Not a JSON Feed")
         if (root.str("version")?.contains("jsonfeed.org") != true) throw FeedParseException("Not a JSON Feed")
         val items = (root["items"] as? JsonArray).orEmpty().mapNotNull { el ->
