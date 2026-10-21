@@ -27,7 +27,6 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [x] **Show tt-rss's own feed errors** *(you asked)*: tt-rss's `last_error` for each feed, on the feed's row and page and named in a banner on Sources
 - [ ] Paywalled and summary-only sites: warn when a site is added; keep stubs from eating the budget; drop metered sites from starter packs *(personas)*
 - [x] A feed over 10 MB was refused as too large: some static sites (a Hugo `index.xml`) put every post they ever wrote in one feed. Now it's read up to 10 MB, keeping the whole items before the cut *(sweep)*
-- [ ] "No feed found" in onboarding: offer the reading list there too (done in Sources) *(personas)*
 - [ ] Webtoons: episodes are one long strip of 84–140 lazily loaded panels (a phone is sent to m.webtoons.com, which lists them in a script; the desktop viewer has them in `data-url`), beyond the 20-image cap. Built and measured on `claude/today-d-c7` (D7), not shipped. Before it can ship: the image budget must take a strip whole or not at all (today it is shared and greedy, so a strip gets gaps mid-episode and starves later articles); no cap that cuts an ending silently; ask for `?type=opti` (PNG panels ignore `q90`: 800 KB vs 300 KB); drop the feed's two thumbnail panels, which otherwise repeat after the strip; panels contiguous in the book (no figure margins), with alt text. Re-encoded, an episode is about 6–9 MB *(device)*
 - [ ] Webtoons: episodes are one long strip of dozens of lazy images (`data-url`), beyond the 20-image cap, and its mobile site hides the feed. Support strips properly *(device)*
 
@@ -40,7 +39,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] Boox: offer folder delivery into the Books folder, so editions stay in the library *(personas)*
 - [ ] Folder delivery: tt-rss marks articles read as soon as the file is saved, before Syncthing has synced; old editions pile up in the folder *(personas)*
 - [ ] Verify folder delivery and the chooser from the notification on a real device
-- [ ] If lead time isn't enough on a real device, wake timed editions with an exact alarm (Doze defers WorkManager; expedited work can silently restart a long build)
+- [ ] If lead time isn't enough on a real device, wake timed editions with an exact alarm (Doze defers WorkManager; expedited work can silently restart a long build). Measured on the emulator (#352, `doze.sh timed`): in deep sleep the timer is held until the next maintenance window, about a minute late there because the emulator grants one at once. On a phone overnight it's however long the next window takes, which the 30-minute lead may or may not cover; a phone's overnight run is what decides this
 
 ### tt-rss, for a returning reader *(personas)*
 - [ ] Signing in as "Reader" when "reader" is saved counts as another account (`TtrssRepository.add` compares the user exactly) and removes the tt-rss source, though tt-rss looks users up without case. *(G2 review)*
@@ -48,10 +47,6 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] Decide what tt-rss is as a source. Explored ([research/ttrss-backend/](research/ttrss-backend/index.html), open it in a browser): one tt-rss row in Sources with its feeds inset under it, folded, each opening its own page, is built (cycles 77–79). Still open: how this joins "tt-rss and Google Reader API servers as full backends" below. Sections were taken out (cycle 80)
 - [ ] Search on the account page's feed list (F4), if scrolling 50+ feeds on Sources gets slow
 - [ ] Several categories, and tt-rss's Starred and Published as choices
-
-- [ ] Moving off tt-rss: **I pick my own sites** brings the feeds along as phone feeds, the reverse of moving phone feeds in. The daily feed list already has each feed's address, title and category. Feeds in the paper come with their settings (cap, article text, skip paid posts), left-out ones stay left out, and a feed already on the phone or without an address yet is skipped and said so. Open: whether starred articles come too (today they go with the account). About a cycle. Until then the leave dialog points to tt-rss's OPML export *(you asked)*
-- [ ] Delay tt-rss mark-read a little after sharing, so a quick "Mark as not sent" doesn't flip articles read and then unread again on the server
-- [ ] Articles that expire in the app stay unread in tt-rss: an opt-in "mark read when they expire here"
 - [ ] Read/unread, after trying the toggle *(you asked)*. The status mark on a source's page now marks read and unread, reaching tt-rss at the next sync. If the two toggles don't feel right on the phone, the one-button cycle (option A in the mockups) is the alternative
 - [ ] Read sync: an article marked unread in tt-rss further back than its feed's newest five unread only comes back here once it's among them. Ask tt-rss about delivered articles directly if that turns out to matter
 
@@ -76,8 +71,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 A full pass over the app and the book, not just spot fixes:
 - [ ] App: TalkBack walk-through of every screen (labels, headings, focus order), font scale at 200%, display size, touch targets ≥ 48dp, contrast in light and dark, e-ink readability, nothing carried by colour or animation alone. Confirm the new live regions with TalkBack on a device
 - [ ] Book: reading order with a screen reader on a device. The metadata, alt text and heading levels are done, and Ace by DAISY passes the platform corpus with its pictures on every change to the book (`book-checks` workflow) *(a11y)*
-- [ ] Tooling: Compose accessibility checks in the Robolectric tests, Accessibility Scanner on a device
-- [ ] `AccessibilityChecksTest` sometimes hangs for its full 10 minutes in `Instrumentation.waitForIdleSync`, called from the Compose rule's own `evaluate`, and fails the device job. Seen on main's device runs 268 and 269 and on #356's run 271, and on #359 (G4); main's 265–267 ran the same length. Its comment already names one such deadlock (splash screen, test clock), worked around for the launch; this one is in the rule itself *(G4)*
+- [ ] `AccessibilityChecksTest` sometimes fails the device job: after the first edition is made, a screen keeps drawing a frame every vsync for 60 s and Espresso gives up (`AppNotIdleException`). Since #360 it fails in about a minute instead of hanging for 10, and the device job keeps logcat, with each step logged as `AccessibilityWalk`; the next failure's last step names the screen. Seen on main and on #356 and #359 *(G4, #360)*
 - [ ] Generate alt text for pictures that have none *(you asked)*. Many feeds' images arrive without a description, so a screen reader (and Listen) says nothing or a file name. Do it when the edition is built, so the book gets it too, and on the phone, so nothing leaves it. Cheapest first, stopping at the first that gives something:
   - The article's own alt text or caption (free, every phone). Never replace it
   - Text in the picture, read with ML Kit text recognition (free, offline, every phone): for charts, screenshots and signs, "Image with text: …"
@@ -87,7 +81,7 @@ A full pass over the app and the book, not just spot fixes:
   - Mark generated text as such
 
 ### Performance *(resources)*
-- [ ] A floor device: Android 8, 2 GB RAM, slow CPU and storage (a 2018 budget phone or an older Boox). Measure on an emulator with that profile how long a 30-minute edition takes, peak memory, whether timed editions still arrive under Doze, and whether long lists and the preview stay smooth; set budgets from the numbers *(you asked)*
+- [ ] A floor device: Android 8, 2 GB RAM, slow CPU and storage (a 2018 budget phone or an older Boox) *(you asked)*. Measured so far (#352, CI's `low-end` job, a debug build): cold start about 1 s, the first edition about 10 s, the app about 90 MB. Still to do: a full 30-minute edition rather than the first small one, timed editions under Doze on Android 8 (#352 measured Doze on Android 16), whether long lists and the preview stay smooth, and budgets set from the numbers
 
 ### Recurring reviews *(audit)*
 Whole-codebase passes for what a review of one PR can't see. Each follows the audit's pattern: fresh-eyes reviewers, each finding checked, a PR per area.
@@ -180,7 +174,7 @@ handle (saved links, curated lists) stay on the phone.
 - Designed: two setups, server or phone, never mixed, with a build order ([research/server-mode.md](research/server-mode.md)).
   Steps (a), the choice in onboarding and Settings (cycle 83), (b), Sources for a server
   (cycle 84), (c), adding a site to the server (cycle 85), and (d), moving phone feeds there
-  (cycle 86), are built. Next: (e) leaving a server (see "Moving off tt-rss" above).
+  (cycle 86), and (e), leaving a server (D6), are built.
 - Which servers: tt-rss (done as one source today) and the
   [Google Reader API](https://freshrss.github.io/FreshRSS/en/developers/06_GoogleReader_API.html),
   which [FreshRSS](https://freshrss.org), [Miniflux](https://miniflux.app/docs/google_reader.html),
@@ -423,6 +417,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] **Accessibility tooling** *(a11y)*: Google's accessibility checks (the engine Accessibility Scanner uses) run on every screen a new reader meets, on the emulator in CI (#347). Not in the Robolectric tests: there the checks run on nothing and pass
 - [x] **Onboarding's website search says its result to TalkBack** *(approved, #347's review)*: as well as "Checking…" and a saved page, a found feed ("Found Blog. It's ticked below.") and the reason nothing was found are announced, once each, and again for a second search with the same answer. Still to hear on a device: whether submitting with the keyboard's Done also speaks the field's own error over it (G4)
 - [x] **A deleted edition's title is reused when it was never sent** *(you asked)*: one deleted while ready and never delivered (`deliveredAt` empty, which "mark as not sent" keeps) gives its title to the next edition, so a remake after a delete has no " (2)". One delivered, released as not sent, or deleted while a folder copy or a share was finishing keeps its title taken. Left: a ready book sent by a route the app can't see (Save a copy, or opened in another app, without Mark as sent) is counted as never sent, as its articles already are; editions deleted before this change don't say whether they were released (G3)
 - [x] **A right password just after a wrong one** *(approved)*: tt-rss turns every sign-in away for 5 seconds after a wrong password, and its answer is the same as for a wrong password. A refusal for the same login less than 5 seconds after the last says "wait 5 seconds and try again"; `TtrssLiveTest` holds tt-rss to the 5 seconds (G2)
@@ -453,7 +448,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 - [x] A timed edition takes the place of one made by hand that is still waiting for a connection, rather than being dropped, so the paper comes with its Ready notification, audio and retries (audit, 16 Oct)
 - [x] The book of a build the process died during is deleted when the next build finds it, rather than staying in the app's storage for good (audit, 16 Oct)
 - [x] Leaving the server just as a feed is moved leaves it a phone feed, not paused with no server to come from: the move's check and the pause are one step with leaving (audit, 16 Oct)
-- [x] Moving off tt-rss brings the paper's feeds along as phone feeds, with their settings (today D6)
+- [x] Moving off tt-rss brings the paper's feeds along as phone feeds, with their settings; starred articles stay with the account (today D6)
 - [x] tt-rss: an opt-in "Mark read when they expire here"; an old backlog drains on arrival instead of coming through the paper (today D2)
 - [x] Book: EPUB Accessibility 1.1 metadata, alt text counted honestly, article headings that never skip a level, the contents list's role; EPUBCheck and Ace pass (today D5)
 - [x] tt-rss marks delivered articles read a couple of minutes after delivery, so a quick Mark as not sent usually never reaches it (today D3)
