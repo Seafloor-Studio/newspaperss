@@ -657,8 +657,10 @@ On a PR that touches what they cover:
 - **Book checks** (`book-checks.yml`, the EPUB writer and extraction): Ace
   by DAISY on the books `EpubCheckTest` writes.
 - **Emulator scripts** (`emulator-scripts.yml`, `tools/emulator/`): smoke
-  and Doze commands, then a real edition from live feeds saved to Downloads
-  and opened in KOReader, with screenshots kept.
+  and Doze commands, then a real edition from live feeds saved to Downloads,
+  a timed edition through deep sleep and the edition opened in KOReader,
+  with screenshots kept. A `low-end` job prints cold start, first-edition
+  time and memory on Android 8, 32-bit, with 2 GB.
 - **Security scan** (`security-scan.yml`, workflows and build files):
   zizmor and OpenSSF Scorecard; also weekly.
 - **Attribution** (`attribution.yml`): a PR from madCode's account says at
