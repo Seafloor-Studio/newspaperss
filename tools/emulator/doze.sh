@@ -97,6 +97,12 @@ print(d.datetime.fromtimestamp(int(sys.argv[1]),tz).strftime("%H %M"))' "$due_at
   [ "$start" -eq $(( due_at - 1800 )) ] ||
     { echo "no timer armed for $due (pending start $start, expected $(( due_at - 1800 )), now $(now))" >&2; exit 1; }
   echo "timer armed: fires at $(date -u -d @"$start" +%T) UTC, $(( start - $(now) )) s from now"
+  # Off the screen, as overnight: an app in front is exempt from Doze's hold on deferred work.
+  adb shell input keyevent KEYCODE_HOME
+  sleep 5
+  # What else could let it through: Doze's allowlist, and the app's standby bucket.
+  echo "on Doze's allowlist: $(adb shell dumpsys deviceidle whitelist | grep -c "$pkg" || true)"
+  echo "standby bucket: $(adb shell am get-standby-bucket "$pkg" | tr -d '\r')"
   on
   # Past its time, with a minute's grace: whether deep sleep held it back.
   if fired_within $(( start - $(now) + 60 )); then

@@ -16,6 +16,8 @@ title() { $ui texts | sed -n 's/^More options for //p' | head -1; }
 
 open_edition() {
   $ui tap "Today" > /dev/null
+  # One may still be in the making (a timed edition, say): wait for its card.
+  $ui wait "More options for" --timeout 300 > /dev/null || true
   local t
   t=$(title)
   [ -n "$t" ] || { echo "no edition on Today" >&2; exit 1; }
