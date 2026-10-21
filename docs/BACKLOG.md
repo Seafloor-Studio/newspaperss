@@ -11,6 +11,9 @@ Grouped by part of the app. The tag says where each item came from: *device* (yo
 *live* (building real editions), *a11y* (the accessibility audit), *ux* (the Day 3 UX pass),
 *audit* (the architecture audit, #163–#166).
 
+### Decided on the morning page
+- [ ] **Sign debug builds with a key held in CI secrets** *(madCode chose it, 21 Oct; from the G6 security review)*. The committed debug key means the self-updater's signature check only proves a file is a debug build. With a key that isn't public, the check means something. Costs one manual reinstall for each debug tester, and a local debug build no longer installs over CI's. madCode makes the key and adds the secrets; the cycle makes CI sign with it and says in the README what testers must do.
+
 ### From the 16 Oct audit *(audit)*
 Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "checked" means read against the code, not yet reproduced.
 - [ ] Another tt-rss user, or another server, still meets the first one's delivered links: `delivered_urls` is shared, so a story the first user received is skipped for the second, and marked read on their server. Small, but partners often follow the same blogs. Forget the delivered links that came only from the old source when it goes? *(review, 16 Oct)*
@@ -36,7 +39,6 @@ Cycle G6. Fixed in #363 (CI) and #364 (nested JSON). Measured unless it says "re
 - [ ] OPML and reading-list imports read the whole picked file into memory (`readText()`), with no size limit. Small: the reader picks the file. *(read)*
 - [ ] **No dependency verification:** there's no `gradle/verification-metadata.xml`, so a replaced artifact on a repository would go unnoticed. JitPack (sherpa-onnx, debug builds only) builds from tags that can move. Worth doing before Play.
 - [ ] `recurring-review.yml` steers an agent that can write issues. Its spec comes from claude-playground, and it reads the bodies of open `audit` issues, which anyone can write. Its `gh api repos/madCode/claude-playground/contents/*` allowance also permits PUT and DELETE. Your call whether to narrow it to GET and to issues you opened. *(read)*
-- [ ] **Your call (morning page): the debug channel's signing key.** The debug key is committed, so the self-updater's signature check only proves a file is a debug build. HTTPS to github.com and write access to the `latest-debug` release are what keep it honest. A key held in CI secrets would make the check mean something, at the cost of one reinstall for each debug tester. A second signing question waits for you there too.
 - Checked and left as is:
   - **A `mailto:` link in an article opens the mail app with fields the feed chose.** You still press send, and nothing can be attached.
   - **Every shared edition is readable by the Kindle app until reboot.** Deliberate, so Send to Kindle works.
