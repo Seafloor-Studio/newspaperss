@@ -488,7 +488,8 @@ phone restarts.
    being closed in the picker.
 5. **With this phone, pick your sources:** starter packs of well-known
    public feeds; paste any website (the app finds its feed, or, with none,
-   offers to save the page to the reading list instead); import an OPML
+   offers to save the page to the reading list instead; TalkBack hears
+   "Checking…", then what was found or why nothing was); import an OPML
    file (its folders are ignored: the paper has no sections); or import
    saved links from Pocket or Instapaper, which alone are enough to start.
 6. **With a server, sign in**, then see what's there: the address,

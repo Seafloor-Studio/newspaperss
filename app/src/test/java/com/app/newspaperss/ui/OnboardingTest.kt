@@ -548,6 +548,49 @@ class OnboardingTest {
         assertEquals("not again coming back to the step", 1, saidSaved())
     }
 
+    /** Focus stays on Add, so a search's result is said, not only shown at the field or among the feeds. */
+    @Test
+    fun talkBackHearsWhatASearchFoundOrWhyNot() {
+        val access = org.robolectric.Shadows.shadowOf(
+            ApplicationProvider.getApplicationContext<TestApp>().getSystemService(android.view.accessibility.AccessibilityManager::class.java),
+        )
+        access.setEnabled(true)
+        http.page("https://blog.example", "<html><head><link rel=alternate type=application/rss+xml href=/feed title=Blog></head></html>")
+        http.page("https://blog.example/feed", rss("Blog"))
+        val restore = androidx.compose.ui.test.junit4.StateRestorationTester(compose)
+        restore.setContent { OnboardingScreen(vm) }
+        click("Get started")
+        scrollAndClick("Kobo")
+        click("Next")
+        choosePhone()
+        fun said(text: String) = access.sentAccessibilityEvents
+            .filter { it.eventType == android.view.accessibility.AccessibilityEvent.TYPE_ANNOUNCEMENT }
+            .count { it.text.joinToString() == text }
+
+        compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("blog.example")
+        click("Add")
+        idleUntil { compose.waitForIdle(); said("Found Blog. It's ticked below.") == 1 }
+
+        compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("gone.example")
+        click("Add")
+        idleUntil { compose.waitForIdle(); vm.state.value.findError != null }
+        val reason = vm.state.value.findError!!
+        assertTrue("the reason is shown at the field", visible(reason))
+        assertEquals(1, said(reason))
+
+        restore.emulateSavedInstanceStateRestore()
+        compose.waitForIdle()
+        assertEquals("not again after turning the phone", 1, said(reason))
+        assertEquals(1, said("Found Blog. It's ticked below."))
+
+        // Answered without the network, so "Checking…" never shows between the two.
+        compose.onNode(hasSetTextAction()).performScrollTo().performTextReplacement("not an address")
+        click("Add")
+        idleUntil { compose.waitForIdle(); said("That doesn't look like a web address.") == 1 }
+        click("Add")
+        idleUntil { compose.waitForIdle(); said("That doesn't look like a web address.") == 2 }
+    }
+
     @Test
     fun aSaveAnsweredAfterTheReaderTypedAgainLeavesWhatTheyTyped() {
         http.page("https://plain.example/essay", "<html><head><title>An essay</title></head><body><p>Words.</p></body></html>")

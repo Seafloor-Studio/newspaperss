@@ -3,6 +3,13 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle G4 (21 Oct) — build: onboarding's search result for TalkBack
+
+Built the approved item; see [DEVLOG.md](DEVLOG.md).
+- **An announcement deduplicated by its text needs a key besides the text.** The same answer twice was said once, because an answer that needs no network comes before "Checking…" is drawn. The review found it; ask "what if the same text comes twice in a row?" of any `said == text` guard.
+- **Gradle here was ready in about five minutes** (the first run fetched the distribution and build-tools 36); a focused test class then took 1–2 minutes.
+- **Run baseline:** no emulator, no Docker; Gradle stopped at the end.
+
 ### Cycle G3 (21 Oct) — build: a deleted edition's title
 
 Built the approved item; see [DEVLOG.md](DEVLOG.md).
