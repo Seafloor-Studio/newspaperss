@@ -284,9 +284,10 @@ class FeedSync(
      * What each of [items] is beside podcast episodes, judged with the source's recent articles
      * too ([EPISODE_CONTEXT] of them, found in the last [EPISODE_CONTEXT_DAYS] days): a narration
      * often arrives a sync after the post it reads, and through tt-rss, which sends only what's
-     * unread, it may arrive alone. An earlier article gets the new post as its pair, and one
-     * judged an episode post can turn out an article. Detection is best effort: a failure leaves the posts unjudged rather
-     * than failing the sync.
+     * unread, it may arrive alone. An earlier article gets the new post as its pair, one judged
+     * an episode post can turn out an article, and one never judged is judged now, with its pair
+     * among the others. Detection is best effort: a failure leaves the posts unjudged rather than
+     * failing the sync.
      */
     private suspend fun episodes(source: SourceEntity, originId: String?, items: List<FeedItem>, podcast: Boolean, now: Instant): Map<String, Verdict> {
         if (!episodesOn) return emptyMap()
@@ -294,10 +295,17 @@ class FeedSync(
         // A feed lists the same posts sync after sync; judging them again would only be thrown away.
         val known = guids.chunked(500).flatMap { db.articles().knownGuids(source.id, it) }.toSet()
         val fresh = guids - known
-        if (fresh.isEmpty()) return emptyMap()
+        val since = now.minus(Duration.ofDays(EPISODE_CONTEXT_DAYS))
+        // A stored post never judged (from before detection, or a sync where it failed) is judged
+        // once a copy shows its audio: the feed's, or its own if it kept one. Those stored before
+        // detection kept none, and judged from what's left an episode would be an article. A blank
+        // guid gets no verdict under its own name, so waiting for one would never end.
+        fun waiting(guid: String, hasAudio: Boolean) = guid.isNotBlank() && (guid in guids || hasAudio)
+        if (fresh.isEmpty() && db.articles().unjudgedForEpisodes(source.id, originId, since, EPISODE_CONTEXT).none { waiting(it.guid, it.hasAudio) }) return emptyMap()
         // Stored posts the feed still lists are judged from the feed's copy but updated here like
         // the rest: they're the ones a new narration or written post most often pairs with.
-        val earlier = db.articles().recentForEpisodes(source.id, originId, now.minus(Duration.ofDays(EPISODE_CONTEXT_DAYS)), EPISODE_CONTEXT)
+        val earlier = db.articles().recentForEpisodes(source.id, originId, since, EPISODE_CONTEXT)
+        val unjudged = earlier.filter { it.episodeKind == null && waiting(it.guid, it.audioUrl != null) }.map { it.guid }.toSet()
         val verdicts = try {
             EpisodeDetector.classify(EpisodeFeed.of(items + earlier.filter { it.guid !in guids }.map { it.asFeedItem() }, podcast))
         } catch (e: CancellationException) {
@@ -305,12 +313,20 @@ class FeedSync(
         } catch (e: Exception) {
             return emptyMap()
         }
+        val listed = items.associateBy { it.guid }
+        val stored = earlier.associateBy { it.guid }
         for (old in earlier) {
             val verdict = verdicts[old.guid] ?: continue
             val pair = verdict.pair
+            // Paired with a new post, or one being judged now; or, for one being judged now, a stored
+            // post still free whose verdict names it back, and so is paired to it below or above.
+            val pairsBack = pair != null && (
+                pair in fresh || pair in unjudged ||
+                    old.guid in unjudged && stored[pair]?.let { it.episodePair == null } == true && verdicts[pair]?.pair == old.guid
+                )
             when {
                 // Pairing makes a narration an audio version; it doesn't make an article notes.
-                pair != null && old.episodePair == null && pair in fresh -> db.articles().pairEpisode(
+                pairsBack && old.episodePair == null -> db.articles().pairEpisode(
                     source.id, old.guid, pair,
                     if (verdict.kind == EpisodeKind.AUDIO_VERSION || verdict.kind == EpisodeKind.ARTICLE) verdict.kind else old.episodeKind ?: verdict.kind,
                 )
@@ -319,6 +335,15 @@ class FeedSync(
                 // isn't turned into an episode by what came after it.
                 verdict.kind == EpisodeKind.ARTICLE && old.episodeKind != null && old.episodeKind != EpisodeKind.ARTICLE && old.episodePair == null ->
                     db.articles().setEpisodeKind(source.id, old.guid, EpisodeKind.ARTICLE)
+                old.guid in unjudged -> db.articles().judgeStored(source.id, old.guid, verdict.kind)
+            }
+            // The audio it was judged by, kept as a new post's is: judged again from a copy without
+            // it, once the feed no longer lists it, an episode would be turned into an article.
+            val item = listed[old.guid]
+            if (old.guid in unjudged && old.audioUrl == null && item != null) {
+                RowLimits.storable(old.withEpisode(item.enclosures, verdict, item.durationSeconds))?.takeIf { it.audioUrl != null }?.let {
+                    db.articles().keepAudio(source.id, old.guid, it.audioUrl!!, it.audioType, it.audioBytes, it.audioSeconds)
+                }
             }
         }
         // A pair is kept only if it holds both ways: it names a new post, or an earlier one above

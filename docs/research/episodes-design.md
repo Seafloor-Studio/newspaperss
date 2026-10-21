@@ -20,7 +20,10 @@ tests detection, are in [podcast-episodes.md](podcast-episodes.md).
 
 ## What a post can be
 
-The detector gives each post one kind when it syncs.
+The detector gives each post one kind when it syncs. A post stored without one (from before
+detection, or a sync where it failed) is judged at a later sync, if it's among the source's last
+14 days of posts and the feed still lists it (through tt-rss: it's still unread) or its audio was
+kept. It then keeps the audio the feed shows, as a new post does. Older ones stay unlabelled.
 
 | Kind | What it is | Examples |
 |---|---|---|

@@ -18,6 +18,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Wed 21 Oct
 
+### Posts stored before episode detection get a label (#355)
+- **What you asked:** posts synced before detection landed (18 Oct) have no episode kind, and nothing ever gave them one: a re-sync skips a stored post whole.
+- **Built:** a sync already judges new posts beside the source's last 14 days of stored ones; a stored post with no kind now keeps the verdict it gets there, with its pair and the audio the feed shows, and a sync with nothing new still runs when such a post is waiting. Only posts the feed still lists (through tt-rss: still unread), or that kept their audio: those stored before detection kept none, and judged from that an episode reads as an article.
+- **Review:** a label written without the audio it was judged by would have been turned into "article" once the post left the feed, so the audio is kept too. Two stored posts of one episode now pair. The write can't overwrite a kind another sync just gave, and a sync with nothing new checks for waiting posts without loading their text.
+- **Left:** posts older than 14 days, gone from the feed, or read in tt-rss stay unlabelled. No one-off backfill job: the channel's podcast flag isn't stored, and posts from before detection kept no audio, so it would judge worse than a sync does.
+
 ### G6: the security and supply-chain review
 - **What you asked:** the recurring review, due before 0.1.1 goes out.
 - **How:** three fresh-eyes reviewers covered hostile input in `:core`, the app's platform surface, and CI and supply chain. Input findings were run in harnesses, including Android's own XML parser taken out of Robolectric's jar. No secret is committed, and nothing leaks a reader's data or files.
