@@ -582,6 +582,13 @@ class OnboardingTest {
         compose.waitForIdle()
         assertEquals("not again after turning the phone", 1, said(reason))
         assertEquals(1, said("Found Blog. It's ticked below."))
+
+        // Answered without the network, so "Checking…" never shows between the two.
+        compose.onNode(hasSetTextAction()).performScrollTo().performTextReplacement("not an address")
+        click("Add")
+        idleUntil { compose.waitForIdle(); said("That doesn't look like a web address.") == 1 }
+        click("Add")
+        idleUntil { compose.waitForIdle(); said("That doesn't look like a web address.") == 2 }
     }
 
     @Test

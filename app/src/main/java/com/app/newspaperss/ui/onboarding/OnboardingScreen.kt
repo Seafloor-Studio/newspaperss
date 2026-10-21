@@ -278,14 +278,17 @@ private fun SourcesStep(s: OnboardingState, vm: OnboardingViewModel, sources: So
     val spoken = if (s.searching) status else s.findError ?: s.foundNote ?: status
     val view = LocalView.current
     // Saveable, so turning the phone doesn't say it again; starting from what's there, so coming
-    // back to this step doesn't say an old result again.
-    var said by rememberSaveable { mutableStateOf(spoken) }
-    LaunchedEffect(spoken) {
-        if (spoken.isNotEmpty() && spoken != said) {
+    // back to this step doesn't say an old result again. Keyed by the search too: an answer that
+    // needs no network ("That doesn't look like a web address") can come before "Checking…" is
+    // drawn, and the same answer twice would otherwise be said once.
+    val saying = "${s.searches}:$spoken"
+    var said by rememberSaveable { mutableStateOf(saying) }
+    LaunchedEffect(saying) {
+        if (spoken.isNotEmpty() && saying != said) {
             @Suppress("DEPRECATION") // Deprecated in favour of live regions, which this can't be.
             view.announceForAccessibility(spoken)
         }
-        said = spoken
+        said = saying
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
         // Even plain, an empty Text is an element with nothing to say; the spacer keeps Add in place.

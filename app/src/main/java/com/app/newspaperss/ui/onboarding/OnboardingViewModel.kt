@@ -84,6 +84,8 @@ data class OnboardingState(
     val findNote: String? = null,
     /** What the last search found, for TalkBack only: sighted readers see the ticked feed appear. */
     val foundNote: String? = null,
+    /** Searches made, so a second search with the same answer is still said. */
+    val searches: Int = 0,
     /** The page being saved to the reading list, its button gone so a second tap can't save it again. */
     val savingPage: String? = null,
     val minutes: Int = 30,
@@ -330,7 +332,7 @@ class OnboardingViewModel(
 
     fun findPasted() {
         val input = state.value.pasted.takeIf { it.isNotBlank() } ?: return
-        _state.update { it.copy(searching = true, findError = null, findPage = null, findNote = null, foundNote = null, savingPage = null) }
+        _state.update { it.copy(searching = true, findError = null, findPage = null, findNote = null, foundNote = null, savingPage = null, searches = it.searches + 1) }
         viewModelScope.launch {
             when (val result = finder.find(input)) {
                 is FindResult.NotFound -> _state.update { it.copy(searching = false, findError = result.reason, findPage = result.page) }
