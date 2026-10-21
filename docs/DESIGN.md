@@ -533,6 +533,12 @@ whose Kindle and KOReader answers ask for more on the same page).
     - it installs with Android's PackageInstaller once no edition, audio,
       natural voice download or feed move is running, Listen isn't
       playing and the app isn't open; otherwise it tries again later;
+    - a picker the app opened (import, export, Save to, the delivery
+      folder) counts as open: the app waits for its answer, through a
+      rotation or Android ending it meanwhile. Opening the app from the
+      launcher afresh lets go of a picker that was never answered;
+    - a phone too full for Android's copy isn't the build's fault: it waits
+      until there's room and tries again, and never gives up on it;
     - Android asks the reader to confirm the first time after a browser
       install, and every time before Android 12: a notification, "Build N
       is ready. Tap to install.", opens the question;
