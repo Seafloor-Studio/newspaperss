@@ -3,6 +3,7 @@ package com.app.newspaperss.ui
 import android.Manifest
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
@@ -79,13 +80,18 @@ class AccessibilityChecksTest {
         error("the first edition wasn't made within 8 minutes")
     }
 
+    // In logcat, so a failure that names no line of this test still says which screen it was on.
+    private fun step(what: String) = Log.i("AccessibilityWalk", what)
+
     private fun checkScreen() {
+        step("check")
         compose.waitForIdle()
         val roots = compose.onAllNodes(isRoot()).fetchSemanticsNodes().size
         (0 until roots).forEach { compose.onAllNodes(isRoot())[it].tryPerformAccessibilityChecks() }
     }
 
     private fun tap(text: String, substring: Boolean = false): SemanticsNodeInteraction {
+        step("tap $text")
         compose.waitUntil(30_000) { compose.onAllNodes(hasText(text, substring)).fetchSemanticsNodes().isNotEmpty() }
         val node = compose.onAllNodes(hasText(text, substring)).onFirst()
         // Below the fold on a small screen; a node outside any scrolling list has nothing to scroll.
@@ -94,6 +100,7 @@ class AccessibilityChecksTest {
     }
 
     private fun tab(label: String) {
+        step("tab $label")
         compose.waitUntil(30_000) { compose.onAllNodes(hasText(label) and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
         compose.onAllNodes(hasText(label) and hasClickAction()).onFirst().performClick()
     }

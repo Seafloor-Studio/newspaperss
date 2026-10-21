@@ -62,4 +62,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: device-test-report
-          path: app/build/reports/androidTests/
+          # The outputs hold each run's logcat: what a failure outside the test's own lines left behind.
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
