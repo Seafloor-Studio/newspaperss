@@ -109,9 +109,10 @@ for abi in abis:
     $ui tap "More options"
     $ui tap "Open on this phone"
     # KOReader draws its own pages, out of uiautomator's sight: the screenshot is the proof.
+    # What's in front: topResumedActivity from Android 10, mResumedActivity before.
     front=""
     for _ in $(seq 60); do
-      front=$(adb shell dumpsys activity activities | grep -m1 'topResumedActivity' || true)
+      front=$(adb shell dumpsys activity activities | grep -m1 -E 'topResumedActivity|mResumedActivity' || true)
       [[ $front == *koreader* ]] && break
       sleep 1
     done
@@ -119,7 +120,7 @@ for abi in abis:
     # In front isn't drawn: give its first page the time a reader would before looking.
     sleep 10
     $ui shot 30-koreader
-    front=$(adb shell dumpsys activity activities | grep -m1 'topResumedActivity' || true)
+    front=$(adb shell dumpsys activity activities | grep -m1 -E 'topResumedActivity|mResumedActivity' || true)
     if [[ $front != *koreader* ]]; then
       echo "KOReader left the screen before the screenshot: $front" >&2
       # Why, if it says: its own lines and any crash.
