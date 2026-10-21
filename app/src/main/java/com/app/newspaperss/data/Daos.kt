@@ -648,9 +648,32 @@ interface ArticleDao {
      */
     @Query(
         """SELECT * FROM articles WHERE sourceId = :sourceId AND discoveredAt >= :since
-           AND (:originId IS NULL OR originId = :originId) ORDER BY discoveredAt DESC LIMIT :limit""",
+           AND (:originId IS NULL OR originId = :originId) ORDER BY discoveredAt DESC, id DESC LIMIT :limit""",
     )
     suspend fun recentForEpisodes(sourceId: Long, originId: String?, since: Instant, limit: Int): List<ArticleEntity>
+
+    /**
+     * Of the rows [recentForEpisodes] would load, those never judged, without their text: whether
+     * a sync with nothing new still has a stored post to judge. Both order alike, ties included,
+     * since a sync stores all its posts at one time and the two must pick the same rows.
+     */
+    @Query(
+        """SELECT guid, audioUrl IS NOT NULL AS hasAudio FROM (SELECT guid, audioUrl, episodeKind FROM articles
+           WHERE sourceId = :sourceId AND discoveredAt >= :since AND (:originId IS NULL OR originId = :originId)
+           ORDER BY discoveredAt DESC, id DESC LIMIT :limit) WHERE episodeKind IS NULL""",
+    )
+    suspend fun unjudgedForEpisodes(sourceId: Long, originId: String?, since: Instant, limit: Int): List<Unjudged>
+
+    /** What a stored article never judged is: not over a kind another sync has just given it. */
+    @Query("UPDATE articles SET episodeKind = :kind WHERE sourceId = :sourceId AND guid = :guid AND episodeKind IS NULL")
+    suspend fun judgeStored(sourceId: Long, guid: String, kind: EpisodeKind)
+
+    /** The audio a stored article's feed attaches, for one stored without it. */
+    @Query(
+        """UPDATE articles SET audioUrl = :url, audioType = :type, audioBytes = :bytes, audioSeconds = :seconds
+           WHERE sourceId = :sourceId AND guid = :guid AND audioUrl IS NULL""",
+    )
+    suspend fun keepAudio(sourceId: Long, guid: String, url: String, type: String?, bytes: Long?, seconds: Int?)
 
     /**
      * Pairs an article found earlier with a post that arrived since, unless it's paired already,
@@ -795,6 +818,9 @@ data class EditionContent(
  * within it ([ArticleEntity.originId], which a feed's page is addressed by).
  */
 data class ArticleSource(val id: Long, val kind: SourceKind, val feedKey: String?, val title: String, val paused: Boolean)
+
+/** A stored article never judged ([ArticleDao.unjudgedForEpisodes]), and whether it kept its audio. */
+data class Unjudged(val guid: String, val hasAudio: Boolean)
 
 /** A post another is paired with, as [ArticleEntity.episodePair] names it. */
 data class EpisodePair(val guid: String, val title: String, val episodeKind: EpisodeKind?)

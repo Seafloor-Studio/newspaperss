@@ -18,6 +18,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Wed 21 Oct
 
+### Posts stored before episode detection get a label (#355)
+- **What you asked:** posts synced before detection landed (18 Oct) have no episode kind, and nothing ever gave them one: a re-sync skips a stored post whole.
+- **Built:** a sync already judges new posts beside the source's last 14 days of stored ones; a stored post with no kind now keeps the verdict it gets there, with its pair and the audio the feed shows, and a sync with nothing new still runs when such a post is waiting. Only posts the feed still lists (through tt-rss: still unread), or that kept their audio: those stored before detection kept none, and judged from that an episode reads as an article.
+- **Review:** a label written without the audio it was judged by would have been turned into "article" once the post left the feed, so the audio is kept too. Two stored posts of one episode now pair. The write can't overwrite a kind another sync just gave, and a sync with nothing new checks for waiting posts without loading their text.
+- **Left:** posts older than 14 days, gone from the feed, or read in tt-rss stay unlabelled. No one-off backfill job: the channel's podcast flag isn't stored, and posts from before detection kept no audio, so it would judge worse than a sync does.
+
 ### G4: onboarding's website search speaks its result
 - **What you asked:** the approved gap from #347's review. With TalkBack, adding a website in onboarding said "Checking…" and then nothing: focus stays on Add, and the result shows elsewhere (a ticked feed below, or an error at the field).
 - **Built:** TalkBack now hears "Found Blog. It's ticked below." (or how many feeds, and which is ticked), or the reason nothing was found. Nothing changes on screen. Turning the phone or coming back to the step doesn't say it again.

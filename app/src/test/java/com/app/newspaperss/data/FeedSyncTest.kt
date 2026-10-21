@@ -396,6 +396,65 @@ class FeedSyncTest {
         assertEquals(EpisodeKind.ARTICLE, byGuid.getValue("letter").episodeKind)
     }
 
+    private fun show(vararg items: String) = """<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+        <channel><title>A Show</title><itunes:type>episodic</itunes:type>${items.joinToString("")}</channel></rss>"""
+
+    private fun episode(n: Int) = """<item><title>Episode $n</title><link>https://show.example/$n</link><guid>e$n</guid>
+        <description>Our guest talks about trains.</description><enclosure url="https://cdn.example/$n.mp3" type="audio/mpeg" length="54321"/></item>"""
+
+    /** Posts stored before detection, as a release build stores them: no audio and no kind. */
+    private suspend fun storedUnjudged(vararg items: String): Long {
+        val id = repo.addFeed(url, "A Show")
+        http.page(url, show(*items))
+        FeedSync(db, http, clock, keepFor = Duration.ofDays(7), episodesOn = false).syncAll()
+        return id
+    }
+
+    @Test
+    fun postsStoredBeforeDetectionAreJudgedWhileTheFeedStillListsThem() = runTest {
+        val words = (1..2000).joinToString(" ") { "word$it" }
+        val transcript = """<item><title>Episode 12: the transcript</title><link>https://show.example/12-transcript</link><guid>t12</guid>
+            <description>$words</description><enclosure url="https://cdn.example/12.mp3" type="audio/mpeg" length="54321"/></item>"""
+        val essay = "<item><title>An essay</title><link>https://show.example/essay</link><guid>essay</guid><description>${words.take(3000)}</description></item>"
+        storedUnjudged(episode(12), transcript, essay)
+
+        // Nothing new in the feed: these are the only posts left to judge.
+        assertEquals(0, sync.syncAll().newArticles)
+
+        val byGuid = db.articles().candidates().associateBy { it.guid }
+        with(byGuid.getValue("e12")) {
+            assertEquals(EpisodeKind.NOTES, episodeKind)
+            assertEquals("t12", episodePair)
+            assertEquals("the audio it was judged by is kept", "https://cdn.example/12.mp3", audioUrl)
+            assertEquals(54321L, audioBytes)
+        }
+        assertEquals(EpisodeKind.TRANSCRIPT, byGuid.getValue("t12").episodeKind)
+        assertEquals("e12", byGuid.getValue("t12").episodePair)
+        assertEquals(EpisodeKind.ARTICLE, byGuid.getValue("essay").episodeKind)
+    }
+
+    @Test
+    fun aStoredPostIsJudgedOnlyOnceAndNotFromWhatTheMigrationLeftOfIt() = runTest {
+        val id = storedUnjudged(episode(11), episode(12), episode(13))
+        db.articles().setEpisodeKind(id, "e13", EpisodeKind.TRANSCRIPT)
+
+        // Episode 11 has left the feed, and its stored copy lost its audio.
+        http.page(url, show(episode(14), episode(13), episode(12)))
+        assertEquals(1, sync.syncAll().newArticles)
+
+        var byGuid = db.articles().candidates().associateBy { it.guid }
+        assertNull("judged from its stored copy it'd be an article, which it isn't", byGuid.getValue("e11").episodeKind)
+        assertEquals(EpisodeKind.NOTES, byGuid.getValue("e12").episodeKind)
+        assertEquals("judged already, it keeps its kind", EpisodeKind.TRANSCRIPT, byGuid.getValue("e13").episodeKind)
+        assertEquals(EpisodeKind.NOTES, byGuid.getValue("e14").episodeKind)
+
+        // Episode 12 leaves the feed too, and is judged beside the next one from what was stored.
+        http.page(url, show(episode(15), episode(14)))
+        assertEquals(1, sync.syncAll().newArticles)
+        byGuid = db.articles().candidates().associateBy { it.guid }
+        assertEquals(EpisodeKind.NOTES, byGuid.getValue("e12").episodeKind)
+    }
+
     @Test
     fun aReleaseBuildKeepsNoAudioAndJudgesNothing() = runTest {
         repo.addFeed(url, "A Show")
