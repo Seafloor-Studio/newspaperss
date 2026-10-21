@@ -20,6 +20,30 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] CLAUDE.md says its shared sections match claude-playground's; several rules have drifted (tests "waits for the condition", the review's background-work bullet, the PR template, "merge only when asked"). Your call whether to bring them across
 - Next audit of this kind: after 30–40 more cycles, or before a release
 
+### From the 21 Oct security review *(audit)*
+Cycle G6. Fixed in #363 (CI) and #364 (nested JSON). Measured unless it says "read".
+- [ ] **Deeply nested markup takes time that grows with the square of its depth, and nothing stops it.**
+  - Measured: an Atom feed 100k elements deep (700 KB) takes 20 s in `FeedParser.parse`; `HtmlCleaner.clean` takes 22 s on the same depth of `<b>`; `PageExtractor.extract` takes 69 s on 200k `<div>`.
+  - A 10 MB feed can be 1.4M levels deep, and feed text is allowed 500k characters (about 10 s).
+  - The edition's deadline is checked only between articles, and this CPU-bound code ignores cancellation.
+  - Likely fix: refuse or flatten beyond a few hundred levels before parsing, for feeds and pages alike.
+- [ ] **One feed can add any number of items:** a 10 MB RSS feed of tiny items parsed into 321,114 items (1.3 s, about 110 MB of heap), all handed to `insertFetched`. A per-feed cap per sync, newest first.
+- [ ] **The entity guard in `FeedParser` is a regex, and it's slow and easy to get past.**
+  - A fake `<rss>` inside a comment, or a 70 KB comment, gets past it.
+  - `<!ENTITY ` repeated through the 64 KB prolog takes 5 s per parse.
+  - Neither is exploitable today: Android's parser and kxml2 don't expand declared entities unless `FEATURE_PROCESS_DOCDECL` is on, and the app never turns it on.
+  - Add a test that pins that, and make the guard linear.
+- [ ] OPML and reading-list imports read the whole picked file into memory (`readText()`), with no size limit. Small: the reader picks the file. *(read)*
+- [ ] **No dependency verification:** there's no `gradle/verification-metadata.xml`, so a replaced artifact on a repository would go unnoticed. JitPack (sherpa-onnx, debug builds only) builds from tags that can move. Worth doing before Play.
+- [ ] `recurring-review.yml` steers an agent that can write issues. Its spec comes from claude-playground, and it reads the bodies of open `audit` issues, which anyone can write. Its `gh api repos/madCode/claude-playground/contents/*` allowance also permits PUT and DELETE. Your call whether to narrow it to GET and to issues you opened. *(read)*
+- [ ] **Your call (morning page): the debug channel's signing key.** The debug key is committed, so the self-updater's signature check only proves a file is a debug build. HTTPS to github.com and write access to the `latest-debug` release are what keep it honest. A key held in CI secrets would make the check mean something, at the cost of one reinstall for each debug tester. A second signing question waits for you there too.
+- Checked and left as is:
+  - **A `mailto:` link in an article opens the mail app with fields the feed chose.** You still press send, and nothing can be attached.
+  - **Every shared edition is readable by the Kindle app until reboot.** Deliberate, so Send to Kindle works.
+  - **`ListenService` takes any media controller.** As media apps do.
+  - **Feed images can point at local-network addresses.** As in any feed reader.
+  - **tt-rss in Docker uses `:latest` on purpose,** and the emulator's KOReader is F-Droid's latest.
+
 ### Onboarding and setup
 
 ### Sources and fetching
@@ -85,7 +109,7 @@ A full pass over the app and the book, not just spot fixes:
 
 ### Recurring reviews *(audit)*
 Whole-codebase passes for what a review of one PR can't see. Each follows the audit's pattern: fresh-eyes reviewers, each finding checked, a PR per area.
-- [ ] **Security and supply chain**, before each release or every 20–30 cycles: hostile feeds and pages (entity expansion, slow regexes, huge inputs), links and intents that leave the app, what CI's jobs can write, signing keys, and pinned actions and dependencies
+- [ ] **Security and supply chain** (last: 21 Oct, cycle G6; its findings are under "From the 21 Oct security review"), before each release or every 20–30 cycles: hostile feeds and pages (entity expansion, slow regexes, huge inputs), links and intents that leave the app, what CI's jobs can write, signing keys, and pinned actions and dependencies
 - [ ] **Architecture and test health** (last: 16 Oct, cycle 6 of that run; its findings are at the top of Next), every 30–40 cycles or before a release: duplication and code that has grown complicated, how features fit together (what one feature deletes that another still uses), tests that can never fail, waits that flake under load, and copied test helpers
 
 ### Tech debt
