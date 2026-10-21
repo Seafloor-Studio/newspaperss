@@ -20,8 +20,8 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ### The live build's install: another app on top, and a full phone
 - **What you asked:** check this app for the problems Jekyll Poster's review found in the same update design (claude-playground #187), and fix the ones that apply.
-- **Built:** a file picker, the share sheet, a mail app or the browser opened from the app no longer counts as the reader having left: the app marks it on disk when it opens one, and clears the mark when it comes to the front again. Before, the install could replace the app while the reader picked an OPML file or wrote the email to their Kindle.
-- **Built:** no room to copy the build into Android's installer no longer counts toward the three failures that give the build up; the install waits for storage that isn't low, as the download already did.
+- **Built:** a file picker, the share sheet, a mail app or the browser opened from the app no longer counts as the reader having left: the app marks it on disk when it opens one (so do the notification's Send and Read), and clears the mark when it comes to the front again, or after an hour if the reader never does. Before, the install could replace the app while the reader picked an OPML file or wrote the email to their Kindle.
+- **Built:** no room to copy the build into Android's installer, or Android answering "out of storage", no longer counts toward the three failures that give the build up; the install waits for storage that isn't low, as the download already did.
 - **Not here:** the third problem, a hold kept by a screen and dropped on rotation. Nothing here holds the install from a screen.
 
 ### G5: a documentation pass on the backlog

@@ -74,6 +74,7 @@ class LiveUpdatesTest {
     private var foreground = false
     private var unmetered = true
     private var listenPlaying = false
+    private var clock = 1_000_000_000L
 
     @Before fun setUp() {
         // A real thread, not SynchronousExecutor: one test holds an edition build running.
@@ -102,6 +103,7 @@ class LiveUpdatesTest {
         canInstall = { canInstall },
         foreground = { foreground },
         unmetered = { unmetered },
+        now = { clock },
     )
 
     private fun serve(text: String) = server.enqueue(MockResponse.Builder().body(text).build())
@@ -268,6 +270,18 @@ class LiveUpdatesTest {
         assertEquals(1, commits.size)
     }
 
+    /** Home from the mail app: the app never comes back to clear the mark. */
+    @Test
+    fun aVisitThatEndsInTheOtherAppHoldsTheInstallBackOnlyForAWhile() = runBlocking {
+        val updates = updates()
+        ready(updates)
+        updates.leaving()
+        clock += LiveUpdates.AWAY_MS - 1
+        assertTrue(updates.install(userAsked = false) is LiveUpdates.Outcome.Busy)
+        clock += 1
+        assertEquals(LiveUpdates.Outcome.Started, updates.install(userAsked = false))
+    }
+
     @Test
     fun anEditionStartingWhileTheApkIsCopiedStillHoldsTheInstallBack() = runBlocking {
         val updates = updates()
@@ -364,7 +378,7 @@ class LiveUpdatesTest {
         ready(updates)
         repeat(LiveUpdates.MAX_INSTALL_FAILURES) {
             updates.install(userAsked = true)
-            updates.installResult(464, PackageInstaller.STATUS_FAILURE_STORAGE, "no space", null)
+            updates.installResult(464, PackageInstaller.STATUS_FAILURE_BLOCKED, "blocked", null)
         }
 
         assertEquals(LiveUpdates.MAX_INSTALL_FAILURES, commits.size)
@@ -415,6 +429,18 @@ class LiveUpdatesTest {
 
         commitFails = null
         assertEquals("never given up on", LiveUpdates.Outcome.Started, updates.install(userAsked = false))
+    }
+
+    @Test
+    fun androidRunningOutOfRoomIsNotCountedAgainstTheBuild() = runBlocking {
+        val updates = updates()
+        ready(updates)
+        repeat(LiveUpdates.MAX_INSTALL_FAILURES + 1) {
+            updates.install(userAsked = true)
+            updates.installResult(464, PackageInstaller.STATUS_FAILURE_STORAGE, "no space", null)
+        }
+        assertEquals(SelfUpdate.Ready(464), updates.state.first())
+        assertEquals(0, prefs.getInt(LiveUpdates.REJECTED, 0))
     }
 
     @Test

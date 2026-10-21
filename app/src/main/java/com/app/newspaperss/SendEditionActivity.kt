@@ -41,6 +41,8 @@ class SendEditionActivity : Activity() {
                 EditionIntents.launchSend(applicationContext, file, title, id, email, body, newTask = true) {
                     container.appScope.launch { container.editions.markEmailedToKindle(id) }
                 }
+                // The mail app reads the edition from this app: an update now would cut it off.
+                container.selfUpdates.leaving()
             } finally {
                 // Whatever happened: left open, this see-through screen would sit over everything.
                 finish()

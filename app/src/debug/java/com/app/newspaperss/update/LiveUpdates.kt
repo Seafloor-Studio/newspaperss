@@ -100,12 +100,16 @@ internal class LiveUpdates(
     }
 
     override fun leaving() {
-        prefs.edit().putBoolean(AWAY, true).commit()
+        prefs.edit().putLong(AWAY, now()).commit()
     }
 
-    /** On screen, or behind another app's screen it opened ([leaving]): kept on disk, so a process
-     *  started after the app's died still waits for the reader to come back. */
-    private fun open() = foreground() || prefs.getBoolean(AWAY, false)
+    /**
+     * On screen, or lately behind another app's screen it opened ([leaving]): kept on disk, so a
+     * process started after the app's died still waits for the reader to come back. A visit that
+     * ends there (Home from the mail app) never comes back to clear it, so after [AWAY_MS] it no
+     * longer counts.
+     */
+    private fun open() = foreground() || now() - prefs.getLong(AWAY, Long.MIN_VALUE / 2) in 0 until AWAY_MS
 
     override suspend fun install(): InstallTap = when (val outcome = install(userAsked = true)) {
         Outcome.Started, Outcome.Done -> InstallTap.Started
@@ -292,7 +296,12 @@ internal class LiveUpdates(
                 log("Build $build can't install (status $status): $message")
                 giveUp(build)
             }
-            // Storage, blocked, a timeout or no reason: maybe not next time, but not forever.
+            // The phone's room, not the build's fault: the install work waits for storage that isn't low.
+            PackageInstaller.STATUS_FAILURE_STORAGE -> {
+                log("Build $build didn't install for lack of room: $message")
+                LiveInstallWorker.enqueue(work, delayMinutes = RETRY_MINUTES)
+            }
+            // Blocked, a timeout or no reason: maybe not next time, but not forever.
             else -> {
                 log("Build $build didn't install (status $status): $message")
                 if (!failed(build)) LiveInstallWorker.enqueue(work, delayMinutes = RETRY_MINUTES)
@@ -390,6 +399,8 @@ internal class LiveUpdates(
         const val MAX_INSTALL_FAILURES = 3
         const val RETRY_MINUTES = 30L
         private val COMMIT_PENDING_MS = TimeUnit.MINUTES.toMillis(10)
+        /** Longer than importing a file or writing an email takes. */
+        val AWAY_MS = TimeUnit.HOURS.toMillis(1)
 
         fun of(context: Context): LiveUpdates? = context.container.selfUpdates as? LiveUpdates
 

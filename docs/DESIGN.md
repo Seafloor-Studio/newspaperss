@@ -536,10 +536,12 @@ whose Kindle and KOReader answers ask for more on the same page).
     - a file picker, the share sheet, a mail app or the browser opened from
       the app counts as the app still open: the install waits until the
       reader comes back to the app and leaves it, even if the app's
-      process died meanwhile;
-    - it waits for enough free storage, as the download does; no room to
-      copy the build into Android's installer isn't counted against the
-      build, and a tap says "It installs once there's room on the phone.";
+      process died meanwhile, or for an hour if they never come back (so
+      do the notification's Send and Read);
+    - it waits for enough free storage, as the download does; no room
+      (to copy the build into Android's installer, or Android's own "out
+      of storage") isn't counted against the build, and a tap says "It
+      installs once there's room on the phone.";
     - Android asks the reader to confirm the first time after a browser
       install, and every time before Android 12: a notification, "Build N
       is ready. Tap to install.", opens the question;

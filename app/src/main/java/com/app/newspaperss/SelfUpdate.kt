@@ -48,13 +48,15 @@ interface SelfUpdater {
     /** [DebugUpdates] knows of [build], newer than this one. */
     fun newerBuild(build: Int)
 
-    /** The app came to the front: the reader may have just allowed installing apps. */
+    /** The app came to the front: the reader may have just allowed installing apps, and is back
+     *  from any app [leaving] sent them to. */
     fun refresh()
 
     /**
      * The app is opening another app's screen (a file picker, the share sheet, a mail app, the
      * browser) and expects the reader back: that takes the app out of the foreground without the
-     * reader having left it, so a background install waits until the app comes to the front again.
+     * reader having left it, so a background install waits until the app comes to the front again,
+     * or for a while if it never does.
      */
     fun leaving()
 

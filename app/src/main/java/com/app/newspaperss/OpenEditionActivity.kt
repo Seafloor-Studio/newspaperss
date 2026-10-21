@@ -26,6 +26,8 @@ class OpenEditionActivity : Activity() {
             // Its own task: this one is excluded from Recents, and the book shouldn't be.
             startActivity(EditionIntents.open(this, file).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
             val container = application.container
+            // The reading app reads the book from this app: an update now would cut it off.
+            container.selfUpdates.leaving()
             container.appScope.launch { container.editions.markSent(id) }
         } catch (_: ActivityNotFoundException) {
             Toast.makeText(this, "No reading app on this phone can open the edition.", Toast.LENGTH_LONG).show()

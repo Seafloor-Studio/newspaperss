@@ -153,11 +153,13 @@ class MainActivity : ComponentActivity() {
     }
 
     // Every screen of another app the reader goes to from here passes through this: a plain
-    // startActivity, and the pickers' ActivityResult launchers.
+    // startActivity, and the pickers' ActivityResult launchers. Not a permission's dialog, which
+    // is brief and over the app itself. Marked once it opened, so a launch that throws (no
+    // browser on an e-reader) leaves nothing behind.
     @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
     override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
-        application.container.selfUpdates.leaving()
         super.startActivityForResult(intent, requestCode, options)
+        application.container.selfUpdates.leaving()
     }
 
     override fun onStart() {
@@ -165,6 +167,11 @@ class MainActivity : ComponentActivity() {
         // Each time the app comes to the front, not just on a cold start: it can sit in recents for days.
         val updates = application.container.debugUpdates
         application.container.appScope.launch { updates.checkIfDue() }
+    }
+
+    // On resume, not start: the share sheet is see-through, so backing out of it only resumes.
+    override fun onResume() {
+        super.onResume()
         application.container.selfUpdates.refresh()
     }
 
