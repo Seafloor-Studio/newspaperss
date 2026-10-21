@@ -14,7 +14,8 @@ import java.util.concurrent.TimeUnit
 internal class ApkDownload(
     private val url: () -> String,
     // Its own client: the shared one's cache would try to keep the APK. No https-to-http redirect
-    // either, though the signature check would catch a swapped file anyway.
+    // either. The debug key is committed, so the signature check only proves a file is a debug
+    // build: what says it is this project's is HTTPS to github.com.
     private val client: OkHttpClient = OkHttpClient.Builder().followSslRedirects(false).readTimeout(1, TimeUnit.MINUTES).build(),
 ) {
     /** Writes the APK to [into], whole or not at all: any failure throws and leaves no file. */

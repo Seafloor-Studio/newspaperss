@@ -228,6 +228,14 @@ class FeedParserTest {
     }
 
     @Test
+    fun aDeeplyNestedJsonFeedIsRefusedNotAStackOverflow() {
+        // 20 KB of brackets. A StackOverflowError gets past every catch (e: Exception) on the way,
+        // and would stop every edition for as long as the feed stays subscribed.
+        val nested = "{\"version\":\"https://jsonfeed.org/version/1\",\"items\":" + "[".repeat(10_000) + "]".repeat(10_000) + "}"
+        assertThrows(FeedParseException::class.java) { FeedParser.parse(nested, "https://a.example/feed.json") }
+    }
+
+    @Test
     fun aFeedDeclaringPlainEntitiesIsStillRead() {
         val rss = "<?xml version=\"1.0\"?><!DOCTYPE rss [<!ENTITY nbsp \"&#160;\">]>" +
             "<rss><channel><title>Old CMS</title><item><title>A</title><link>https://a.example/a</link></item></channel></rss>"

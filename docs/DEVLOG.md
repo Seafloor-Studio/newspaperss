@@ -8,7 +8,7 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Status
 
-- **Lately:** 21 Oct: the self-update waits for a picker's answer, and a full phone no longer gives up on a build. Cycle G5: a backlog pass ticked five items already built and brought two measured ones up to date. Cycle G4: onboarding's website search tells TalkBack what it found, or why nothing. Cycle G3: deleting an edition that was never sent frees its title, so the remake isn't "(2)". Cycle G2: a right tt-rss password straight after a wrong one says to wait 5 seconds and try again, as tt-rss turns it away for that long. Cycle G1: sharing a link asks Save, Subscribe or Both, with Subscribe first for a site's front page (#356, #290). 20 Oct, four cycles: every saved link gets a reading time slowly (#335), a hostile feed can't make the app's lists unreadable (#336, database version 17), Save a copy… keeps an edition's book (#338), and two episode-audit tidies (#337). 19 Oct, **0.1.1 tagged** (Kokoro's native code out of release builds, a check that keeps it out); podcast episodes steps 1–3 in debug builds (#313, #320–#324): posts keep their audio and are labelled, wrong labels can be sent for a look, and Listen plays an article's recorded reading in its place.
+- **Lately:** 21 Oct: the self-update waits for a picker's answer, and a full phone no longer gives up on a build. Cycle G6: the security and supply-chain review. A feed nested thousands deep can no longer stop every edition (#364), and CI is tighter (#363); two signing questions wait for you on the morning page. Cycle G5: a backlog pass ticked five items already built and brought two measured ones up to date. Cycle G4: onboarding's website search tells TalkBack what it found, or why nothing. Cycle G3: deleting an edition that was never sent frees its title, so the remake isn't "(2)". Cycle G2: a right tt-rss password straight after a wrong one says to wait 5 seconds and try again, as tt-rss turns it away for that long. Cycle G1: sharing a link asks Save, Subscribe or Both, with Subscribe first for a site's front page (#356, #290). 20 Oct, four cycles: every saved link gets a reading time slowly (#335), a hostile feed can't make the app's lists unreadable (#336, database version 17), Save a copy… keeps an edition's book (#338), and two episode-audit tidies (#337). 19 Oct, **0.1.1 tagged** (Kokoro's native code out of release builds, a check that keeps it out); podcast episodes steps 1–3 in debug builds (#313, #320–#324): posts keep their audio and are labelled, wrong labels can be sent for a look, and Listen plays an article's recorded reading in its place.
 - **Watching:** `AccessibilityChecksTest` on the emulator sometimes fails because a screen keeps drawing after the first edition, on main too; since #360 it fails in a minute and keeps logcat (in the backlog). `PodcastSettingsTest`'s timeout is fixed (#340: 4 failures in 20 runs before, 0 in 60 after). main's suite also timed out once in `KindleEmailScreensTest` (19 Oct), not seen since.
 - **Waiting on you, to get 0.1.1 to readers:**
   1. Install the arm64 APK from [0.1.1's draft release](https://github.com/Seafloor-Studio/newspaperss/releases) on a phone (onboarding, an edition, a send), then publish the draft: F-Droid can't see a draft, and readers can't find it. v0.1.0's release notes still carry the "wait for the next version" warning, to replace with a line pointing at 0.1.1.
@@ -23,6 +23,37 @@ caught, and what got in the way. Newest first. Times are Pacific.
 - **A picker on top counted as the app being closed.** The live build installs once the app isn't in front, and a file picker (import, export, Save to, the delivery folder) puts it behind. Installing then ended the app: the picked file never arrived, and a file Save to or Export had just made was left empty. Now the app keeps the request codes it's waiting on, on disk, and a background install waits for their answers. Only a launcher start with nothing to restore lets go of one never answered.
 - **No room counted against the build.** Android failing to copy the APK in (an `IOException`, or its own "storage" answer) counted toward the three failures that give a build up for good. Now neither counts, and the install work waits for storage not to be low, as the download already did.
 - **Rotation:** the third problem, a screen's hold let go in `DisposableEffect`, doesn't apply: nothing here lets go on dispose. A test turns the phone with a picker out and the install still waits.
+### Posts stored before episode detection get a label (#355)
+- **What you asked:** posts synced before detection landed (18 Oct) have no episode kind, and nothing ever gave them one: a re-sync skips a stored post whole.
+- **Built:** a sync already judges new posts beside the source's last 14 days of stored ones; a stored post with no kind now keeps the verdict it gets there, with its pair and the audio the feed shows, and a sync with nothing new still runs when such a post is waiting. Only posts the feed still lists (through tt-rss: still unread), or that kept their audio: those stored before detection kept none, and judged from that an episode reads as an article.
+- **Review:** a label written without the audio it was judged by would have been turned into "article" once the post left the feed, so the audio is kept too. Two stored posts of one episode now pair. The write can't overwrite a kind another sync just gave, and a sync with nothing new checks for waiting posts without loading their text.
+- **Left:** posts older than 14 days, gone from the feed, or read in tt-rss stay unlabelled. No one-off backfill job: the channel's podcast flag isn't stored, and posts from before detection kept no audio, so it would judge worse than a sync does.
+
+### G6: the security and supply-chain review
+- **What you asked:** the recurring review, due before 0.1.1 goes out.
+- **How:** three fresh-eyes reviewers covered hostile input in `:core`, the app's platform surface, and CI and supply chain. Input findings were run in harnesses, including Android's own XML parser taken out of Robolectric's jar. No secret is committed, and nothing leaks a reader's data or files.
+- **Fixed (#364):** a JSON Feed of about 6 KB of nested brackets overflowed the parser's stack. The error got past every handler, so one such feed stopped every edition while it stayed subscribed. It's now an unreadable feed, and the same holds for a tt-rss reply. A tt-rss reply whose error isn't text fails instead of counting as success.
+- **Fixed (#363):**
+  - Red main's issue can't be filed by a fork's PR from a branch named main.
+  - The Gradle wrapper jar is checked before it runs, in CI and in the release build.
+  - zizmor is pinned, since its next version flags `claude.yml`, now ignored with the reason.
+  - diff-cover is pinned.
+  - The cloud-session hook checks the Android tools' checksum.
+- **Corrected:** the debug updater's comment said its signature check would catch a swapped APK. The debug key is committed, so it can't.
+- **Waiting on you:** two signing decisions, on the morning page.
+- **Left, in the backlog:**
+  - Deep nesting in XML and HTML takes time that grows with the square of the depth, with no limit (20 s at 100k levels).
+  - No cap on items per feed.
+  - The entity guard is slow and easy to get past, though the parser never expands entities, so nothing is exploitable.
+  - No dependency verification.
+  - `recurring-review.yml`'s reach.
+- **Checked and fine:**
+  - Only the launcher, the share target and Listen are exported.
+  - The FileProvider shares only editions and podcast logs.
+  - The tt-rss password is sealed with a Keystore key and left out of backups.
+  - Links leave the app only as http, https or mailto.
+  - Actions are pinned to commits, and checkouts keep no token.
+  - The EPUB stays well-formed with every field hostile.
 
 ### G5: a documentation pass on the backlog
 - **What you asked:** tick what's done but still open in BACKLOG.md, each checked against the code first.
