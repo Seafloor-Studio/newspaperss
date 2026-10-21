@@ -51,9 +51,9 @@ Each needs an edition first. "Proof" is what the session checks before calling t
 | Folder | `tools/emulator/delivery.sh save-copy` | The book is in Downloads and is an EPUB; Save a copy leaves the edition ready to send |
 | Anything else | Send, and pick any app in the share sheet | The edition says sent |
 
-Then the state checks from DELIVERY-CHECKS.md: two editions built without sending the first,
-and a send from the notification after the app was stopped (`adb shell am force-stop
-com.app.newspaperss.debug`).
+Then the state checks from DELIVERY-CHECKS.md, which `journeys.sh` does without an account
+(below): two editions built without sending the first, and a send from the notification after
+Android ended the app.
 
 ## Without any account
 
@@ -64,12 +64,22 @@ com.app.newspaperss.debug`).
 - **A slow, small phone.** CI's `low-end` job boots Android 8, 32-bit, with 2 GB, and prints
   `tools/emulator/numbers.sh`'s cold start times, the first edition's time and the app's memory.
   Compare them with earlier runs; a debug build overstates them.
+- **The journeys after the first edition.** After `delivery.sh make`, `tools/emulator/journeys.sh`
+  does each of these, in this order, and CI's `journeys` job runs them all:
+  - `two-editions`: another edition without sending the first; the first is marked not sent.
+  - `cold-send`: after `doze.sh soon` has made a timed edition (only those notify), Android
+    ends the app, and Send from the notification reaches a stand-in app and marks it sent.
+  - `share`: a page saved and a site subscribed from another app's share sheet.
+  - `folder`: Save to a folder in Settings; the next edition lands there, marked sent.
+  - `listen`: Listen in the phone's voice starts playing, and pauses. How it sounds is still
+    for a person.
 - **Large text.** `adb shell settings put system font_scale 2.0`, then walk Today, an edition,
   Sources and Settings with screenshots. `1.0` puts it back.
 - **TalkBack.** Turn it on in the emulator's Accessibility settings, then use `ui.py texts`
   for what it would read. A person still has to listen to it.
-- **A release build.** `./gradlew :app:assembleRelease` with the debug key, installed beside
-  the debug app: onboarding, an edition, a send.
+- **A release build.** CI's `release-build` job builds it with the debug key and runs
+  onboarding, an edition and a send from its notification in it. By hand: the job's
+  `KEYSTORE_*` settings, then the same scripts with `PKG=com.app.newspaperss`.
 
 What stays with a person: anything on the e-reader itself (a Kindle, Kobo or Boox screen), and
 how TalkBack actually sounds. PocketBook too: its cloud account can't be made from the US, so

@@ -26,9 +26,9 @@ open with its cover and contents intact?
 | **PocketBook** | Share → a mail app, to your `@pbsync.com` address | It arrives on the device | Not yet |
 | **KOReader** | Save to the Syncthing folder | It syncs and opens | Not yet |
 | **Boox** | Read, from the app or the notification | The device's reader opens it | Not yet |
-| **Open on this phone** | ⋮ › Open on this phone, with a reading app installed (not offered for Kindle or Kobo) | The reading app opens the book with its cover and contents | Not yet |
-| **Folder** | Save to a folder with Android's picker | The file is there, and the edition is marked delivered | Not yet |
-| **Anything else** | The share sheet | Android reports the choice back and the edition is marked sent | Not yet |
+| **Open on this phone** | ⋮ › Open on this phone, with a reading app installed (not offered for Kindle or Kobo) | The reading app opens the book with its cover and contents | Oct 2026, CI emulator weekly (KOReader) |
+| **Folder** | Save to a folder with Android's picker | The file is there, and the edition is marked delivered | Oct 2026, CI emulator weekly |
+| **Anything else** | The share sheet | Android reports the choice back and the edition is marked sent | Oct 2026, CI emulator weekly (a stand-in app) |
 
 Each row needs someone with that device or account, so most are for testers. A local Claude Code session can do most of them on an emulator: [EMULATOR-CHECKS.md](EMULATOR-CHECKS.md) says how. Update "Last checked"
 when one is done (a month is enough).

@@ -9,8 +9,8 @@
 #   tools/emulator/journeys.sh folder         # Save to a folder in Settings; the next edition lands there
 #   tools/emulator/journeys.sh listen         # Listen in the phone's voice: it plays, then pauses
 #
-# cold-send needs the test app that stands in for an e-reader's app:
-# ./gradlew :epubsink:assembleDebug, or its APK as SINK_APK.
+# cold-send needs a timed edition, as only those notify (doze.sh soon), and the test app that
+# stands in for an e-reader's: ./gradlew :epubsink:assembleDebug, or its APK as SINK_APK.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 . tools/emulator/lib.sh
@@ -57,9 +57,14 @@ case "${1:-}" in
   cold-send)
     sink=${SINK_APK:-epubsink/build/outputs/apk/debug/epubsink-debug.apk}
     adb install -r "$sink" > /dev/null
-    bring_forward
-    today
-    t=$(title)
+    # The timed edition's notification, once it's made.
+    t=""
+    for _ in $(seq 120); do
+      t=$(adb shell dumpsys notification --noredact | sed -n 's/.*android.title=String (\(.*\) is ready).*/\1/p' | head -1)
+      [ -n "$t" ] && break
+      sleep 5
+    done
+    [ -n "$t" ] || { echo "no edition-ready notification 10 minutes after the timer; titles:" >&2; adb shell dumpsys notification --noredact | grep 'android.title=' >&2 || true; exit 1; }
     # Android ending a backgrounded app, as it does overnight: the process goes, the notification
     # stays. force-stop would take the notification with it.
     adb shell input keyevent HOME
@@ -93,25 +98,27 @@ case "${1:-}" in
     $ui wait "Printing press" > /dev/null
     $ui shot 44-share-page
     $ui tap "Save to your reading list" > /dev/null
+    # Gone before the next share, so its Subscribe isn't tapped on this one's dialog.
+    for _ in $(seq 10); do $ui texts | grep -qF "Save to your reading list" || break; sleep 1; done
     share --es android.intent.extra.TEXT https://xkcd.com/
     $ui wait "Subscribe to this site" > /dev/null
     $ui shot 45-share-site
     $ui tap "Subscribe to this site" > /dev/null
     bring_forward
+    # The reading list's row is at the top of Sources, so before any scrolling.
     $ui tap "Sources" > /dev/null
+    $ui tap "Your reading list" > /dev/null
+    $ui wait "Printing press" > /dev/null || { $ui shot 46-reading-list; exit 1; }
+    $ui shot 46-reading-list
+    adb shell input keyevent BACK
     # The feed is found after the dialog has gone, so it may take a moment to be listed.
     found=""
     for _ in $(seq 6); do
       scroll_to "xkcd" && { found=1; break; }
-      $ui tap "Sources" > /dev/null
       sleep 5
     done
-    $ui shot 46-sources
+    $ui shot 47-sources
     [ -n "$found" ] || { echo "xkcd isn't in Sources after subscribing from a share" >&2; exit 1; }
-    $ui tap "Sources" > /dev/null
-    $ui tap "Your reading list" > /dev/null
-    $ui wait "Printing press" > /dev/null || { $ui shot 47-reading-list; exit 1; }
-    $ui shot 47-reading-list
     echo "share passed: the page is in the reading list and xkcd in Sources" ;;
   folder)
     # Android doesn't let an app have the whole of Downloads, only a folder in it.
@@ -120,6 +127,7 @@ case "${1:-}" in
     adb shell "rm -f '$dir'/*.epub"
     bring_forward
     $ui tap "Settings" > /dev/null
+    $ui tap "E-reader & delivery" > /dev/null
     $ui tap "Save to a folder" > /dev/null
     # Android's folder picker, opened wherever it was last; go to Downloads if Editions isn't there.
     if ! $ui wait "Editions" --exact --timeout 10 > /dev/null 2>&1; then
@@ -145,19 +153,22 @@ case "${1:-}" in
     echo "text-to-speech engines: $(adb shell cmd package query-services -a android.intent.action.TTS_SERVICE | grep -oE 'packageName=[^ ]+' | sort -u | tr '\n' ' ')"
     open_edition
     $ui tap "Listen ·" > /dev/null
-    # Starting may open the player, or leave a way to it on the edition.
-    $ui tap "Open player" --timeout 15 > /dev/null 2>&1 || true
     $ui wait "Pause" --exact --timeout 60 > /dev/null || { $ui shot 51-not-playing; exit 1; }
-    # Still playing a while later, not stopped on an error the phone's voice gave.
-    sleep 15
+    # The app shows Pause before the voice has said anything, so the proof is Android's own
+    # record of a player started: the voice's audio, whichever process plays it.
+    heard=""
+    for _ in $(seq 30); do
+      heard=$(adb shell dumpsys audio | grep -m1 -E 'state:started' || true)
+      [ -n "$heard" ] && break
+      sleep 1
+    done
     $ui shot 51-playing
     if $ui texts | grep -qiE "isn't working|can't be read"; then echo "Listen stopped on an error:" >&2; $ui texts >&2; exit 1; fi
-    state=$(adb shell dumpsys media_session | grep -m1 -oE 'state=(PLAYING|[0-9]+)' | tail -1 || true)
-    echo "media session: $state"
-    [[ $state == state=PLAYING || $state == state=3 ]] || { echo "the media session isn't playing" >&2; exit 1; }
+    [ -n "$heard" ] || { echo "no audio started 30 s after Listen; players:" >&2; adb shell dumpsys audio | grep -A3 -i 'playback activity\|players' >&2 || true; exit 1; }
+    echo "playing: $heard"
     $ui tap "Pause" --exact > /dev/null
     $ui wait "Play" --exact --timeout 10 > /dev/null
     $ui shot 52-paused
-    echo "listen passed: it played for 15 s in the phone's voice and paused" ;;
+    echo "listen passed: the phone's voice started playing, and it paused" ;;
   *) sed -n '2,13p' "$0" >&2; exit 2 ;;
 esac

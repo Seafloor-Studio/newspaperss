@@ -196,7 +196,7 @@ jobs:
             tools/emulator/smoke.sh
             tools/emulator/delivery.sh make
             tools/emulator/journeys.sh two-editions || touch build/emulator/failed
-            tools/emulator/journeys.sh cold-send || touch build/emulator/failed
+            tools/emulator/doze.sh soon && tools/emulator/journeys.sh cold-send || touch build/emulator/failed
             tools/emulator/journeys.sh share || touch build/emulator/failed
             tools/emulator/journeys.sh folder || touch build/emulator/failed
             tools/emulator/journeys.sh listen || touch build/emulator/failed
@@ -253,6 +253,7 @@ jobs:
           script: |
             tools/emulator/smoke.sh app/build/outputs/apk/release/app-x86_64-release.apk
             tools/emulator/delivery.sh make
+            tools/emulator/doze.sh soon
             tools/emulator/journeys.sh cold-send
 
       - name: Keep the screenshots

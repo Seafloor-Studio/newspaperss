@@ -1,6 +1,8 @@
 # What delivery.sh and journeys.sh share. Sourced from the repository's root.
 # PKG is the app under test: the debug build unless it says otherwise (the release build's
 # com.app.newspaperss).
+# A failure inside $(...) stops the script too, as it would outside one.
+shopt -s inherit_errexit
 ui=tools/emulator/ui.py
 pkg=${PKG:-com.app.newspaperss.debug}
 
@@ -31,7 +33,8 @@ open_edition() {
   t=$(title)
   [ -n "$t" ] || { echo "no edition on Today" >&2; exit 1; }
   $ui tap "$t" > /dev/null
-  $ui wait "More options" > /dev/null
+  # Exactly: Today's cards are "More options for <title>".
+  $ui wait "More options" --exact > /dev/null
 }
 
 # A slow swipe up by half the screen, to bring what's below the fold of a list into view.
@@ -47,7 +50,7 @@ scroll_down() {
 whole_book_in() {
   local dir=$1 book="" size=0 last=-1
   for _ in $(seq 60); do
-    book=$(adb shell "ls -t '$dir'/*.epub 2> /dev/null" | head -1 | tr -d '\r')
+    book=$(adb shell "ls -t '$dir'/*.epub 2> /dev/null" | head -1 | tr -d '\r' || true)
     if [ -n "$book" ]; then
       size=$(adb shell stat -c %s "'$book'" 2> /dev/null | tr -d '\r' || echo 0)
       [ "$size" -gt 0 ] && [ "$size" = "$last" ] && { echo "$book"; return; }
