@@ -63,6 +63,7 @@ Cycle G6. Fixed in #363 (CI) and #364 (nested JSON). Measured unless it says "re
 - [ ] Boox: offer folder delivery into the Books folder, so editions stay in the library *(personas)*
 - [ ] Folder delivery: tt-rss marks articles read as soon as the file is saved, before Syncthing has synced; old editions pile up in the folder *(personas)*
 - [ ] Verify folder delivery and the chooser from the notification on a real device
+- [ ] **Your call: an edition listened to the end counts as read?** *(you asked)* Today finishing Listen only notes the edition as finished: it stays "Ready to send", so when the next edition is made it's marked not sent and its articles come back for the next paper. **Read** on a Boox already counts as sent. Options: mark it sent on reaching the closing page; or ask there once, "Finished. Count this edition as read?" (Yes / Not now), and never for one already sent or marked. Recommended: ask, since some listen and then send it to the e-reader too, and marking it sent also marks its articles read in tt-rss
 - [ ] If lead time isn't enough on a real device, wake timed editions with an exact alarm (Doze defers WorkManager; expedited work can silently restart a long build). Measured on the emulator (#352, `doze.sh timed`): in deep sleep the timer is held until the next maintenance window, about a minute late there because the emulator grants one at once. On a phone overnight it's however long the next window takes, which the 30-minute lead may or may not cover; a phone's overnight run is what decides this
 
 ### tt-rss, for a returning reader *(personas)*
@@ -337,6 +338,7 @@ labelled corpus are [research/podcast-episodes.md](research/podcast-episodes.md)
 - [x] **Step 1:** posts keep their audio, and each is judged at sync (#313)
 - [x] **Step 2:** labels on the edition, article and source screens, and wrong labels sent for a look (#320, #321)
 - [x] **Step 3:** recorded readings play in an article's place in Listen, with a switch back to the voice (#322, #323). Built before the planned two weeks of labels, at madCode's request
+- [ ] **All labelled posts in one list** *(you asked)*: with about 100 sources, finding a post to star means opening each source's page. A debug-build list of every post the detector labelled, newest first, with its tag, its source and a star, would let the two weeks of labels be tried on purpose. Where it lives (Settings, or a filter on Sources) is open
 - [ ] **The two weeks of labels:** what the design's "Before readings go into Listen" asks, now checked alongside step 3 rather than before it. The podcast log now says how far each recording got and which transcripts could have played their episode: share it at the end
 - [ ] **Rule 3's silent stub:** an audio version's own short post is still read by the voice when it's in the same edition as its article. Listen needs a way to pass over a page
 - [ ] **Readings for editions made before #322:** their audio was never timed, so an article's own audio isn't played. Time what's missing when Listen opens an edition
