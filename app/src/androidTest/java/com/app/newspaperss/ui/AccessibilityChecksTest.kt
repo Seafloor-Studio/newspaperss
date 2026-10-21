@@ -17,7 +17,12 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.tryPerformAccessibilityChecks
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
+import androidx.work.WorkManager
 import com.app.newspaperss.MainActivity
+import com.app.newspaperss.work.EditionWorker
+import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Rule
@@ -49,6 +54,29 @@ class AccessibilityChecksTest {
         compose.waitUntil(60_000) {
             compose.onAllNodes(hasText("Get started") or hasText("Today")).fetchSemanticsNodes().isNotEmpty()
         }
+    }
+
+    // After the test, the Compose rule waits for the main thread to go idle. An edition still being
+    // made keeps a spinner turning, so that wait never ends and a 10-minute timeout hides the
+    // test's own result: close the app first.
+    @After fun close() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            listOf(Stage.RESUMED, Stage.PAUSED, Stage.STARTED, Stage.STOPPED, Stage.CREATED)
+                .flatMap { ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(it) }
+                .forEach { it.finish() }
+        }
+    }
+
+    /** Until the first edition is made, so Today is checked as a reader finds it, not mid-spinner. */
+    private fun waitForTheEdition() {
+        val work = WorkManager.getInstance(InstrumentationRegistry.getInstrumentation().targetContext)
+        val deadline = System.currentTimeMillis() + 8 * 60_000
+        while (System.currentTimeMillis() < deadline) {
+            val infos = work.getWorkInfosForUniqueWork(EditionWorker.UNIQUE).get()
+            if (infos.isNotEmpty() && infos.all { it.state.isFinished }) return
+            Thread.sleep(1_000)
+        }
+        error("the first edition wasn't made within 8 minutes")
     }
 
     private fun checkScreen() {
@@ -101,6 +129,7 @@ class AccessibilityChecksTest {
             checkScreen()
             tap("Next"); checkScreen()
             tap("Make my first edition")
+            waitForTheEdition()
         }
         for (label in listOf("Today", "Sources", "Settings")) {
             tab(label); checkScreen()
