@@ -69,6 +69,7 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
   - Live with the current card first; the masthead's date could go either way, since the edition's title has it
 
 ### Reading list
+- [ ] A share that only subscribes is lost if Android ends the app during the feed lookup (Both saves first). A worker would make it durable; worth it only if readers report lost shares *(G1 review)*
 - [ ] Send for a look on an e-reader with no browser says so and stops there; copying the form's address would let the reader send it from a phone. And check on a device whether the GitHub app, if installed, takes the link and drops the filled-in fields *(today C1 review)*
 
 ### Accessibility *(a11y, you asked for it)*
@@ -421,6 +422,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] **Subscribe from a share** *(you asked, #290 option C)*: every share asks Save, Subscribe or Both; a front page leads with Subscribe; the feed is found after the tap, on the phone or in tt-rss, and the page is saved instead if there's nothing to follow (#356)
 - [x] **`PodcastSettingsTest` timing out under load** *(today B9, the flake)*: `show()` waited on the view model's first state by draining the main looper, while the effects that subscribe to it run on the Compose test rule's own clock and dispatcher; under load a frame was resumed on a coroutine worker, either stuck or touching views off the main thread. The wait idles Compose too now. Run side by side under the same load: 4 failures in 20 before (three at that wait, one `CalledFromWrongThreadException`), 0 in 20 after, and 0 in 40 more after on a quieter machine (load 5-11) (#340)
 - [x] **Save a copy… of an edition** *(you asked)*: the edition page's ⋮ opens Android's save dialog and copies the EPUB where you pick; a device with no save dialog says so (#338)
 - [x] An edition's choices to hear an article in the voice instead of its recording go when its book does; `kindName`/`labelName` are one table and the stored kind has one lookup (19 Oct audits, #337)

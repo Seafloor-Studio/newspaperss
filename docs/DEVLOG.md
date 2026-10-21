@@ -8,13 +8,25 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Status
 
-- **Lately:** 20 Oct, four cycles: every saved link gets a reading time slowly (#335), a hostile feed can't make the app's lists unreadable (#336, database version 17), Save a copy… keeps an edition's book (#338), and two episode-audit tidies (#337). 19 Oct, **0.1.1 tagged** (Kokoro's native code out of release builds, a check that keeps it out); podcast episodes steps 1–3 in debug builds (#313, #320–#324): posts keep their audio and are labelled, wrong labels can be sent for a look, and Listen plays an article's recorded reading in its place.
+- **Lately:** 21 Oct, cycle G1: sharing a link asks Save, Subscribe or Both, with Subscribe first for a site's front page (#356, #290). 20 Oct, four cycles: every saved link gets a reading time slowly (#335), a hostile feed can't make the app's lists unreadable (#336, database version 17), Save a copy… keeps an edition's book (#338), and two episode-audit tidies (#337). 19 Oct, **0.1.1 tagged** (Kokoro's native code out of release builds, a check that keeps it out); podcast episodes steps 1–3 in debug builds (#313, #320–#324): posts keep their audio and are labelled, wrong labels can be sent for a look, and Listen plays an article's recorded reading in its place.
 - **Watching:** `PodcastSettingsTest`'s timeout is fixed (#340: 4 failures in 20 runs before, 0 in 60 after). main's suite also timed out once in `KindleEmailScreensTest` (19 Oct), not seen since.
 - **Waiting on you, to get 0.1.1 to readers:**
   1. Install the arm64 APK from [0.1.1's draft release](https://github.com/Seafloor-Studio/newspaperss/releases) on a phone (onboarding, an edition, a send), then publish the draft: F-Droid can't see a draft, and readers can't find it. v0.1.0's release notes still carry the "wait for the next version" warning, to replace with a line pointing at 0.1.1.
   2. Start Google Play's closed test now: 12 testers opted in for 14 days in a row before production can be applied for. It's the longest wait in the project, and it runs alongside F-Droid's.
   3. Once it's published, tell people where readers are (r/rss, r/androidapps): F-Droid's only early exception is "proven to have some users".
 - **Also waiting on you:** on a phone, ⋮ › Save a copy… on a sent edition, saved to Downloads, then opened from Files in an e-reader app (#338). The F-Droid merge request now has a date on it: **not before late December 2026**, three months of active development from this repository's first commit (29 Sep) — the one exception in reach is "proven to have some users", so readers on the GitHub APK are what moves it earlier. `docs/RELEASING.md` has the template's requirements. Also: two weeks of episode labels in real use (report a wrong one with Send for a look), and how the recordings sound in Listen; an `episodes` label on the repo; whether the `handle-issues` skill learns about "Episode label:" issues (claude-playground). [#18](https://github.com/Seafloor-Studio/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
+
+## Wed 21 Oct
+
+### G1: subscribe from a share (#356, #290 option C)
+- **What you asked:** option C as recorded on #290. Every share asks at once, a front page leads with Subscribe, the feed is found after the tap, and the page is saved instead if there's none.
+- **Built:** the share sheet's "Read in NewspapeRSS" now asks **Save to your reading list**, **Subscribe to this site** or **Both**, before anything loads.
+  - A front page (no path, `/`, `/index.html`) leads with Subscribe; anything else with Save.
+  - Subscribe uses Add's path: on the phone, or in tt-rss in the category last picked. Of several feeds it takes the whole site's.
+  - A toast says what happened. With no feed, a refusal from tt-rss or any error, the page is saved instead, and the toast says so with the reason (offline reads as offline, not as "no feed").
+  - Both saves the page first, so Android ending the app mid-lookup can't lose it.
+- **Review:** the worst finding was an Add dialog that could wait forever when a share was asking tt-rss about the same feed; fixed. The second look found a share's answer would replay as a Sources snackbar hours later; now only a feed added goes there, with Undo. The PR lists the rest, and what was left.
+- **Not run here:** the dialog over another app on a real phone or e-reader (no emulator in this container). The double-tap guard has no test that can fail under Robolectric; the PR says so.
 
 ## Tue 20 Oct
 

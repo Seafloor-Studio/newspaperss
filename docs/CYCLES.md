@@ -3,6 +3,14 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle G1 (21 Oct) — build: subscribe from a share
+
+The first of tonight's G1–G7 run, one session per cycle. Built #356; see [DEVLOG.md](DEVLOG.md).
+- **A test edit made during a full build can be checked against the old main code.** `build` compiled main before a fix and the tests after it, so one new assertion failed on code that no longer existed. Don't edit sources while `./gradlew build` runs; edit docs only, or wait.
+- **Robolectric doesn't deliver a second click to a finished activity,** so a double-tap guard in an activity can't be falsified there. Say so in the PR rather than keep a test that passes either way.
+- **A fake HTTP serves only the exact address.** `https://news.example` and `https://news.example/` are different pages to `FakeHttp`; a test of a lookup that 404s silently takes the "no feed" branch.
+- **Run baseline:** no emulator, no Docker; one extra worktree (`/home/user/nr-shots`) made and removed; Gradle stopped at the end.
+
 ### Cycles F1–F4 (20 Oct) — build: reading times, row caps, episode tidies, Save a copy
 
 One session, a day run alongside other agents on 4 shared cores. Built: #335, #336, #337, #338, and the `PodcastSettingsTest` flake (#340); see [DEVLOG.md](DEVLOG.md).
