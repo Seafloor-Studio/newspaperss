@@ -107,6 +107,20 @@ class FeedFinder(private val http: HttpClient) {
     }
 
     companion object {
+        private val FORMAT_WORDS = setOf("rss", "atom", "json", "rdf", "xml", "feed", "flux")
+        private val GENERIC_WORDS = FORMAT_WORDS + setOf("main", "site", "website", "default")
+        private val VERSION = Regex("""v?\d+(?:\.\d+)*""")
+
+        /**
+         * Whether a feed link's title only says what format it is ("Atom 1.0", "RSS-Feed", "Flux RSS",
+         * as xkcd's and many sites' are). A source named that keeps the name; untitled, it's named by
+         * its host until its first sync names it from the feed itself.
+         */
+        internal fun namesOnlyAFormat(title: String): Boolean {
+            val words = title.lowercase().split(Regex("""[^\p{L}\p{N}.]+""")).map { it.trim('.') }.filter { it.isNotEmpty() }
+            return words.any { it in FORMAT_WORDS } && words.all { it in GENERIC_WORDS || VERSION.matches(it) }
+        }
+
         private val FEED_TYPES = setOf(
             "application/rss+xml", "application/atom+xml", "application/feed+json",
             "application/json", "application/rdf+xml", "text/xml", "application/xml",
@@ -212,7 +226,7 @@ class FeedFinder(private val http: HttpClient) {
                 // Comment feeds are rarely what someone subscribing to a site wants, and WordPress's
                 // REST API (type application/json) is a page's data, not a feed.
                 .filterNot { it.attr("title").contains("comments", ignoreCase = true) || "/wp-json/" in it.attr("href") }
-                .map { FoundFeed(it.absUrl("href"), it.attr("title").ifBlank { null }) }
+                .map { FoundFeed(it.absUrl("href"), it.attr("title").trim().takeUnless { t -> t.isEmpty() || namesOnlyAFormat(t) }) }
                 .distinctBy { it.url }
     }
 }

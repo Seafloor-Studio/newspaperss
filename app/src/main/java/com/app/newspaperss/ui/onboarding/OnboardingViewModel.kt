@@ -337,7 +337,8 @@ class OnboardingViewModel(
             when (val result = finder.find(input)) {
                 is FindResult.NotFound -> _state.update { it.copy(searching = false, findError = result.reason, findPage = result.page) }
                 is FindResult.Found -> _state.update { s ->
-                    val feeds = result.feeds.map { StarterFeed(it.title ?: SourceRepository.hostOf(it.url), it.url) }
+                    // Untitled feeds of one site would all read as its host: their addresses tell them apart.
+                    val feeds = result.feeds.map { StarterFeed(it.title ?: if (result.feeds.size == 1) SourceRepository.hostOf(it.url) else it.url.substringAfter("://"), it.url) }
                     // Several feeds on one site: pick the first, show the rest to tick.
                     val first = feeds.first().title
                     val note = if (feeds.size == 1) "Found $first. It's ticked below."
