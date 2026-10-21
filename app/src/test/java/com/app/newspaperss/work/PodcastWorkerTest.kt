@@ -24,6 +24,7 @@ import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.app.newspaperss.notify.Notifier
 import com.app.newspaperss.testutil.TestApp
+import com.app.newspaperss.testutil.idleUntil
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.NonCancellable
@@ -243,6 +244,9 @@ class PodcastWorkerTest {
         PodcastWorker.dropChargingConstraint(app)
 
         assertFalse(work.getWorkInfoById(old.id).get()!!.constraints.requiresCharging())
+        // Free of the charger, the test WorkManager runs it at once, and it finishes on another
+        // thread: left running, it writes to a database tearDown has closed, failing the next test.
+        idleUntil { work.getWorkInfoById(old.id).get()!!.state.isFinished }
     }
 
     /** Held at 80%, Android says "not charging": still plugged in, and the run goes on. */
