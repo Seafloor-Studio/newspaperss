@@ -15,6 +15,8 @@ ui=tools/emulator/ui.py
 title() { $ui texts | sed -n 's/^More options for //p' | head -1; }
 
 open_edition() {
+  # In front first: an earlier step (doze.sh timed) may have left it in the background.
+  adb shell monkey -p com.app.newspaperss.debug -c android.intent.category.LAUNCHER 1 > /dev/null
   $ui tap "Today" > /dev/null
   # One may still be in the making (a timed edition, say): wait for its card.
   $ui wait "More options for" --timeout 300 > /dev/null || true
