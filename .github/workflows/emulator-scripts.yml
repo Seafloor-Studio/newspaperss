@@ -81,7 +81,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: An edition, saved to a folder and opened in KOReader, then a timed one through deep sleep
+      - name: An edition saved to a folder, a timed one through deep sleep, and one opened in KOReader
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: 36
@@ -93,8 +93,8 @@ jobs:
             tools/emulator/smoke.sh
             tools/emulator/delivery.sh make
             tools/emulator/delivery.sh save-copy
-            tools/emulator/delivery.sh koreader
             tools/emulator/doze.sh timed
+            tools/emulator/delivery.sh koreader
 
       - name: Keep the screenshots
         if: always()

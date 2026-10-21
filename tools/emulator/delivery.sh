@@ -110,7 +110,12 @@ for abi in abis:
     sleep 10
     $ui shot 30-koreader
     front=$(adb shell dumpsys activity activities | grep -m1 'topResumedActivity' || true)
-    [[ $front == *koreader* ]] || { echo "KOReader left the screen before the screenshot: $front" >&2; exit 1; }
+    if [[ $front != *koreader* ]]; then
+      echo "KOReader left the screen before the screenshot: $front" >&2
+      # Why, if it says: its own lines and any crash.
+      adb logcat -d | grep -iE 'koreader|FATAL|AndroidRuntime' | tail -40 >&2
+      exit 1
+    fi
     # Its own pages are invisible to uiautomator, but Android's dialogs over them are not.
     if $ui texts | grep -qiE 'allow|permission'; then
       echo "KOReader is asking for something instead of showing the book:" >&2; $ui texts >&2; exit 1
