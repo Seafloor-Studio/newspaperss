@@ -80,6 +80,13 @@ class FeedFinderTest {
             <link rel="alternate" type="application/rss+xml" title="RSS 2.0 — Example Weekly" href="/weekly.xml">"""
         val titles = FeedFinder.advertisedFeeds(head, "https://comic.example/").map { it.title }
         assertEquals(listOf(null, null, null, null, "RSS 2.0 — Example Weekly"), titles)
+        for (generic in listOf("RSS-Feed", "Flux RSS", "Feed RSS", "RSS 2.0 Feed", "RSS (2.0)", "Main feed", "RSS/Atom", "RSS\u00a0Feed", "XML")) {
+            assertTrue(generic, FeedFinder.namesOnlyAFormat(generic))
+        }
+        // Names, even short or numeric ones.
+        for (name in listOf("1843", "2600", "V8", "Feed Me", "99% Invisible", "Comments Feed", "Atomic Habits", "日本経済新聞 RSS")) {
+            assertFalse(name, FeedFinder.namesOnlyAFormat(name))
+        }
     }
 
     /** A WordPress page's REST API link is typed as JSON but isn't a feed. */

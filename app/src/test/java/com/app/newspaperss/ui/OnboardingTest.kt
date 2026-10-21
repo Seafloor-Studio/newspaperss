@@ -617,6 +617,20 @@ class OnboardingTest {
         assertEquals(setOf("https://blog.example/feed"), vm.state.value.chosen)
     }
 
+    /** Shaped like xkcd: two links titled only by their format, which would otherwise both read as the site. */
+    @Test
+    fun twoUntitledFeedsOfOneSiteReadDifferently() {
+        http.page(
+            "https://comic.example",
+            "<html><head><link rel=alternate type=application/atom+xml title=\"Atom 1.0\" href=/atom.xml>" +
+                "<link rel=alternate type=application/rss+xml title=\"RSS 2.0\" href=/rss.xml></head></html>",
+        )
+        vm.editPasted("comic.example")
+        vm.findPasted()
+        idleUntil { vm.state.value.found.isNotEmpty() }
+        assertEquals(listOf("comic.example/atom.xml", "comic.example/rss.xml"), vm.state.value.found.map { it.title })
+    }
+
     @Test
     fun talkBackHearsWhichStepThisIsNotAPercentage() {
         compose.setContent { OnboardingScreen(vm) }
