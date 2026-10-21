@@ -121,7 +121,7 @@ class ShareActivityTest {
         tap("Subscribe to this site")
         idleUntil { saved().isNotEmpty() }
         assertEquals("https://plain.example/notes/one", saved().single().url)
-        toldOnly("No feed found at plain.example. Saved the page for your next edition instead.")
+        toldOnly("No feed found at https://plain.example/notes/one. Saved the page for your next edition instead.")
         assertTrue(feeds().isEmpty())
     }
 
@@ -153,6 +153,45 @@ class ShareActivityTest {
         toldOnly("Added Example News to your tt-rss, in News.")
         // In tt-rss, not on the phone as well.
         assertTrue(feeds().isEmpty())
+        // Sources hears of it too: with Undo, and for an Add dialog asking about the same feed meanwhile.
+        assertEquals(1, app.container.ttrssSubscriptions.results.value.size)
+    }
+
+    private fun signedIn(): FakeTtrss {
+        val server = FakeTtrss(app.http)
+        runBlocking {
+            assertNull(app.container.ttrss.connect("rss.example.com/tt-rss", server.user, server.password))
+            app.container.settings.update { it.copy(feedsFrom = FeedsFrom.SERVER) }
+        }
+        return server
+    }
+
+    @Test
+    fun aFeedTtrssRefusesIsSavedInstead() {
+        newsSite()
+        val server = signedIn()
+        server.refuse["https://news.example/feed"] = 5
+        share("https://news.example/")
+        tap("Subscribe to this site")
+        idleUntil { saved().isNotEmpty() }
+        assertEquals("https://news.example/", saved().single().url)
+        val told = ShadowToast.getTextOfLatestToast()
+        assertTrue(told, told.startsWith("tt-rss didn't add Example News.") && told.endsWith("Saved the page for your next edition instead."))
+    }
+
+    @Test
+    fun bothSavesThePageBeforeWaitingOnTtrss() {
+        newsSite()
+        val server = signedIn()
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        server.subscribeGate = gate
+        share("https://news.example/2026/10/a-story")
+        tap("Both")
+        idleUntil { server.subscribed.isNotEmpty() }
+        // tt-rss hasn't answered, and the page is safe already.
+        assertEquals(1, saved().size)
+        gate.complete(Unit)
+        toldOnly("Added Example News to your tt-rss, in Uncategorized. Saved for your next edition.")
     }
 
     @Test

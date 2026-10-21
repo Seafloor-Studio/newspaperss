@@ -225,7 +225,7 @@ class FeedFinderTest {
 
     @Test
     fun aSharedFrontPageIsToldFromAnArticleByItsAddressAlone() {
-        listOf("https://news.example", "https://news.example/", "https://news.example/?ref=share", "https://news.example/index.html", "https://news.example/Home")
+        listOf("https://news.example", "https://news.example/", "https://news.example/?ref=share", "https://news.example/index.html", "https://news.example/Home", "https://bücher.example/")
             .forEach { assertTrue(it, FeedFinder.isFrontPage(it)) }
         listOf("https://news.example/2026/10/a-story", "https://news.example/news/", "https://news.example/homes-for-sale", "not a link")
             .forEach { assertFalse(it, FeedFinder.isFrontPage(it)) }

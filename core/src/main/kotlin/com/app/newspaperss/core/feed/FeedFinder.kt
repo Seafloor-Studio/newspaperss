@@ -177,7 +177,8 @@ class FeedFinder(private val http: HttpClient) {
          */
         fun isFrontPage(url: String): Boolean {
             val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return false
-            if (uri.host.isNullOrEmpty()) return false
+            // Not host: java.net.URI leaves it null for a name in another script ("bücher.example").
+            if (uri.rawAuthority.isNullOrEmpty()) return false
             val path = uri.path.orEmpty()
             return path.isEmpty() || path == "/" || FRONT_PAGE_FILES.matches(path)
         }

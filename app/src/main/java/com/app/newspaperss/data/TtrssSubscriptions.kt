@@ -53,14 +53,15 @@ class TtrssSubscriptions(private val ttrss: TtrssRepository, private val scope: 
     }
 
     /**
-     * As [subscribe], for a share, which has no screen to come back to: waits for tt-rss's answer
-     * and returns it instead of leaving it for Sources. Null, asking nothing, while the same feed
-     * is already being asked about.
+     * As [subscribe], for a share, which has no screen to come back to: also returns tt-rss's
+     * answer. It's posted to [results] all the same: an Add dialog opened on the same feed
+     * meanwhile waits for it there, and Sources offers Undo. Null, asking nothing, while the same
+     * feed is already being asked about.
      */
     suspend fun subscribeAndWait(request: Request): TtrssRepository.Subscribed? {
         if (!claim(request.feedUrl)) return null
         return try {
-            ttrss.subscribe(request.feedUrl, request.category)
+            ttrss.subscribe(request.feedUrl, request.category).also { post(Outcome.Subscribed(request, it)) }
         } finally {
             asking.update { it - request.feedUrl }
         }
