@@ -31,6 +31,10 @@ off() {
 
 now() { adb shell date +%s | tr -d '\r'; }
 
+# The scheduler's own record can be read only in a debuggable build; in the release build, the
+# timed edition's notification is the only sign its timer fired.
+readable() { adb shell run-as "$pkg" true > /dev/null 2>&1; }
+
 # A value from the scheduler's own record (EditionScheduler), 0 while it has none.
 pref() {
   adb shell run-as "$pkg" cat shared_prefs/edition-schedule.xml 2> /dev/null |
@@ -92,6 +96,13 @@ print(d.datetime.fromtimestamp(int(sys.argv[1]),tz).strftime("%H %M"))' "$due_at
   $ui tap "OK" > /dev/null
   $ui shot 40-schedule
   # The new time took if the scheduler armed the timer for it.
+  if ! readable; then
+    start=$(( due_at - 1800 ))
+    echo "timer set for $due; this build's record can't be read, so whether it's armed shows only when it fires"
+    adb shell input keyevent KEYCODE_HOME
+    sleep 5
+    return
+  fi
   for _ in $(seq 15); do
     start=$(( $(pref pending_start_epoch_ms) / 1000 ))
     [ "$start" -eq $(( due_at - 1800 )) ] && break
@@ -109,6 +120,7 @@ print(d.datetime.fromtimestamp(int(sys.argv[1]),tz).strftime("%H %M"))' "$due_at
 # edition gets one.
 soon() {
   arm
+  readable || return 0
   fired_within $(( start - $(now) + 120 )) || { echo "the timer didn't fire within 2 minutes of its time" >&2; exit 1; }
   echo "fired $(( $(pref last_start_epoch_ms) / 1000 - start )) s after its time"
 }
