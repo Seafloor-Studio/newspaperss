@@ -70,6 +70,25 @@ class FeedFinderTest {
         assertEquals(listOf("https://hand.example/posts.xml"), FeedFinder.advertisedFeeds(head, "https://hand.example/").map { it.url })
     }
 
+    /** xkcd's links are titled by their format: that's no name for a source, so the site's address names it. */
+    @Test
+    fun aLinkTitledByItsFormatIsUntitled() {
+        val head = """<link rel="alternate" type="application/atom+xml" title="Atom 1.0" href="/atom.xml">
+            <link rel="alternate" type="application/rss+xml" title="RSS 2.0" href="/rss.xml">
+            <link rel="alternate" type="application/rss+xml" title=" RSS Feed " href="/feed">
+            <link rel="alternate" type="application/feed+json" title="JSON Feed" href="/feed.json">
+            <link rel="alternate" type="application/rss+xml" title="RSS 2.0 — Example Weekly" href="/weekly.xml">"""
+        val titles = FeedFinder.advertisedFeeds(head, "https://comic.example/").map { it.title }
+        assertEquals(listOf(null, null, null, null, "RSS 2.0 — Example Weekly"), titles)
+        for (generic in listOf("RSS-Feed", "Flux RSS", "Feed RSS", "RSS 2.0 Feed", "RSS (2.0)", "Main feed", "RSS/Atom", "RSS\u00a0Feed", "XML")) {
+            assertTrue(generic, FeedFinder.namesOnlyAFormat(generic))
+        }
+        // Names, even short or numeric ones.
+        for (name in listOf("1843", "2600", "V8", "Feed Me", "99% Invisible", "Comments Feed", "Atomic Habits", "日本経済新聞 RSS")) {
+            assertFalse(name, FeedFinder.namesOnlyAFormat(name))
+        }
+    }
+
     /** A WordPress page's REST API link is typed as JSON but isn't a feed. */
     @Test
     fun wordPressApiLinksArentFeeds() {
