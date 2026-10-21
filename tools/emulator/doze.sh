@@ -46,6 +46,13 @@ fired_within() {
   [ "$(pref last_start_epoch_ms)" -gt 0 ]
 }
 
+# Taps the field showing $1, empties it and types $2.
+set_field() {
+  $ui tap "$1" > /dev/null
+  adb shell input keyevent KEYCODE_MOVE_END KEYCODE_DEL KEYCODE_DEL KEYCODE_DEL
+  $ui type "$2"
+}
+
 timed() {
   # Typed into the time picker as 24-hour digits, whatever the device's habit.
   adb shell settings put system time_12_24 24
@@ -59,12 +66,14 @@ print(d.datetime.fromtimestamp(int(sys.argv[1])+32*60,tz).strftime("%H %M"))' "$
   # The button shows the time in the locale's own style ("6:30 AM", "06:30").
   $ui tap "$($ui texts | grep -E '^[0-9]{1,2}:[0-9]{2}' | head -1)" > /dev/null
   $ui tap "text input mode" > /dev/null
-  # The hour field has focus; Tab moves to the minutes.
-  adb shell input keycombination 113 29
-  $ui type "${due% *}"
-  adb shell input keyevent KEYCODE_TAB
-  adb shell input keycombination 113 29
-  $ui type "${due#* }"
+  $ui wait "Type in time" > /dev/null
+  # The hour and minute fields, found by the two-digit values they show.
+  local fields
+  mapfile -t fields < <($ui texts | grep -E '^[0-9]{2}$')
+  set_field "${fields[0]}" "${due% *}"
+  # Typed, the hour now shows the new value; the minutes still show theirs.
+  set_field "${fields[1]}" "${due#* }"
+  $ui shot 39-time-typed
   $ui tap "OK" > /dev/null
   $ui shot 40-schedule
   # The new time took if the scheduler armed a timer for about two minutes from now.
