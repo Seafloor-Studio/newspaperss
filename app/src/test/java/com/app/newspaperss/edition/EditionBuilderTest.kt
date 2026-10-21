@@ -123,7 +123,8 @@ class EditionBuilderTest {
     }
 
     @Test
-    fun anEditionReleasedAsNotSentThenDeletedGivesUpItsTitle() = runTest {
+    fun anEditionReleasedAsNotSentKeepsItsTitleTakenOnceDeleted() = runTest {
+        // Its file was here to send, and a share while a build runs isn't recorded.
         source("a", "a1")
         val first = builder.build(EditionSettings()) as BuildResult.Built
         source("b", "b1")
@@ -134,7 +135,7 @@ class EditionBuilderTest {
 
         val third = builder.build(EditionSettings()) as BuildResult.Built
 
-        assertEquals("Tuesday Morning Edition, Sep 29", db.editions().byId(third.editionId)!!.title)
+        assertEquals("Tuesday Morning Edition, Sep 29 (2)", db.editions().byId(third.editionId)!!.title)
     }
 
     @Test

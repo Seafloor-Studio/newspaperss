@@ -812,9 +812,10 @@ interface EditionDao {
 
     /**
      * Titles a new edition can't take. A deleted edition that never went out frees its title:
-     * Send to Kindle drops only a title it has received.
+     * Send to Kindle drops only a title it has received. One released as not sent keeps its
+     * error, and its title (see [EditionRepository.delete]).
      */
-    @Query("SELECT title FROM editions WHERE createdAt >= :since AND NOT (status = 'DELETED' AND deliveredAt IS NULL)")
+    @Query("SELECT title FROM editions WHERE createdAt >= :since AND NOT (status = 'DELETED' AND deliveredAt IS NULL AND error IS NULL)")
     suspend fun titlesSince(since: Instant): List<String>
 
     @Query("SELECT * FROM editions WHERE status = :status")

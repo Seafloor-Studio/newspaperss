@@ -186,7 +186,7 @@ class EditionRepository(
      * Deletes an edition's contents and EPUB. One that was never sent gives its articles back to
      * the pool, keeping their stars; a delivered one's stay used. An edition still being made is left
      * alone. The row stays as [EditionStatus.DELETED], keeping its title taken if it was ever
-     * delivered.
+     * delivered or released as not sent.
      *
      * @return false if there was nothing to delete.
      */
@@ -196,7 +196,16 @@ class EditionRepository(
                 ?.takeIf { it.status != EditionStatus.BUILDING && it.status != EditionStatus.DELETED } ?: return@withTransaction null
             if (edition.status == EditionStatus.READY) db.articles().release(id)
             db.editions().deleteArticles(id)
-            db.editions().update(edition.copy(status = EditionStatus.DELETED, fileName = null, articleCount = 0, minutes = 0.0, error = null))
+            // A released one keeps its note, which keeps its title taken: it could be sent while
+            // its file was here and the app might not record it (a share while a build runs).
+            val released = edition.status == EditionStatus.FAILED &&
+                (edition.error == EditionBuilder.NOT_SENT || edition.error == EditionBuilder.OLD_NOT_SENT)
+            db.editions().update(
+                edition.copy(
+                    status = EditionStatus.DELETED, fileName = null, articleCount = 0, minutes = 0.0,
+                    error = edition.error.takeIf { released },
+                ),
+            )
             edition
         } ?: return false
         deleted.fileName?.let { File(editionsDir, it) }?.delete()
