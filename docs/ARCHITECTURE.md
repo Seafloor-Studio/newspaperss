@@ -629,12 +629,46 @@ back to the banner (`FeedMoves.giveUp`).
 
 ## Tests and CI
 
-- `:core`: plain JUnit, `./gradlew :core:test`.
+Every automated check, and when it runs. What only a person can check is in
+[DELIVERY-CHECKS.md](DELIVERY-CHECKS.md); what a local session drives on an
+emulator is in [EMULATOR-CHECKS.md](EMULATOR-CHECKS.md).
+
+On every PR and on main (`build-and-test.yml`, the required `build` check):
+
+- `./gradlew build` and Kover's 93% line-coverage check, then the debug
+  APKs, one per ABI, published from main.
+- `:core`: plain JUnit, including `EpubCheckTest`, which runs W3C epubcheck
+  on books made from the platform corpus.
 - `:app`: Robolectric and Compose UI tests against a real Room database,
-  plus `MigrationTest` for schema steps.
-- CI (`.github/workflows/build-and-test.yml`) runs `./gradlew build` and
-  Kover's 93% line-coverage check, then publishes the debug APKs, one per ABI.
-- Device tests (`.github/workflows/device-tests.yml`) run on an emulator
-  when delivery or the screens change, handing an edition to `:epubsink`.
-- A daily job (`.github/workflows/live-check.yml`) reads each curated
-  list's live page, so a site redesign shows up before it reaches a phone.
+  `MigrationTest` for schema steps, and `ScreenshotTest`, which draws every
+  screen (not counted in coverage).
+
+On a PR that touches what they cover:
+
+- **Device tests** (`device-tests.yml`, delivery, screens or the book),
+  on an emulator:
+  - `EditionReachesAnotherAppTest` hands an edition to `:epubsink` in
+    another process.
+  - `ArticlePreviewRenderTest` renders the edition's own EPUB in a real
+    WebView, as the preview does.
+  - `AccessibilityChecksTest` runs Google's accessibility checks on every
+    screen a new reader meets, at normal and 200% text. Under Robolectric
+    those checks check nothing, so they live here.
+- **Book checks** (`book-checks.yml`, the EPUB writer and extraction): Ace
+  by DAISY on the books `EpubCheckTest` writes.
+- **Emulator scripts** (`emulator-scripts.yml`, `tools/emulator/`): smoke
+  and Doze commands, then a real edition from live feeds saved to Downloads
+  and opened in KOReader, with screenshots kept.
+- **Security scan** (`security-scan.yml`, workflows and build files):
+  zizmor and OpenSSF Scorecard; also weekly.
+- **Attribution** (`attribution.yml`): a PR from madCode's account says at
+  the top when Claude wrote it.
+
+On a clock:
+
+- **tt-rss** (`ttrss-live.yml`, daily and on client changes):
+  `TtrssLiveTest` against the latest tt-rss image in Docker.
+- **Live check** (`live-check.yml`, daily): each curated list's live page.
+- **Recurring review** (`recurring-review.yml`, 1st and 15th): two
+  whole-codebase review passes, filed as issues.
+- **Red main** (`red-main.yml`): a failure on main files an issue.
