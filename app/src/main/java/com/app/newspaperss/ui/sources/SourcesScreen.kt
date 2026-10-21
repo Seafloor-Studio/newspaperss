@@ -627,7 +627,7 @@ internal fun ContentModeDialog(current: ContentMode, onChoose: (ContentMode) -> 
                     val label = if (mode == ContentMode.AUTO) automatic else choice
                     Row(
                         Modifier.fillMaxWidth()
-                            .selectable(selected = mode == current, role = Role.RadioButton, onClick = { onChoose(mode) })
+                            .heightIn(min = 48.dp).selectable(selected = mode == current, role = Role.RadioButton, onClick = { onChoose(mode) })
                             .padding(vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -811,7 +811,7 @@ private fun CategoryChoices(state: AddState.Subscribing, onChoose: (Int) -> Unit
         state.categories.orEmpty().forEach { category ->
             Row(
                 Modifier.fillMaxWidth()
-                    .selectable(selected = category.id == state.chosen, role = Role.RadioButton, onClick = { onChoose(category.id) })
+                    .heightIn(min = 48.dp).selectable(selected = category.id == state.chosen, role = Role.RadioButton, onClick = { onChoose(category.id) })
                     .padding(vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

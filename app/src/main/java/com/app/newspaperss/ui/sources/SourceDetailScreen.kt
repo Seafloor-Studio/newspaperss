@@ -3,6 +3,7 @@ package com.app.newspaperss.ui.sources
 import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -378,7 +379,7 @@ private fun Health(source: SourceEntity, learned: PublicationEntity?, lastNew: I
 private fun PaidPostsOption(skip: Boolean, skipped: Int, onChange: (Boolean) -> Unit) {
     Row(
         Modifier.fillMaxWidth()
-            .toggleable(value = skip, role = Role.Switch, onValueChange = onChange)
+            .heightIn(min = 48.dp).toggleable(value = skip, role = Role.Switch, onValueChange = onChange)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

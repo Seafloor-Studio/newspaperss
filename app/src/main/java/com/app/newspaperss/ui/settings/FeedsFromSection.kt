@@ -220,7 +220,7 @@ private fun TtrssOptions(
     }
     Row(
         Modifier.fillMaxWidth()
-            .toggleable(value = source.markReadOnServer, role = Role.Switch, onValueChange = onMarkRead)
+            .heightIn(min = 48.dp).toggleable(value = source.markReadOnServer, role = Role.Switch, onValueChange = onMarkRead)
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -242,7 +242,7 @@ private fun TtrssOptions(
     if (source.markReadOnServer) {
         Row(
             Modifier.fillMaxWidth()
-                .toggleable(value = source.markExpiredRead, role = Role.Switch, onValueChange = onMarkExpiredRead)
+                .heightIn(min = 48.dp).toggleable(value = source.markExpiredRead, role = Role.Switch, onValueChange = onMarkExpiredRead)
                 .padding(vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -263,7 +263,7 @@ private fun TtrssOptions(
     }
     Row(
         Modifier.fillMaxWidth()
-            .toggleable(value = source.takeTtrssStars, role = Role.Switch, onValueChange = onTakeStars)
+            .heightIn(min = 48.dp).toggleable(value = source.takeTtrssStars, role = Role.Switch, onValueChange = onTakeStars)
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -337,7 +337,7 @@ private fun CategoryDialog(picker: CategoryPicker, current: Int?, onChoose: (Ttr
 @Composable
 private fun CategoryChoice(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().selectable(selected = selected, role = Role.RadioButton, onClick = onClick).padding(vertical = 12.dp),
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(selected = selected, role = Role.RadioButton, onClick = onClick).padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(selected = selected, onClick = null)

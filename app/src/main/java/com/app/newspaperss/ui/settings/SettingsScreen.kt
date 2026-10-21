@@ -289,7 +289,7 @@ private fun ScheduleSection(s: AppSettings, vm: SettingsViewModel) {
     val context = LocalContext.current
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     Row(
-        Modifier.fillMaxWidth().toggleable(s.scheduleEnabled, role = Role.Switch) { on ->
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(s.scheduleEnabled, role = Role.Switch) { on ->
             vm.setScheduleEnabled(on)
             if (on && Build.VERSION.SDK_INT >= 33) askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         }.heightIn(min = 48.dp).padding(vertical = 4.dp),

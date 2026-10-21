@@ -200,6 +200,7 @@ dependencies {
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
+    androidTestImplementation(libs.compose.ui.test.accessibility)
     androidTestImplementation(libs.espresso.core)
 }
 

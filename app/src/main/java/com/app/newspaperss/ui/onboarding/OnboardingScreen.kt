@@ -60,6 +60,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
@@ -169,7 +170,7 @@ private fun DeviceStep(s: OnboardingState, vm: OnboardingViewModel) {
     Title("Where do you read?")
     Device.entries.forEach { device ->
         Row(
-            Modifier.fillMaxWidth().selectable(s.device == device, role = Role.RadioButton) { vm.chooseDevice(device) }.padding(vertical = 10.dp),
+            Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(s.device == device, role = Role.RadioButton) { vm.chooseDevice(device) }.padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             RadioButton(selected = s.device == device, onClick = null)
@@ -269,10 +270,24 @@ private fun SourcesStep(s: OnboardingState, vm: OnboardingViewModel, sources: So
         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
     )
     // Below the field, not inside it: at large font sizes a button inside leaves no room to type.
-    // The status is always composed and only its text changes, so TalkBack announces it; the
-    // button stays put rather than being swapped out from under focus.
+    // The button stays put rather than being swapped out from under focus. The status is announced
+    // rather than a live region, which would have to stay composed while empty.
+    val status = if (s.searching) "Checking…" else s.findNote.orEmpty()
+    val view = LocalView.current
+    // Saveable, so turning the phone doesn't say it again; starting from what's there, so coming
+    // back to this step doesn't say an old result again.
+    var said by rememberSaveable { mutableStateOf(status) }
+    LaunchedEffect(status) {
+        if (status.isNotEmpty() && status != said) {
+            @Suppress("DEPRECATION") // Deprecated in favour of live regions, which this can't be.
+            view.announceForAccessibility(status)
+        }
+        said = status
+    }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-        Text(if (s.searching) "Checking…" else s.findNote.orEmpty(), textAlign = TextAlign.End, modifier = Modifier.weight(1f).padding(horizontal = 12.dp).semantics { liveRegion = LiveRegionMode.Polite })
+        // Even plain, an empty Text is an element with nothing to say; the spacer keeps Add in place.
+        if (status.isEmpty()) Spacer(Modifier.weight(1f))
+        else Text(status, textAlign = TextAlign.End, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
         OutlinedButton(onClick = vm::findPasted, enabled = !s.searching && s.pasted.isNotBlank()) { Text("Add") }
     }
     // As in Sources: a site with no feed isn't a dead end, its page can be read in the paper.
@@ -352,7 +367,7 @@ private fun SavedLinks(saved: Int, readingList: ReadingListViewModel) {
 @Composable
 private fun FeedCheck(title: String, checked: Boolean, onToggle: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().toggleable(checked, role = Role.Checkbox) { onToggle() }.padding(vertical = 4.dp),
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(checked, role = Role.Checkbox) { onToggle() }.padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(checked = checked, onCheckedChange = null)
@@ -511,7 +526,7 @@ private fun ExtrasStep(s: OnboardingState, vm: OnboardingViewModel, readingList:
     Text("Curated lists", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp).semantics { heading() })
     CuratedLists.all.forEach { list ->
         Row(
-            Modifier.fillMaxWidth().toggleable(list.id in s.lists, role = Role.Checkbox) { vm.toggleList(list.id) }.padding(vertical = 4.dp),
+            Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(list.id in s.lists, role = Role.Checkbox) { vm.toggleList(list.id) }.padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Checkbox(checked = list.id in s.lists, onCheckedChange = null)
@@ -543,7 +558,7 @@ private fun SizeStep(s: OnboardingState, vm: OnboardingViewModel) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Row(
-        Modifier.fillMaxWidth().padding(top = 24.dp).toggleable(s.scheduleEnabled, role = Role.Switch) { vm.setScheduleEnabled(it) },
+        Modifier.fillMaxWidth().padding(top = 24.dp).heightIn(min = 48.dp).toggleable(s.scheduleEnabled, role = Role.Switch) { vm.setScheduleEnabled(it) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("A new edition every day", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
