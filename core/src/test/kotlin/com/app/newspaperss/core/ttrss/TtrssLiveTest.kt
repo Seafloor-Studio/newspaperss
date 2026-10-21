@@ -55,12 +55,15 @@ class TtrssLiveTest {
     // TtrssRepository tells the reader to wait when a refusal comes this soon after another.
     @Test
     fun aWrongPasswordHoldsOffEvenTheRightOneForFiveSeconds() = runBlocking {
-        val wrong = runCatching { TtrssClient(http, api, USER, "not-it").login() }.exceptionOrNull()
-        assertTrue("got $wrong", wrong is TtrssException.LoginFailed)
-        val tooSoon = runCatching { TtrssClient(http, api, USER, PASSWORD).login() }.exceptionOrNull()
-        assertTrue("the right password straight after: $tooSoon", tooSoon is TtrssException.LoginFailed)
-        // Ends signed in, so the tests after this one aren't held off.
-        Thread.sleep(5_000)
+        try {
+            val wrong = runCatching { TtrssClient(http, api, USER, "not-it").login() }.exceptionOrNull()
+            assertTrue("got $wrong", wrong is TtrssException.LoginFailed)
+            val tooSoon = runCatching { TtrssClient(http, api, USER, PASSWORD).login() }.exceptionOrNull()
+            assertTrue("the right password straight after: $tooSoon", tooSoon is TtrssException.LoginFailed)
+        } finally {
+            // Even when failing, so tearDown's login and the tests after this one aren't held off.
+            Thread.sleep(5_000)
+        }
         assertTrue(TtrssClient(http, api, USER, PASSWORD).login().isNotEmpty())
     }
 

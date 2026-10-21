@@ -341,6 +341,20 @@ class ScreenshotTest {
     }
 
     @Test
+    fun onboardingSignInTooSoonAfterAWrongPassword() {
+        val server = sampleServer().apply { lockoutClock = clock }
+        val vm = onboardingOnTheServer().apply {
+            editSignIn(state.value.signIn.copy(address = "rss.example.com/tt-rss", user = server.user, password = "wrong"))
+            signIn()
+        }
+        idleUntil { vm.state.value.signIn.error != null }
+        vm.editSignIn(vm.state.value.signIn.copy(password = server.password))
+        vm.signIn()
+        idleUntil { vm.state.value.signIn.error == TtrssRepository.REFUSED_SOON_AFTER }
+        shoot("03b-onboarding-sign-in-too-soon") { OnboardingScreen(vm) }
+    }
+
+    @Test
     fun onboardingFoundFeeds() {
         val server = sampleServer()
         val vm = onboardingOnTheServer().apply {

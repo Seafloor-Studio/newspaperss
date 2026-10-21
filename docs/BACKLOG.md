@@ -44,6 +44,8 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] If lead time isn't enough on a real device, wake timed editions with an exact alarm (Doze defers WorkManager; expedited work can silently restart a long build)
 
 ### tt-rss, for a returning reader *(personas)*
+- [ ] Signing in as "Reader" when "reader" is saved counts as another account (`TtrssRepository.add` compares the user exactly) and removes the tt-rss source, though tt-rss looks users up without case. *(G2 review)*
+- [ ] A sync within 5 seconds of a wrong password typed in Settings for the same user is turned away by tt-rss and stored as "can't sign in" until the next sync; only the sign-in form knows about the wait. Unlikely; fix if seen. *(G2 review)*
 - [ ] Decide what tt-rss is as a source. Explored ([research/ttrss-backend/](research/ttrss-backend/index.html), open it in a browser): one tt-rss row in Sources with its feeds inset under it, folded, each opening its own page, is built (cycles 77–79). Still open: how this joins "tt-rss and Google Reader API servers as full backends" below. Sections were taken out (cycle 80)
 - [ ] Search on the account page's feed list (F4), if scrolling 50+ feeds on Sources gets slow
 - [ ] Several categories, and tt-rss's Starred and Published as choices
@@ -421,7 +423,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
-- [x] **A right password just after a wrong one** *(approved)*: tt-rss turns every sign-in away for 5 seconds after a wrong password, and its answer is the same as for a wrong password. A refusal for the same login less than 6 seconds after the last says "wait 5 seconds and try again"; `TtrssLiveTest` holds tt-rss to the 5 seconds (G2)
+- [x] **A right password just after a wrong one** *(approved)*: tt-rss turns every sign-in away for 5 seconds after a wrong password, and its answer is the same as for a wrong password. A refusal for the same login less than 5 seconds after the last says "wait 5 seconds and try again"; `TtrssLiveTest` holds tt-rss to the 5 seconds (G2)
 - [x] **Subscribe from a share** *(you asked, #290 option C)*: every share asks Save, Subscribe or Both; a front page leads with Subscribe; the feed is found after the tap, on the phone or in tt-rss, and the page is saved instead if there's nothing to follow (#356)
 - [x] **`PodcastSettingsTest` timing out under load** *(today B9, the flake)*: `show()` waited on the view model's first state by draining the main looper, while the effects that subscribe to it run on the Compose test rule's own clock and dispatcher; under load a frame was resumed on a coroutine worker, either stuck or touching views off the main thread. The wait idles Compose too now. Run side by side under the same load: 4 failures in 20 before (three at that wait, one `CalledFromWrongThreadException`), 0 in 20 after, and 0 in 40 more after on a quieter machine (load 5-11) (#340)
 - [x] **Save a copy… of an edition** *(you asked)*: the edition page's ⋮ opens Android's save dialog and copies the EPUB where you pick; a device with no save dialog says so (#338)

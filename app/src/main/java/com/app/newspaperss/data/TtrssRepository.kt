@@ -585,16 +585,17 @@ class TtrssRepository(
         /** How long leaving waits for tt-rss's feed list before going by the last one. */
         val LIST_BEFORE_LEAVING: Duration = Duration.ofSeconds(20)
 
-        /** Another login signed in while a move was under way. */
         /**
-         * How soon after a refusal another one may be tt-rss's wait rather than the password:
-         * its 5 seconds, plus a second because it counts in whole seconds.
+         * How soon after a refusal another one may be tt-rss's wait rather than the password.
+         * tt-rss compares whole seconds, which makes its wait 4 to 5 seconds, never longer, and
+         * a refusal comes back after tt-rss noted it, so 5 seconds from then can't miss one.
          */
-        private val LOCKOUT: Duration = Duration.ofSeconds(6)
+        private val LOCKOUT: Duration = Duration.ofSeconds(5)
 
         const val REFUSED_SOON_AFTER = "tt-rss didn't accept that username and password. " +
             "After a wrong password it turns every sign-in away for a few seconds, so if this one is right, wait 5 seconds and try again."
 
+        /** Another login signed in while a move was under way. */
         const val SIGNED_IN_AGAIN = "You signed in to tt-rss again while it was moving. Move it again to put it in this account."
     }
 
