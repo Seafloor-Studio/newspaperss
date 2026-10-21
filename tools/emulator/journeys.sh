@@ -177,7 +177,8 @@ case "${1:-}" in
     $ui tap "Editions" --exact > /dev/null
     $ui shot 48-picker
     $ui tap "Use this folder" > /dev/null
-    $ui tap "Allow" --exact > /dev/null
+    # Exactly, as the dialog's text says "allow" too; capitals or not, by Android version.
+    $ui tap "ALLOW" --exact --timeout 10 > /dev/null 2>&1 || $ui tap "Allow" --exact > /dev/null
     $ui wait "Saved automatically to Editions" > /dev/null
     $ui shot 49-settings-folder
     today
