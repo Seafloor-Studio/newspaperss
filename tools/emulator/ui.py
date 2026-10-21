@@ -11,7 +11,8 @@ screenshots to look at. Any app works, not only NewspapeRSS: Gmail, the Kindle a
     tools/emulator/ui.py type "example.com"     # into the focused field
     tools/emulator/ui.py shot welcome           # build/emulator/welcome.png
 
-Text matches exactly first, then as a case-insensitive substring. Set ANDROID_SERIAL when more
+Text matches exactly first, then as a case-insensitive substring; --exact only exactly, for a
+word that is also part of another ("Sent" and "Not sent"). Set ANDROID_SERIAL when more
 than one device is attached, and ADB if adb isn't on the PATH.
 """
 import argparse
@@ -59,19 +60,20 @@ def screen_size():
     return int(w), int(h)
 
 
-def find(text):
+def find(text, exact=False):
     found = list(nodes())
-    for match in (lambda l: l == text, lambda l: text.lower() in l.lower()):
+    matches = [lambda l: l == text] + ([] if exact else [lambda l: text.lower() in l.lower()])
+    for match in matches:
         hits = [(l, b) for l, b in found if match(l)]
         if hits:
             return hits[0]
     return None
 
 
-def wait(text, timeout):
+def wait(text, timeout, exact=False):
     deadline = time.monotonic() + timeout
     while True:
-        hit = find(text)
+        hit = find(text, exact)
         if hit:
             return hit
         if time.monotonic() > deadline:
@@ -84,6 +86,7 @@ def main():
     p.add_argument("command", choices=["texts", "wait", "tap", "type", "shot"])
     p.add_argument("arg", nargs="?")
     p.add_argument("--timeout", type=float, default=30)
+    p.add_argument("--exact", action="store_true")
     a = p.parse_args()
     if a.command != "texts" and not a.arg:
         p.error(f"{a.command} needs an argument")
@@ -91,9 +94,9 @@ def main():
         for label, _ in nodes():
             print(label)
     elif a.command == "wait":
-        print(wait(a.arg, a.timeout)[0])
+        print(wait(a.arg, a.timeout, a.exact)[0])
     elif a.command == "tap":
-        label, first = wait(a.arg, a.timeout)
+        label, first = wait(a.arg, a.timeout, a.exact)
         x1, y1, x2, y2 = first
         # A scrolling screen lists what's below the fold too, at bounds off the screen or under a
         # bar fixed over the list, where a tap lands on something else: swipe it into the open
@@ -111,7 +114,7 @@ def main():
             adb("shell", "input", "swipe", x, str(int(height * start)), x, str(int(height * end)), "600")
             bounds = None
             while True:
-                label, now = wait(a.arg, a.timeout)
+                label, now = wait(a.arg, a.timeout, a.exact)
                 if now == bounds:
                     break
                 bounds = now
@@ -122,7 +125,7 @@ def main():
         if (x1, y1, x2, y2) != tuple(first):
             # A touch while a list still drifts only stops it; let it come to rest first.
             time.sleep(1)
-            label, (x1, y1, x2, y2) = wait(a.arg, a.timeout)
+            label, (x1, y1, x2, y2) = wait(a.arg, a.timeout, a.exact)
         adb("shell", "input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
         print(f"tapped {label!r}")
     elif a.command == "type":

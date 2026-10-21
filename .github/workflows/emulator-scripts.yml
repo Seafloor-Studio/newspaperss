@@ -1,6 +1,7 @@
 # tools/emulator/ is what a local Claude Code session uses to drive the emulator through
 # docs/EMULATOR-CHECKS.md. Run here on a changed script, so tonight's session isn't the first
-# place it meets a real device. The screenshots are kept either way.
+# place it meets a real device, and weekly, so a change to the app that breaks a journey shows
+# up even when no script changed. The screenshots are kept either way.
 name: Emulator scripts
 
 on:
@@ -8,6 +9,8 @@ on:
     paths:
       - 'tools/emulator/**'
       - '.github/workflows/emulator-scripts.yml'
+  schedule:
+    - cron: '37 6 * * 2'
   workflow_dispatch:
 
 permissions:
@@ -153,4 +156,109 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: low-end-screenshots
+          path: build/emulator/*.png
+
+  # The journeys after the first edition, each from where the one before left the app. Every
+  # one runs even when an earlier one fails, so a run names all that broke.
+  journeys:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: gradle
+
+      - name: Build the debug app, and the test app that stands in for an e-reader's
+        run: ./gradlew :app:assembleDebug :epubsink:assembleDebug
+
+      - name: Let the runner use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Two editions, a send after a cold start, a share, a folder, Listen
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            tools/emulator/smoke.sh
+            tools/emulator/delivery.sh make
+            tools/emulator/journeys.sh two-editions || touch build/emulator/failed
+            tools/emulator/doze.sh soon && tools/emulator/journeys.sh cold-send || touch build/emulator/failed
+            tools/emulator/journeys.sh share || touch build/emulator/failed
+            tools/emulator/journeys.sh folder || touch build/emulator/failed
+            tools/emulator/journeys.sh listen || touch build/emulator/failed
+            test ! -e build/emulator/failed
+
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: journeys-screenshots
+          path: build/emulator/*.png
+
+  # What F-Droid users get rather than the debug build: no debug-only screens, its own package.
+  # Signed with the debug key, as the release key stays with the release workflow.
+  release-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: gradle
+
+      - name: Build the release app, and the test app that stands in for an e-reader's
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/app/debug.keystore
+          KEYSTORE_PASSWORD: android
+          KEY_ALIAS: androiddebugkey
+          KEY_PASSWORD: android
+        run: ./gradlew :app:assembleRelease :epubsink:assembleDebug
+
+      - name: Let the runner use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Onboarding, an edition and a send in the release build
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        env:
+          PKG: com.app.newspaperss
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            tools/emulator/smoke.sh app/build/outputs/apk/release/app-x86_64-release.apk
+            tools/emulator/delivery.sh make
+            tools/emulator/doze.sh soon
+            tools/emulator/journeys.sh cold-send
+
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-build-screenshots
           path: build/emulator/*.png

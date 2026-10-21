@@ -7,10 +7,11 @@
 #   tools/emulator/doze.sh off     # back to normal
 #   tools/emulator/doze.sh check   # on, confirm IDLE, off: these commands work on this device
 #   tools/emulator/doze.sh timed   # a timed edition through deep sleep, after delivery.sh make
+#   tools/emulator/doze.sh soon    # a timed edition in about two minutes, awake: its notification
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 ui=tools/emulator/ui.py
-pkg=com.app.newspaperss.debug
+pkg=${PKG:-com.app.newspaperss.debug}
 
 state() { adb shell dumpsys deviceidle get deep | tr -d '\r'; }
 
@@ -29,6 +30,10 @@ off() {
 }
 
 now() { adb shell date +%s | tr -d '\r'; }
+
+# The scheduler's own record can be read only in a debuggable build; in the release build, the
+# timed edition's notification is the only sign its timer fired.
+readable() { adb shell run-as "$pkg" true > /dev/null 2>&1; }
 
 # A value from the scheduler's own record (EditionScheduler), 0 while it has none.
 pref() {
@@ -55,7 +60,10 @@ set_field() {
 
 before=0
 
-timed() {
+# Sets a timed edition due in 32 minutes in Settings, so its timer fires in about 2, then leaves
+# the app for the home screen. Sets $start to when the timer fires.
+start=0
+arm() {
   # Typed into the time picker as 24-hour digits, whatever the device's habit.
   adb shell settings put system time_12_24 24
   $ui tap "Settings" > /dev/null
@@ -88,7 +96,13 @@ print(d.datetime.fromtimestamp(int(sys.argv[1]),tz).strftime("%H %M"))' "$due_at
   $ui tap "OK" > /dev/null
   $ui shot 40-schedule
   # The new time took if the scheduler armed the timer for it.
-  local start=0
+  if ! readable; then
+    start=$(( due_at - 1800 ))
+    echo "timer set for $due; this build's record can't be read, so whether it's armed shows only when it fires"
+    adb shell input keyevent KEYCODE_HOME
+    sleep 5
+    return
+  fi
   for _ in $(seq 15); do
     start=$(( $(pref pending_start_epoch_ms) / 1000 ))
     [ "$start" -eq $(( due_at - 1800 )) ] && break
@@ -100,6 +114,19 @@ print(d.datetime.fromtimestamp(int(sys.argv[1]),tz).strftime("%H %M"))' "$due_at
   # Off the screen, as overnight: an app in front is exempt from Doze's hold on deferred work.
   adb shell input keyevent KEYCODE_HOME
   sleep 5
+}
+
+# A timed edition's start, as its own notification says when it's ready: the only way a shared
+# edition gets one.
+soon() {
+  arm
+  readable || return 0
+  fired_within $(( start - $(now) + 120 )) || { echo "the timer didn't fire within 2 minutes of its time" >&2; exit 1; }
+  echo "fired $(( $(pref last_start_epoch_ms) / 1000 - start )) s after its time"
+}
+
+timed() {
+  arm
   # What else could let it through: Doze's allowlist, and the app's standby bucket.
   echo "on Doze's allowlist: $(adb shell dumpsys deviceidle whitelist | grep -c "$pkg" || true)"
   echo "standby bucket: $(adb shell am get-standby-bucket "$pkg" | tr -d '\r')"
@@ -138,5 +165,6 @@ case "${1:-}" in
     off
     echo "doze commands work here" ;;
   timed) timed ;;
-  *) sed -n '2,10p' "$0" >&2; exit 2 ;;
+  soon) soon ;;
+  *) sed -n '2,11p' "$0" >&2; exit 2 ;;
 esac

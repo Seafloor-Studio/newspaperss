@@ -5,7 +5,7 @@
 #   tools/emulator/numbers.sh start    # cold start, three times: Android's own TotalTime
 #   tools/emulator/numbers.sh memory   # what the app holds now (PSS), and the device's RAM
 set -euo pipefail
-pkg=com.app.newspaperss.debug
+pkg=${PKG:-com.app.newspaperss.debug}
 
 case "${1:-}" in
   start)

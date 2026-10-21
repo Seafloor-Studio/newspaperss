@@ -660,7 +660,11 @@ On a PR that touches what they cover:
   and Doze commands, then a real edition from live feeds saved to Downloads,
   a timed edition through deep sleep and the edition opened in KOReader,
   with screenshots kept. A `low-end` job prints cold start, first-edition
-  time and memory on Android 8, 32-bit, with 2 GB.
+  time and memory on Android 8, 32-bit, with 2 GB. A `journeys` job makes
+  two editions, sends one from its notification after Android ended the
+  app, shares a page and a site in, saves to a folder and starts Listen. A
+  `release-build` job runs onboarding, an edition and a send in the release
+  build. Also weekly, so an app change that breaks one shows up.
 - **Security scan** (`security-scan.yml`, workflows and build files):
   zizmor and OpenSSF Scorecard; also weekly.
 - **Attribution** (`attribution.yml`): a PR from madCode's account says at
