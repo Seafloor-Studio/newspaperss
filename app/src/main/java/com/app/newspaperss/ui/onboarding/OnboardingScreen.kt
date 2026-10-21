@@ -270,9 +270,8 @@ private fun SourcesStep(s: OnboardingState, vm: OnboardingViewModel, sources: So
         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
     )
     // Below the field, not inside it: at large font sizes a button inside leaves no room to type.
-    // The status is always composed, so the button stays put rather than being swapped out from
-    // under focus. It's announced rather than a live region: a live region that's empty until the
-    // first search is an element TalkBack would stop on with nothing to say.
+    // The button stays put rather than being swapped out from under focus. The status is announced
+    // rather than a live region, which would have to stay composed while empty.
     val status = if (s.searching) "Checking…" else s.findNote.orEmpty()
     val view = LocalView.current
     // Saveable, so turning the phone doesn't say it again; starting from what's there, so coming
@@ -286,7 +285,9 @@ private fun SourcesStep(s: OnboardingState, vm: OnboardingViewModel, sources: So
         said = status
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-        Text(status, textAlign = TextAlign.End, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
+        // Even plain, an empty Text is an element with nothing to say; the spacer keeps Add in place.
+        if (status.isEmpty()) Spacer(Modifier.weight(1f))
+        else Text(status, textAlign = TextAlign.End, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
         OutlinedButton(onClick = vm::findPasted, enabled = !s.searching && s.pasted.isNotBlank()) { Text("Add") }
     }
     // As in Sources: a site with no feed isn't a dead end, its page can be read in the paper.
