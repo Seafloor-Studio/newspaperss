@@ -66,11 +66,12 @@ class LiveUpdatesTest {
 
     /** Builds handed to Android, with the text of the file each was handed. */
     private val commits = mutableListOf<Pair<Int, String>>()
-    private var commitFails = false
+    private var commitFails: Exception? = null
     /** What happens while the APK is copied into Android's session. */
     private var whileCopying: () -> Unit = {}
     private var canInstall = true
     private var foreground = false
+    private var away = false
     private var unmetered = true
     private var listenPlaying = false
 
@@ -88,13 +89,13 @@ class LiveUpdatesTest {
     }
 
     private fun updates(installedBuild: Int = 455) = LiveUpdates(
-        app, installedBuild, CoroutineScope(Dispatchers.Unconfined), listenPlaying = { listenPlaying },
+        app, installedBuild, CoroutineScope(Dispatchers.Unconfined), listenPlaying = { listenPlaying }, away = { away },
         prefs = prefs, dir = dir,
         download = ApkDownload(url = { server.url("/newspapeRSS-debug.apk").toString() }),
         inspect = { apks[it.readText()] },
         installed = { installed },
         commit = { file, build, stillIdle ->
-            if (commitFails) throw java.io.IOException("no space for a session")
+            commitFails?.let { throw it }
             whileCopying()
             if (stillIdle()) commits += build to file.readText()
         },
@@ -253,6 +254,36 @@ class LiveUpdatesTest {
     }
 
     @Test
+    fun inAPickerOrTheBrowserTheAppOpenedTheReaderHasntLeftIt() = runBlocking {
+        val updates = updates()
+        ready(updates)
+        away = true
+        assertTrue(updates.install(userAsked = false) is LiveUpdates.Outcome.Busy)
+        away = false
+        whileCopying = { away = true }
+        assertTrue("opened while the APK was copied", updates.install(userAsked = false) is LiveUpdates.Outcome.Busy)
+        assertTrue(commits.isEmpty())
+
+        whileCopying = {}
+        away = false
+        assertEquals(LiveUpdates.Outcome.Started, updates.install(userAsked = false))
+    }
+
+    @Test
+    fun aHoldLeftByAReaderWhoWentHomeFromTheBrowserLapses() {
+        var clock = 1_000_000L
+        val hold = com.app.newspaperss.UpdateHold(app.getSharedPreferences("update-hold-test", Context.MODE_PRIVATE).apply { edit().clear().commit() }) { clock }
+        hold.away()
+        clock += com.app.newspaperss.UpdateHold.LIMIT_MILLIS - 1
+        assertTrue(hold.held)
+        clock += 1
+        assertFalse(hold.held)
+        hold.away()
+        hold.back()
+        assertFalse(hold.held)
+    }
+
+    @Test
     fun anEditionStartingWhileTheApkIsCopiedStillHoldsTheInstallBack() = runBlocking {
         val updates = updates()
         ready(updates)
@@ -350,8 +381,13 @@ class LiveUpdatesTest {
             updates.install(userAsked = true)
             updates.installResult(464, PackageInstaller.STATUS_FAILURE_STORAGE, "no space", null)
         }
+        assertEquals("no room isn't the build's failure", SelfUpdate.Ready(464), updates.state.first())
+        repeat(LiveUpdates.MAX_INSTALL_FAILURES) {
+            updates.install(userAsked = true)
+            updates.installResult(464, PackageInstaller.STATUS_FAILURE, "failed", null)
+        }
 
-        assertEquals(LiveUpdates.MAX_INSTALL_FAILURES, commits.size)
+        assertEquals(2 * LiveUpdates.MAX_INSTALL_FAILURES, commits.size)
         assertEquals(emptyList<String>(), dir.list()!!.toList())
         assertEquals("Today falls back to the browser link", SelfUpdate.None, updates.state.first())
         updates.newerBuild(464)
@@ -389,10 +425,28 @@ class LiveUpdatesTest {
     fun aSessionAndroidRefusesCountsAsAFailure() = runBlocking {
         val updates = updates()
         ready(updates)
-        commitFails = true
+        commitFails = IllegalStateException("Session is sealed")
         repeat(LiveUpdates.MAX_INSTALL_FAILURES - 1) { assertEquals(LiveUpdates.Outcome.Retry, updates.install(userAsked = false)) }
         assertEquals(LiveUpdates.Outcome.Failed, updates.install(userAsked = false))
         assertEquals(emptyList<String>(), dir.list()!!.toList())
+    }
+
+    @Test
+    fun noRoomForAndroidsCopyIsNeverHeldAgainstTheBuild() = runBlocking {
+        val updates = updates()
+        ready(updates)
+        commitFails = java.io.IOException("No space left on device")
+        repeat(LiveUpdates.MAX_INSTALL_FAILURES + 1) {
+            assertEquals(LiveUpdates.Outcome.Busy(LiveUpdates.NO_ROOM), updates.install(userAsked = false))
+        }
+        assertEquals(InstallTap.Waiting(LiveUpdates.NO_ROOM), updates.install())
+        assertEquals(listOf("build-464.apk"), dir.list()!!.toList())
+        assertEquals(0, prefs.getInt(LiveUpdates.REJECTED, 0))
+
+        val install = work.getWorkInfosForUniqueWork(LiveUpdates.INSTALL).get().single()
+        assertTrue("Android's copy needs room too", install.constraints.requiresStorageNotLow())
+        commitFails = null
+        assertEquals(LiveUpdates.Outcome.Started, updates.install(userAsked = false))
     }
 
     @Test

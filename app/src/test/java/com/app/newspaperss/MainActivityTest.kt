@@ -29,6 +29,7 @@ import kotlinx.coroutines.runBlocking
 import androidx.work.testing.WorkManagerTestInitHelper
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import com.app.newspaperss.data.EditionContent
 import com.app.newspaperss.data.FeedMoves
 import org.junit.Assert.assertNull
@@ -77,6 +78,21 @@ class MainActivityTest {
         shows("Sources")
         scenario.onActivity { it.onNewIntent(open) }
         shows("Nothing is playing")
+    }
+
+    /** A background update mustn't end the app while a picker or the browser it opened is on top. */
+    @Test
+    fun anotherAppOpenedFromHereHoldsUpdatesUntilTheReaderIsBack() {
+        runBlocking { app.container.settings.update { it.copy(onboarded = true) } }
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        shows("Sources")
+        val hold = app.container.updateHold
+        scenario.onActivity { it.startActivity(android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).setType("*/*")) }
+        scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+        assertTrue(hold.held)
+
+        scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        assertFalse(hold.held)
     }
 
     @Test

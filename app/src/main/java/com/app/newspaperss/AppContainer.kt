@@ -155,8 +155,11 @@ class AppContainer(
         db, content, editionsDir, cover = CoverRenderer()::render, retiring = feedMoves::retiringIds, onReleased = notifier::dismissFor,
     )
     val settings = SettingsStore(settingsData)
+    val updateHold = UpdateHold(context.getSharedPreferences("update-hold", Context.MODE_PRIVATE))
     /** A live build fetching and installing newer builds; nothing in a release build. */
-    val selfUpdates = selfUpdater(context, installedBuild, appScope) { listenMade.isInitialized() && listen.state.value.playing }
+    val selfUpdates = selfUpdater(context, installedBuild, appScope, updateHold::held) {
+        listenMade.isInitialized() && listen.state.value.playing
+    }
     val debugUpdates = DebugUpdates(http, context.getSharedPreferences("debug-updates", Context.MODE_PRIVATE), installedBuild, onNewer = selfUpdates::newerBuild)
     private val folderDelivery = FolderDelivery(context.contentResolver)
     val editionRun = EditionRun(settings, feedSync, editionBuilder, editions, folderDelivery, notifier,

@@ -152,6 +152,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Every app opened from here passes through this: a picker, the browser, the share sheet.
+     * Under one the app isn't in the foreground, but the reader hasn't left it.
+     */
+    override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
+        val hold = application.container.updateHold
+        hold.away()
+        try {
+            super.startActivityForResult(intent, requestCode, options)
+        } catch (e: RuntimeException) {
+            // Nothing opened, so the reader is still here.
+            hold.back()
+            throw e
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        application.container.updateHold.back()
+    }
+
     override fun onStart() {
         super.onStart()
         // Each time the app comes to the front, not just on a cold start: it can sit in recents for days.

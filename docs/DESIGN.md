@@ -532,7 +532,11 @@ whose Kindle and KOReader answers ask for more on the same page).
       app. A file that fails is deleted, and that build isn't fetched again;
     - it installs with Android's PackageInstaller once no edition, audio,
       natural voice download or feed move is running, Listen isn't
-      playing and the app isn't open; otherwise it tries again later;
+      playing, the app isn't open and the reader isn't in a picker, the
+      browser or another app it opened (for up to an hour); otherwise it
+      tries again later;
+    - a phone short of space waits for room, and isn't counted against
+      the build;
     - Android asks the reader to confirm the first time after a browser
       install, and every time before Android 12: a notification, "Build N
       is ready. Tap to install.", opens the question;

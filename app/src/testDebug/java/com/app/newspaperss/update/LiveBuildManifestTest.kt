@@ -26,7 +26,7 @@ class LiveBuildManifestTest {
         assertTrue(info.requestedPermissions.orEmpty().contains("android.permission.REQUEST_INSTALL_PACKAGES"))
         assertTrue(info.receivers.orEmpty().any { it.name == InstallResultReceiver::class.java.name && !it.exported })
         val scope = CoroutineScope(Dispatchers.Unconfined)
-        assertTrue(selfUpdater(app, installed = 455, scope) { false } is LiveUpdates)
-        assertSame("built locally: no build number to compare", SelfUpdater.NONE, selfUpdater(app, installed = null, scope) { false })
+        assertTrue(selfUpdater(app, installed = 455, scope, away = { false }) { false } is LiveUpdates)
+        assertSame("built locally: no build number to compare", SelfUpdater.NONE, selfUpdater(app, installed = null, scope, away = { false }) { false })
     }
 }
