@@ -304,9 +304,8 @@ enum class EditionStatus {
 
     /**
      * Deleted by the reader: only the row stays. One that was delivered, or released as not sent
-     * (its error kept), holds its title, so a
-     * later edition can't take the same one (Send to Kindle drops a title it has seen). Hidden
-     * everywhere else.
+     * (its error kept), holds its title, so a later edition can't take the same one (Send to
+     * Kindle drops a title it has seen). Hidden everywhere else.
      */
     DELETED,
 }
