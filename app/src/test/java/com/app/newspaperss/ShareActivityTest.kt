@@ -178,6 +178,28 @@ class ShareActivityTest {
         idleUntil { ShadowToast.getTextOfLatestToast().startsWith("tt-rss") }
         val told = ShadowToast.getTextOfLatestToast()
         assertTrue(told, told.startsWith("tt-rss didn't add Example News.") && told.endsWith("Saved the page for your next edition instead."))
+        // The toast said it all: Sources doesn't say it again later.
+        assertTrue(app.container.ttrssSubscriptions.results.value.isEmpty())
+    }
+
+    @Test
+    fun anAddDialogAskingAboutTheSameFeedMeanwhileGetsTtrssAnswer() {
+        newsSite()
+        val server = signedIn()
+        server.refuse["https://news.example/feed"] = 5
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        server.subscribeGate = gate
+        share("https://news.example/")
+        tap("Subscribe to this site")
+        idleUntil { server.subscribed.isNotEmpty() }
+        // Sources' Add, asking while the share waits: it can't start, and waits for the share's answer.
+        val subscriptions = app.container.ttrssSubscriptions
+        val request = com.app.newspaperss.data.TtrssSubscriptions.Request("https://news.example/feed", "Example News", com.app.newspaperss.core.ttrss.TtrssCategory(0, "Uncategorized"))
+        assertTrue(!subscriptions.subscribe(request))
+        gate.complete(Unit)
+        idleUntil { subscriptions.results.value.isNotEmpty() }
+        val outcome = subscriptions.results.value.single().outcome as com.app.newspaperss.data.TtrssSubscriptions.Outcome.Subscribed
+        assertTrue(outcome.answer is com.app.newspaperss.data.TtrssRepository.Subscribed.Failed)
     }
 
     @Test

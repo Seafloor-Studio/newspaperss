@@ -70,7 +70,8 @@ class SharedLinks(
     private suspend fun subscribeHere(feedUrl: String, title: String?, name: String): Subscribed {
         if (sources.observe().first().any { it.kind == SourceKind.FEED && sameFeed(it.url, feedUrl) }) return Subscribed("$name is already in your sites.")
         sources.addFeed(feedUrl, title)
-        onSourcesChanged()
+        // Added either way: a failure to schedule the sync mustn't read as a failed subscribe.
+        runCatching { onSourcesChanged() }
         return Subscribed("Added $name to your sites.")
     }
 
