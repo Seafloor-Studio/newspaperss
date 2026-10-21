@@ -271,18 +271,21 @@ private fun SourcesStep(s: OnboardingState, vm: OnboardingViewModel, sources: So
     )
     // Below the field, not inside it: at large font sizes a button inside leaves no room to type.
     // The button stays put rather than being swapped out from under focus. The status is announced
-    // rather than a live region, which would have to stay composed while empty.
+    // rather than a live region, which would have to stay composed while empty. So is what a search
+    // came to, which is shown elsewhere (a ticked feed, the field's error) or not at all, since focus
+    // stays on Add.
     val status = if (s.searching) "Checking…" else s.findNote.orEmpty()
+    val spoken = if (s.searching) status else s.findError ?: s.foundNote ?: status
     val view = LocalView.current
     // Saveable, so turning the phone doesn't say it again; starting from what's there, so coming
     // back to this step doesn't say an old result again.
-    var said by rememberSaveable { mutableStateOf(status) }
-    LaunchedEffect(status) {
-        if (status.isNotEmpty() && status != said) {
+    var said by rememberSaveable { mutableStateOf(spoken) }
+    LaunchedEffect(spoken) {
+        if (spoken.isNotEmpty() && spoken != said) {
             @Suppress("DEPRECATION") // Deprecated in favour of live regions, which this can't be.
-            view.announceForAccessibility(status)
+            view.announceForAccessibility(spoken)
         }
-        said = status
+        said = spoken
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
         // Even plain, an empty Text is an element with nothing to say; the spacer keeps Add in place.

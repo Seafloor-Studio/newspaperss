@@ -82,6 +82,8 @@ data class OnboardingState(
     val findPage: String? = null,
     /** What became of the last site added, when it's not a feed to tick: saved to the reading list. */
     val findNote: String? = null,
+    /** What the last search found, for TalkBack only: sighted readers see the ticked feed appear. */
+    val foundNote: String? = null,
     /** The page being saved to the reading list, its button gone so a second tap can't save it again. */
     val savingPage: String? = null,
     val minutes: Int = 30,
@@ -312,7 +314,7 @@ class OnboardingViewModel(
         s.copy(chosen = if (s.chosen.containsAll(urls)) s.chosen - urls else s.chosen + urls)
     }
 
-    fun editPasted(text: String) = _state.update { it.copy(pasted = text, findError = null, findPage = null, findNote = null, savingPage = null) }
+    fun editPasted(text: String) = _state.update { it.copy(pasted = text, findError = null, findPage = null, findNote = null, foundNote = null, savingPage = null) }
 
     /** Saving [page], the page with no feed, to the reading list instead. */
     fun savingInstead(page: String) = _state.update { it.copy(findPage = null, savingPage = page) }
@@ -328,14 +330,17 @@ class OnboardingViewModel(
 
     fun findPasted() {
         val input = state.value.pasted.takeIf { it.isNotBlank() } ?: return
-        _state.update { it.copy(searching = true, findError = null, findPage = null, findNote = null, savingPage = null) }
+        _state.update { it.copy(searching = true, findError = null, findPage = null, findNote = null, foundNote = null, savingPage = null) }
         viewModelScope.launch {
             when (val result = finder.find(input)) {
                 is FindResult.NotFound -> _state.update { it.copy(searching = false, findError = result.reason, findPage = result.page) }
                 is FindResult.Found -> _state.update { s ->
                     val feeds = result.feeds.map { StarterFeed(it.title ?: SourceRepository.hostOf(it.url), it.url) }
                     // Several feeds on one site: pick the first, show the rest to tick.
-                    s.copy(searching = false, pasted = "", found = (s.found + feeds).distinctBy { it.url }, chosen = s.chosen + feeds.first().url)
+                    val first = feeds.first().title
+                    val note = if (feeds.size == 1) "Found $first. It's ticked below."
+                    else "Found ${feeds.size} feeds. $first is ticked; tick any others below."
+                    s.copy(searching = false, pasted = "", found = (s.found + feeds).distinctBy { it.url }, chosen = s.chosen + feeds.first().url, foundNote = note)
                 }
             }
         }
