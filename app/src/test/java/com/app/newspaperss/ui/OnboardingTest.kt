@@ -479,6 +479,36 @@ class OnboardingTest {
         assertEquals("", vm.state.value.pasted)
     }
 
+    /** The status under the field is announced, not a live region: empty, a live region is a stop with nothing to say. */
+    @Test
+    fun talkBackHearsTheWebsiteSearchAndItsResult() {
+        val access = org.robolectric.Shadows.shadowOf(
+            ApplicationProvider.getApplicationContext<TestApp>().getSystemService(android.view.accessibility.AccessibilityManager::class.java),
+        )
+        access.setEnabled(true)
+        http.page("https://plain.example/essay", "<html><head><title>An essay</title></head><body><p>Words.</p></body></html>")
+        val readingList = com.app.newspaperss.data.ReadingListRepository(db)
+        val readingVm = com.app.newspaperss.ui.readinglist.ReadingListViewModel(readingList)
+        compose.setContent { OnboardingScreen(vm, readingList = readingVm) }
+        click("Get started")
+        scrollAndClick("Kobo")
+        click("Next")
+        choosePhone()
+        assertTrue(compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion)).fetchSemanticsNodes().isEmpty())
+
+        compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("plain.example/essay")
+        click("Add")
+        idleUntil { compose.waitForIdle(); visible("Save this page to your reading list instead") }
+        scrollAndClick("Save this page to your reading list instead")
+        idleUntil { compose.waitForIdle(); visible("Saved to your reading list") }
+
+        val said = access.sentAccessibilityEvents
+            .filter { it.eventType == android.view.accessibility.AccessibilityEvent.TYPE_ANNOUNCEMENT }
+            .map { it.text.joinToString() }
+        // "Checking…" passes within a frame here, where the fake network answers at once.
+        assertEquals(1, said.count { it == "Saved to your reading list" })
+    }
+
     @Test
     fun aSaveAnsweredAfterTheReaderTypedAgainLeavesWhatTheyTyped() {
         http.page("https://plain.example/essay", "<html><head><title>An essay</title></head><body><p>Words.</p></body></html>")
