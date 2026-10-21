@@ -3,6 +3,13 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle G2 (21 Oct) — build: the tt-rss sign-in wait
+
+Built the approved lockout item; see [DEVLOG.md](DEVLOG.md).
+- **Docker isn't running in a cloud container until you start it:** `nohup dockerd &`, then `docker compose -f tools/ttrss-live/compose.yml up -d --wait` takes about two minutes. The server's PHP is then readable with `docker compose … exec -T app`, which beats guessing its rules from the API.
+- **Check a rounding margin's direction before adding one.** I widened the window "because tt-rss counts whole seconds"; flooring both times makes its wait shorter. Write the inequality out.
+- **Run baseline:** dockerd and the tt-rss containers started for this cycle and stopped at the end; Gradle stopped.
+
 ### Cycle G1 (21 Oct) — build: subscribe from a share
 
 The first of tonight's G1–G7 run, one session per cycle. Built #356; see [DEVLOG.md](DEVLOG.md).
