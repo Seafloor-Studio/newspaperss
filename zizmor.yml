@@ -4,6 +4,9 @@ rules:
     ignore:
       # red-main.yml must watch a finished workflow to know main went red, and workflow_run is
       # the only trigger that reports one. It reads the run's conclusion and log and opens an
-      # issue; it never checks out or runs code from the branch that triggered it, and it only
-      # fires for main.
+      # issue; it never checks out or runs code from the branch that triggered it, and its `if:`
+      # lets through only a push to this repository's main.
       - red-main.yml
+      # claude.yml answers "@claude" in comments, which needs issue_comment. claude-code-action
+      # refuses anyone without write access, and the job's own token is read-only.
+      - claude.yml

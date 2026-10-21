@@ -3,6 +3,7 @@ package com.app.newspaperss.ui
 import android.Manifest
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
@@ -17,7 +18,12 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.tryPerformAccessibilityChecks
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
+import androidx.work.WorkManager
 import com.app.newspaperss.MainActivity
+import com.app.newspaperss.work.EditionWorker
+import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Rule
@@ -51,13 +57,41 @@ class AccessibilityChecksTest {
         }
     }
 
+    // After the test, the Compose rule waits for the main thread to go idle. An edition still being
+    // made keeps a spinner turning, so that wait never ends and a 10-minute timeout hides the
+    // test's own result: close the app first.
+    @After fun close() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            listOf(Stage.RESUMED, Stage.PAUSED, Stage.STARTED, Stage.STOPPED, Stage.CREATED)
+                .flatMap { ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(it) }
+                .forEach { it.finish() }
+        }
+    }
+
+    /** Until the first edition is made, so Today is checked as a reader finds it, not mid-spinner. */
+    private fun waitForTheEdition() {
+        val work = WorkManager.getInstance(InstrumentationRegistry.getInstrumentation().targetContext)
+        val deadline = System.currentTimeMillis() + 8 * 60_000
+        while (System.currentTimeMillis() < deadline) {
+            val infos = work.getWorkInfosForUniqueWork(EditionWorker.UNIQUE).get()
+            if (infos.isNotEmpty() && infos.all { it.state.isFinished }) return
+            Thread.sleep(1_000)
+        }
+        error("the first edition wasn't made within 8 minutes")
+    }
+
+    // In logcat, so a failure that names no line of this test still says which screen it was on.
+    private fun step(what: String) = Log.i("AccessibilityWalk", what)
+
     private fun checkScreen() {
+        step("check")
         compose.waitForIdle()
         val roots = compose.onAllNodes(isRoot()).fetchSemanticsNodes().size
         (0 until roots).forEach { compose.onAllNodes(isRoot())[it].tryPerformAccessibilityChecks() }
     }
 
     private fun tap(text: String, substring: Boolean = false): SemanticsNodeInteraction {
+        step("tap $text")
         compose.waitUntil(30_000) { compose.onAllNodes(hasText(text, substring)).fetchSemanticsNodes().isNotEmpty() }
         val node = compose.onAllNodes(hasText(text, substring)).onFirst()
         // Below the fold on a small screen; a node outside any scrolling list has nothing to scroll.
@@ -66,6 +100,7 @@ class AccessibilityChecksTest {
     }
 
     private fun tab(label: String) {
+        step("tab $label")
         compose.waitUntil(30_000) { compose.onAllNodes(hasText(label) and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
         compose.onAllNodes(hasText(label) and hasClickAction()).onFirst().performClick()
     }
@@ -101,6 +136,7 @@ class AccessibilityChecksTest {
             checkScreen()
             tap("Next"); checkScreen()
             tap("Make my first edition")
+            waitForTheEdition()
         }
         for (label in listOf("Today", "Sources", "Settings")) {
             tab(label); checkScreen()

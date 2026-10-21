@@ -26,6 +26,9 @@ jobs:
           distribution: temurin
           # No Gradle cache here. A cache entry written by a less-trusted run could be restored
           # into the build that gets signed, and a release is rare enough not to need the minute.
+      # gradle-wrapper.jar is the first code ./gradlew runs, and a PR that swaps it shows only a
+      # binary diff. This checks it against Gradle's published checksums before it runs.
+      - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
       # A tag that doesn't match versionName would publish one version under another's name.
       - name: Check the tag matches the app's version
         run: |

@@ -228,6 +228,23 @@ class TtrssClientTest {
     }
 
     @Test
+    fun aReplyNestedTooDeepIsNotTtrss() = runTest {
+        server.reply("{\"content\":" + "[".repeat(10_000) + "]".repeat(10_000) + "}")
+        val thrown = runCatching { client().login() }.exceptionOrNull()
+        assertTrue("$thrown", thrown is TtrssException.NotTtrss)
+    }
+
+    @Test
+    fun aSessionIdOrErrorThatIsntTextIsNotTtrss() = runTest {
+        server.reply(ok("""{"session_id":{}}"""))
+        val badSession = runCatching { client().login() }.exceptionOrNull()
+        assertTrue("$badSession", badSession is TtrssException.NotTtrss)
+        server.reply(ok("""{"error":{}}"""))
+        val badError = runCatching { client().login() }.exceptionOrNull()
+        assertTrue("$badError", badError is TtrssException.NotTtrss)
+    }
+
+    @Test
     fun aRedirectIsReportedWithTheNewAddress() = runTest {
         server.finalUrl = "https://rss.example.com/api/"
         server.reply("", code = 308)
@@ -244,6 +261,14 @@ class TtrssClientTest {
             Json.parseToJsonElement("""{"sid":"sid-1","op":"updateArticle","article_ids":"12345,123","mode":0,"field":2}"""),
             server.sent[1],
         )
+    }
+
+    @Test
+    fun markReadAnsweredWithAnErrorThatIsntTextFails() = runTest {
+        server.reply(loggedIn)
+        server.reply(ok("""{"error":{}}"""))
+        val thrown = runCatching { client().markRead(listOf(12345L)) }.exceptionOrNull()
+        assertTrue("$thrown", thrown is TtrssException.NotTtrss)
     }
 
     @Test

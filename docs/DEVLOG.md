@@ -8,8 +8,8 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Status
 
-- **Lately:** 21 Oct, cycle G4: onboarding's website search tells TalkBack what it found, or why nothing. Cycle G3: deleting an edition that was never sent frees its title, so the remake isn't "(2)". Cycle G2: a right tt-rss password straight after a wrong one says to wait 5 seconds and try again, as tt-rss turns it away for that long. Cycle G1: sharing a link asks Save, Subscribe or Both, with Subscribe first for a site's front page (#356, #290). 20 Oct, four cycles: every saved link gets a reading time slowly (#335), a hostile feed can't make the app's lists unreadable (#336, database version 17), Save a copy… keeps an edition's book (#338), and two episode-audit tidies (#337). 19 Oct, **0.1.1 tagged** (Kokoro's native code out of release builds, a check that keeps it out); podcast episodes steps 1–3 in debug builds (#313, #320–#324): posts keep their audio and are labelled, wrong labels can be sent for a look, and Listen plays an article's recorded reading in its place.
-- **Watching:** `AccessibilityChecksTest` on the emulator sometimes hangs until its 10-minute timeout, on main too (in the backlog). `PodcastSettingsTest`'s timeout is fixed (#340: 4 failures in 20 runs before, 0 in 60 after). main's suite also timed out once in `KindleEmailScreensTest` (19 Oct), not seen since.
+- **Lately:** 21 Oct, cycle G6: the security and supply-chain review. A feed nested thousands deep can no longer stop every edition (#364), and CI is tighter (#363); two signing questions wait for you on the morning page. Cycle G5: a backlog pass ticked five items already built and brought two measured ones up to date. Cycle G4: onboarding's website search tells TalkBack what it found, or why nothing. Cycle G3: deleting an edition that was never sent frees its title, so the remake isn't "(2)". Cycle G2: a right tt-rss password straight after a wrong one says to wait 5 seconds and try again, as tt-rss turns it away for that long. Cycle G1: sharing a link asks Save, Subscribe or Both, with Subscribe first for a site's front page (#356, #290). 20 Oct, four cycles: every saved link gets a reading time slowly (#335), a hostile feed can't make the app's lists unreadable (#336, database version 17), Save a copy… keeps an edition's book (#338), and two episode-audit tidies (#337). 19 Oct, **0.1.1 tagged** (Kokoro's native code out of release builds, a check that keeps it out); podcast episodes steps 1–3 in debug builds (#313, #320–#324): posts keep their audio and are labelled, wrong labels can be sent for a look, and Listen plays an article's recorded reading in its place.
+- **Watching:** `AccessibilityChecksTest` on the emulator sometimes fails because a screen keeps drawing after the first edition, on main too; since #360 it fails in a minute and keeps logcat (in the backlog). `PodcastSettingsTest`'s timeout is fixed (#340: 4 failures in 20 runs before, 0 in 60 after). main's suite also timed out once in `KindleEmailScreensTest` (19 Oct), not seen since.
 - **Waiting on you, to get 0.1.1 to readers:**
   1. Install the arm64 APK from [0.1.1's draft release](https://github.com/Seafloor-Studio/newspaperss/releases) on a phone (onboarding, an edition, a send), then publish the draft: F-Droid can't see a draft, and readers can't find it. v0.1.0's release notes still carry the "wait for the next version" warning, to replace with a line pointing at 0.1.1.
   2. Start Google Play's closed test now: 12 testers opted in for 14 days in a row before production can be applied for. It's the longest wait in the project, and it runs alongside F-Droid's.
@@ -23,6 +23,39 @@ caught, and what got in the way. Newest first. Times are Pacific.
 - **Built:** a sync already judges new posts beside the source's last 14 days of stored ones; a stored post with no kind now keeps the verdict it gets there, with its pair and the audio the feed shows, and a sync with nothing new still runs when such a post is waiting. Only posts the feed still lists (through tt-rss: still unread), or that kept their audio: those stored before detection kept none, and judged from that an episode reads as an article.
 - **Review:** a label written without the audio it was judged by would have been turned into "article" once the post left the feed, so the audio is kept too. Two stored posts of one episode now pair. The write can't overwrite a kind another sync just gave, and a sync with nothing new checks for waiting posts without loading their text.
 - **Left:** posts older than 14 days, gone from the feed, or read in tt-rss stay unlabelled. No one-off backfill job: the channel's podcast flag isn't stored, and posts from before detection kept no audio, so it would judge worse than a sync does.
+
+### G6: the security and supply-chain review
+- **What you asked:** the recurring review, due before 0.1.1 goes out.
+- **How:** three fresh-eyes reviewers covered hostile input in `:core`, the app's platform surface, and CI and supply chain. Input findings were run in harnesses, including Android's own XML parser taken out of Robolectric's jar. No secret is committed, and nothing leaks a reader's data or files.
+- **Fixed (#364):** a JSON Feed of about 6 KB of nested brackets overflowed the parser's stack. The error got past every handler, so one such feed stopped every edition while it stayed subscribed. It's now an unreadable feed, and the same holds for a tt-rss reply. A tt-rss reply whose error isn't text fails instead of counting as success.
+- **Fixed (#363):**
+  - Red main's issue can't be filed by a fork's PR from a branch named main.
+  - The Gradle wrapper jar is checked before it runs, in CI and in the release build.
+  - zizmor is pinned, since its next version flags `claude.yml`, now ignored with the reason.
+  - diff-cover is pinned.
+  - The cloud-session hook checks the Android tools' checksum.
+- **Corrected:** the debug updater's comment said its signature check would catch a swapped APK. The debug key is committed, so it can't.
+- **Waiting on you:** two signing decisions, on the morning page.
+- **Left, in the backlog:**
+  - Deep nesting in XML and HTML takes time that grows with the square of the depth, with no limit (20 s at 100k levels).
+  - No cap on items per feed.
+  - The entity guard is slow and easy to get past, though the parser never expands entities, so nothing is exploitable.
+  - No dependency verification.
+  - `recurring-review.yml`'s reach.
+- **Checked and fine:**
+  - Only the launcher, the share target and Listen are exported.
+  - The FileProvider shares only editions and podcast logs.
+  - The tt-rss password is sealed with a Keystore key and left out of backups.
+  - Links leave the app only as http, https or mailto.
+  - Actions are pinned to commits, and checkouts keep no token.
+  - The EPUB stays well-formed with every field hostile.
+
+### G5: a documentation pass on the backlog
+- **What you asked:** tick what's done but still open in BACKLOG.md, each checked against the code first.
+- **Ticked (already built, and already in Done):** moving off tt-rss brings the feeds along (`bringFeedsHome`, D6; starred articles stay with the account, which answers the item's open question); tt-rss hears of a delivery two minutes later (`TtrssMarkReadWorker.DELAY`, D3); "mark read when they expire here" (D2); onboarding's "No feed found" offers the reading list (#266). The open copies are gone.
+- **Ticked, with a note:** accessibility tooling. Google's checks run on the emulator for every screen a new reader meets (#347). Not under Robolectric, where they check nothing.
+- **Brought up to date, still open:** the floor device has #352's numbers (Android 8, 2 GB: cold start about 1 s, first edition about 10 s, about 90 MB); a full 30-minute edition, Doze on Android 8, smooth scrolling and budgets remain. The exact-alarm item has #352's finding: deep sleep holds a timed edition's timer until the next maintenance window. Whether the 30-minute lead covers that overnight needs a phone. The `AccessibilityChecksTest` item now describes the failure #360 exposed rather than the old hang.
+- **Also:** the server-mode plan said step (e), leaving a server, was next; it's built.
 
 ### G4: onboarding's website search speaks its result
 - **What you asked:** the approved gap from #347's review. With TalkBack, adding a website in onboarding said "Checking…" and then nothing: focus stays on Add, and the result shows elsewhere (a ticked feed below, or an error at the field).
