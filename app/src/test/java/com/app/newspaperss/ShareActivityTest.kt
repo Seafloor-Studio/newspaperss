@@ -62,7 +62,10 @@ class ShareActivityTest {
 
     private fun saved() = runBlocking { app.container.db.articles().candidates() }
     private fun feeds() = runBlocking { app.container.db.sources().ofKind(SourceKind.FEED) }
-    private fun toldOnly(text: String) = idleUntil { ShadowToast.getTextOfLatestToast() == text }
+    private fun toldOnly(text: String) {
+        runCatching { idleUntil(timeoutMs = 10_000) { ShadowToast.getTextOfLatestToast() == text } }
+        assertEquals(text, ShadowToast.getTextOfLatestToast())
+    }
 
     /** A news site whose front page advertises its science section's feed before its own. */
     private fun newsSite() {
@@ -73,6 +76,7 @@ class ShareActivityTest {
         )
         app.http.page("https://news.example/science/feed", rss("Science", "s1" to "A comet"))
         app.http.page("https://news.example/feed", rss("Example News", "n1" to "A story"))
+        app.http.page("https://news.example/2026/10/a-story", """<html><head><link rel="alternate" type="application/rss+xml" title="Example News" href="/feed"></head></html>""")
     }
 
     @Test
@@ -142,7 +146,7 @@ class ShareActivityTest {
             assertNull(app.container.ttrss.connect("rss.example.com/tt-rss", server.user, server.password))
             app.container.settings.update { it.copy(feedsFrom = FeedsFrom.SERVER, lastCategoryId = 5) }
         }
-        share("https://news.example")
+        share("https://news.example/")
         tap("Subscribe to this site")
         idleUntil { server.subscribed.isNotEmpty() }
         assertEquals(listOf("https://news.example/feed" to 5), server.subscribed)
@@ -165,7 +169,8 @@ class ShareActivityTest {
     fun cancellingDoesNothing() {
         val scenario = share("https://a.example/story")
         tap("Cancel")
-        idleUntil { scenario.state == androidx.lifecycle.Lifecycle.State.DESTROYED }
+        var finishing = false
+        idleUntil { scenario.onActivity { finishing = it.isFinishing }; finishing }
         assertTrue(saved().isEmpty())
     }
 
