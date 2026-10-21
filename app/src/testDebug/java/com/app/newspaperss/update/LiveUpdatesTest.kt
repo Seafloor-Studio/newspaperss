@@ -391,7 +391,11 @@ class LiveUpdatesTest {
         val updates = updates()
         ready(updates)
         commitThrows = java.io.IOException("No space left on device")
-        repeat(LiveUpdates.MAX_INSTALL_FAILURES + 1) { assertEquals(LiveUpdates.Outcome.Retry, updates.install(userAsked = false)) }
+        repeat(LiveUpdates.MAX_INSTALL_FAILURES + 1) {
+            assertEquals(LiveUpdates.Outcome.Busy(LiveUpdates.NO_ROOM), updates.install(userAsked = false))
+        }
+        assertEquals("tapped, it waits rather than sending the reader to a download needing the same room",
+            InstallTap.Waiting(LiveUpdates.NO_ROOM), updates.install())
         commitThrows = null
         repeat(LiveUpdates.MAX_INSTALL_FAILURES + 1) {
             updates.install(userAsked = true)
@@ -401,8 +405,20 @@ class LiveUpdatesTest {
         assertEquals(0, prefs.getInt(LiveUpdates.REJECTED, 0))
         assertEquals(SelfUpdate.Ready(464), updates.state.first())
         val install = work.getWorkInfosForUniqueWork(LiveUpdates.INSTALL).get().single()
-        assertTrue("tried again later", install.state == WorkInfo.State.ENQUEUED)
         assertTrue("and only once there's room", install.constraints.requiresStorageNotLow())
+    }
+
+    @Test
+    fun androidSayingThereIsNoRoomWaitsForTheNextCheckRatherThanEveryHalfHour() = runBlocking {
+        val updates = updates()
+        ready(updates)
+        work.cancelUniqueWork(LiveUpdates.INSTALL).result.get()
+        updates.installResult(464, PackageInstaller.STATUS_FAILURE_STORAGE, "no space", null)
+        assertTrue("not queued again by the answer itself",
+            work.getWorkInfosForUniqueWork(LiveUpdates.INSTALL).get().all { it.state == WorkInfo.State.CANCELLED })
+
+        updates.newerBuild(464)
+        assertTrue("the next check queues it", work.getWorkInfosForUniqueWork(LiveUpdates.INSTALL).get().any { it.state != WorkInfo.State.CANCELLED })
     }
 
     @Test

@@ -19,10 +19,11 @@ caught, and what got in the way. Newest first. Times are Pacific.
 ## Wed 21 Oct
 
 ### Self-update: a picker isn't "closed", and a full phone isn't the build's fault
-- **What you asked:** Jekyll Poster's port of the self-update (claude-playground #187) found three problems in the shared design; check this app for each.
-- **A picker on top counted as the app being closed.** The live build installs once the app isn't in front, and a file picker (import, export, Save to, the delivery folder) puts it behind. Installing then ended the app: the picked file never arrived, and a file Save to or Export had just made was left empty. Now the app keeps the request codes it's waiting on, on disk, and a background install waits for their answers. Only a launcher start with nothing to restore lets go of one never answered.
+- **What you asked:** check the self-update for three problems: a picker taken for the app being closed, a full phone counted against a build, and a hold let go when the phone turns.
+- **A picker on top counted as the app being closed.** The live build installs once the app isn't in front, and a file picker (import, export, Save to, the delivery folder) puts it behind. Installing then ended the app: the picked file never arrived, and a file Save to or Export had just made was left empty. Now the app keeps the request codes it's waiting on, on disk, and a background install waits for their answers. Only a fresh start of the app lets go of one never answered.
 - **No room counted against the build.** Android failing to copy the APK in (an `IOException`, or its own "storage" answer) counted toward the three failures that give a build up for good. Now neither counts, and the install work waits for storage not to be low, as the download already did.
-- **Rotation:** the third problem, a screen's hold let go in `DisposableEffect`, doesn't apply: nothing here lets go on dispose. A test turns the phone with a picker out and the install still waits.
+- **Rotation:** doesn't apply, as nothing here lets go of a hold when a screen goes away. A test turns the phone with a picker out and the install still waits.
+
 ### Posts stored before episode detection get a label (#355)
 - **What you asked:** posts synced before detection landed (18 Oct) have no episode kind, and nothing ever gave them one: a re-sync skips a stored post whole.
 - **Built:** a sync already judges new posts beside the source's last 14 days of stored ones; a stored post with no kind now keeps the verdict it gets there, with its pair and the audio the feed shows, and a sync with nothing new still runs when such a post is waiting. Only posts the feed still lists (through tt-rss: still unread), or that kept their audio: those stored before detection kept none, and judged from that an episode reads as an article.

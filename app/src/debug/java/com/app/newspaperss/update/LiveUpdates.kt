@@ -236,9 +236,10 @@ internal class LiveUpdates(
                 throw e
             } catch (e: IOException) {
                 // Usually no room for Android's copy: the phone's problem, not the build's, so not
-                // counted toward giving up on it.
+                // counted toward giving up on it. A wait, not a failure, so a tap doesn't send the
+                // reader to a browser download that needs the same room.
                 log("Build $ready couldn't be copied to Android: ${e.message}")
-                return@withContext Outcome.Retry
+                return@withContext Outcome.Busy(NO_ROOM)
             } catch (e: Exception) {
                 // SecurityException, or IllegalStateException for a session it closed under us.
                 log("Build $ready couldn't be handed to Android: ${e.javaClass.simpleName} ${e.message}")
@@ -284,11 +285,11 @@ internal class LiveUpdates(
                 log("Build $build can't install (status $status): $message")
                 giveUp(build)
             }
-            // No room, or storage not mounted: the phone's, not the build's. Not counted.
-            PackageInstaller.STATUS_FAILURE_STORAGE -> {
-                log("Build $build: no room to install ($message)")
-                LiveInstallWorker.enqueue(work, delayMinutes = RETRY_MINUTES)
-            }
+            // No room, or storage not mounted: the phone's, not the build's. Not counted, and not
+            // queued again here: Android can refuse for want of room before storage counts as low,
+            // so that would retry every half hour for as long as the phone stays full. The next
+            // check, on opening the app or every six hours, queues it again.
+            PackageInstaller.STATUS_FAILURE_STORAGE -> log("Build $build: no room to install ($message)")
             // Blocked, a timeout or no reason: maybe not next time, but not forever.
             else -> {
                 log("Build $build didn't install (status $status): $message")
@@ -384,6 +385,7 @@ internal class LiveUpdates(
         const val DOWNLOAD_TRIES = 5
         const val MAX_INSTALL_FAILURES = 3
         const val RETRY_MINUTES = 30L
+        const val NO_ROOM = "It installs once the phone has room for it."
         private val COMMIT_PENDING_MS = TimeUnit.MINUTES.toMillis(10)
 
         fun of(context: Context): LiveUpdates? = context.container.selfUpdates as? LiveUpdates

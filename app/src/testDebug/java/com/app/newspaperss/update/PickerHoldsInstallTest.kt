@@ -1,6 +1,7 @@
 package com.app.newspaperss.update
 
 import android.app.Activity
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import androidx.compose.ui.test.hasContentDescription
@@ -28,6 +29,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
@@ -103,22 +105,27 @@ class PickerHoldsInstallTest {
     }
 
     @Test
-    fun aPickerLeftOpenWhenTheAppDiedStillHoldsUntilAFreshStartFromTheLauncher() {
-        // Left by a process Android ended with a picker open.
-        AwaitedAnswers(app).sent(7)
+    fun aPickerLeftOpenStillHoldsUntilTheAppStartsAfresh() {
         val updates = updates()
-
-        // Restored to take the answer, or opened from a notification: still waiting.
-        val notification = Intent(app, MainActivity::class.java).putExtra(MainActivity.EXTRA_OPEN, MainActivity.OPEN_LISTENING)
-        ActivityScenario.launch<MainActivity>(notification).use { scenario ->
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            // A picker out when Android ended the app; restored to take the answer.
+            AwaitedAnswers(app).sent(7)
             scenario.recreate()
             scenario.moveToState(Lifecycle.State.CREATED)
             assertTrue(backgroundInstall(updates) is LiveUpdates.Outcome.Busy)
         }
-        assertTrue(AwaitedAnswers(app).any)
 
-        // From the launcher with nothing to restore, no answer is coming.
-        ActivityScenario.launch(MainActivity::class.java).use { it.moveToState(Lifecycle.State.CREATED) }
+        // A launcher tap after a notification opened the app: Android starts a second instance on
+        // top of the task, with the picker still below it.
+        val onTop = Robolectric.buildActivity(MainActivity::class.java, Intent.makeMainActivity(ComponentName(app, MainActivity::class.java)))
+        shadowOf(onTop.get()).setIsTaskRoot(false)
+        onTop.setup().pause().stop()
+        assertTrue("the picker below may still answer", backgroundInstall(updates) is LiveUpdates.Outcome.Busy)
+        onTop.destroy()
+
+        // Started afresh, from anywhere: a new task, with no picker in it.
+        val notification = Intent(app, MainActivity::class.java).putExtra(MainActivity.EXTRA_OPEN, MainActivity.OPEN_LISTENING)
+        ActivityScenario.launch<MainActivity>(notification).use { it.moveToState(Lifecycle.State.CREATED) }
         assertFalse(AwaitedAnswers(app).any)
         assertEquals(LiveUpdates.Outcome.Started, backgroundInstall(updates))
     }
