@@ -5,6 +5,7 @@ import com.app.newspaperss.core.net.HttpClient
 import com.app.newspaperss.core.net.HttpResponse
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -220,5 +221,22 @@ class FeedFinderTest {
     fun aLinkedFeedOnTheSameSiteCountsWhateverTheHostsCase() {
         val page = "<a href=\"https://Blog.Example/feed\">RSS</a>"
         assertEquals(listOf("https://Blog.Example/feed"), FeedFinder.linkedFeeds(page, "https://blog.example/"))
+    }
+
+    @Test
+    fun aSharedFrontPageIsToldFromAnArticleByItsAddressAlone() {
+        listOf("https://news.example", "https://news.example/", "https://news.example/?ref=share", "https://news.example/index.html", "https://news.example/Home", "https://bücher.example/")
+            .forEach { assertTrue(it, FeedFinder.isFrontPage(it)) }
+        listOf("https://news.example/2026/10/a-story", "https://news.example/news/", "https://news.example/homes-for-sale", "not a link")
+            .forEach { assertFalse(it, FeedFinder.isFrontPage(it)) }
+    }
+
+    @Test
+    fun theWholeSitesFeedComesBeforeASectionsAndASectionsWhenItsAllThereIs() {
+        val section = FoundFeed("https://news.example/science/feed/", "Science")
+        val site = FoundFeed("https://news.example/feed/", "Everything")
+        assertEquals(site, FeedFinder.siteFeed(listOf(section, site)))
+        assertEquals(section, FeedFinder.siteFeed(listOf(section)))
+        assertNull(FeedFinder.siteFeed(emptyList()))
     }
 }

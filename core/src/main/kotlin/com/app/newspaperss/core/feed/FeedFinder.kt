@@ -169,6 +169,27 @@ class FeedFinder(private val http: HttpClient) {
         // Absolute paths: a feed usually lives at the site root, not under the page typed.
         internal val COMMON_PATHS = listOf("/feed", "/rss", "/feed.xml", "/rss.xml", "/atom.xml", "/index.xml", "/feed.json")
 
+        private val FRONT_PAGE_FILES = Regex("^/(index|default|home)(\\.(html?|php|aspx?))?/?$", RegexOption.IGNORE_CASE)
+
+        /**
+         * Whether [url] is a site's front page ("/", "/index.html", "/home"), from the address
+         * alone: a share asks before anything is fetched. A query doesn't count ("/?ref=share").
+         */
+        fun isFrontPage(url: String): Boolean {
+            val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return false
+            // Not host: java.net.URI leaves it null for a name in another script ("bücher.example").
+            if (uri.rawAuthority.isNullOrEmpty()) return false
+            val path = uri.path.orEmpty()
+            return path.isEmpty() || path == "/" || FRONT_PAGE_FILES.matches(path)
+        }
+
+        /**
+         * The whole site's feed among [feeds]: the one nearest the site's root ("/feed" over
+         * "/news/feed"), the first advertised among equals. A section's feed only when it's all there is.
+         */
+        fun siteFeed(feeds: List<FoundFeed>): FoundFeed? =
+            feeds.minByOrNull { f -> runCatching { URI(f.url).path.orEmpty().trimEnd('/').count { it == '/' } }.getOrDefault(Int.MAX_VALUE) }
+
         internal fun normalize(input: String): String? {
             val t = input.trim()
             if (t.isEmpty() || t.contains(' ')) return null

@@ -49,7 +49,7 @@ another reader app's list):
   website (the app finds its feed), import OPML from another reader, or
   connect a Tiny Tiny RSS account.
 - **Save things to read later.** Share a link from any app to "Read in
-  NewspapeRSS"; import your Pocket or Instapaper export. Add curated lists
+  NewspapeRSS", to save it or subscribe to its site; import your Pocket or Instapaper export. Add curated lists
   like Arts & Letters Daily, which picks a few links a day.
 - **A paper that ends.** Each edition fills a reading-time budget, taking
   turns between sites with at most one article from each (you can allow

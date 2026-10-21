@@ -41,15 +41,41 @@ class TtrssSubscriptions(private val ttrss: TtrssRepository, private val scope: 
      * answer, "already subscribed", would replace the first's Undo.
      */
     fun subscribe(request: Request): Boolean {
-        if (!claim(request.feedUrl)) return false
+        if (!claim(request.feedUrl)) {
+            synchronized(this) { if (request.feedUrl in asking.value) waitedOn.value += request.feedUrl }
+            return false
+        }
         scope.launch {
             try {
                 post(Outcome.Subscribed(request, ttrss.subscribe(request.feedUrl, request.category)))
             } finally {
+                // Posted anyway: no share needs to know an Add dialog waited on it.
+                waitedOn.update { it - request.feedUrl }
                 asking.update { it - request.feedUrl }
             }
         }
         return true
+    }
+
+    /** Feeds an Add dialog asked about while a share was asking: it waits in [results] for the answer. */
+    private val waitedOn = MutableStateFlow<Set<String>>(emptySet())
+
+    /**
+     * As [subscribe], for a share, which has no screen to come back to: returns tt-rss's answer.
+     * A feed added also goes to [results], for Sources' Undo; any answer does when an Add dialog
+     * asked about the same feed meanwhile. The rest would only repeat the share's own toast,
+     * perhaps hours later. Null, asking nothing, while the same feed is already being asked about.
+     */
+    suspend fun subscribeAndWait(request: Request): TtrssRepository.Subscribed? {
+        if (!claim(request.feedUrl)) return null
+        return try {
+            ttrss.subscribe(request.feedUrl, request.category).also { answer ->
+                val waited = synchronized(this) { (request.feedUrl in waitedOn.value).also { waitedOn.value -= request.feedUrl } }
+                if (answer is TtrssRepository.Subscribed.Added || waited) post(Outcome.Subscribed(request, answer))
+            }
+        } finally {
+            asking.update { it - request.feedUrl }
+        }
     }
 
     /** Undo: unsubscribes [feedId], the feed [request] added to [login]. */
@@ -59,6 +85,7 @@ class TtrssSubscriptions(private val ttrss: TtrssRepository, private val scope: 
             try {
                 post(Outcome.Unsubscribed(request, ttrss.unsubscribe(feedId, login)))
             } finally {
+                waitedOn.update { it - request.feedUrl }
                 asking.update { it - request.feedUrl }
             }
         }

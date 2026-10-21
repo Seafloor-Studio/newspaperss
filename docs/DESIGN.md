@@ -844,6 +844,16 @@ whose Kindle and KOReader answers ask for more on the same page).
       sites (OPML)** stays: the tt-rss feeds as last listed, each in a
       folder named for its category there, and any still on the phone. No starter packs are offered.
   Getting or leaving a server is in Settings.
+- **Sharing a link to the app** asks at once, before anything is fetched:
+  **Save to your reading list**, **Subscribe to this site** or **Both**.
+  A site's front page (an address with no path, or `/index.html`) leads
+  with Subscribe; anything else leads with Save. Subscribe finds the feed
+  after the tap, as Add does, and adds it on the phone or in tt-rss,
+  whichever your sites come from (tt-rss: the category last picked in
+  Add). Of several feeds it takes the whole site's, nearest the root. With
+  no feed to follow, or one tt-rss refuses, the page is saved instead and
+  a toast says so, so a share is never lost. A site already followed says
+  so (and Both still saves). Cancel, or tapping outside, does nothing.
 - **Reading list:** links you shared into the app, each with its title,
   site and reading time (looked up in the background). They go first in
   the next edition. A link saved when there was no lookup, or imported

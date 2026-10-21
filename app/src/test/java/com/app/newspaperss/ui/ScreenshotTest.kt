@@ -748,6 +748,16 @@ class ScreenshotTest {
     }
 
     @Test
+    fun shareAnArticle() = shoot("09b-share-article", dialog = true) {
+        com.app.newspaperss.ui.share.ShareChoicesDialog("The quiet return of the night train", "news.example", frontPage = false, onChoose = {}, onCancel = {})
+    }
+
+    @Test
+    fun shareAFrontPage() = shoot("09c-share-front-page", dialog = true) {
+        com.app.newspaperss.ui.share.ShareChoicesDialog(null, "news.example", frontPage = true, onChoose = {}, onCancel = {})
+    }
+
+    @Test
     fun sources() {
         val repo = SourceRepository(db, clock)
         runBlocking {
