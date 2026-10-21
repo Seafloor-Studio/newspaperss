@@ -118,7 +118,7 @@ case "${1:-}" in
       sleep 5
     done
     $ui shot 47-sources
-    [ -n "$found" ] || { echo "xkcd isn't in Sources after subscribing from a share" >&2; exit 1; }
+    [ -n "$found" ] || { echo "xkcd isn't in Sources after subscribing from a share; on screen:" >&2; $ui texts >&2; exit 1; }
     echo "share passed: the page is in the reading list and xkcd in Sources" ;;
   folder)
     # Android doesn't let an app have the whole of Downloads, only a folder in it.
@@ -126,6 +126,10 @@ case "${1:-}" in
     adb shell mkdir -p "$dir"
     adb shell "rm -f '$dir'/*.epub"
     bring_forward
+    # Settings comes back on whichever of its pages was open (doze.sh leaves Schedule); a second
+    # tap goes to its first page.
+    $ui tap "Settings" > /dev/null
+    sleep 1
     $ui tap "Settings" > /dev/null
     $ui tap "E-reader & delivery" > /dev/null
     $ui tap "Save to a folder" > /dev/null
