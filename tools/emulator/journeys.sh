@@ -142,6 +142,8 @@ case "${1:-}" in
     sleep 1
     $ui tap "Settings" > /dev/null
     $ui tap "E-reader & delivery" > /dev/null
+    # Below the tips for sending by hand.
+    scroll_to "Save to a folder" || { echo "no Save to a folder in E-reader & delivery" >&2; $ui texts >&2; exit 1; }
     $ui tap "Save to a folder" > /dev/null
     # Android's folder picker, opened wherever it was last; go to Downloads if Editions isn't there.
     if ! $ui wait "Editions" --exact --timeout 10 > /dev/null 2>&1; then
