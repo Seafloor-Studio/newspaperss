@@ -52,6 +52,20 @@ class TtrssSubscriptions(private val ttrss: TtrssRepository, private val scope: 
         return true
     }
 
+    /**
+     * As [subscribe], for a share, which has no screen to come back to: waits for tt-rss's answer
+     * and returns it instead of leaving it for Sources. Null, asking nothing, while the same feed
+     * is already being asked about.
+     */
+    suspend fun subscribeAndWait(request: Request): TtrssRepository.Subscribed? {
+        if (!claim(request.feedUrl)) return null
+        return try {
+            ttrss.subscribe(request.feedUrl, request.category)
+        } finally {
+            asking.update { it - request.feedUrl }
+        }
+    }
+
     /** Undo: unsubscribes [feedId], the feed [request] added to [login]. */
     fun unsubscribe(request: Request, feedId: Int, login: TtrssRepository.Login?) {
         if (!claim(request.feedUrl)) return

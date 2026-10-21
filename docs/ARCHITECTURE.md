@@ -84,7 +84,7 @@ Entry points from outside the app (`app/src/main/AndroidManifest.xml`):
 | Entry point | What it does |
 |---|---|
 | `MainActivity` | The app. |
-| `ShareActivity` | Share target: saves a link to the reading list and closes. |
+| `ShareActivity` | Share target: asks Save, Subscribe or Both, hands the choice to `SharedLinks` in the app scope, and closes. |
 | `OpenEditionActivity` | The notification's **Read** (Boox): opens the EPUB and marks it sent. |
 | `SendEditionActivity` | The notification's **Send** with email to a Kindle: opens the mail app and marks it sent. |
 | `EditionSentReceiver` | The share sheet reports which app was picked: marks the edition sent. |
