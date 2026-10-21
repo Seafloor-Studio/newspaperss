@@ -3,6 +3,13 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle G3 (21 Oct) — build: a deleted edition's title
+
+Built the approved item; see [DEVLOG.md](DEVLOG.md).
+- **List every "went out" path before reading a flag as "never went out".** `deliveredAt` looked like the whole truth, but `markDelivered` deliberately records nothing for a released edition shared during a build. The review found it; a grep for every early return in `markDelivered` would have.
+- **A full `./gradlew build` here took 10 minutes** with a warm daemon after the first test run (the first Gradle run fetched the distribution and build-tools 36).
+- **Run baseline:** no emulator, no Docker; Gradle stopped at the end.
+
 ### Cycle G2 (21 Oct) — build: the tt-rss sign-in wait
 
 Built the approved lockout item; see [DEVLOG.md](DEVLOG.md).

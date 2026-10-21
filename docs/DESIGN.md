@@ -442,9 +442,11 @@ phone restarts.
   whose link or guid is over 4,000 characters (a `data:` link, say) isn't
   kept, since a cut link would lead somewhere else.
 - **Deleting an edition** removes its file and contents. One that was ever
-  delivered keeps its title reserved, since Send to Kindle would drop a
-  repeat; one that never went out gives its title to the next edition. A
-  ready edition's articles go back to the pool; a delivered one's stay used.
+  delivered, or released as not sent (it could have gone out while its
+  file was here), keeps its title reserved, since Send to Kindle would
+  drop a repeat. One deleted while ready and never sent gives its title to
+  the next edition. A ready edition's articles go back to the pool; a
+  delivered one's stay used.
 
 ## 8. Onboarding (target: first edition in under two minutes)
 
