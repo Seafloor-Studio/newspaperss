@@ -16,9 +16,11 @@ bring_forward() {
 
 today() {
   # A tap while the app is still coming forward is lost, so try a few times; an edition may
-  # also still be in the making (a timed one, say), so the last wait is long.
+  # also still be in the making (a timed one, say), so the last wait is long. Today keeps its
+  # scroll, and the latest edition is at the top: scroll back up to it.
   for wait in 10 10 300; do
     $ui tap "Today" > /dev/null
+    for _ in 1 2 3; do scroll_up; done
     $ui wait "More options for" --timeout "$wait" > /dev/null 2>&1 && return
   done
   echo "no edition on Today" >&2
@@ -37,13 +39,15 @@ open_edition() {
   $ui wait "More options" --exact > /dev/null
 }
 
-# A slow swipe up by half the screen, to bring what's below the fold of a list into view.
-scroll_down() {
+# A slow swipe by half the screen, to bring what's below (or above) the fold of a list into view.
+swipe() {
   local w h
   read -r w h < <(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | tr x ' ')
-  adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 600
+  adb shell input swipe $((w / 2)) $((h * $1 / 4)) $((w / 2)) $((h * $2 / 4)) 600
   sleep 1
 }
+scroll_down() { swipe 3 1; }
+scroll_up() { swipe 1 3; }
 
 # The first book in a folder on the device once it is whole: written by another process, it
 # grows for a while. Prints its path, or fails after a minute.
