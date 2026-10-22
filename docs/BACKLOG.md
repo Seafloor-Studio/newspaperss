@@ -36,7 +36,9 @@ Cycle G6. Fixed in #363 (CI) and #364 (nested JSON). Measured unless it says "re
   - Pages are allowed 5 MB, and the edition's deadline is checked only between articles, so the cure is likely a limit on elements per page, or work the deadline can stop.
 - [ ] **A feed of over 1,000 items whose dates can't order them keeps its first 1,000** *(H3, #376's review)*: right for the usual newest-first feed, but an undated or same-dated oldest-first one keeps its oldest. Before the cap, all were stored. Rare (it needs both); keep the last 1,000 when no dates differ, if one turns up.
 - [ ] OPML and reading-list imports read the whole picked file into memory (`readText()`), with no size limit. Small: the reader picks the file. *(read)*
-- [ ] **No dependency verification:** there's no `gradle/verification-metadata.xml`, so a replaced artifact on a repository would go unnoticed. JitPack (sherpa-onnx, debug builds only) builds from tags that can move. Worth doing before Play.
+- [x] **Dependency verification** *(H9)*: `gradle/verification-metadata.xml`, written again on Dependabot's PRs by a workflow
+- [ ] **Robolectric's Android jars aren't verified:** Robolectric downloads them itself, outside Gradle
+- [ ] **Old checksums stay trusted:** Gradle never drops an entry, so the file only grows; a pass that rewrites it from scratch every so often would drop versions no longer used
 - [ ] `recurring-review.yml` steers an agent that can write issues. Its spec comes from claude-playground, and it reads the bodies of open `audit` issues, which anyone can write. Its `gh api repos/madCode/claude-playground/contents/*` allowance also permits PUT and DELETE. Your call whether to narrow it to GET and to issues you opened. *(read)*
 - [ ] **Debug builds signed with their own key: the secrets** *(H5, H8)*. CI signs published debug builds with `DEBUG_KEYSTORE_BASE64` and friends once they exist, rotated from the shared key so Android 9+ takes them as an update. madCode adds them after this build has reached the testers' phones, as the morning page says.
 - Checked and left as is:

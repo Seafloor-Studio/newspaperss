@@ -9,6 +9,9 @@ on:
     #   - "src/**/*.tsx"
     #   - "src/**/*.js"
     #   - "src/**/*.jsx"
+  # dependency-verification.yml starts it on a Dependabot branch after pushing checksums, which
+  # starts no pull_request event, so the required check reports on the new commit.
+  workflow_dispatch:
 
 jobs:
   claude-review:
@@ -26,6 +29,13 @@ jobs:
       id-token: write
 
     steps:
+      # A skipped job would pass the required check too, so started by hand anywhere but a
+      # Dependabot branch (where there's nothing to review, below) it fails instead.
+      - name: Only on Dependabot's branches when started by hand
+        if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/heads/dependabot/')
+        run: |
+          echo "::error::Started by hand outside a Dependabot branch: no review was made."
+          exit 1
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -38,7 +48,7 @@ jobs:
         # CLAUDE_CODE_OAUTH_TOKEN, so the action can only fail for them. The job still runs and
         # reports success, because claude-review is a required check and a skipped job would
         # leave every dependency bump unmergeable.
-        if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
         uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1.0.248
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

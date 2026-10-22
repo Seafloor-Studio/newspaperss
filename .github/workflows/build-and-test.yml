@@ -11,6 +11,8 @@ on:
     # other check green with the suite never run against it. Closing and reopening doesn't
     # start it either.
     types: [opened, synchronize, reopened, edited]
+  # dependency-verification.yml starts it again on a Dependabot branch after pushing checksums.
+  workflow_dispatch:
 
 # Read-only unless a job asks for more; the build runs third-party plugins and dependencies.
 permissions:

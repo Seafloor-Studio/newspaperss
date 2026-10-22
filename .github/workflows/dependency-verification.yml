@@ -1,0 +1,128 @@
+# Gradle checks every dependency against gradle/verification-metadata.xml, so a Dependabot
+# update fails the build until the file lists the new versions' checksums. This writes them on
+# Dependabot's own Gradle PRs and pushes them back; the diff is the reviewer's to read.
+#
+# A push made with the workflow token starts no workflows, so the checks are started again
+# by hand afterwards (workflow_dispatch is the one event that token can start).
+name: Dependency verification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'gradle/libs.versions.toml'
+      - '**/*.gradle.kts'
+      - 'gradle/wrapper/gradle-wrapper.properties'
+
+permissions:
+  contents: read
+
+# A newer push from Dependabot makes this run's checksums stale.
+concurrency:
+  group: dependency-verification-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # The new versions' code runs here, with a read-only token and nothing to push with.
+  write:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      failed: ${{ steps.write.outputs.failed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The branch itself, not its merge with main: the checksums are committed to it.
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - name: Write the checksums
+        id: write
+        # A test the update breaks still leaves the checksums written: they're pushed, so the
+        # PR's own checks show the breakage, and this run fails after.
+        run: tools/verification-metadata.sh || echo "failed=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: verification-metadata
+          path: gradle/verification-metadata.xml
+          if-no-files-found: error
+
+  # Runs no code from the PR: it commits the one file the job above wrote, if it changed.
+  push:
+    needs: write
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The commit the checksums were written for: if Dependabot has pushed since, the push
+          # below isn't a fast-forward and fails, and the run its push started writes them again.
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: verification-metadata
+          path: ${{ runner.temp }}/metadata
+      - name: Check that it only adds checksums
+        # The job above ran the new versions' code, which could have rewritten the whole file:
+        # trusting everything, or changing a checksum already listed.
+        env:
+          NEW: ${{ runner.temp }}/metadata/verification-metadata.xml
+        run: |
+          file=gradle/verification-metadata.xml
+          if [ -f "$file" ]; then
+            cp "$file" "$RUNNER_TEMP/old.xml"
+          else
+            git fetch --depth=1 origin main
+            git show origin/main:"$file" > "$RUNNER_TEMP/old.xml"
+          fi
+          python3 - "$RUNNER_TEMP/old.xml" "$NEW" <<'EOF'
+          import re, sys
+          old, new = (open(p, encoding="utf-8").read() for p in sys.argv[1:])
+          def config(xml):
+              return re.search(r"<configuration>.*?</configuration>", xml, re.S).group(0)
+          def checksums(xml):
+              found = set()
+              for c in re.finditer(r'<component group="([^"]*)" name="([^"]*)" version="([^"]*)">(.*?)</component>', xml, re.S):
+                  for a in re.finditer(r'<artifact name="([^"]*)">(.*?)</artifact>', c.group(4), re.S):
+                      for s in re.findall(r'<sha256 value="([^"]*)"', a.group(2)):
+                          found.add(c.groups()[:3] + (a.group(1), s))
+              return found
+          if config(old) != config(new):
+              sys.exit("The new file changes the verification settings, not only checksums.")
+          gone = checksums(old) - checksums(new)
+          if gone:
+              sys.exit("The new file drops or changes checksums already listed: " + ", ".join(":".join(g[:4]) for g in sorted(gone)))
+          EOF
+      - name: Commit and start the checks again
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          NEW: ${{ runner.temp }}/metadata/verification-metadata.xml
+        run: |
+          cp "$NEW" gradle/verification-metadata.xml
+          git add gradle/verification-metadata.xml
+          if git diff --cached --quiet; then
+            echo "The checksums were already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Dependency verification: checksums for the new versions"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          # build and claude-review are the required checks; the others run on these files.
+          for workflow in build-and-test.yml claude-code-review.yml device-tests.yml book-checks.yml; do
+            gh workflow run "$workflow" --ref "$BRANCH"
+          done
+      - name: Fail if the build failed
+        if: needs.write.outputs.failed == 'true'
+        run: |
+          echo "::error::The build failed with the new versions. The checksums were pushed anyway, so the PR's own checks show why."
+          exit 1

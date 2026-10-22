@@ -3,6 +3,12 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle H9 (22 Oct) — build: dependency verification
+
+See [DEVLOG.md](DEVLOG.md).
+- **Before adding a workflow that pushes, read the branch's required checks** (`gh api repos/<repo>/rules/branches/main`). A push made with the workflow's token starts no checks, and a required check that never reports leaves the PR stuck.
+- **A skipped job passes a required check.** Gate a job that can be started by hand with a failing step, not a job-level `if`.
+
 ### Cycle H8 (22 Oct) — build: the debug key, rotated
 
 See [DEVLOG.md](DEVLOG.md).
