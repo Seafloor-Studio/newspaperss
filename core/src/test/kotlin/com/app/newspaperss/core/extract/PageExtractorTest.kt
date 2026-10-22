@@ -183,7 +183,7 @@ class PageExtractorTest {
     @Test
     fun aPageNestedThousandsDeepIsReadInSeconds() {
         // 120 KB: 105 s, Readability removing the empty blocks one at a time.
-        val seconds = secondsToExtract(pageOf("<div>".repeat(20_000) + "</div>".repeat(20_000)))
+        val seconds = secondsToExtract(pageOf("<div>".repeat(20_000) + "Down here." + "</div>".repeat(20_000)))
         assertTrue("$seconds s", seconds < 10)
     }
 
