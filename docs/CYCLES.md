@@ -12,6 +12,7 @@ See [DEVLOG.md](DEVLOG.md).
 
 See [DEVLOG.md](DEVLOG.md).
 - **Script a journey from the app's own strings, not memory.** Every label `mark-sent` and `opml` tap was read from the source first (`EditionActions`, `MarkNotSent`, `SourcesScreen`), and both passed on the first CI run; the picker steps copied the folder journey's, which already knew this image's picker.
+- **One green run of a new journey isn't proof.** `opml`'s second run read the export before it was written; wait for the content, as `whole_book_in` does for a book, never for a file to exist.
 
 ### Cycle H7 (22 Oct) — audit: architecture and test health
 
