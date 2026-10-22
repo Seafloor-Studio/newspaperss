@@ -182,9 +182,14 @@ class PageExtractorTest {
 
     @Test
     fun aPageNestedThousandsDeepIsReadInSeconds() {
-        // 120 KB: 105 s, Readability removing the empty blocks one at a time.
-        val seconds = secondsToExtract(pageOf("<div>".repeat(20_000) + "Down here." + "</div>".repeat(20_000)))
+        // 120 KB, with little else on the page for Readability to choose: 105 s, as it removed the
+        // empty blocks one at a time.
+        val html = "<html><body><article><p>Hello there.</p>" + "<div>".repeat(20_000) + "Down here." + "</div>".repeat(20_000) + "</article></body></html>"
+        val started = System.nanoTime()
+        val page = PageExtractor.extract(html, url)
+        val seconds = (System.nanoTime() - started) / 1e9
         assertTrue("$seconds s", seconds < 10)
+        assertTrue(page.html, "Down here." in page.html)
     }
 
     @Test
