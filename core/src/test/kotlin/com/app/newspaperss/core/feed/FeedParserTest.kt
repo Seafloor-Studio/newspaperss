@@ -244,7 +244,7 @@ class FeedParserTest {
         val body = "<rss><channel><title>T</title></channel></rss>"
         for (subset in listOf(
             "<!ENTITY % p \"x\">",
-            "<!ELEMENT rss ANY><!ATTLIST rss version CDATA \"2.0>[\"><!-- ] --><!ENTITY b '&nbsp;&a;'>",
+            "<!ELEMENT rss ANY><!ATTLIST rss version CDATA \"2.0>]\"><!-- ] --><!ENTITY b '&nbsp;&a;'>",
         )) {
             assertThrows(subset, FeedParseException::class.java) {
                 FeedParser.parse("<?xml version=\"1.0\"?><!DOCTYPE rss SYSTEM \"x[.dtd\" [$subset]>$body", "https://a.example/feed")
