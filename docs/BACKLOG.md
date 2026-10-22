@@ -18,7 +18,14 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 - [ ] About 100 view models built directly in tests (Today, Settings, Sources…) are still never stopped, as the source page's were; `testutil/ViewModels` stops them, so adopt it as those tests are touched *(today B3)*
 - [ ] **Waits on a view model's state alone, in screen tests, may race the same way `PodcastSettingsTest` did** *(20 Oct, from #340)*: about 45 `idleUntil { vm.….value … }` waits in screen tests, 23 of them in `EditionDetailScreenTest`, drain the main looper but never let the Compose rule run the effects that subscribe to those flows. (Not `PodcastSettingsTest`'s other three, which come after `show()` has the subscription live, nor the view-model tests, which have no Compose rule.) Not counted; none has been seen to fail. If one does, give it `compose.waitForIdle()` inside the wait, as #340 did, and count it
 - [ ] CLAUDE.md says its shared sections match claude-playground's; several rules have drifted (tests "waits for the condition", the review's background-work bullet, the PR template, "merge only when asked"). Your call whether to bring them across
-- Next audit of this kind: after 30–40 more cycles, or before a release
+- The next audit of this kind is listed under Recurring reviews.
+
+### From the 22 Oct audit *(audit)*
+Architecture and test health, cycle H7. Fixed: a feed's title or address too big to read back, a shared link's tracking doubling a story, and three Share tests that couldn't fail. Read, not reproduced:
+- [ ] **Save a copy, then deleting the edition, gives its title to the next one.** Save a copy records nothing, and a deleted edition with no `deliveredAt` frees its title (#358). A reader who sends the copy on by hand and tidies up gets the same title again, which Send to Kindle drops, and the articles come back. Needs the copy recorded (a column, so a migration) without marking it sent.
+- [ ] **The self-update hold ends before Save a copy (or an OPML export) has written its file** (`MainActivity` marks the picker answered before the result callback starts the copy). An install in that second could leave half a file. Debug builds only; hold until the copy is done.
+- [ ] **`journeys.sh listen` takes any player's audio as the voice's** (`dumpsys audio | grep state:started`): match the TTS engine's or the app's uid.
+- [ ] **Two `ShareActivityTest` checks see a doubled launch, not a doubled call inside one**: `act` run twice in one launch still toasts once. Not worth more machinery unless that code changes.
 
 ### From the 21 Oct security review *(audit)*
 Cycle G6. Fixed in #363 (CI) and #364 (nested JSON). Measured unless it says "read".
@@ -105,7 +112,7 @@ A full pass over the app and the book, not just spot fixes:
 ### Recurring reviews *(audit)*
 Whole-codebase passes for what a review of one PR can't see. Each follows the audit's pattern: fresh-eyes reviewers, each finding checked, a PR per area.
 - [ ] **Security and supply chain** (last: 21 Oct, cycle G6; its findings are under "From the 21 Oct security review"), before each release or every 20–30 cycles: hostile feeds and pages (entity expansion, slow regexes, huge inputs), links and intents that leave the app, what CI's jobs can write, signing keys, and pinned actions and dependencies
-- [ ] **Architecture and test health** (last: 16 Oct, cycle 6 of that run; its findings are at the top of Next), every 30–40 cycles or before a release: duplication and code that has grown complicated, how features fit together (what one feature deletes that another still uses), tests that can never fail, waits that flake under load, and copied test helpers
+- [ ] **Architecture and test health** (last: 22 Oct, cycle H7; its findings are under "From the 22 Oct audit"), every 30–40 cycles or before a release: duplication and code that has grown complicated, how features fit together (what one feature deletes that another still uses), tests that can never fail, waits that flake under load, and copied test helpers
 
 ### Self-update *(audit)*
 - [ ] **Check on a phone: a background install while an edition sent from its notification is in another app's hands.** Send on the notification starts the mail app or e-reader from `SendEditionActivity`, outside `MainActivity`, and nothing waits for it. If an install then replaces the app, can that app still read the book? Steps: tap Send, leave the mail draft open, let the next build install, then send the mail. *(device)*
