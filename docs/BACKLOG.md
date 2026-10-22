@@ -22,11 +22,11 @@ Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "che
 
 ### From the 21 Oct security review *(audit)*
 Cycle G6. Fixed in #363 (CI) and #364 (nested JSON). Measured unless it says "read".
-- [ ] **Deeply nested markup takes time that grows with the square of its depth, and nothing stops it.**
-  - Measured: an Atom feed 100k elements deep (700 KB) takes 20 s in `FeedParser.parse`; `HtmlCleaner.clean` takes 22 s on the same depth of `<b>`; `PageExtractor.extract` takes 69 s on 200k `<div>`.
-  - A 10 MB feed can be 1.4M levels deep, and feed text is allowed 500k characters (about 10 s).
-  - The edition's deadline is checked only between articles, and this CPU-bound code ignores cancellation.
-  - Likely fix: refuse or flatten beyond a few hundred levels before parsing, for feeds and pages alike.
+- [ ] **Some pages and feed texts still take tens of seconds to read, and nothing stops them** *(H2, #375's review)*. Deep nesting and runs of empty blocks are fixed (#375); these shapes aren't, measured on the JVM, none slower than before:
+  - Nested with text at every level (`<div>x` 100,000 times, 600 KB): 68 s to extract, 27 s to clean.
+  - 100,000 `<br>` (400 KB): 20 s to extract. 100,000 `<p></p>`: 18 s.
+  - 100,000 empty `<span>`s, nested or side by side: 11–14 s to clean (`stripTagsAndAttributes` unwraps them one at a time).
+  - Pages are allowed 5 MB, and the edition's deadline is checked only between articles, so the cure is likely a limit on elements per page, or work the deadline can stop.
 - [ ] **One feed can add any number of items:** a 10 MB RSS feed of tiny items parsed into 321,114 items (1.3 s, about 110 MB of heap), all handed to `insertFetched`. A per-feed cap per sync, newest first.
 - [ ] **The entity guard in `FeedParser` is a regex, and it's slow and easy to get past.**
   - A fake `<rss>` inside a comment, or a 70 KB comment, gets past it.
