@@ -28,7 +28,15 @@ sealed interface FindResult {
  */
 class FeedFinder(private val http: HttpClient) {
 
-    suspend fun find(input: String): FindResult {
+    suspend fun find(input: String): FindResult = when (val result = findAny(input)) {
+        // Too long to keep, wherever it came from (a link, or a redirect): the app refuses to store
+        // one (its RowLimits.MAX_LINK), so it isn't offered.
+        is FindResult.Found -> result.feeds.filter { it.url.length <= MAX_FEED_URL }
+            .let { if (it.isEmpty()) FindResult.NotFound("That site's feed address is too long to keep.", page = result.page) else result.copy(feeds = it) }
+        is FindResult.NotFound -> result
+    }
+
+    private suspend fun findAny(input: String): FindResult {
         val url = normalize(input) ?: return FindResult.NotFound("That doesn't look like a web address.")
         val response = try {
             http.getFeed(url)
@@ -228,8 +236,6 @@ class FeedFinder(private val http: HttpClient) {
                 // REST API (type application/json) is a page's data, not a feed.
                 .filterNot { it.attr("title").contains("comments", ignoreCase = true) || "/wp-json/" in it.attr("href") }
                 .map { FoundFeed(it.absUrl("href"), it.attr("title").trim().takeUnless { t -> t.isEmpty() || namesOnlyAFormat(t) }) }
-                // Too long to keep: the app refuses to store one (its RowLimits.MAX_LINK).
-                .filter { it.url.length <= MAX_FEED_URL }
                 .distinctBy { it.url }
     }
 }

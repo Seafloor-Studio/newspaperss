@@ -47,6 +47,15 @@ class SourceRepositoryTest {
     }
 
     @Test
+    fun anOpmlFileWithOneAddressTooLongToKeepImportsTheRest() = runTest {
+        val opml = "<opml version=\"2.0\"><body>" +
+            "<outline type=\"rss\" text=\"Long\" xmlUrl=\"https://a.example/${"x".repeat(RowLimits.MAX_LINK)}\"/>" +
+            "<outline type=\"rss\" text=\"Fine\" xmlUrl=\"https://b.example/feed\"/></body></opml>"
+        repo.importOpml(opml)
+        assertEquals(listOf("https://b.example/feed"), db.sources().all().map { it.url })
+    }
+
+    @Test
     fun newSourcesGoToTheEnd() = runTest {
         repo.addFeed("https://a.example/feed", "A")
         repo.addFeed("https://b.example/feed", "B")

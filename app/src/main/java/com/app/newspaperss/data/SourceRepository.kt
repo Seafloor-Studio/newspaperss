@@ -297,7 +297,8 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
     suspend fun importOpml(xml: String): OpmlImport {
         val feeds = Opml.parse(xml)
         var added = 0
-        for (feed in feeds) {
+        // An address too long to keep is skipped, not the rest of the file with it.
+        for (feed in feeds.filter { RowLimits.link(it.url) != null }) {
             if (sources.byUrl(feed.url) == null) {
                 addFeed(feed.url, feed.title)
                 added++
