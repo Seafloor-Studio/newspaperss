@@ -37,7 +37,11 @@ class FeedParserEntityTest {
 
     @Test
     fun aDeclaredEntityIsNotExpanded() {
-        val text = textOf(nested)
-        assertTrue("${text.length} characters: ${text.take(40)}", text.length < 100)
+        // The second as written with character references (&#38; is &), which FeedParser's check
+        // doesn't see: a declared value expands them, so the nesting is the same.
+        for (xml in listOf(nested, nested.replace("&a;", "&#38;a;").replace("&b;", "&#38;b;").replace("&c;", "&#38;c;").replace("&d;", "&#38;d;"))) {
+            val text = textOf(xml)
+            assertTrue("${text.length} characters: ${text.take(40)}", text.length < 100)
+        }
     }
 }
