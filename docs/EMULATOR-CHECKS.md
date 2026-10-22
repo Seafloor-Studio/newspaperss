@@ -52,8 +52,8 @@ Each needs an edition first. "Proof" is what the session checks before calling t
 | Anything else | Send, and pick any app in the share sheet | The edition says sent |
 
 Then the state checks from DELIVERY-CHECKS.md, which `journeys.sh` does without an account
-(below): two editions built without sending the first, and a send from the notification after
-Android ended the app.
+(below): two editions built without sending the first, a send from the notification after
+Android ended the app, and Send again, Mark as not sent and Mark as sent.
 
 ## Without any account
 
@@ -70,6 +70,10 @@ Android ended the app.
   - `cold-send`: after `doze.sh soon` has made a timed edition (only those notify), Android
     ends the app, and Send from the notification reaches a stand-in app and marks it sent.
   - `share`: a page saved and a site subscribed from another app's share sheet.
+  - `mark-sent`: on the edition cold-send sent, Send again reaches the stand-in app; Mark as not
+    sent asks, then sets it back to ready; Mark as sent marks it sent.
+  - `opml`: two sites imported from a file through Android's file picker, then exported to
+    Downloads with both in it.
   - `folder`: Save to a folder in Settings; the next edition lands there, marked sent.
   - `listen`: Listen in the phone's voice starts playing, and pauses. How it sounds is still
     for a person.
