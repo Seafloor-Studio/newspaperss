@@ -168,4 +168,34 @@ class PageExtractorTest {
             </div></div></main></body></html>"""
         assertTrue(HtmlCleaner.countWords(PageExtractor.extract(member, url).html) >= 150)
     }
+
+    /** A page of empty blocks: nested past 512 levels, jsoup lays them side by side too. */
+    private fun pageOf(blocks: String) = """<html><head><title>Story</title></head><body><article><h1>Story</h1>
+        ${(1..8).joinToString("") { "<p>$sentence</p>" }}$blocks</article></body></html>"""
+
+    private fun secondsToExtract(html: String): Double {
+        val started = System.nanoTime()
+        val page = PageExtractor.extract(html, url)
+        assertTrue(page.html, "argue about the budget" in page.html)
+        return (System.nanoTime() - started) / 1e9
+    }
+
+    @Test
+    fun aPageNestedThousandsDeepIsReadInSeconds() {
+        // 120 KB, with little else on the page for Readability to choose: 105 s, as it removed the
+        // empty blocks one at a time.
+        val html = "<html><body><article><p>Hello there.</p>" + "<div>".repeat(20_000) + "Down here." + "</div>".repeat(20_000) + "</article></body></html>"
+        val started = System.nanoTime()
+        val page = PageExtractor.extract(html, url)
+        val seconds = (System.nanoTime() - started) / 1e9
+        assertTrue("$seconds s", seconds < 10)
+        assertTrue(page.html, "Down here." in page.html)
+    }
+
+    @Test
+    fun aPageOfAHundredThousandEmptyBlocksIsReadInSeconds() {
+        // 1.1 MB, a fifth of what a page may be. Readability removing them one at a time: 53 s.
+        val seconds = secondsToExtract(pageOf("<div></div>".repeat(100_000)))
+        assertTrue("$seconds s", seconds < 10)
+    }
 }

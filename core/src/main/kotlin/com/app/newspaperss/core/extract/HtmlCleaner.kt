@@ -13,9 +13,13 @@ import org.jsoup.nodes.Element
 import org.jsoup.nodes.Entities
 import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
+import org.jsoup.select.NodeTraversor
+import org.jsoup.select.NodeVisitor
 import java.net.IDN
 import java.net.URI
 import java.net.URISyntaxException
+import java.util.Collections
+import java.util.IdentityHashMap
 
 data class CleanResult(
     /** An XHTML-serialized fragment (`<br />`, `<img ... />`) ready to go into an EPUB chapter. */
@@ -839,12 +843,46 @@ object HtmlCleaner {
         for (h in headings) h.tagName("h${minOf(6, h.tagName()[1].digitToInt() + shift)}")
     }
 
+    // Removing an empty element leaves its parent's text and pictures as they were, so what's
+    // empty is decided first, in one pass from the leaves up (asking each element for its text
+    // reads its whole subtree again, hundreds of times over on nested ones), and taken out at once.
     private fun removeEmpty(body: Element) {
-        for (el in body.select("*").reversed()) {
-            if (el === body || el.tagName() !in EMPTY_REMOVABLE_TAGS) continue
-            if (el.text().isNotBlank() || el.selectFirst("img, hr, table") != null) continue
-            if (el.tagName() == "a" && el.hasAttr("id")) continue
-            el.remove()
+        val full = Collections.newSetFromMap(IdentityHashMap<Node, Boolean>())
+        NodeTraversor.traverse(object : NodeVisitor {
+            override fun head(node: Node, depth: Int) {}
+            override fun tail(node: Node, depth: Int) {
+                val holds = when (node) {
+                    // text(), as it drops zero-width spaces and soft hyphens, which some editors
+                    // leave as a paragraph's only content.
+                    is TextNode -> node.text().isNotBlank()
+                    is Element -> node in full || node.normalName() in KEEPS_A_BLOCK
+                    else -> false
+                }
+                if (holds) {
+                    full.add(node)
+                    node.parentNode()?.let(full::add)
+                }
+            }
+        }, body)
+        removeAll(
+            body.select("*").filter { el ->
+                el !== body && el.tagName() in EMPTY_REMOVABLE_TAGS && el !in full && !(el.tagName() == "a" && el.hasAttr("id"))
+            },
+        )
+    }
+
+    /**
+     * Removes [nodes] a parent at a time. One by one, jsoup renumbers the remaining siblings after
+     * each, and a page with thousands of them side by side (nested ones too, which jsoup lays
+     * side by side past 512 levels) took minutes. A node inside another one removed goes with it.
+     */
+    internal fun removeAll(nodes: Collection<Node>) {
+        val gone = Collections.newSetFromMap(IdentityHashMap<Node, Boolean>()).apply { addAll(nodes) }
+        for ((parent, _) in nodes.groupBy { it.parentNode() }) {
+            if (parent !is Element) continue
+            val kept = parent.childNodes().filter { it !in gone }
+            parent.empty()
+            parent.appendChildren(kept)
         }
     }
 
@@ -969,6 +1007,7 @@ object HtmlCleaner {
     )
     private val MODERN_FORMATS = listOf("webp", "avif")
 
+    private val KEEPS_A_BLOCK = setOf("img", "hr", "table")
     private val EMPTY_REMOVABLE_TAGS = setOf(
         "p", "div", "li", "ul", "ol", "dl", "h1", "h2", "h3", "h4", "h5", "h6", "a", "figure", "figcaption",
         "blockquote", "em", "i", "strong", "b", "u", "small", "table", "tr", "td", "th", "tbody", "thead",

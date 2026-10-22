@@ -33,6 +33,7 @@ object FeedParser {
     private val ENTITY_REF = Regex("&[A-Za-z_:]")
     private val ENTITY = Regex("<!ENTITY\\s+(%?)[^>]*?(\"[^\"]*\"|'[^']*'|>)", RegexOption.IGNORE_CASE)
     private const val MAX_PROLOG = 64 * 1024
+    private const val MAX_DEPTH = 512
     private const val TOO_LARGE = "This feed is too large to read."
 
     /**
@@ -96,6 +97,8 @@ object FeedParser {
         }
     }
 
+    private class TooDeep : Exception()
+
     private class XmlFeedReader(private val p: XmlPullParser, private val feedUrl: String, private val truncated: Boolean) {
         private var feedTitle: String? = null
         private var siteUrl: String? = null
@@ -111,9 +114,14 @@ object FeedParser {
                 // A cut inside a tag ("<descri") is an error; the items added before it are whole.
                 if (!truncated || items.isEmpty()) throw e
                 stoppedAtCut = true
+            } catch (_: TooDeep) {
+                // As past a cut: the items before it are whole. Android's lenient parser closes only
+                // one element per stray end tag, so a long feed of unescaped HTML gets here too.
+                if (items.isEmpty()) throw FeedParseException("Not a readable feed: it nests elements more than $MAX_DEPTH deep.")
+                stoppedAtCut = true
             }
             if (!sawRoot) throw FeedParseException("Empty document")
-            if (!truncated) return Feed(feedTitle, siteUrl, items, podcast)
+            if (!truncated) return Feed(feedTitle, siteUrl, items.toList(), podcast)
             // Otherwise the parser took the cut for the document's end, closing what it left open
             // (kxml on the JVM) or not (Android's): either way the last item read may be only part
             // of one, so it goes. A whole one lost from a feed this long costs nothing.
@@ -127,7 +135,7 @@ object FeedParser {
         }
 
         private fun readAll() {
-            while (p.next() != XmlPullParser.END_DOCUMENT) {
+            while (next() != XmlPullParser.END_DOCUMENT) {
                 if (p.eventType != XmlPullParser.START_TAG) continue
                 val name = p.name
                 when {
@@ -159,7 +167,7 @@ object FeedParser {
             var updated: String? = null
             val enclosures = mutableListOf<Enclosure>()
             var duration: Int? = null
-            while (!(p.next() == XmlPullParser.END_TAG && p.depth == depth && p.name == tag)) {
+            while (!(next() == XmlPullParser.END_TAG && p.depth == depth && p.name == tag)) {
                 if (p.eventType == XmlPullParser.END_DOCUMENT) break
                 if (p.eventType != XmlPullParser.START_TAG || p.depth != depth + 1) continue
                 val ns = p.namespace
@@ -244,7 +252,7 @@ object FeedParser {
             val depth = p.depth
             var name: String? = null
             val text = StringBuilder()
-            while (!(p.next() == XmlPullParser.END_TAG && p.depth == depth)) {
+            while (!(next() == XmlPullParser.END_TAG && p.depth == depth)) {
                 when (p.eventType) {
                     XmlPullParser.TEXT, XmlPullParser.CDSECT, XmlPullParser.ENTITY_REF -> text.append(p.text)
                     XmlPullParser.START_TAG -> if (p.name == "name") name = readText() else skip()
@@ -259,7 +267,7 @@ object FeedParser {
             if (p.getAttributeValue(null, "type") != "xhtml") return readText()
             val depth = p.depth
             val out = StringBuilder()
-            while (!(p.next() == XmlPullParser.END_TAG && p.depth == depth)) {
+            while (!(next() == XmlPullParser.END_TAG && p.depth == depth)) {
                 when (p.eventType) {
                     XmlPullParser.START_TAG -> {
                         // The wrapping <div xmlns=xhtml> is required by the spec, not content.
@@ -285,7 +293,7 @@ object FeedParser {
         private fun readText(): String {
             val depth = p.depth
             val out = StringBuilder()
-            while (!(p.next() == XmlPullParser.END_TAG && p.depth == depth)) {
+            while (!(next() == XmlPullParser.END_TAG && p.depth == depth)) {
                 when (p.eventType) {
                     XmlPullParser.TEXT, XmlPullParser.CDSECT, XmlPullParser.ENTITY_REF -> out.append(p.text)
                     XmlPullParser.END_DOCUMENT -> break
@@ -294,9 +302,17 @@ object FeedParser {
             return out.toString()
         }
 
+        // The parser's work at each start tag grows with the depth, so a 10 MB feed nested a
+        // million deep would take hours; nothing real nests past a few dozen.
+        private fun next(): Int {
+            val event = p.next()
+            if (event == XmlPullParser.START_TAG && p.depth > MAX_DEPTH) throw TooDeep()
+            return event
+        }
+
         private fun skip() {
             val depth = p.depth
-            while (!(p.next() == XmlPullParser.END_TAG && p.depth == depth)) {
+            while (!(next() == XmlPullParser.END_TAG && p.depth == depth)) {
                 if (p.eventType == XmlPullParser.END_DOCUMENT) break
             }
         }

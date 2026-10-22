@@ -236,6 +236,36 @@ class FeedParserTest {
     }
 
     @Test
+    fun aFeedNestedThousandsDeepIsRefusedAtOnce() {
+        // The parser's work at each start tag grows with the depth: 100,000 levels took 24 s, and
+        // a 10 MB feed can nest well over a million.
+        val deep = "<?xml version=\"1.0\"?><feed xmlns=\"http://www.w3.org/2005/Atom\"><entry><title>E</title><id>1</id>" +
+            "<x>".repeat(100_000) + "</x>".repeat(100_000) + "</entry></feed>"
+        val thrown = assertThrows(FeedParseException::class.java) { FeedParser.parse(deep, "https://a.example/feed") }
+        assertTrue(thrown.message, "deep" in thrown.message!!)
+    }
+
+    @Test
+    fun theItemsBeforeTheNestingAreKept() {
+        // Hostile past them, or a long feed of unescaped HTML that Android's lenient parser reads
+        // deeper with every item: what was read whole is kept, as it is from a feed cut short.
+        val entries = (1..5).joinToString("") { "<entry><title>E$it</title><id>$it</id><link href=\"https://a.example/$it\"/></entry>" }
+        val deep = "<?xml version=\"1.0\"?><feed xmlns=\"http://www.w3.org/2005/Atom\">$entries<entry><title>X</title>" +
+            "<x>".repeat(100_000) + "</x>".repeat(100_000) + "</entry></feed>"
+        for (truncated in listOf(false, true)) {
+            assertEquals(listOf("E1", "E2", "E3", "E4", "E5"), FeedParser.parse(deep, "https://a.example/feed", truncated).items.map { it.title })
+        }
+    }
+
+    @Test
+    fun contentNestedAFewHundredDeepIsStillRead() {
+        val atom = "<?xml version=\"1.0\"?><feed xmlns=\"http://www.w3.org/2005/Atom\"><entry><title>E</title><id>1</id>" +
+            "<link href=\"https://a.example/1\"/><content type=\"xhtml\"><div xmlns=\"http://www.w3.org/1999/xhtml\">" + "<div>".repeat(400) + "Deep down." +
+            "</div>".repeat(400) + "</div></content></entry></feed>"
+        assertTrue("Deep down." in FeedParser.parse(atom, "https://a.example/feed").items.single().contentHtml!!)
+    }
+
+    @Test
     fun aFeedDeclaringPlainEntitiesIsStillRead() {
         val rss = "<?xml version=\"1.0\"?><!DOCTYPE rss [<!ENTITY nbsp \"&#160;\">]>" +
             "<rss><channel><title>Old CMS</title><item><title>A</title><link>https://a.example/a</link></item></channel></rss>"
