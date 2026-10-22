@@ -68,9 +68,15 @@ internal object PageExtractor {
     private val NOT_MAIN_IMAGE = setOf("logo", "avatar", "headshot", "author", "profile", "icon", "icons")
     private const val JSON_LD_PREFERENCE_RATIO = 1.5
     private const val FREE_PART_PROBE = 60
+    private const val EMPTY_BLOCKS = "div, section, header, h1, h2, h3, h4, h5, h6"
+    private const val MANY_EMPTY_BLOCKS = 100
 
     fun extract(html: String, url: String): PageContent {
         val doc = Jsoup.parse(html, url)
+        // Pretty printing scans ahead over blank siblings for each node, so a page of thousands of
+        // empty elements (or nested ones, which jsoup lays side by side past 512 levels) takes
+        // minutes. Readability's clone keeps this setting.
+        doc.outputSettings().prettyPrint(false)
         val jsonLd = jsonLdObjects(doc)
         val siteName = doc.metaContent("og:site_name") ?: jsonLd.firstNotNullOfOrNull { (it["publisher"] as? JsonObject)?.string("name") }
         // Once JSON-LD is read, nothing needs these, and Readability clones the whole document:
@@ -94,6 +100,7 @@ internal object PageExtractor {
             Element("div").apply { pitch.parent()?.children()?.takeWhile { it !== pitch }?.forEach { appendChild(it.clone()) } }
         }
         pitches.remove()
+        removeEmptyBlocks(doc)
 
         val readability = runCatching { Readability4JExtended(url, doc.clone()).parse() }.getOrNull()
         val author = listOfNotNull(
@@ -321,4 +328,19 @@ internal object PageExtractor {
     private val NON_ALNUM = Regex("[^a-z0-9]")
     private val BY_PREFIX = Regex("^\\s*by\\s+", RegexOption.IGNORE_CASE)
     private val PARAGRAPH_TAG = Regex("<\\s*p[\\s>]", RegexOption.IGNORE_CASE)
+
+    /**
+     * Empty blocks Readability would remove (its `isElementWithoutContent`, on the same tags: no
+     * children but line breaks), taken out first by [HtmlCleaner.removeAll] where a parent holds
+     * [MANY_EMPTY_BLOCKS] or more. Readability removes them one at a time, renumbering the siblings
+     * after each, so 100,000 (a 1 MB page, or one nested that deep) took a minute. Not fewer:
+     * Readability decides whether a `<div>` reads as a paragraph before its empty children go, and
+     * removing them first changes that answer on real pages.
+     */
+    internal fun removeEmptyBlocks(doc: Document) {
+        val empty = doc.body().select(EMPTY_BLOCKS).filter { e ->
+            e.children().all { it.normalName() == "br" || it.normalName() == "hr" } && e.text().isBlank()
+        }
+        HtmlCleaner.removeAll(empty.groupBy { it.parent() }.values.filter { it.size >= MANY_EMPTY_BLOCKS }.flatten())
+    }
 }

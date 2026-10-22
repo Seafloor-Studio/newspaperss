@@ -656,4 +656,15 @@ class HtmlCleanerTest {
         assertEquals(null, HtmlCleaner.absoluteUrl("http://user@/x", ""))
         assertEquals("https://xn--bcher-kva.example/x", HtmlCleaner.absoluteUrl("https://bücher.example/x", ""))
     }
+
+    @Test
+    fun thousandsOfNestedEmptyElementsAreCleanedInSeconds() {
+        // jsoup lays nesting past 512 levels side by side, and removing those one at a time
+        // renumbered the rest after each: 100,000 levels took 25 s.
+        val started = System.nanoTime()
+        val result = HtmlCleaner.clean("<p>Kept.</p>" + "<b>".repeat(100_000) + "</b>".repeat(100_000), "https://a.example/")
+        val seconds = (System.nanoTime() - started) / 1e9
+        assertTrue("$seconds s", seconds < 10)
+        assertEquals("<p>Kept.</p>", result.html)
+    }
 }
