@@ -3,6 +3,11 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle H6 (22 Oct) — build: two emulator journeys
+
+See [DEVLOG.md](DEVLOG.md).
+- **Script a journey from the app's own strings, not memory.** Every label `mark-sent` and `opml` tap was read from the source first (`EditionActions`, `MarkNotSent`, `SourcesScreen`), and both passed on the first CI run; the picker steps copied the folder journey's, which already knew this image's picker.
+
 ### Cycle H7 (22 Oct) — audit: architecture and test health
 
 See [DEVLOG.md](DEVLOG.md).
