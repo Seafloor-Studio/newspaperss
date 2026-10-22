@@ -4,6 +4,7 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.core.content.pm.PackageInfoCompat
 import com.app.newspaperss.DebugUpdates
 import java.io.File
@@ -14,8 +15,16 @@ import java.security.MessageDigest
  * replace the other.
  *
  * @param signers SHA-256 of each certificate that signed the APK's contents.
+ * @param lineage SHA-256 of each certificate in its signer's rotation history, its own included:
+ *   the older keys it vouches it succeeds (Android 9 and later).
  */
-internal data class ApkFacts(val packageName: String, val versionCode: Long, val versionName: String?, val signers: Set<String>) {
+internal data class ApkFacts(
+    val packageName: String,
+    val versionCode: Long,
+    val versionName: String?,
+    val signers: Set<String>,
+    val lineage: Set<String> = signers,
+) {
     /** The CI build it is, as Today names it. */
     val build: Int? get() = DebugUpdates.buildOf(versionName)
 }
@@ -24,7 +33,7 @@ internal sealed interface Verdict {
     data object Good : Verdict
     /**
      * Not ours, or not readable: never to be installed.
-     * @param otherKey ours but signed with another key, as every build is once CI's key changes.
+     * @param otherKey ours but signed with a key that isn't this one's or rotated from it: a reinstall is the only way on.
      */
     data class Bad(val why: String, val otherKey: Boolean = false) : Verdict
     /** Ours, but not newer than what's installed. */
@@ -40,7 +49,12 @@ internal fun verdict(apk: ApkFacts?, installed: ApkFacts): Verdict = when {
     apk.packageName != installed.packageName -> Verdict.Bad("it's ${apk.packageName}, not ${installed.packageName}")
     // Empty sets would compare equal: no certificate read is no proof.
     apk.signers.isEmpty() || installed.signers.isEmpty() -> Verdict.Bad("its signature couldn't be read")
-    apk.signers != installed.signers -> Verdict.Bad("it's signed with a different key", otherKey = true)
+    // Or a key whose lineage names this one's: CI's own debug key succeeds the shared one that way,
+    // and Android takes the update for the same reason. Never the reverse, as an older key can't
+    // name a newer one.
+    apk.signers != installed.signers && !(apk.signers.size == 1 && installed.signers.size == 1 &&
+        apk.signers.single() in apk.lineage && installed.signers.single() in apk.lineage) ->
+        Verdict.Bad("it's signed with a different key", otherKey = true)
     apk.versionCode <= installed.versionCode -> Verdict.Stale("version ${apk.versionCode} isn't newer than ${installed.versionCode}")
     // Each ABI's code ends in its own digit, so another ABI's copy of this build has a higher one.
     (apk.build ?: 0) <= (installed.build ?: 0) -> Verdict.Stale("build ${apk.build} isn't newer than ${installed.build}")
@@ -74,14 +88,19 @@ internal fun PackageManager.installedFacts(packageName: String): ApkFacts {
 private fun PackageManager.legacyArchiveInfo(file: File): PackageInfo? = getPackageArchiveInfo(file.path, PackageManager.GET_SIGNATURES)
 
 private fun PackageInfo.facts(): ApkFacts {
-    // The certificates that signed this APK, not the older ones a rotated key vouches for: the
-    // debug key never rotates, so anything else is a different signer.
-    val certs: Array<Signature>? = if (Build.VERSION.SDK_INT >= 28 && signingInfo != null) {
-        signingInfo?.apkContentsSigners
-    } else {
-        @Suppress("DEPRECATION") signatures
-    }
-    return ApkFacts(packageName, PackageInfoCompat.getLongVersionCode(this), versionName, certs.orEmpty().map { sha256(it.toByteArray()) }.toSet())
+    fun digests(of: Array<Signature>?) = of.orEmpty().map { sha256(it.toByteArray()) }.toSet()
+    if (Build.VERSION.SDK_INT >= 28) signingFacts(::digests)?.let { return it }
+    @Suppress("DEPRECATION") val certs = digests(signatures)
+    return ApkFacts(packageName, PackageInfoCompat.getLongVersionCode(this), versionName, certs)
+}
+
+@RequiresApi(28)
+private fun PackageInfo.signingFacts(digests: (Array<Signature>?) -> Set<String>): ApkFacts? {
+    val signing = signingInfo ?: return null
+    val certs = digests(signing.apkContentsSigners)
+    // A rotated key's history; several signers at once have none.
+    val history = if (signing.hasMultipleSigners()) emptySet() else digests(signing.signingCertificateHistory)
+    return ApkFacts(packageName, PackageInfoCompat.getLongVersionCode(this), versionName, certs, history + certs)
 }
 
 private fun sha256(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }

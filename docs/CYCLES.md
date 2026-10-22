@@ -3,6 +3,12 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle H8 (22 Oct) — build: the debug key, rotated
+
+See [DEVLOG.md](DEVLOG.md).
+- **Check what a signing tool writes by reading it back.** `apksigner verify --print-certs` per SDK range and `apksigner lineage` showed which key each Android version sees before any code depended on it.
+- **Test the parsing of what Android reports on a device, not only a stand-in.** `PackageInfo.signingInfo` is only honest on a real one; `RotatedKeyTest` ships a rotated APK as an asset for that.
+
 ### Cycle H5 (22 Oct) — build: debug builds' own key
 
 See [DEVLOG.md](DEVLOG.md).

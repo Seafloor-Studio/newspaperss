@@ -39,6 +39,18 @@ class ApkCheckTest {
         assertTrue("nothing Android could parse", bad(null))
     }
 
+    @Test
+    fun aKeyWhoseLineageNamesOursPassesAndNoOtherWay() {
+        // CI's own debug key, rotated from the shared one that signed the installed build.
+        val rotated = newer.copy(signers = setOf("ci-key"), lineage = setOf("our-key", "ci-key"))
+        assertEquals(Verdict.Good, verdict(rotated, installed))
+        assertTrue("a lineage that doesn't name ours", bad(rotated.copy(lineage = setOf("someone-else", "ci-key"))))
+        // Once on CI's key, a build signed with the old one is refused: it can't name the newer key.
+        val onCiKey = installed.copy(signers = setOf("ci-key"), lineage = setOf("our-key", "ci-key"))
+        assertTrue("back to the old key", verdict(newer, onCiKey) is Verdict.Bad)
+        assertTrue("someone else's rotation from the old key", verdict(newer.copy(signers = setOf("x"), lineage = setOf("our-key", "x")), onCiKey) is Verdict.Bad)
+    }
+
     /** x86_64's code ends in 4, arm64's in 2: the same build for another ABI has a higher one. */
     @Test
     fun theSameBuildForAnotherAbiIsntNewer() {
