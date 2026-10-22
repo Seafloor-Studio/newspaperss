@@ -73,10 +73,6 @@ internal object PageExtractor {
 
     fun extract(html: String, url: String): PageContent {
         val doc = Jsoup.parse(html, url)
-        // Pretty printing scans ahead over blank siblings for each node, so a page of thousands of
-        // empty elements (or nested ones, which jsoup lays side by side past 512 levels) takes
-        // minutes. Readability's clone keeps this setting.
-        doc.outputSettings().prettyPrint(false)
         val jsonLd = jsonLdObjects(doc)
         val siteName = doc.metaContent("og:site_name") ?: jsonLd.firstNotNullOfOrNull { (it["publisher"] as? JsonObject)?.string("name") }
         // Once JSON-LD is read, nothing needs these, and Readability clones the whole document:
