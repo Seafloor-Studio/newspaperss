@@ -1,6 +1,7 @@
 package com.app.newspaperss.ui
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.os.Build
 import android.util.Log
@@ -80,6 +81,14 @@ class AccessibilityChecksTest {
         error("the first edition wasn't made within 8 minutes")
     }
 
+    private fun resumed(): Activity? {
+        var activity: Activity? = null
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            activity = ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).firstOrNull()
+        }
+        return activity
+    }
+
     // In logcat, so a failure that names no line of this test still says which screen it was on.
     private fun step(what: String) = Log.i("AccessibilityWalk", what)
 
@@ -109,6 +118,11 @@ class AccessibilityChecksTest {
         private fun shell(command: String) {
             InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command).close()
         }
+
+        private fun shellOutput(command: String): String =
+            InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command).use { fd ->
+                java.io.FileInputStream(fd.fileDescriptor).bufferedReader().readText()
+            }
 
         // Asked for when the first edition is made; Android's dialog would cover the screen.
         @BeforeClass @JvmStatic fun allowNotifications() {
@@ -142,10 +156,18 @@ class AccessibilityChecksTest {
             tab(label); checkScreen()
         }
         // The same at the largest text Android offers, where labels wrap and buttons grow.
-        // Android recreates the activity for the new font scale by itself.
+        // Android recreates the activity for the new font scale by itself. Wait for the new one:
+        // a tap on the old one then waits for idle while the new one's splash cancels every draw
+        // until settings load, in a composition only waitUntil's clock moves on (AppNotIdle).
+        val before = requireNotNull(resumed()) { "no activity resumed before the font scale change" }
+        // Already at 2.0 (a phone set that way, or an earlier run cut short), nothing is recreated.
+        val recreates = shellOutput("settings get system font_scale").trim().toFloatOrNull() != 2.0f
         shell("settings put system font_scale 2.0")
         try {
-            compose.waitUntil(30_000) { compose.onAllNodes(hasText("Settings") and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(30_000) {
+                (!recreates || resumed().let { it != null && it !== before }) &&
+                    compose.onAllNodes(hasText("Settings") and hasClickAction()).fetchSemanticsNodes().isNotEmpty()
+            }
             for (label in listOf("Today", "Sources", "Settings")) {
                 tab(label); checkScreen()
             }
