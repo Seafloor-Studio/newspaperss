@@ -3,6 +3,13 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle H2 (22 Oct) — build: deeply nested feeds and pages
+
+See [DEVLOG.md](DEVLOG.md).
+- **Profile before fixing what the backlog names.** A sampling loop in a throwaway test (`Thread.getStackTrace` every 20 ms) showed the time was in sibling renumbering, not depth; the backlog's "refuse past a few hundred levels" would have fixed only feeds.
+- **Diff a behaviour-preserving change against the corpus.** `PlatformCorpusTest` writes every result to `core/build/platform-corpus`; run it on main and on the branch and `diff -rq`. It caught a pre-pass that changed Readability's choice on two real pages, which every test passed.
+- **Commit before a falsification run, every time.** A `git checkout` of a file during one threw away an uncommitted edit to it, and the next measurement ran on the wrong code.
+
 ### Cycle H1 (22 Oct) — build: the accessibility walk's hang
 
 The first of tonight's H1–H7 run, one session for all of them. See [DEVLOG.md](DEVLOG.md).
