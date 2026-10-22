@@ -32,7 +32,7 @@ internal sealed interface Verdict {
     data object Good : Verdict
     /**
      * Not ours, or not readable: never to be installed.
-     * @param otherKey ours but signed with another key, as every build is once CI's key changes.
+     * @param otherKey ours but signed with a key that isn't this one's or rotated from it: a reinstall is the only way on.
      */
     data class Bad(val why: String, val otherKey: Boolean = false) : Verdict
     /** Ours, but not newer than what's installed. */

@@ -125,8 +125,9 @@ each newer build on Wi-Fi and installs it when the app isn't in use. Allow
 (Android asks once after a browser install, and every time before Android 12).
 Once the release notes say the builds are signed with the debug channel's own
 key, a test build from before still updates itself: the new key is rotated from
-the shared one, which vouches for it. One built with `installDebug` can't then
-go over it; uninstall first (its editions and settings go with it).
+the shared one, which vouches for it. On Android 9 and later, one built with
+`installDebug` can't then go over it; uninstall first (its editions and settings
+go with it). Android 8 still sees the shared key.
 
 ## Building
 

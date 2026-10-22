@@ -150,11 +150,17 @@ jobs:
             "$apksigner" sign "${shared[@]}" --next-signer "${own[@]}" --lineage "$lineage" \
               --rotation-min-sdk-version 28 --v1-signing-enabled false --v4-signing-enabled false "$apk"
             # Android 9 and later see one signer, the channel's key, with the shared one in its
-            # lineage; Android 8 the shared key. Its digest in the log, to compare against.
-            out=$("$apksigner" verify -v --print-certs --min-sdk-version 28 "$apk")
+            # lineage; Android 8 the shared key, from the v2 signature plain verify checks too.
+            # The channel key's digest in the log, to compare against.
+            out=$("$apksigner" verify -v --print-certs "$apk")
+            grep -qx 'Verified using v2 scheme (APK Signature Scheme v2): true' <<< "$out"
             grep -qx 'Number of signers: 1' <<< "$out"
             grep 'certificate SHA-256 digest' <<< "$out" | grep -v 2013e64d5fcee3f9738a097f809ae3965e94aca6471cbd2a10bdc8e76974d5b5
-            "$apksigner" lineage --in "$apk" --print-certs | grep -q 2013e64d5fcee3f9738a097f809ae3965e94aca6471cbd2a10bdc8e76974d5b5
+            "$apksigner" verify --print-certs --max-sdk-version 27 "$apk" | grep -q 2013e64d5fcee3f9738a097f809ae3965e94aca6471cbd2a10bdc8e76974d5b5
+            # Rollback would let any build signed with the public shared key replace this one.
+            chain=$("$apksigner" lineage --in "$apk" --print-certs -v)
+            grep -q 2013e64d5fcee3f9738a097f809ae3965e94aca6471cbd2a10bdc8e76974d5b5 <<< "$chain"
+            if grep -q 'Has rollback capability *: true' <<< "$chain"; then echo "::error::$apk's lineage allows rollback"; exit 1; fi
           done
           echo "signed=true" >> "$GITHUB_OUTPUT"
       - name: Update the latest-debug release
@@ -175,7 +181,7 @@ jobs:
           title="Debug build $build · $short · $(date -u '+%b %-d')"
           notes="Build $build from main ($short), $(date -u '+%Y-%m-%d %H:%M') UTC. Installs beside a release build as com.app.newspaperss.debug; its version is 0.1.0-debug.$build+$short (Settings, at the bottom). newspapeRSS-debug.apk is for arm64, most phones and e-readers; an older 32-bit e-reader needs the armeabi-v7a one, which has no podcast voice."
           if [ "$SIGNED" = true ]; then
-            notes="$notes Signed with the debug channel's own key, rotated from the shared one, so a test build from before updates in place. A build made with installDebug can't then go over it: uninstall first; editions and settings go with it."
+            notes="$notes Signed with the debug channel's own key, rotated from the shared one, so a test build from before updates in place. On Android 9 and later, a build made with installDebug can't then go over it: uninstall first; editions and settings go with it. Android 8 still sees the shared key."
           fi
           # Updated in place, so the fixed link never 404s between builds. Title, notes and tag
           # follow each build: otherwise the page keeps the first build's date and commit.
