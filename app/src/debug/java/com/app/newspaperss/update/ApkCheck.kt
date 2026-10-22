@@ -4,6 +4,7 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.pm.Signature
 import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.core.content.pm.PackageInfoCompat
 import com.app.newspaperss.DebugUpdates
 import java.io.File
@@ -88,11 +89,14 @@ private fun PackageManager.legacyArchiveInfo(file: File): PackageInfo? = getPack
 
 private fun PackageInfo.facts(): ApkFacts {
     fun digests(of: Array<Signature>?) = of.orEmpty().map { sha256(it.toByteArray()) }.toSet()
-    val signing = signingInfo
-    if (Build.VERSION.SDK_INT < 28 || signing == null) {
-        @Suppress("DEPRECATION") val certs = digests(signatures)
-        return ApkFacts(packageName, PackageInfoCompat.getLongVersionCode(this), versionName, certs)
-    }
+    if (Build.VERSION.SDK_INT >= 28) signingFacts(::digests)?.let { return it }
+    @Suppress("DEPRECATION") val certs = digests(signatures)
+    return ApkFacts(packageName, PackageInfoCompat.getLongVersionCode(this), versionName, certs)
+}
+
+@RequiresApi(28)
+private fun PackageInfo.signingFacts(digests: (Array<Signature>?) -> Set<String>): ApkFacts? {
+    val signing = signingInfo ?: return null
     val certs = digests(signing.apkContentsSigners)
     // A rotated key's history; several signers at once have none.
     val history = if (signing.hasMultipleSigners()) emptySet() else digests(signing.signingCertificateHistory)
