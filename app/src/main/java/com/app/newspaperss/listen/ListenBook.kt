@@ -41,8 +41,6 @@ class ListenBook(
             val file = editions.fileOf(edition) ?: return null
             val contents = editions.observeContents(editionId).first().sortedBy { it.entry.position }
             val book = EpubPages(file)
-            val pages = contents.map { ListenPage(it.entry.title, it.entry.sourceTitle, ListenTime.fromReading(it.entry.minutes)) } +
-                ListenPage(EpubWriter.END_TITLE, null, 0.0, end = true)
             val read: suspend (Int) -> ListenScript? = { index ->
                 withContext(Dispatchers.IO) {
                     val xhtml = if (index < contents.size) book.article(contents[index].entry.position) else book.entry("OEBPS/end.xhtml")?.toString(Charsets.UTF_8)
@@ -57,6 +55,12 @@ class ListenBook(
             } catch (e: Exception) {
                 Log.w("ListenBook", "Couldn't find the recordings: ${e.javaClass.name}")
             }
+            // A page that plays a recording takes as long as it: an episode can be half or twice
+            // its transcript read aloud.
+            val pages = contents.mapIndexed { i, it ->
+                val recording = readings?.at(editionId, i)?.seconds?.let { s -> s / 60.0 }
+                ListenPage(it.entry.title, it.entry.sourceTitle, recording ?: ListenTime.fromReading(it.entry.minutes))
+            } + ListenPage(EpubWriter.END_TITLE, null, 0.0, end = true)
             return ListenBook(editionId, edition.title, pages, read = read, readImage = { src -> withContext(Dispatchers.IO) { book.entry("OEBPS/$src") } }, onClose = book::close)
         }
     }

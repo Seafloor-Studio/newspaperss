@@ -29,6 +29,10 @@ import com.app.newspaperss.core.epub.EpubImage
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.data.AppDatabase
 import com.app.newspaperss.data.EditionArticleEntity
+import com.app.newspaperss.core.episodes.EpisodeKind
+import com.app.newspaperss.core.listen.ListenTime
+import com.app.newspaperss.data.ArticleEntity
+import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionRepository
 import com.app.newspaperss.data.EditionStatus
@@ -104,6 +108,34 @@ class ListenAppTest {
     private fun startAndWait(id: Long) {
         listening.start(id)
         idleUntil { player.state.value.script != null }
+    }
+
+    @Test
+    fun aPageThatPlaysItsEpisodeTakesTheEpisodesTimeNotItsText() = runBlocking {
+        // 1,600 words, ten minutes read aloud, against a 15-minute episode.
+        val transcript = EditionArticle(
+            title = "Transcript: the ferry planner", sourceTitle = "The Example Show", url = "https://example.com/t",
+            bodyHtml = "<p>" + List(160) { (1..10).joinToString(" ") { "word" } + "." }.joinToString(" ") + "</p>", minutes = 8.0,
+        )
+        FileOutputStream(File(editionsDir, "f.epub")).use {
+            EpubWriter.write(EditionDoc("Friday Morning Edition", LocalDate.of(2026, 10, 2), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000020", listOf(EditionSection(null, listOf(transcript, lagos)))), it)
+        }
+        val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Show"))
+        val article = db.articles().insertIgnoring(
+            ArticleEntity(sourceId = source, guid = "t", url = transcript.url, title = transcript.title, episodeKind = EpisodeKind.TRANSCRIPT, audioUrl = "https://cdn.example/t.mp3", audioSeconds = 900),
+        )
+        val id = db.editions().insert(EditionEntity(title = "Friday Morning Edition", status = EditionStatus.DELIVERED, fileName = "f.epub", articleCount = 2, minutes = 10.0))
+        db.editions().insertArticles(
+            listOf(
+                EditionArticleEntity(editionId = id, articleId = article, position = 0, title = transcript.title, sourceTitle = transcript.sourceTitle, minutes = transcript.minutes),
+                EditionArticleEntity(editionId = id, articleId = null, position = 1, title = lagos.title, sourceTitle = lagos.sourceTitle, minutes = lagos.minutes),
+            ),
+        )
+
+        val book = ListenBook.open(repo, id, Readings(db))!!
+
+        assertEquals(15.0, book.pages[0].minutes, 0.001)
+        assertEquals(ListenTime.fromReading(2.0), book.pages[1].minutes, 0.001)
     }
 
     @Test

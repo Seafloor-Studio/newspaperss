@@ -651,10 +651,19 @@ whose Kindle and KOReader answers ask for more on the same page).
     **Have the voice read it instead**, kept for that article, and back with
     **Play its recorded reading**. The podcast log records each switch, how
     far each recording got when it stopped or ended, and, as an edition
-    opens, which pages play a recording and which transcripts could play
-    their episode, against how long the transcript takes read aloud. A
-    recording that won't play (offline, gone) hands back to the voice from
-    where it got. See [episodes-design.md](research/episodes-design.md).
+    opens, which pages play a recording, and why each transcript the voice
+    reads has no episode to play. A recording that won't play (offline,
+    gone) hands back to the voice from where it got. See
+    [episodes-design.md](research/episodes-design.md).
+  - **Transcripts** (debug builds) play their episode in their place the
+    same way: its own audio, or else its notes post's. The voice says "Now
+    the episode itself, 1 hour 27 minutes.", and the note above the page
+    reads "Playing its episode · 1 hr 27 min". Only when the episode's
+    length is known and is half to twice the transcript read aloud:
+    shorter is a preview, longer a transcript of part of it. Listen's
+    times count the episode's length, not the transcript's. Each
+    recording plays once an edition; a second post with the same one is
+    read by the voice.
   - Between one article and the next, in either voice, a pause of about
     4 seconds: a moment's quiet, a soft breath of sound with a page
     turning, then the next article, so the listener can change contexts.

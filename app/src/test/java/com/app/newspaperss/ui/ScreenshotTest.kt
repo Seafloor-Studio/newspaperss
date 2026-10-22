@@ -582,7 +582,11 @@ class ScreenshotTest {
     @Test
     fun listenPlayingRecording() = shootListening("11e-listen-recording", voice = null, recording = true)
 
-    private fun shootListening(name: String, voice: PodcastVoice?, instead: PodcastSpeaker.Instead? = null, textSize: PreviewTextSize = PreviewTextSize.DEFAULT, recording: Boolean = false) {
+    /** A transcript playing its episode in its place. */
+    @Test
+    fun listenPlayingEpisode() = shootListening("11f-listen-episode", voice = null, recording = true, episode = true)
+
+    private fun shootListening(name: String, voice: PodcastVoice?, instead: PodcastSpeaker.Instead? = null, textSize: PreviewTextSize = PreviewTextSize.DEFAULT, recording: Boolean = false, episode: Boolean = false) {
         val files = tmp.newFolder()
         val picture = Bitmap.createBitmap(600, 300, Bitmap.Config.ARGB_8888).apply {
             val canvas = Canvas(this)
@@ -617,7 +621,7 @@ class ScreenshotTest {
         player.start(id, ListenPosition(1, 6))
         idleUntil { player.state.value.script != null }
         speaker.startNext()
-        val now = ReadingSpeaker.Now(id, 1, Reading("https://example.com/knots.mp3", 540, own = false, bodyLine = 3, starts = listOf(0.0)), voiceInstead = false).takeIf { recording }
+        val now = ReadingSpeaker.Now(id, 1, Reading("https://example.com/knots.mp3", if (episode) 5_220 else 540, own = episode, bodyLine = 3, starts = listOf(0.0), episode = episode), voiceInstead = false).takeIf { recording }
         shoot(name, ready = { player.state.value.at.line == 6 }) {
             ListenScreen(player, onBack = {}, podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), textSize = textSize, reading = MutableStateFlow(now))
         }

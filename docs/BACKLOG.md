@@ -346,7 +346,8 @@ labelled corpus are [research/podcast-episodes.md](research/podcast-episodes.md)
 - [ ] **The two weeks of labels:** what the design's "Before readings go into Listen" asks, now checked alongside step 3 rather than before it. The podcast log now says how far each recording got and which transcripts could have played their episode: share it at the end
 - [ ] **Rule 3's silent stub:** an audio version's own short post is still read by the voice when it's in the same edition as its article. Listen needs a way to pass over a page
 - [ ] **Readings for editions made before #322:** their audio was never timed, so an article's own audio isn't played. Time what's missing when Listen opens an edition
-- [ ] **Step 4:** transcripts play their episode in place; notes are read without their furniture and their episode plays at the end; streamed
+- [x] **Step 4, transcripts:** a transcript plays its episode in its place, streamed
+- [ ] **Step 4, notes:** notes are read without their furniture and their episode plays at the end; streamed
 - [ ] **Step 5:** downloads for listening offline
 - [x] **The `handle-issues` skill** handles "Episode label:" and "Extraction:" issues: CLAUDE.md's "Issues the app files" says how
 - [x] **An `episodes` label** on the repo, for the wrong-label reports to carry (`extraction` too)
