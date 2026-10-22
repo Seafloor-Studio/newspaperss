@@ -10,9 +10,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # --continue, and on to aapt2 after a failure: Gradle writes the checksums of all it resolved
-# even when a test fails, and the failure is reported at the end.
+# even when a test fails, and the failure is reported at the end. --refresh-dependencies,
+# because over a warm cache Gradle skips the parent POMs and BOMs a fresh one fetches, and
+# CI's runners start fresh.
 status=0
-./gradlew --write-verification-metadata sha256 --continue \
+./gradlew --write-verification-metadata sha256 --refresh-dependencies --continue \
   build koverXmlReport koverHtmlReport koverVerify \
   assembleRelease bundleRelease checkReleaseKokoroNativeLibs checkReleaseKokoroBundle \
   :app:assembleDebugAndroidTest :epubsink:assembleDebug :app:screenshotTest || status=$?
