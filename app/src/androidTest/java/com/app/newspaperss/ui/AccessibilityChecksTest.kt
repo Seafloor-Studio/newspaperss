@@ -119,6 +119,11 @@ class AccessibilityChecksTest {
             InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command).close()
         }
 
+        private fun shellOutput(command: String): String =
+            InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command).use { fd ->
+                java.io.FileInputStream(fd.fileDescriptor).bufferedReader().readText()
+            }
+
         // Asked for when the first edition is made; Android's dialog would cover the screen.
         @BeforeClass @JvmStatic fun allowNotifications() {
             if (Build.VERSION.SDK_INT >= 33) {
@@ -152,14 +157,15 @@ class AccessibilityChecksTest {
         }
         // The same at the largest text Android offers, where labels wrap and buttons grow.
         // Android recreates the activity for the new font scale by itself. Wait for the new one:
-        // a tap on the old one lands while the new one's splash holds every frame back until
-        // settings load, which takes a frame from the test's clock that only waitUntil advances,
-        // so the tap's wait for idle never ends.
-        val before = resumed()
+        // a tap on the old one then waits for idle while the new one's splash cancels every draw
+        // until settings load, in a composition only waitUntil's clock moves on (AppNotIdle).
+        val before = requireNotNull(resumed()) { "no activity resumed before the font scale change" }
+        // Already at 2.0 (a phone set that way, or an earlier run cut short), nothing is recreated.
+        val recreates = shellOutput("settings get system font_scale").trim().toFloatOrNull() != 2.0f
         shell("settings put system font_scale 2.0")
         try {
             compose.waitUntil(30_000) {
-                resumed().let { it != null && it !== before } &&
+                (!recreates || resumed().let { it != null && it !== before }) &&
                     compose.onAllNodes(hasText("Settings") and hasClickAction()).fetchSemanticsNodes().isNotEmpty()
             }
             for (label in listOf("Today", "Sources", "Settings")) {
