@@ -77,17 +77,11 @@ object FeedParser {
         // Entities that expand into other entities are refused before parsing: nested, they can
         // grow to gigabytes ("billion laughs"). Plain ones (an old CMS declaring &nbsp;) are read.
         // Neither Android's parser nor kxml2 expands a declared entity as FeedParser sets them up
-        // (FeedParserEntityTest holds them to it), so this is the second line, not the first.
+        // (FeedParserEntityTest holds Android's to it), so this is the second line, not the first.
         if (declaresNestedEntities(text)) {
             throw FeedParseException("Not a readable feed: it declares entities made of other entities.")
         }
-        val parser = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }.newPullParser()
-        // Feeds often use HTML entities like &nbsp; that plain XML rejects;
-        // kxml's relaxed mode (also the Android parser) tolerates them.
-        try {
-            parser.setFeature("http://xmlpull.org/v1/doc/features.html#relaxed", true)
-        } catch (_: XmlPullParserException) {
-        }
+        val parser = newParser()
         parser.setInput(StringReader(text))
         try {
             return XmlFeedReader(parser, feedUrl, truncated).read()
@@ -104,6 +98,18 @@ object FeedParser {
         if (items.size <= MAX_ITEMS) return items
         val kept = items.indices.sortedWith(compareByDescending<Int, Instant?>(nullsFirst()) { items[it].published }).take(MAX_ITEMS).toSortedSet()
         return kept.map { items[it] }
+    }
+
+    /** The XML parser feeds are read with, the platform's: Android's own, or kxml2 on the JVM. */
+    fun newParser(): XmlPullParser {
+        val parser = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }.newPullParser()
+        // Feeds often use HTML entities like &nbsp; that plain XML rejects;
+        // kxml's relaxed mode (also the Android parser) tolerates them.
+        try {
+            parser.setFeature("http://xmlpull.org/v1/doc/features.html#relaxed", true)
+        } catch (_: XmlPullParserException) {
+        }
+        return parser
     }
 
     /**
