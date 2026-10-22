@@ -852,7 +852,9 @@ object HtmlCleaner {
             override fun head(node: Node, depth: Int) {}
             override fun tail(node: Node, depth: Int) {
                 val holds = when (node) {
-                    is TextNode -> node.wholeText.isNotBlank()
+                    // text(), as it drops zero-width spaces and soft hyphens, which some editors
+                    // leave as a paragraph's only content.
+                    is TextNode -> node.text().isNotBlank()
                     is Element -> node in full || node.normalName() in KEEPS_A_BLOCK
                     else -> false
                 }

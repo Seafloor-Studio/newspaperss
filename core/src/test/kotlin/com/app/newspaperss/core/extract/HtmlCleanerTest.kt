@@ -667,4 +667,10 @@ class HtmlCleanerTest {
         assertTrue("$seconds s", seconds < 10)
         assertEquals("<p>Kept.</p>", result.html)
     }
+
+    @Test
+    fun aParagraphOfOnlyAZeroWidthSpaceOrSoftHyphenGoes() {
+        val result = HtmlCleaner.clean("<p>One.</p><p>&#8203;</p><p><b>&shy;</b></p><p>Two.</p>", "https://a.example/")
+        assertEquals("<p>One.</p><p>Two.</p>", result.html)
+    }
 }

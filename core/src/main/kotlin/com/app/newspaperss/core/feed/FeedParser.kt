@@ -97,6 +97,8 @@ object FeedParser {
         }
     }
 
+    private class TooDeep : Exception()
+
     private class XmlFeedReader(private val p: XmlPullParser, private val feedUrl: String, private val truncated: Boolean) {
         private var feedTitle: String? = null
         private var siteUrl: String? = null
@@ -112,9 +114,14 @@ object FeedParser {
                 // A cut inside a tag ("<descri") is an error; the items added before it are whole.
                 if (!truncated || items.isEmpty()) throw e
                 stoppedAtCut = true
+            } catch (_: TooDeep) {
+                // As past a cut: the items before it are whole. Android's lenient parser closes only
+                // one element per stray end tag, so a long feed of unescaped HTML gets here too.
+                if (items.isEmpty()) throw FeedParseException("Not a readable feed: it nests elements more than $MAX_DEPTH deep.")
+                stoppedAtCut = true
             }
             if (!sawRoot) throw FeedParseException("Empty document")
-            if (!truncated) return Feed(feedTitle, siteUrl, items, podcast)
+            if (!truncated) return Feed(feedTitle, siteUrl, items.toList(), podcast)
             // Otherwise the parser took the cut for the document's end, closing what it left open
             // (kxml on the JVM) or not (Android's): either way the last item read may be only part
             // of one, so it goes. A whole one lost from a feed this long costs nothing.
@@ -299,7 +306,7 @@ object FeedParser {
         // million deep would take hours; nothing real nests past a few dozen.
         private fun next(): Int {
             val event = p.next()
-            if (event == XmlPullParser.START_TAG && p.depth > MAX_DEPTH) throw FeedParseException("Not a readable feed: it nests elements more than $MAX_DEPTH deep.")
+            if (event == XmlPullParser.START_TAG && p.depth > MAX_DEPTH) throw TooDeep()
             return event
         }
 
