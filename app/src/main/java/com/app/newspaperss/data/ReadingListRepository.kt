@@ -6,6 +6,7 @@ import com.app.newspaperss.core.feed.ChecklistItem
 import com.app.newspaperss.core.feed.MarkdownChecklist
 import com.app.newspaperss.core.feed.ReadLaterImport
 import com.app.newspaperss.core.feed.ReadingListFile
+import com.app.newspaperss.core.net.withoutTracking
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -51,7 +52,10 @@ class ReadingListRepository(
      * ([ArticleEntity.unreadable]) is looked at again too: saving it again is the way to say "try
      * again", and the lookup clears the mark if the page reads now.
      */
-    suspend fun save(url: String, title: String? = null): Boolean {
+    suspend fun save(shared: String, title: String? = null): Boolean {
+        // As a feed's links are stored: shared with tracking, then found in the site's feed without,
+        // the same story would be two to the edition (Share's Both does both at once).
+        val url = withoutTracking(shared)
         // The title is whatever subject the sharing app gave.
         val article = ArticleEntity(sourceId = sourceId(), guid = url, url = url, title = RowLimits.cut(title?.trim().orEmpty(), RowLimits.MAX_TITLE), discoveredAt = clock.instant())
         val articleId = db.articles().insertIgnoring(article)
@@ -80,15 +84,17 @@ class ReadingListRepository(
         val now = clock.instant()
         val added = db.withTransaction {
             file.items.mapNotNull { item ->
+                // As save keeps them, so a link imported and the same link shared are one.
+                val url = withoutTracking(item.url)
                 val article = ArticleEntity(
-                    sourceId = id, guid = item.url, url = item.url, title = item.title.orEmpty(), discoveredAt = now,
+                    sourceId = id, guid = url, url = url, title = item.title.orEmpty(), discoveredAt = now,
                     state = if (item.done) ArticleState.DELIVERED else ArticleState.NEW,
                 )
                 val storable = RowLimits.storable(article) ?: return@mapNotNull null
                 db.articles().insertIgnoring(storable).takeIf { it != -1L }?.let { storable.copy(id = it) }
             }
         }
-        val done = file.items.filter { it.done }.map { it.url }.toSet()
+        val done = file.items.filter { it.done }.map { withoutTracking(it.url) }.toSet()
         val readElsewhere = db.articles().allForSource(id).filter { it.state == ArticleState.NEW && it.url in done }
         if (readElsewhere.isNotEmpty()) db.articles().setState(readElsewhere.map { it.id }, ArticleState.DELIVERED)
         val untitled = added.filter { it.title.isEmpty() && it.state == ArticleState.NEW }.map { it.id }

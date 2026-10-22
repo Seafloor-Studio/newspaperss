@@ -3,6 +3,13 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle H7 (22 Oct) — audit: architecture and test health
+
+See [DEVLOG.md](DEVLOG.md).
+- **Ask audit reviewers to reproduce, and to prove "can't fail" with a break.** Both of this audit's real bugs came with a test that showed them, and all three dead tests with the break that stayed green; nothing needed a second look to believe.
+- **A fix that lands where data enters beats one where it's read.** #336 capped titles on sync; the add path wrote them uncapped. When capping input, list every writer of the column.
+- **Tell reviewers not to stop the Gradle daemon** (`./gradlew --stop` stops every build of that version, other worktrees' included).
+
 ### Cycle H3 (22 Oct) — build: a feed's item cap and entity check
 
 See [DEVLOG.md](DEVLOG.md).

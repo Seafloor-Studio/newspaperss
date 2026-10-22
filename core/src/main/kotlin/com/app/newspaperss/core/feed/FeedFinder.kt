@@ -28,7 +28,15 @@ sealed interface FindResult {
  */
 class FeedFinder(private val http: HttpClient) {
 
-    suspend fun find(input: String): FindResult {
+    suspend fun find(input: String): FindResult = when (val result = findAny(input)) {
+        // Too long to keep, wherever it came from (a link, or a redirect): the app refuses to store
+        // one (its RowLimits.MAX_LINK), so it isn't offered.
+        is FindResult.Found -> result.feeds.filter { it.url.length <= MAX_FEED_URL }
+            .let { if (it.isEmpty()) FindResult.NotFound("That site's feed address is too long to keep.", page = result.page) else result.copy(feeds = it) }
+        is FindResult.NotFound -> result
+    }
+
+    private suspend fun findAny(input: String): FindResult {
         val url = normalize(input) ?: return FindResult.NotFound("That doesn't look like a web address.")
         val response = try {
             http.getFeed(url)
@@ -127,6 +135,7 @@ class FeedFinder(private val http: HttpClient) {
         )
 
         private const val MAX_LINKED_TRIES = 3
+        internal const val MAX_FEED_URL = 4_000
         private const val MIN_SECTION_LINKS = 10
         // Folders of files and listings, never the site's writing; and sections whose feed, if
         // any, is of something else (products, events, a podcast's episodes).

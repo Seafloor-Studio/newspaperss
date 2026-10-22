@@ -36,6 +36,22 @@ class FeedFinderTest {
 
     /** Shaped like Current Affairs on HubSpot: the front page advertises nothing, its blog's page does. */
     @Test
+    fun aFeedAddressTooLongToKeepIsntOfferedHoweverItCame() = runTest {
+        val long = "https://site.example/feed?" + "x".repeat(FeedFinder.MAX_FEED_URL)
+        // Advertised beside a usable one: only that one.
+        val head = "<link rel=\"alternate\" type=\"application/rss+xml\" href=\"$long\">" +
+            "<link rel=\"alternate\" type=\"application/atom+xml\" href=\"/atom.xml\">"
+        val advertised = FeedFinder(FakeHttp(mapOf("https://site.example" to head, "https://site.example/atom.xml" to feedXml))).find("site.example")
+        assertEquals(listOf("https://site.example/atom.xml"), (advertised as FindResult.Found).feeds.map { it.url })
+        // Or the feed's usual address redirecting there.
+        val redirecting = object : HttpClient by FakeHttp(mapOf("https://site.example" to "<html></html>")) {
+            override suspend fun getFeed(url: String) =
+                if (url.endsWith("/feed")) HttpResponse(200, long, null, feedXml) else HttpResponse(404, url, null, "")
+        }
+        assertTrue(FeedFinder(redirecting).find("site.example") is FindResult.NotFound)
+    }
+
+    @Test
     fun aFeedAdvertisedOnlyOnTheSitesBlogPageIsFound() = runTest {
         val links = (1..30).joinToString("") { "<a href=\"/news/story-$it?hsLang=en\">Story $it</a>" } +
             (1..20).joinToString("") { "<img src=\"/hubfs/pic-$it.jpg\"><a href=\"/hubfs/pic-$it.jpg\">pic</a>" } + "<a href=\"/about\">About</a>"

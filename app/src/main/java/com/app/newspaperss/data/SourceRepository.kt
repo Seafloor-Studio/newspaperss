@@ -109,10 +109,16 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
         if (!inPaper) db.articles().expireWaitingFromFeed(sourceId, feed.originId)
     }
 
-    /** Adds a feed unless one with this URL exists; returns its id either way. */
+    /**
+     * Adds a feed unless one with this URL exists; returns its id either way. The title is cut and an
+     * address over [RowLimits.MAX_LINK] refused: one row too big to read back would break every
+     * read of the sources, so every sync, edition and the screen it could be removed from.
+     */
     suspend fun addFeed(url: String, title: String?): Long {
+        require(RowLimits.link(url) != null) { "a feed address over ${RowLimits.MAX_LINK} characters" }
         sources.byUrl(url)?.let { return it.id }
-        val id = sources.insert(SourceEntity(url = url, title = title?.takeIf { it.isNotBlank() } ?: hostOf(url), position = sources.nextPosition()))
+        val named = title?.takeIf { it.isNotBlank() }?.let { RowLimits.cut(it, RowLimits.MAX_TITLE) } ?: hostOf(url)
+        val id = sources.insert(SourceEntity(url = url, title = named, position = sources.nextPosition()))
         return if (id == -1L) sources.byUrl(url)!!.id else id
     }
 
@@ -291,7 +297,8 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
     suspend fun importOpml(xml: String): OpmlImport {
         val feeds = Opml.parse(xml)
         var added = 0
-        for (feed in feeds) {
+        // An address too long to keep is skipped, not the rest of the file with it.
+        for (feed in feeds.filter { RowLimits.link(it.url) != null }) {
             if (sources.byUrl(feed.url) == null) {
                 addFeed(feed.url, feed.title)
                 added++
