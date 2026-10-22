@@ -15,6 +15,7 @@ import com.app.newspaperss.testutil.FakeTtrss
 import com.app.newspaperss.testutil.TestApp
 import com.app.newspaperss.testutil.idleUntil
 import com.app.newspaperss.testutil.rss
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -61,6 +62,9 @@ class ShareActivityTest {
     }
 
     private fun saved() = runBlocking { app.container.db.articles().candidates() }
+    // A choice is acted on in the app's scope after the screen has gone: waits for it to be done,
+    // so a check that nothing happened isn't made before anything could.
+    private fun settled() = idleUntil { app.container.appScope.coroutineContext[Job]!!.children.none { it.isActive } }
     private fun feeds() = runBlocking { app.container.db.sources().ofKind(SourceKind.FEED) }
     private fun toldOnly(text: String) {
         runCatching { idleUntil(timeoutMs = 10_000) { ShadowToast.getTextOfLatestToast() == text } }
@@ -84,14 +88,18 @@ class ShareActivityTest {
         share("Great piece https://a.example/story?ref=share", subject = "A great piece")
         shows("A great piece")
         assertEquals(listOf("Save to your reading list", "Subscribe to this site", "Both"), order())
+        val fetched = mutableListOf<String>()
+        app.http.beforeResponse = { fetched += it }
         tap("Save to your reading list")
         idleUntil { saved().isNotEmpty() }
+        settled()
         val article = saved().single()
         assertEquals("https://a.example/story?ref=share", article.url)
         assertEquals("A great piece", article.title)
         toldOnly("Saved for your next edition")
         // Nothing was looked up: saving is all that was asked.
-        assertTrue(feeds().isEmpty())
+        assertEquals(emptyList<String>(), fetched)
+        assertEquals(1, ShadowToast.shownToastCount())
     }
 
     @Test
@@ -224,7 +232,10 @@ class ShareActivityTest {
         scenario.recreate()
         tap("Save to your reading list")
         idleUntil { saved().isNotEmpty() }
+        settled()
         assertEquals(1, saved().size)
+        // Saved twice would still be one row: the second toast is what shows it.
+        assertEquals(1, ShadowToast.shownToastCount())
     }
 
     @Test
@@ -233,7 +244,9 @@ class ShareActivityTest {
         tap("Cancel")
         var finishing = false
         idleUntil { scenario.onActivity { finishing = it.isFinishing }; finishing }
+        settled()
         assertTrue(saved().isEmpty())
+        assertEquals(0, ShadowToast.shownToastCount())
     }
 
     @Test

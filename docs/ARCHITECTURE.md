@@ -645,15 +645,15 @@ On every PR and on main (`build-and-test.yml`, the required `build` check):
 
 On a PR that touches what they cover:
 
-- **Device tests** (`device-tests.yml`, delivery, screens or the book),
-  on an emulator:
+- **Device tests** (`device-tests.yml`, delivery, screens or the book; and on
+  every push to main), on an emulator:
   - `EditionReachesAnotherAppTest` hands an edition to `:epubsink` in
     another process.
   - `ArticlePreviewRenderTest` renders the edition's own EPUB in a real
     WebView, as the preview does.
   - `AccessibilityChecksTest` runs Google's accessibility checks on every
-    screen a new reader meets, at normal and 200% text. Under Robolectric
-    those checks check nothing, so they live here.
+    screen a new reader meets, then Today, Sources and Settings again at 200%
+    text. Under Robolectric those checks check nothing, so they live here.
 - **Book checks** (`book-checks.yml`, the EPUB writer and extraction): Ace
   by DAISY on the books `EpubCheckTest` writes.
 - **Emulator scripts** (`emulator-scripts.yml`, `tools/emulator/`): smoke
