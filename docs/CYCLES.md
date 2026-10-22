@@ -3,6 +3,11 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle H5 (22 Oct) — build: debug builds' own key
+
+See [DEVLOG.md](DEVLOG.md).
+- **A change to who signs a build is also a change to the app that receives it.** The workflow was right and the transition wasn't: the installed updater couldn't say why it refused. Ask "what does the installed build do with the first new one?" of any signing change, and ship that answer first.
+
 ### Cycle H6 (22 Oct) — build: two emulator journeys
 
 See [DEVLOG.md](DEVLOG.md).
