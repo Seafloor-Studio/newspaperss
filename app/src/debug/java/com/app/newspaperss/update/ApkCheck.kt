@@ -22,8 +22,11 @@ internal data class ApkFacts(val packageName: String, val versionCode: Long, val
 
 internal sealed interface Verdict {
     data object Good : Verdict
-    /** Not ours, or not readable: never to be installed. */
-    data class Bad(val why: String) : Verdict
+    /**
+     * Not ours, or not readable: never to be installed.
+     * @param otherKey ours but signed with another key, as every build is once CI's key changes.
+     */
+    data class Bad(val why: String, val otherKey: Boolean = false) : Verdict
     /** Ours, but not newer than what's installed. */
     data class Stale(val why: String) : Verdict
 }
@@ -37,7 +40,7 @@ internal fun verdict(apk: ApkFacts?, installed: ApkFacts): Verdict = when {
     apk.packageName != installed.packageName -> Verdict.Bad("it's ${apk.packageName}, not ${installed.packageName}")
     // Empty sets would compare equal: no certificate read is no proof.
     apk.signers.isEmpty() || installed.signers.isEmpty() -> Verdict.Bad("its signature couldn't be read")
-    apk.signers != installed.signers -> Verdict.Bad("it's signed with a different key")
+    apk.signers != installed.signers -> Verdict.Bad("it's signed with a different key", otherKey = true)
     apk.versionCode <= installed.versionCode -> Verdict.Stale("version ${apk.versionCode} isn't newer than ${installed.versionCode}")
     // Each ABI's code ends in its own digit, so another ABI's copy of this build has a higher one.
     (apk.build ?: 0) <= (installed.build ?: 0) -> Verdict.Stale("build ${apk.build} isn't newer than ${installed.build}")

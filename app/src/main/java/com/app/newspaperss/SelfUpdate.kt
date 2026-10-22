@@ -20,6 +20,12 @@ sealed interface SelfUpdate {
 
     /** Downloaded, but Android's "Install unknown apps" is off for this app. */
     data class NeedsPermission(val build: Int) : SelfUpdate
+
+    /**
+     * [build] is signed with another key, so Android won't put it over this one: only uninstalling
+     * this and installing from the link will. Nothing more is downloaded.
+     */
+    data class NewKey(val build: Int) : SelfUpdate
 }
 
 /** What tapping Install on Today did. */

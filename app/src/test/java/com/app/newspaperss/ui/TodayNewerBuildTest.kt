@@ -68,6 +68,13 @@ class TodayNewerBuildTest {
     }
 
     @Test
+    fun aBuildWithANewKeySaysToUninstallAndLinksToTheDownload() {
+        today(SelfUpdate.NewKey(464))
+        compose.onNodeWithText("Test builds have a new key. Uninstall this one, then download the newest").performClick()
+        assertEquals(link, browserOpened())
+    }
+
+    @Test
     fun whileDownloadingThereIsNothingToTap() {
         today(SelfUpdate.Downloading(464, waitingForWifi = false))
         compose.onNodeWithText("Downloading test build 464").assertHasNoClickAction()

@@ -144,6 +144,20 @@ class LiveUpdatesTest {
     }
 
     @Test
+    fun aBuildWithAnotherKeyIsSaidOnTodayAndNothingNewerIsFetched() = runBlocking {
+        val updates = updates()
+        apks["new key"] = apk(464, signers = setOf("ci-key"))
+        serve("new key")
+        assertEquals(LiveUpdates.Outcome.Failed, updates.download(464))
+        assertEquals(SelfUpdate.NewKey(464), updates.state.first())
+
+        updates.newerBuild(470)
+        assertTrue("each newer build has the new key too", downloads().isEmpty())
+        // Reinstalled from the link, the new-key build starts afresh.
+        assertEquals(SelfUpdate.None, updates(installedBuild = 470).state.first())
+    }
+
+    @Test
     fun aMismatchedApkIsDeletedAndThatBuildIsNeverFetchedAgain() = runBlocking {
         val updates = updates()
         for ((text, facts) in listOf(
@@ -154,7 +168,7 @@ class LiveUpdatesTest {
             serve(text)
             assertEquals(text, LiveUpdates.Outcome.Failed, updates.download(464))
             assertEquals("$text: nothing kept", emptyList<String>(), dir.list()!!.toList())
-            prefs.edit().remove(LiveUpdates.REJECTED).commit()
+            prefs.edit().remove(LiveUpdates.REJECTED).remove(LiveUpdates.OTHER_KEY).commit()
         }
         serve("not an APK at all")
         assertEquals(LiveUpdates.Outcome.Failed, updates.download(464))
