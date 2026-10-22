@@ -42,7 +42,8 @@ wrong quietly:
   the mail app, or Read on a Boox each count as delivery. Check the edition
   says so.
 - **Mark as sent / Send again** (a sent edition's ⋮ menu) for a route that
-  isn't covered above, or a send that didn't arrive.
+  isn't covered above, or a send that didn't arrive. On the emulator,
+  `journeys.sh mark-sent` does both, and Mark as not sent, with a stand-in app.
 - **An edition still "ready" when the next is built** is marked not sent and
   its articles go back, keeping their stars. Build two editions without
   sending the first and check that happened.
@@ -63,7 +64,8 @@ Not delivery, but things a runner can't show either:
 - **A release build on a real phone:** onboarding, an edition and a send. CI only tests the debug build.
 - **Timed editions overnight:** timed editions and their audio arrive overnight on a real phone
   (Oct 2026). Still to try: an old, slow phone.
-- **Imports from real accounts:** a Pocket export, an Instapaper export and an OPML file.
+- **Imports from real accounts:** a Pocket export, an Instapaper export and an OPML file from a real
+  reader. `journeys.sh opml` imports and exports a made-up OPML file through the picker.
 - **tt-rss against a real server:** in daily use since Oct 2026. Moving feeds between the phone and
   the server is the part used least.
 - **Pictures and players in the book** on a Kindle and a Kobo or Boox: pictures are stored rather

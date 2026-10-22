@@ -184,7 +184,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Two editions, a send after a cold start, a share, a folder, Listen
+      - name: Two editions, a send after a cold start, a share, Send again and Mark as sent, OPML, a folder, Listen
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: 36
@@ -198,6 +198,8 @@ jobs:
             tools/emulator/journeys.sh two-editions || touch build/emulator/failed
             tools/emulator/doze.sh soon && tools/emulator/journeys.sh cold-send || touch build/emulator/failed
             tools/emulator/journeys.sh share || touch build/emulator/failed
+            tools/emulator/journeys.sh mark-sent || touch build/emulator/failed
+            tools/emulator/journeys.sh opml || touch build/emulator/failed
             tools/emulator/journeys.sh folder || touch build/emulator/failed
             tools/emulator/journeys.sh listen || touch build/emulator/failed
             test ! -e build/emulator/failed
