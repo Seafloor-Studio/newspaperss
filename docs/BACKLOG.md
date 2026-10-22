@@ -27,12 +27,7 @@ Cycle G6. Fixed in #363 (CI) and #364 (nested JSON). Measured unless it says "re
   - 100,000 `<br>` (400 KB): 20 s to extract. 100,000 `<p></p>`: 18 s.
   - 100,000 empty `<span>`s, nested or side by side: 11–14 s to clean (`stripTagsAndAttributes` unwraps them one at a time).
   - Pages are allowed 5 MB, and the edition's deadline is checked only between articles, so the cure is likely a limit on elements per page, or work the deadline can stop.
-- [ ] **One feed can add any number of items:** a 10 MB RSS feed of tiny items parsed into 321,114 items (1.3 s, about 110 MB of heap), all handed to `insertFetched`. A per-feed cap per sync, newest first.
-- [ ] **The entity guard in `FeedParser` is a regex, and it's slow and easy to get past.**
-  - A fake `<rss>` inside a comment, or a 70 KB comment, gets past it.
-  - `<!ENTITY ` repeated through the 64 KB prolog takes 5 s per parse.
-  - Neither is exploitable today: Android's parser and kxml2 don't expand declared entities unless `FEATURE_PROCESS_DOCDECL` is on, and the app never turns it on.
-  - Add a test that pins that, and make the guard linear.
+- [ ] **A feed of over 1,000 items whose dates can't order them keeps its first 1,000** *(H3, #376's review)*: right for the usual newest-first feed, but an undated or same-dated oldest-first one keeps its oldest. Before the cap, all were stored. Rare (it needs both); keep the last 1,000 when no dates differ, if one turns up.
 - [ ] OPML and reading-list imports read the whole picked file into memory (`readText()`), with no size limit. Small: the reader picks the file. *(read)*
 - [ ] **No dependency verification:** there's no `gradle/verification-metadata.xml`, so a replaced artifact on a repository would go unnoticed. JitPack (sherpa-onnx, debug builds only) builds from tags that can move. Worth doing before Play.
 - [ ] `recurring-review.yml` steers an agent that can write issues. Its spec comes from claude-playground, and it reads the bodies of open `audit` issues, which anyone can write. Its `gh api repos/madCode/claude-playground/contents/*` allowance also permits PUT and DELETE. Your call whether to narrow it to GET and to issues you opened. *(read)*
@@ -445,6 +440,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] **Feeds: a linear entity check, and at most 1,000 items** *(H3, #376)*: the check reads the prolog once, past comments, and Android's parser is held to not expanding declared entities (`FeedParserEntityTest`); a feed keeps its 1,000 newest items by date
 - [x] **`AccessibilityChecksTest` no longer hangs the device job** *(H1, #374)*: the tap after switching to 200% text landed on the activity Android was about to recreate, and the new one's splash waited on a frame from the test's clock. It now waits for the new activity. 4 failures in 10 runs before, under the same 10-emulator matrix; 0 in 20 after
 - [x] **Accessibility tooling** *(a11y)*: Google's accessibility checks (the engine Accessibility Scanner uses) run on every screen a new reader meets, on the emulator in CI (#347). Not in the Robolectric tests: there the checks run on nothing and pass
 - [x] **Onboarding's website search says its result to TalkBack** *(approved, #347's review)*: as well as "Checking…" and a saved page, a found feed ("Found Blog. It's ticked below.") and the reason nothing was found are announced, once each, and again for a second search with the same answer. Still to hear on a device: whether submitting with the keyboard's Done also speaks the field's own error over it (G4)
