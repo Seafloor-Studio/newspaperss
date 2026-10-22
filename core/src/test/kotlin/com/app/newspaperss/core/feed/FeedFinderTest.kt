@@ -36,6 +36,13 @@ class FeedFinderTest {
 
     /** Shaped like Current Affairs on HubSpot: the front page advertises nothing, its blog's page does. */
     @Test
+    fun aFeedLinkTooLongToKeepIsntOffered() {
+        val head = "<link rel=\"alternate\" type=\"application/rss+xml\" href=\"/feed?${"x".repeat(FeedFinder.MAX_FEED_URL)}\">" +
+            "<link rel=\"alternate\" type=\"application/atom+xml\" href=\"/atom.xml\">"
+        assertEquals(listOf("https://site.example/atom.xml"), FeedFinder.advertisedFeeds(head, "https://site.example/").map { it.url })
+    }
+
+    @Test
     fun aFeedAdvertisedOnlyOnTheSitesBlogPageIsFound() = runTest {
         val links = (1..30).joinToString("") { "<a href=\"/news/story-$it?hsLang=en\">Story $it</a>" } +
             (1..20).joinToString("") { "<img src=\"/hubfs/pic-$it.jpg\"><a href=\"/hubfs/pic-$it.jpg\">pic</a>" } + "<a href=\"/about\">About</a>"

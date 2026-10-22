@@ -32,6 +32,21 @@ class SourceRepositoryTest {
     }
 
     @Test
+    fun aFeedTitledAMegabyteLongStillLetsTheSourcesBeRead() = runTest {
+        // A hostile feed's own <title>, as Share, Add and onboarding pass it on: one row too big to
+        // read back broke every read of the sources, so every sync and edition.
+        repo.addFeed("https://a.example/feed", "x".repeat(1_000_000))
+        assertEquals(RowLimits.MAX_TITLE, db.sources().all().single().title.length)
+    }
+
+    @Test
+    fun aFeedAddressTooLongToKeepIsRefused() = runTest {
+        val thrown = runCatching { repo.addFeed("https://a.example/" + "x".repeat(RowLimits.MAX_LINK), null) }.exceptionOrNull()
+        assertTrue("$thrown", thrown is IllegalArgumentException)
+        assertTrue(db.sources().all().isEmpty())
+    }
+
+    @Test
     fun newSourcesGoToTheEnd() = runTest {
         repo.addFeed("https://a.example/feed", "A")
         repo.addFeed("https://b.example/feed", "B")

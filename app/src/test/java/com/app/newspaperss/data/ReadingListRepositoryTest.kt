@@ -37,6 +37,12 @@ class ReadingListRepositoryTest {
     }
 
     @Test
+    fun aSharedLinksTrackingComesOffAsAFeedsDoes() = runTest {
+        list.save("https://news.example/post?id=3&utm_source=share&utm_medium=android", "A post")
+        assertEquals("https://news.example/post?id=3", db.articles().allForSource(list.sourceId()).single().url)
+    }
+
+    @Test
     fun everyLinkSavedIsLookedUpOnce() = runTest {
         // Titled ones too: the lookup also measures the page for its reading time.
         list.save("https://a.example/titled", "The reader's title")

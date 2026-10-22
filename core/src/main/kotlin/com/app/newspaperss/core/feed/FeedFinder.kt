@@ -127,6 +127,7 @@ class FeedFinder(private val http: HttpClient) {
         )
 
         private const val MAX_LINKED_TRIES = 3
+        internal const val MAX_FEED_URL = 4_000
         private const val MIN_SECTION_LINKS = 10
         // Folders of files and listings, never the site's writing; and sections whose feed, if
         // any, is of something else (products, events, a podcast's episodes).
@@ -227,6 +228,8 @@ class FeedFinder(private val http: HttpClient) {
                 // REST API (type application/json) is a page's data, not a feed.
                 .filterNot { it.attr("title").contains("comments", ignoreCase = true) || "/wp-json/" in it.attr("href") }
                 .map { FoundFeed(it.absUrl("href"), it.attr("title").trim().takeUnless { t -> t.isEmpty() || namesOnlyAFormat(t) }) }
+                // Too long to keep: the app refuses to store one (its RowLimits.MAX_LINK).
+                .filter { it.url.length <= MAX_FEED_URL }
                 .distinctBy { it.url }
     }
 }
