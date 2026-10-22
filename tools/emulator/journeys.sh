@@ -226,16 +226,18 @@ OPML
     $ui wait "NewspapeRSS-sources" > /dev/null
     $ui shot 59-export
     $ui tap "Save" > /dev/null
-    out=""
-    for _ in $(seq 15); do
+    # The save dialog makes the file empty before the app writes it: wait for both sites in it.
+    out="" has=""
+    for _ in $(seq 30); do
       out=$(adb shell "ls /sdcard/Download/NewspapeRSS-sources*.opml 2> /dev/null" | head -1 | tr -d '\r' || true)
-      [ -n "$out" ] && break
-      sleep 2
+      if [ -n "$out" ]; then
+        adb pull "$out" build/emulator/exported.opml > /dev/null
+        grep -q 'https://one.example/feed.xml' build/emulator/exported.opml && grep -q 'https://two.example/rss' build/emulator/exported.opml && { has=1; break; }
+      fi
+      sleep 1
     done
     [ -n "$out" ] || { $ui shot 60-not-saved; echo "no NewspapeRSS-sources.opml in Downloads after Save" >&2; $ui texts >&2; exit 1; }
-    adb pull "$out" build/emulator/exported.opml > /dev/null
-    grep -q 'https://one.example/feed.xml' build/emulator/exported.opml && grep -q 'https://two.example/rss' build/emulator/exported.opml \
-      || { echo "the exported file lacks the imported sites:" >&2; cat build/emulator/exported.opml >&2; exit 1; }
+    [ -n "$has" ] || { echo "the exported file lacks the imported sites 30 s after Save:" >&2; cat build/emulator/exported.opml >&2; exit 1; }
     echo "opml passed: two sites imported from $file through the picker, and exported to $out" ;;
   folder)
     # Android doesn't let an app have the whole of Downloads, only a folder in it.

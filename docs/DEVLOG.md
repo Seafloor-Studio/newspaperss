@@ -26,7 +26,7 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ### H6: two more emulator journeys
 - **What you asked:** the last journeys a reader takes without an account that only the JVM tested.
-- **Built (#378):** `journeys.sh mark-sent` sends cold-send's edition again to the stand-in app (whole: 2,987,395 bytes received), marks it not sent through its dialog, and marks it sent. `journeys.sh opml` imports two made-up sites from a file through Android's file picker ("Added 2 sites."), checks them in the database, and exports them to Downloads. CI's journeys job runs both; all seven journeys passed on the first run, and the screenshots show each step.
+- **Built (#378):** `journeys.sh mark-sent` sends cold-send's edition again to the stand-in app (whole: 2,987,395 bytes received), marks it not sent through its dialog, and marks it sent. `journeys.sh opml` imports two made-up sites from a file through Android's file picker ("Added 2 sites."), checks them in the database, and exports them to Downloads. CI's journeys job runs both; all seven journeys passed on the first run, and the screenshots show each step. A later run caught `opml` reading the export before the app had written it (the save dialog makes the file empty first); it now waits for both sites in the file.
 
 ### H7: the architecture and test-health audit
 - **What you asked:** the recurring review, due before a release or after 30–40 cycles (the last was 16 Oct).
