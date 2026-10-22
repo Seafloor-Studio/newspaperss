@@ -3,6 +3,13 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle H1 (22 Oct) — build: the accessibility walk's hang
+
+The first of tonight's H1–H7 run, one session for all of them. See [DEVLOG.md](DEVLOG.md).
+- **Read every failed run's logcat before guessing.** Ten failures' `device-test-report` artifacts, fetched with the API, all ended at one step; that one line named the cause. A run that passes uploads nothing, so there's nothing to compare against.
+- **Count a device flake with a temporary matrix.** `strategy.matrix.attempt: [1..10]` on the device job, with the runner's `class=` filter, gives ten emulators at once in about ten minutes. Run the old code under the same matrix for the before, then drop both temporary commits.
+- **Run baseline:** no emulator, no Docker, 22 GB free, load 0; worktree `/home/user/nr-h2` for the next cycle.
+
 ### Cycle G6 (21 Oct) — audit: security and supply chain
 
 See [DEVLOG.md](DEVLOG.md).
