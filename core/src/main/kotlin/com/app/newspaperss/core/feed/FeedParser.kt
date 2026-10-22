@@ -12,6 +12,7 @@ import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.StringReader
+import java.time.Instant
 import java.net.URI
 
 /** Parses RSS 2.0, RSS 1.0 (RDF), Atom and JSON Feed. */
@@ -26,14 +27,12 @@ object FeedParser {
     // media:content, itunes:summary and the like share local names with the
     // elements read here, so only RSS/Atom's own namespaces count.
     private val FEED_NAMESPACES = setOf("", RSS1_NS, ATOM_NS)
-    // The root element, prefixed or not (<rss>, <atom:feed>, <rdf:RDF>).
-    private val ROOT = Regex("<(?:[\\w-]+:)?(rss|feed|RDF)[\\s>]", RegexOption.IGNORE_CASE)
-    // <!ENTITY name "value">, or a parameter entity (<!ENTITY % name …>).
     // A reference to another entity (&name;), not a character reference (&#160;).
     private val ENTITY_REF = Regex("&[A-Za-z_:]")
-    private val ENTITY = Regex("<!ENTITY\\s+(%?)[^>]*?(\"[^\"]*\"|'[^']*'|>)", RegexOption.IGNORE_CASE)
-    private const val MAX_PROLOG = 64 * 1024
     private const val MAX_DEPTH = 512
+    // A sync stores every item a feed lists, so a 10 MB feed of tiny ones would be hundreds of
+    // thousands of rows (321,114 in one measured). Real feeds list tens; full-history ones hundreds.
+    internal const val MAX_ITEMS = 1000
     private const val TOO_LARGE = "This feed is too large to read."
 
     /**
@@ -77,9 +76,9 @@ object FeedParser {
     private fun parseXml(text: String, feedUrl: String, truncated: Boolean): Feed {
         // Entities that expand into other entities are refused before parsing: nested, they can
         // grow to gigabytes ("billion laughs"). Plain ones (an old CMS declaring &nbsp;) are read.
-        val root = ROOT.find(text)?.range?.first ?: text.length
-        val prolog = text.substring(0, minOf(root, MAX_PROLOG))
-        if (ENTITY.findAll(prolog).any { it.groupValues[1].isNotEmpty() || ENTITY_REF.containsMatchIn(it.groupValues[2]) || '%' in it.groupValues[2] }) {
+        // Neither Android's parser nor kxml2 expands a declared entity as FeedParser sets them up
+        // (FeedParserEntityTest holds them to it), so this is the second line, not the first.
+        if (declaresNestedEntities(text)) {
             throw FeedParseException("Not a readable feed: it declares entities made of other entities.")
         }
         val parser = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }.newPullParser()
@@ -95,6 +94,79 @@ object FeedParser {
         } catch (e: XmlPullParserException) {
             throw FeedParseException("Not a readable feed: ${e.message}", e)
         }
+    }
+
+    /**
+     * The [MAX_ITEMS] newest of [items] by date, in the feed's order: whichever end of the feed its
+     * newest are at. Undated ones count as older than any dated one, and keep the feed's order.
+     */
+    private fun newest(items: List<FeedItem>): List<FeedItem> {
+        if (items.size <= MAX_ITEMS) return items
+        val kept = items.indices.sortedWith(compareByDescending<Int, Instant?>(nullsFirst()) { items[it].published }).take(MAX_ITEMS).toSortedSet()
+        return kept.map { items[it] }
+    }
+
+    /**
+     * Whether the document type declaration before the root element declares a parameter entity,
+     * or an entity whose value refers to another. One pass over the prolog, skipping comments and
+     * processing instructions as a parser would, so neither a long one nor an `<rss>` inside one
+     * hides what follows, and a prolog of any length costs no more than reading it.
+     */
+    internal fun declaresNestedEntities(text: String): Boolean {
+        var i = 0
+        while (true) {
+            val lt = text.indexOf('<', i)
+            if (lt < 0) return false
+            i = when {
+                text.startsWith("<!--", lt) -> text.indexOf("-->", lt + 4).takeIf { it >= 0 }?.plus(3) ?: return false
+                text.startsWith("<?", lt) -> text.indexOf("?>", lt + 2).takeIf { it >= 0 }?.plus(2) ?: return false
+                text.regionMatches(lt, "<!DOCTYPE", 0, 9, ignoreCase = true) -> return internalSubsetNests(text, lt + 9)
+                // The root element: a document type declaration can only come before it.
+                else -> return false
+            }
+        }
+    }
+
+    /** From just after `<!DOCTYPE`: whether its internal subset, if any, declares nesting entities. */
+    private fun internalSubsetNests(text: String, from: Int): Boolean {
+        var i = skipToOutsideQuotes(text, from, "[>") ?: return false
+        if (text[i] == '>') return false
+        i++
+        while (true) {
+            val next = skipToOutsideQuotes(text, i, "<]") ?: return false
+            if (text[next] == ']') return false
+            i = when {
+                text.startsWith("<!--", next) -> text.indexOf("-->", next + 4).takeIf { it >= 0 }?.plus(3) ?: return false
+                text.startsWith("<?", next) -> text.indexOf("?>", next + 2).takeIf { it >= 0 }?.plus(2) ?: return false
+                text.regionMatches(next, "<!ENTITY", 0, 8, ignoreCase = true) -> {
+                    var j = next + 8
+                    while (j < text.length && text[j].isWhitespace()) j++
+                    if (j < text.length && text[j] == '%') return true
+                    // The first quoted value: the entity's text, or an external one's address.
+                    val end = skipToOutsideQuotes(text, j, "\"'>") ?: return false
+                    if (text[end] != '>') {
+                        val close = text.indexOf(text[end], end + 1).takeIf { it >= 0 } ?: return false
+                        val value = text.substring(end + 1, close)
+                        if (ENTITY_REF.containsMatchIn(value) || '%' in value) return true
+                        (skipToOutsideQuotes(text, close + 1, ">") ?: return false) + 1
+                    } else end + 1
+                }
+                // Another declaration (<!ELEMENT, <!ATTLIST): to its end.
+                else -> (skipToOutsideQuotes(text, next + 1, ">") ?: return false) + 1
+            }
+        }
+    }
+
+    /** The index of the first of [stops] at or after [from] that isn't inside a quoted value, or null. */
+    private fun skipToOutsideQuotes(text: String, from: Int, stops: String): Int? {
+        var i = from
+        while (i < text.length) {
+            val c = text[i]
+            if (c in stops) return i
+            if (c == '"' || c == '\'') i = text.indexOf(c, i + 1).takeIf { it >= 0 } ?: return null
+            i++
+        }
+        return null
     }
 
     private class TooDeep : Exception()
@@ -121,7 +193,7 @@ object FeedParser {
                 stoppedAtCut = true
             }
             if (!sawRoot) throw FeedParseException("Empty document")
-            if (!truncated) return Feed(feedTitle, siteUrl, items.toList(), podcast)
+            if (!truncated) return Feed(feedTitle, siteUrl, newest(items), podcast)
             // Otherwise the parser took the cut for the document's end, closing what it left open
             // (kxml on the JVM) or not (Android's): either way the last item read may be only part
             // of one, so it goes. A whole one lost from a feed this long costs nothing.
@@ -131,7 +203,7 @@ object FeedParser {
             val first = whole.first().published
             val last = whole.last().published
             if (first != null && last != null && first < last) throw FeedTooLargeException("$TOO_LARGE It lists its oldest posts first, so its new ones are past what can be read.")
-            return Feed(feedTitle, siteUrl, whole, podcast)
+            return Feed(feedTitle, siteUrl, newest(whole), podcast)
         }
 
         private fun readAll() {
@@ -145,7 +217,10 @@ object FeedParser {
                         }
                         sawRoot = true
                     }
-                    name == "item" || name == "entry" -> readItem(name)?.let(items::add)
+                    name == "item" || name == "entry" -> readItem(name)?.let {
+                        items.add(it)
+                        if (items.size >= 2 * MAX_ITEMS) newest(items).let { kept -> items.clear(); items.addAll(kept) }
+                    }
                     p.namespace == ITUNES_NS && (name == "category" || name == "type") -> podcast = true
                     p.namespace !in FEED_NAMESPACES -> {}
                     name == "title" && feedTitle == null && p.depth <= 3 -> feedTitle = cleanTitle(readText())
@@ -352,7 +427,7 @@ object FeedParser {
                 durationSeconds = attachments.firstNotNullOfOrNull { it.str("duration_in_seconds")?.toDoubleOrNull()?.toInt()?.takeIf { s -> s > 0 } },
             )
         }
-        return Feed(root.str("title"), root.str("home_page_url"), items)
+        return Feed(root.str("title"), root.str("home_page_url"), newest(items))
     }
 
     private fun JsonObject.str(key: String): String? =
