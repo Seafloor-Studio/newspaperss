@@ -87,6 +87,8 @@ internal class LiveUpdates(
 
     override fun newerBuild(build: Int) {
         if (build <= installedBuild || build <= prefs.getInt(REJECTED, 0)) return
+        // Every build after the first with another key has it too: not 50 MB each to refuse.
+        if (prefs.getInt(OTHER_KEY, 0) > installedBuild) return
         val ready = readyBuild()
         if (ready != null && ready >= build) {
             LiveInstallWorker.enqueue(work)
@@ -145,6 +147,7 @@ internal class LiveUpdates(
             is Verdict.Bad -> {
                 part.delete()
                 log("Build $target was refused: ${verdict.why}")
+                if (verdict.otherKey) prefs.edit().putInt(OTHER_KEY, target).commit()
                 // The target, not the number the file claims: a file that failed its checks can't
                 // be trusted to say which build it is.
                 reject(target)
@@ -301,6 +304,7 @@ internal class LiveUpdates(
 
     private fun stateOf(download: WorkInfo?): SelfUpdate {
         readyBuild()?.let { return if (canInstall()) SelfUpdate.Ready(it) else SelfUpdate.NeedsPermission(it) }
+        prefs.getInt(OTHER_KEY, 0).takeIf { it > installedBuild }?.let { return SelfUpdate.NewKey(it) }
         if (download == null || download.state.isFinished) return SelfUpdate.None
         val build = download.tags.firstOrNull { it.startsWith(BUILD_TAG) }?.removePrefix(BUILD_TAG)?.toIntOrNull()
         if (build == null || build <= installedBuild) return SelfUpdate.None
@@ -374,6 +378,7 @@ internal class LiveUpdates(
 
         internal const val READY = "ready"
         internal const val REJECTED = "rejected"
+        internal const val OTHER_KEY = "otherKey"
         private const val FAILURES = "failures"
         private const val ASKED = "asked"
         private const val ASKED_PERMISSION = "askedPermission"

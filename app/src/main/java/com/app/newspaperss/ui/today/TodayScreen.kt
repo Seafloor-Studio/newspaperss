@@ -113,6 +113,7 @@ private fun NewerBuildLine(newerBuild: Int?, selfUpdate: SelfUpdate, onInstall: 
         is SelfUpdate.NeedsPermission -> Line("Test build ${selfUpdate.build} is ready. Allow installing it") {
             if (runCatching { context.startActivity(unknownAppsSettings(context)) }.isFailure) download()
         }
+        is SelfUpdate.NewKey -> Line("Test builds have a new key. Uninstall this one, then download the newest", download)
         SelfUpdate.None -> newerBuild?.let { Line("Test build $it is out. Download it", download) }
     }
 }

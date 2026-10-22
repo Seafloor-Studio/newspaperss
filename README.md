@@ -123,11 +123,10 @@ build's number. After that the test build keeps itself current: it downloads
 each newer build on Wi-Fi and installs it when the app isn't in use. Allow
 "Install unknown apps" for it when Today asks, and confirm the first update
 (Android asks once after a browser install, and every time before Android 12).
-The builds here are signed with the debug channel's own key, and Android won't
-put a build with another key over one already installed: if a test build
-stops updating itself, or one built with `installDebug` is in the way,
-uninstall it (its editions and settings go with it) and install from the link
-again.
+Once the release notes say the builds are signed with the debug channel's own
+key, Android won't put one over a test build signed with the shared one, from
+before then or built with `installDebug`. Today says so: uninstall that one
+(its editions and settings go with it) and install from the link again.
 
 ## Building
 

@@ -132,10 +132,11 @@ jobs:
           keystore="$RUNNER_TEMP/debug-channel.jks"
           trap 'rm -f "$keystore"' EXIT
           echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > "$keystore"
-          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+          # The newest released build-tools: sort -V puts a preview (37.0.0-rc1) above them.
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | grep -v -- '-rc' | sort -V | tail -1)/apksigner"
           for apk in app-*-debug.apk; do
             "$apksigner" sign --ks "$keystore" --ks-pass env:DEBUG_KEYSTORE_PASSWORD \
-              --ks-key-alias "$DEBUG_KEY_ALIAS" --key-pass env:DEBUG_KEY_PASSWORD --v4-signing-enabled false "$apk"
+              --ks-key-alias "$DEBUG_KEY_ALIAS" --key-pass env:DEBUG_KEY_PASSWORD --v1-signing-enabled false --v4-signing-enabled false "$apk"
             # One signer, the channel's key: its digest in the log, to compare against.
             out=$("$apksigner" verify -v --print-certs "$apk")
             grep -qx 'Number of signers: 1' <<< "$out"
