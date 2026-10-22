@@ -74,4 +74,6 @@ Not delivery, but things a runner can't show either:
   "ready"; allow "Install unknown apps" when asked; confirm Android's question once. The next
   build should then install with no question on Android 12 or later, while the app is closed and
   nothing is running, and Settings should show its number. Also: an edition being made holds the
-  install back; mobile data doesn't download; a release build has no "Install unknown apps" entry.
+  install back; so does a picker or the browser opened from the app (open one when Today says
+  "ready", wait, come back: the app is as you left it); mobile data doesn't download; a release
+  build has no "Install unknown apps" entry.
