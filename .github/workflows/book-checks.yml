@@ -14,6 +14,7 @@ on:
       - 'core/src/test/kotlin/**/extract/PlatformCorpusTest.kt'
       - 'core/build.gradle.kts'
       - 'gradle/libs.versions.toml'
+      - 'gradle/verification-metadata.xml'
       - 'core/src/test/resources/platforms/**'
       - 'tools/ace-check.sh'
       - '.github/workflows/book-checks.yml'

@@ -9,6 +9,13 @@ See [DEVLOG.md](DEVLOG.md).
 - **A recording that replaces text changes every figure computed from the text.** Ask what else reads the page's length (times left, the edition's total, the resume dialog) before swapping what plays.
 - **Independent PRs go on their own branches.** Queueing them on one branch kept a finished change waiting on an unrelated one's CI.
 
+### Cycle H9 (22 Oct) — build: dependency verification
+
+See [DEVLOG.md](DEVLOG.md).
+- **Before adding a workflow that pushes, read the branch's required checks** (`gh api repos/<repo>/rules/branches/main`). A push made with the workflow's token starts no checks, and a required check that never reports leaves the PR stuck.
+- **A skipped job passes a required check.** Gate a job that can be started by hand with a failing step, not a job-level `if`.
+- **Write Gradle's verification metadata as a fresh machine would** (`--refresh-dependencies`). Over a warm cache the first file missed 11 parent POMs and BOMs, and CI refused the first one.
+
 ### Cycle H8 (22 Oct) — build: the debug key, rotated
 
 See [DEVLOG.md](DEVLOG.md).
