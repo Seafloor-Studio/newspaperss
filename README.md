@@ -124,9 +124,9 @@ each newer build on Wi-Fi and installs it when the app isn't in use. Allow
 "Install unknown apps" for it when Today asks, and confirm the first update
 (Android asks once after a browser install, and every time before Android 12).
 Once the release notes say the builds are signed with the debug channel's own
-key, Android won't put one over a test build signed with the shared one, from
-before then or built with `installDebug`. Today says so: uninstall that one
-(its editions and settings go with it) and install from the link again.
+key, a test build from before still updates itself: the new key is rotated from
+the shared one, which vouches for it. One built with `installDebug` can't then
+go over it; uninstall first (its editions and settings go with it).
 
 ## Building
 

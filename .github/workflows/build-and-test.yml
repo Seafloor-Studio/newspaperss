@@ -113,10 +113,18 @@ jobs:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: newspaperss-debug-apk
+      # The shared debug key, which signed every build testers have: the new key's rotation names it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: app/debug.keystore
+          sparse-checkout-cone-mode: false
+          path: repo
       # The committed debug key is public, so the updater's signature check could only prove a
-      # file was a debug build. Published builds are signed again with a key held here; until its
-      # secrets exist, they go out as built. Here rather than in the build, which runs plugins'
-      # and dependencies' code and every PR's.
+      # file was a debug build. Published builds are signed again with a key held here, rotated
+      # from the shared one so a tester's build updates in place (Android 9 and later; Android 8
+      # still sees the shared key). Until its secrets exist, they go out as built. Here rather than
+      # in the build, which runs plugins' and dependencies' code and every PR's.
       - name: Sign with the debug channel's own key
         id: sign
         env:
@@ -130,17 +138,23 @@ jobs:
             exit 0
           fi
           keystore="$RUNNER_TEMP/debug-channel.jks"
-          trap 'rm -f "$keystore"' EXIT
+          lineage="$RUNNER_TEMP/debug-lineage"
+          trap 'rm -f "$keystore" "$lineage"' EXIT
           echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > "$keystore"
           # The newest released build-tools: sort -V puts a preview (37.0.0-rc1) above them.
           apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | grep -v -- '-rc' | sort -V | tail -1)/apksigner"
+          shared=(--ks repo/app/debug.keystore --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android)
+          own=(--ks "$keystore" --ks-key-alias "$DEBUG_KEY_ALIAS" --ks-pass env:DEBUG_KEYSTORE_PASSWORD --key-pass env:DEBUG_KEY_PASSWORD)
+          "$apksigner" rotate --out "$lineage" --old-signer "${shared[@]}" --new-signer "${own[@]}"
           for apk in app-*-debug.apk; do
-            "$apksigner" sign --ks "$keystore" --ks-pass env:DEBUG_KEYSTORE_PASSWORD \
-              --ks-key-alias "$DEBUG_KEY_ALIAS" --key-pass env:DEBUG_KEY_PASSWORD --v1-signing-enabled false --v4-signing-enabled false "$apk"
-            # One signer, the channel's key: its digest in the log, to compare against.
-            out=$("$apksigner" verify -v --print-certs "$apk")
+            "$apksigner" sign "${shared[@]}" --next-signer "${own[@]}" --lineage "$lineage" \
+              --rotation-min-sdk-version 28 --v1-signing-enabled false --v4-signing-enabled false "$apk"
+            # Android 9 and later see one signer, the channel's key, with the shared one in its
+            # lineage; Android 8 the shared key. Its digest in the log, to compare against.
+            out=$("$apksigner" verify -v --print-certs --min-sdk-version 28 "$apk")
             grep -qx 'Number of signers: 1' <<< "$out"
-            grep 'certificate SHA-256 digest' <<< "$out"
+            grep 'certificate SHA-256 digest' <<< "$out" | grep -v 2013e64d5fcee3f9738a097f809ae3965e94aca6471cbd2a10bdc8e76974d5b5
+            "$apksigner" lineage --in "$apk" --print-certs | grep -q 2013e64d5fcee3f9738a097f809ae3965e94aca6471cbd2a10bdc8e76974d5b5
           done
           echo "signed=true" >> "$GITHUB_OUTPUT"
       - name: Update the latest-debug release
@@ -161,7 +175,7 @@ jobs:
           title="Debug build $build · $short · $(date -u '+%b %-d')"
           notes="Build $build from main ($short), $(date -u '+%Y-%m-%d %H:%M') UTC. Installs beside a release build as com.app.newspaperss.debug; its version is 0.1.0-debug.$build+$short (Settings, at the bottom). newspapeRSS-debug.apk is for arm64, most phones and e-readers; an older 32-bit e-reader needs the armeabi-v7a one, which has no podcast voice."
           if [ "$SIGNED" = true ]; then
-            notes="$notes Signed with the debug channel's own key: a debug build signed with the shared key (from before the switch, or built yourself) can't update to it. Uninstall that one first; its editions and settings go with it."
+            notes="$notes Signed with the debug channel's own key, rotated from the shared one, so a test build from before updates in place. A build made with installDebug can't then go over it: uninstall first; editions and settings go with it."
           fi
           # Updated in place, so the fixed link never 404s between builds. Title, notes and tag
           # follow each build: otherwise the page keeps the first build's date and commit.
