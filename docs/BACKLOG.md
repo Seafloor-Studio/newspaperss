@@ -112,6 +112,11 @@ Whole-codebase passes for what a review of one PR can't see. Each follows the au
 - [ ] **Security and supply chain** (last: 21 Oct, cycle G6; its findings are under "From the 21 Oct security review"), before each release or every 20–30 cycles: hostile feeds and pages (entity expansion, slow regexes, huge inputs), links and intents that leave the app, what CI's jobs can write, signing keys, and pinned actions and dependencies
 - [ ] **Architecture and test health** (last: 16 Oct, cycle 6 of that run; its findings are at the top of Next), every 30–40 cycles or before a release: duplication and code that has grown complicated, how features fit together (what one feature deletes that another still uses), tests that can never fail, waits that flake under load, and copied test helpers
 
+### From the live-update hold *(audit)*
+The 22 Oct change on `claude/update-holds`: a background install now waits while the reader is in a picker or the browser the app opened.
+- [ ] **Check on a phone: a background install while an edition sent from the notification is in another app's hands.** Send on the edition's notification starts the mail app or e-reader from `SendEditionActivity` and `OpenEditionActivity`, not `MainActivity`, so the hold isn't set. If an install then replaces the app, can that app still read the book through the old grant? Steps: tap Send, leave the mail draft open, let the next build install, then send the mail. *(device)*
+- [ ] The notification-permission dialog doesn't set the hold: Android shows it without `startActivityForResult`, and the paused app isn't in the foreground under it. A background install could end the app under the dialog. Narrow, and older than the hold. *(read)*
+
 ### Tech debt
 - [ ] Listen sometimes stops at the paragraph instead of scrolling down to the sentence being read: its fine scroll needs the paragraph's text layout, which may not be recorded yet when the scroll runs. Seen as `11d-listen-larger-text` differing between two renders; likely on a phone too *(today B7)*
 
