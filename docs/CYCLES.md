@@ -3,6 +3,12 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle H3 (22 Oct) — build: a feed's item cap and entity check
+
+See [DEVLOG.md](DEVLOG.md).
+- **A test that checks a library's behaviour should call the app's own setup of it.** `FeedParser.newParser()` exists so `FeedParserEntityTest` tests what ships, not a copy that could drift.
+- **A cap changes what other tests can see.** `OkHttpHttpClientTest`'s "reads up to the cut" became "reads 1,000"; grep for tests counting a parser's output before choosing a limit.
+
 ### Cycle H2 (22 Oct) — build: deeply nested feeds and pages
 
 See [DEVLOG.md](DEVLOG.md).

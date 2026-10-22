@@ -228,6 +228,75 @@ class FeedParserTest {
     }
 
     @Test
+    fun nestedEntitiesAreFoundPastACommentThatWouldHideThem() {
+        val doctype = "<!DOCTYPE rss [<!ENTITY a \"aaaaaaaaaa\"><!ENTITY b \"&a;&a;&a;&a;&a;\">]>"
+        val body = "<rss><channel><title>&b;</title></channel></rss>"
+        // One that names the root element, and one longer than the part of the file read for them.
+        for (comment in listOf("<!-- <rss> -->", "<!-- ${"x".repeat(70_000)} -->")) {
+            assertThrows(comment.take(20), FeedParseException::class.java) {
+                FeedParser.parse("<?xml version=\"1.0\"?>$comment$doctype$body", "https://a.example/feed")
+            }
+        }
+    }
+
+    @Test
+    fun aParameterEntityOrOneAfterOtherDeclarationsIsRefused() {
+        val body = "<rss><channel><title>T</title></channel></rss>"
+        for (subset in listOf(
+            "<!ENTITY % p \"x\">",
+            "<!ELEMENT rss ANY><!ATTLIST rss version CDATA \"2.0>]\"><!-- ] --><!ENTITY b '&nbsp;&a;'>",
+        )) {
+            assertThrows(subset, FeedParseException::class.java) {
+                FeedParser.parse("<?xml version=\"1.0\"?><!DOCTYPE rss SYSTEM \"x[.dtd\" [$subset]>$body", "https://a.example/feed")
+            }
+        }
+    }
+
+    @Test
+    fun aPrologFullOfUnfinishedDeclarationsIsReadAtOnce() {
+        // 63 KB with no closing bracket: looking for each declaration's end from every one took 5 s.
+        val rss = "<?xml version=\"1.0\"?><!DOCTYPE rss [" + "<!ENTITY ".repeat(7_000) +
+            "<rss><channel><title>T</title><item><title>A</title><link>https://a.example/1</link></item></channel></rss>"
+        val started = System.nanoTime()
+        runCatching { FeedParser.parse(rss, "https://a.example/feed") }
+        val seconds = (System.nanoTime() - started) / 1e9
+        assertTrue("$seconds s", seconds < 1)
+    }
+
+    private fun rssOf(dates: List<Int?>) = "<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><title>T</title>" +
+        dates.mapIndexed { i, day ->
+            val date = day?.let { "<pubDate>${java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME.format(java.time.ZonedDateTime.parse("2026-01-01T00:00:00Z").plusMinutes(it.toLong()))}</pubDate>" }.orEmpty()
+            "<item><title>Post $i</title><link>https://a.example/$i</link>$date</item>"
+        }.joinToString("") + "</channel></rss>"
+
+    @Test
+    fun aFeedOfThousandsOfItemsKeepsItsNewestWhicheverEndTheyAreAt() {
+        val n = 2 * FeedParser.MAX_ITEMS + 500
+        val newestFirst = FeedParser.parse(rssOf((n downTo 1).toList()), "https://a.example/feed").items
+        assertEquals(FeedParser.MAX_ITEMS, newestFirst.size)
+        assertEquals("Post 0", newestFirst.first().title)
+        val oldestFirst = FeedParser.parse(rssOf((1..n).toList()), "https://a.example/feed").items
+        assertEquals(FeedParser.MAX_ITEMS, oldestFirst.size)
+        // In the feed's order, ending at its newest.
+        assertEquals("Post ${n - FeedParser.MAX_ITEMS}", oldestFirst.first().title)
+        assertEquals("Post ${n - 1}", oldestFirst.last().title)
+        // Undated, the feed's own order decides.
+        val undated = FeedParser.parse(rssOf(List(n) { null }), "https://a.example/feed").items
+        assertEquals((0 until FeedParser.MAX_ITEMS).map { "Post $it" }, undated.map { it.title })
+    }
+
+    @Test
+    fun aJsonFeedOfThousandsOfItemsKeepsItsNewest() {
+        val n = FeedParser.MAX_ITEMS + 10
+        val json = "{\"version\":\"https://jsonfeed.org/version/1.1\",\"items\":[" + (1..n).joinToString(",") {
+            "{\"id\":\"$it\",\"url\":\"https://a.example/$it\",\"date_published\":\"2026-01-01T00:${"%02d".format(it / 60 % 60)}:${"%02d".format(it % 60)}Z\"}"
+        } + "]}"
+        val items = FeedParser.parse(json, "https://a.example/feed.json").items
+        assertEquals(FeedParser.MAX_ITEMS, items.size)
+        assertEquals("11", items.first().guid)
+    }
+
+    @Test
     fun aDeeplyNestedJsonFeedIsRefusedNotAStackOverflow() {
         // 20 KB of brackets. A StackOverflowError gets past every catch (e: Exception) on the way,
         // and would stop every edition for as long as the feed stays subscribed.

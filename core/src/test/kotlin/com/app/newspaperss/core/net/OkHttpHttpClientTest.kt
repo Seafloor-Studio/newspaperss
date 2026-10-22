@@ -103,7 +103,7 @@ class OkHttpHttpClientTest {
         assertTrue(OkHttpHttpClient.decode(bytes, Charsets.UTF_8).endsWith("\u00e9"))
     }
 
-    /** A site's whole archive in one feed, newest first: its start comes back, and the parser keeps its whole items. */
+    /** A site's whole archive in one feed, newest first: its start comes back, and the parser reads it. */
     @Test
     fun aFeedOverTheLimitIsReadUpToIt() = runTest {
         val item = "<item><title>Post</title><link>https://example.com/p</link><description>${"x".repeat(2000)}</description></item>"
@@ -116,7 +116,8 @@ class OkHttpHttpClientTest {
         assertTrue(response.truncated)
         assertEquals(OkHttpHttpClient.MAX_BYTES, response.body.length.toLong())
         val items = com.app.newspaperss.core.feed.FeedParser.parse(response.body, response.finalUrl, response.truncated).items
-        assertTrue("${items.size} of $count", items.size in count - 20 until count)
+        // As many as a feed keeps: there were more than that before the cut.
+        assertEquals(com.app.newspaperss.core.feed.FeedParser.MAX_ITEMS, items.size)
         assertFalse("a feed within the limit is whole", OkHttpHttpClient().getFeed(server.url("/small").toString()).truncated)
     }
 
