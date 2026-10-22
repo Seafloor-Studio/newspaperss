@@ -44,6 +44,18 @@ object AudioLength {
         return abs(audioSeconds - read) <= read * MARGIN
     }
 
+    /**
+     * Whether [audioSeconds] can be the episode a transcript of [words] records: from half to
+     * twice the transcript read aloud. Talk runs near reading pace (87 minutes against 99 read
+     * aloud for one show, 3 h 44 min against 3 h 22 min for another); much shorter is a preview,
+     * much longer a transcript of part of it.
+     */
+    fun isEpisodeOf(audioSeconds: Int, words: Int): Boolean {
+        if (words <= 0 || audioSeconds <= 0) return false
+        val read = words / WORDS_PER_MINUTE * 60
+        return audioSeconds >= read / 2 && audioSeconds <= read * 2
+    }
+
     /** How long [words] take read aloud, at Listen's 160 a minute. */
     fun readSeconds(words: Int): Int = (words / WORDS_PER_MINUTE * 60).toInt()
 

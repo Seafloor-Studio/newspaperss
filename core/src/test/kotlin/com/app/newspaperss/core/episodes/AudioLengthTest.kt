@@ -49,4 +49,15 @@ class AudioLengthTest {
         assertFalse("a preview", AudioLength.isReading(60, 1_600))
         assertFalse(AudioLength.isReading(600, 0))
     }
+
+    @Test
+    fun anEpisodeIsHalfToTwiceItsTranscriptReadAloud() {
+        // 15,840 words: 99 minutes read aloud, against 87 minutes of talk.
+        assertTrue(AudioLength.isEpisodeOf(87 * 60, 15_840))
+        assertTrue(AudioLength.isEpisodeOf(50 * 60, 15_840))
+        assertTrue(AudioLength.isEpisodeOf(198 * 60, 15_840))
+        assertFalse("a preview", AudioLength.isEpisodeOf(5 * 60, 15_840))
+        assertFalse("a transcript of a few minutes of a long episode", AudioLength.isEpisodeOf(3 * 3_600, 1_600))
+        assertFalse(AudioLength.isEpisodeOf(600, 0))
+    }
 }

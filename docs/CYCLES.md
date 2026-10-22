@@ -3,6 +3,12 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle H10 (22 Oct) — build: transcripts play their episode
+
+See [DEVLOG.md](DEVLOG.md).
+- **A recording that replaces text changes every figure computed from the text.** Ask what else reads the page's length (times left, the edition's total, the resume dialog) before swapping what plays.
+- **Independent PRs go on their own branches.** Queueing them on one branch kept a finished change waiting on an unrelated one's CI.
+
 ### Cycle H9 (22 Oct) — build: dependency verification
 
 See [DEVLOG.md](DEVLOG.md).

@@ -36,7 +36,8 @@ class StoredReadingChoices(context: Context) : ReadingChoices {
 
 /**
  * Listen's voice, with an article's recording in its place where it has one ([Reading]): the voice
- * reads the article's heading, says what's coming ("Now its recorded reading, 12 minutes."), and
+ * reads the article's heading, says what's coming ("Now its recorded reading, 12 minutes.", or for
+ * a transcript "Now the episode itself, 1 hour 27 minutes."), and
  * the recording plays the rest. The reader can turn an article back to the voice
  * ([setVoiceInstead]), and a recording that won't play hands back to the voice from where it got.
  *
@@ -148,7 +149,7 @@ class ReadingSpeaker(
         // Asked for again after it failed: worth another try, the connection may be back.
         if (!instead) failed -= editionId to page
         val reading = readingAt(editionId, page)
-        log("Reading: edition $editionId page $page ${if (instead) "switched to the voice" else "back to its recording"} at line $line (${if (reading?.own == true) "its own audio" else "its audio version"}, ${reading?.url})")
+        log("Reading: edition $editionId page $page ${if (instead) "switched to the voice" else "back to its recording"} at line $line (${what(reading)}, ${reading?.url})")
         _now.value = _now.value?.takeIf { it.editionId == editionId && it.page == page }?.copy(voiceInstead = instead)
         article = null
     }
@@ -284,11 +285,19 @@ class ReadingSpeaker(
         /** Ids of the heading lines of an article with a recording, said as plain speech. */
         const val HEADING = "heading:"
 
+        fun what(reading: Reading?) = when {
+            reading?.episode == true -> "its episode"
+            reading?.own == true -> "its own audio"
+            else -> "its audio version"
+        }
+
         fun clock(ms: Long) = (ms / 1000).let { "%d:%02d".format(Locale.ROOT, it / 60, it % 60) }
 
         fun announce(reading: Reading): String {
-            val minutes = reading.seconds?.let { maxOf(1, (it / 60.0).roundToInt()) }
-            return if (minutes == null) "Now its recorded reading." else "Now its recorded reading, ${plural(minutes, "minute")}."
+            val what = if (reading.episode) "Now the episode itself" else "Now its recorded reading"
+            val minutes = reading.seconds?.let { maxOf(1, (it / 60.0).roundToInt()) } ?: return "$what."
+            val length = if (minutes < 60) plural(minutes, "minute") else listOfNotNull(plural(minutes / 60, "hour"), (minutes % 60).takeIf { it > 0 }?.let { plural(it, "minute") }).joinToString(" ")
+            return "$what, $length."
         }
     }
 }

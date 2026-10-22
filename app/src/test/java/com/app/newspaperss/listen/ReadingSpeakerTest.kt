@@ -120,6 +120,20 @@ class ReadingSpeakerTest {
     }
 
     @Test
+    fun aTranscriptsEpisodeIsAnnouncedAsTheEpisodeInHoursAndMinutes() {
+        fun announced(seconds: Int?): String {
+            val voice = FakeSpeaker()
+            val episode = reading.copy(url = "https://cdn.example/episode.mp3", seconds = seconds, own = true, episode = true)
+            ReadingSpeaker(voice, audio, { e, p -> episode.takeIf { e == 7L && p == 0 } }, choices).speak(id(2), "Hello.", null, 1f, flush = true)
+            return voice.said.single().text
+        }
+        assertEquals("Now the episode itself, 1 hour 27 minutes.", announced(5_220))
+        assertEquals("Now the episode itself, 2 hours.", announced(7_190))
+        assertEquals("Now the episode itself, 59 minutes.", announced(3_540))
+        assertEquals("Now the episode itself.", announced(null))
+    }
+
+    @Test
     fun aTapPartWayPlaysTheRecordingFromThereWithoutAnAnnouncement() {
         listen()
         speaker.speak(id(4), "It took a week.", null, 1f, flush = true)

@@ -57,8 +57,9 @@ class AudioLengthsTest {
     @Test
     fun aTranscriptsEpisodeIsTimedItsOwnOrItsNotesPosts() = runTest {
         val source = db.sources().insert(SourceEntity(url = "https://a.example/feed", title = "A"))
-        listOf("transcript", "notes", "lone-notes").forEach { http.files["https://cdn.example/$it.mp3"] = "audio/mpeg" to mp3 }
-        val transcript = post(source, "transcript", EpisodeKind.TRANSCRIPT, audio = "https://cdn.example/transcript.mp3")
+        listOf("transcript", "notes", "lone-notes", "trailer-notes").forEach { http.files["https://cdn.example/$it.mp3"] = "audio/mpeg" to mp3 }
+        val transcript = post(source, "transcript", EpisodeKind.TRANSCRIPT, audio = "https://cdn.example/transcript.mp3", pair = "trailer-notes")
+        val trailerNotes = post(source, "trailer-notes", EpisodeKind.NOTES, audio = "https://cdn.example/trailer-notes.mp3", pair = "transcript")
         val paired = post(source, "paired", EpisodeKind.TRANSCRIPT, pair = "notes")
         val notes = post(source, "notes", EpisodeKind.NOTES, audio = "https://cdn.example/notes.mp3", pair = "paired")
         val lone = post(source, "lone-notes", EpisodeKind.NOTES, audio = "https://cdn.example/lone-notes.mp3")
@@ -67,6 +68,7 @@ class AudioLengthsTest {
 
         assertEquals(3, db.articles().byId(transcript)!!.audioSeconds)
         assertEquals("found through the transcript it's paired with", 3, db.articles().byId(notes)!!.audioSeconds)
+        assertEquals("in case the transcript's own audio is a trailer", 3, db.articles().byId(trailerNotes)!!.audioSeconds)
         assertNull("notes on their own play at the end, untimed", db.articles().byId(lone)!!.audioSeconds)
     }
 

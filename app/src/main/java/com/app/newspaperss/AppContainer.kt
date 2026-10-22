@@ -1,6 +1,7 @@
 package com.app.newspaperss
 
 import android.content.Context
+import androidx.annotation.OptIn
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.app.newspaperss.data.feedMovesData
@@ -71,7 +72,10 @@ import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.extractor.DefaultExtractorsFactory
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -183,13 +187,7 @@ class AppContainer(
     private val readings = Readings(db, log = logPlaying)
 
     /** Plays a recording, streamed. Focus is [ListenService]'s, as for the phone's voice. */
-    private val readingPlayer: () -> Player = {
-        ExoPlayer.Builder(context)
-            .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), false)
-            // Streamed while the screen is off: the network kept awake too.
-            .setWakeMode(C.WAKE_MODE_NETWORK)
-            .build()
-    }
+    private val readingPlayer: () -> Player = { newReadingPlayer(context) }
 
     /** Listen's voice, with an article's recording in its place where it has one. */
     private val readingSpeaker by lazy {
@@ -295,3 +293,14 @@ class AppContainer(
     /** See [SettingsStore.settleFeedsFrom]: a tt-rss source from before the choice means the server setup. */
     suspend fun settleFeedsFrom() = settings.settleFeedsFrom { db.sources().ofKind(SourceKind.TTRSS).isNotEmpty() }
 }
+
+/** Streams a recording; the network is kept awake while the screen is off. */
+@OptIn(UnstableApi::class)
+private fun newReadingPlayer(context: Context): Player =
+    ExoPlayer.Builder(context)
+        .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), false)
+        .setWakeMode(C.WAKE_MODE_NETWORK)
+        // An hour-long MP3 without a seek table could otherwise only play from its start: a
+        // tap on a line, or resuming, would start the episode over.
+        .setMediaSourceFactory(DefaultMediaSourceFactory(context, DefaultExtractorsFactory().setConstantBitrateSeekingEnabled(true)))
+        .build()

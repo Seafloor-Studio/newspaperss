@@ -474,19 +474,21 @@ private fun minutes(seconds: Double): String = ReadingTime.format(seconds / 60)
  */
 @Composable
 private fun RecordingNote(now: ReadingSpeaker.Now, onVoiceInstead: (Boolean) -> Unit) {
-    val minutes = now.reading.seconds?.let { " · ${maxOf(1, (it / 60.0).roundToInt())} min" }.orEmpty()
+    val minutes = now.reading.seconds?.let { " · ${ReadingTime.format(it / 60.0)}" }.orEmpty()
+    val what = if (now.reading.episode) "its episode" else "its recorded reading"
+    val has = if (now.reading.episode) "it has its episode" else "it has a recorded reading"
     Column(
         Modifier.fillMaxWidth().padding(bottom = 12.dp)
             .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small)
             .padding(start = 10.dp, end = 4.dp, top = 6.dp),
     ) {
         Text(
-            if (now.voiceInstead) "Read by the voice: it has a recorded reading$minutes." else "Playing its recorded reading$minutes.",
+            if (now.voiceInstead) "Read by the voice: $has$minutes." else "Playing $what$minutes.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         TextButton(onClick = { onVoiceInstead(!now.voiceInstead) }, modifier = Modifier.heightIn(min = 48.dp)) {
-            Text(if (now.voiceInstead) "Play its recorded reading" else "Have the voice read it instead")
+            Text(if (now.voiceInstead) "Play $what" else "Have the voice read it instead")
         }
     }
 }
