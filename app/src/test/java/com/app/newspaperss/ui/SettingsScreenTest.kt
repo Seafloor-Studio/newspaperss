@@ -58,6 +58,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import com.app.newspaperss.settings.ListenVoice
+import com.app.newspaperss.settings.Recordings
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -200,7 +201,7 @@ class SettingsScreenTest {
         waitFor("Your phone's voice · 1×")
         compose.onNodeWithText("Listening").performScrollTo().performClick()
         waitFor("Speech Services by Google")
-        compose.onNodeWithText("1× · normal").assertIsSelected()
+        compose.onNodeWithText("1×").assertIsSelected()
 
         compose.onNodeWithText("1.5×").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
         idleUntil { runBlocking { store.current().listenSpeed } == 1.5f }
@@ -209,8 +210,29 @@ class SettingsScreenTest {
         compose.onNodeWithText("Hear it").performClick()
         assertEquals(listOf(SettingsViewModel.SAMPLE to 1.5f), heard)
 
-        compose.onNodeWithText("Change the phone's voice").performScrollTo().performClick()
+        compose.onNodeWithText("Change the phone's voice ›").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
         assertEquals("com.android.settings.TTS_SETTINGS", shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedActivity.action)
+    }
+
+    @Test
+    fun recordingsCanBeSwitchedOffWhollyOrByKind() {
+        installVoice(ApplicationProvider.getApplicationContext())
+        show(SettingsPage.LISTENING)
+        waitFor("Play a post's own recording")
+        compose.onNodeWithText("Readings").performScrollTo().assertIsSelected()
+        compose.onNodeWithText("Episodes").assertIsSelected().performClick()
+        idleUntil { runBlocking { store.current().recordings } == Recordings(episodes = false) }
+        compose.onNodeWithText("Episodes").assertIsNotSelected()
+
+        compose.onNodeWithText("Play a post's own recording").performClick()
+        idleUntil { runBlocking { store.current().recordings } == Recordings(on = false, episodes = false) }
+        compose.onNodeWithText("Readings").assertDoesNotExist()
+
+        // Back on, the kinds are as they were left.
+        compose.onNodeWithText("Play a post's own recording").performClick()
+        idleUntil { runBlocking { store.current().recordings.on } }
+        compose.onNodeWithText("Readings").assertIsSelected()
+        compose.onNodeWithText("Episodes").assertIsNotSelected()
     }
 
     @Test

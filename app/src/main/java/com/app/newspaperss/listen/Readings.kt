@@ -8,6 +8,7 @@ import com.app.newspaperss.core.listen.ListenTime
 import com.app.newspaperss.data.AppDatabase
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.EditionContent
+import com.app.newspaperss.settings.Recordings
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -30,9 +31,15 @@ data class Reading(val url: String, val seconds: Int?, val own: Boolean, val bod
 
 /**
  * Which pages of the edition Listen has open play a recording (see [Reading]). Worked out when
- * the edition is opened, so the voice can be chosen at once as each article starts.
+ * the edition is opened, so the voice can be chosen at once as each article starts; [choices]
+ * are the kinds the reader lets play, read then, so a change in Settings waits for the next
+ * edition opened rather than switching voices part way through one.
  */
-class Readings(private val db: AppDatabase, private val log: (String) -> Unit = {}) {
+class Readings(
+    private val db: AppDatabase,
+    private val choices: suspend () -> Recordings,
+    private val log: (String) -> Unit = {},
+) {
     /** The edition Listen has open, and its pages' recordings: only one is open at a time. */
     @Volatile private var loaded: Pair<Long, Map<Int, Reading>>? = null
 
@@ -48,12 +55,18 @@ class Readings(private val db: AppDatabase, private val log: (String) -> Unit = 
         val found = mutableMapOf<Int, Reading>()
         val notes = mutableListOf<String>()
         val read = mutableListOf<String>()
+        val choices = choices()
         contents.forEachIndexed { page, content ->
             val article = content.entry.articleId?.let { db.articles().byId(it) } ?: return@forEachIndexed
             val reading = try {
                 when (article.episodeKind) {
-                    EpisodeKind.ARTICLE -> readingOf(article, page, script)
-                    EpisodeKind.TRANSCRIPT -> episodeOf(article, page, script).also { (_, why) -> why?.let { read += "page $page (transcript: $it)" } }.first
+                    EpisodeKind.ARTICLE -> if (choices.playReadings) readingOf(article, page, script) else null
+                    EpisodeKind.TRANSCRIPT -> if (!choices.playEpisodes) {
+                        read += "page $page (transcript: episodes are switched off)"
+                        null
+                    } else {
+                        episodeOf(article, page, script).also { (_, why) -> why?.let { read += "page $page (transcript: $it)" } }.first
+                    }
                     else -> null
                 }
             } catch (e: CancellationException) {
@@ -75,6 +88,7 @@ class Readings(private val db: AppDatabase, private val log: (String) -> Unit = 
         loaded = editionId to found
         log(
             "Readings: edition $editionId, recorded readings: ${notes.joinToString().ifEmpty { "none" }}" +
+                (if (choices.playReadings) "" else " (readings are switched off)") +
                 if (read.isEmpty()) "" else "; read by the voice instead: ${read.joinToString()}",
         )
     }
