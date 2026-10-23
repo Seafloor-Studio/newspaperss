@@ -164,6 +164,33 @@ it, and every mistake found later is added to it. It's the thing to fall back to
   voice.
 - Exit: a short write-up of whether it's worth building and what it would take.
 
+### R7. Substack voiceovers (done, 23 October 2026)
+A Substack author can record a voiceover: the post read aloud, played from a button above it.
+The question was whether the app can find one and play it in the post's place.
+
+- **How common:** of 13 well-known publications' last 50 posts, 2 voiceover nearly every post
+  (Experimental History 49, The Free Press 43) and 1 had a single one (Lenny's Newsletter). The
+  rest have none. Nearly all of them also offer Substack's own text-to-speech voices (type
+  `tts`), which Listen's voices already stand in for.
+- **The feed never carries it:** none of the 47 free posts' voiceovers is in either feed, as an
+  attachment, a player or a link. So neither the feed nor tt-rss gives it.
+- **The post's page does:** an `<audio>` element with `/api/v1/audio/upload/<id>/src`. So does
+  the post's entry in `https://<site>/api/v1/posts/<slug>`: `has_voiceover`, and an
+  `audio_items` entry of type `voiceover` with the same address (and a length, sometimes).
+- **The address plays:** it redirects to a signed MP3 on Substack's CDN that takes range
+  requests. Timed from its first bytes as `AudioLength` does, one came to 1,093.0 s against the
+  API's 1,092.99 s.
+- **Paid posts hide it,** as they hide their text: The Free Press's 36 paid voiceover posts have
+  no address.
+- **Length:** against Listen's 160 words a minute, Experimental History's 40 timed voiceovers ran
+  0.92 to 1.35 times the text, The Free Press's seven 0.98 to 1.20, and Lenny's one 0.88. The 25% rule for a
+  narrated article would turn away 5 of the 48, all from Experimental History. A voiceover is
+  labelled as one by Substack, so it needs no length test to tell it from an episode.
+- **What it would take:** for a post from a Substack site, one request for its entry in the posts
+  API (about 80 KB, against about 300 KB for the page), at sync or when the edition is made; a voiceover found there plays in the post's place, as
+  an audio version does. Built only for sites that have them: a source learns from its first few
+  posts whether it records voiceovers, so the other sites cost nothing.
+
 ## What stays out of the repository
 - Anyone's own feed list, and sweep results drawn from it.
 - Unscrambled post text.
