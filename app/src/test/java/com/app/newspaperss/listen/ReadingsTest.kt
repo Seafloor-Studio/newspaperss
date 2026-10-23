@@ -9,6 +9,7 @@ import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.EditionArticleEntity
 import com.app.newspaperss.data.EditionContent
 import com.app.newspaperss.data.SourceEntity
+import com.app.newspaperss.settings.Recordings
 import com.app.newspaperss.testutil.DbRule
 import com.app.newspaperss.testutil.TestApp
 import kotlinx.coroutines.test.runTest
@@ -26,7 +27,7 @@ class ReadingsTest {
     @get:Rule val dbRule = DbRule()
     private val db = dbRule.db
     private val logged = mutableListOf<String>()
-    private val readings = Readings(db, logged::add)
+    private val readings = Readings(db, { Recordings() }, logged::add)
 
     /** A page with a title and a byline, then [words] words of body in sentences of ten. */
     private fun page(words: Int) = ListenScript(
@@ -139,5 +140,38 @@ class ReadingsTest {
             "Readings: edition 3, recorded readings: page 1 (its own audio, 11 min); read by the voice instead: page 0 (its page wouldn't read), page 2 (its page wouldn't read)",
             logged.single(),
         )
+    }
+
+    @Test
+    fun theKindsSwitchedOffInSettingsAreReadByTheVoiceFromTheNextEditionOpened() = runTest {
+        var choices = Recordings(readings = false)
+        val readings = Readings(db, { choices }, logged::add)
+        val source = db.sources().insert(SourceEntity(url = "https://a.example/feed", title = "A"))
+        val ids = listOf("narrated" to EpisodeKind.ARTICLE, "transcript" to EpisodeKind.TRANSCRIPT).map { (guid, kind) ->
+            db.articles().insertIgnoring(
+                ArticleEntity(sourceId = source, guid = guid, url = "https://a.example/$guid", title = guid, episodeKind = kind, audioUrl = "https://cdn.example/$guid.mp3", audioSeconds = 640),
+            )
+        }
+        val contents = ids.mapIndexed { i, id -> EditionContent(EditionArticleEntity(editionId = 3, articleId = id, position = i, title = "$i", sourceTitle = "A", minutes = 7.0), state = null) }
+        val load: suspend () -> Unit = { readings.load(3, contents) { page(1_600) } }
+
+        load()
+        assertNull("readings are off", readings.at(3, 0))
+        assertEquals("https://cdn.example/transcript.mp3", readings.at(3, 1)?.url)
+        assertEquals("Readings: edition 3, recorded readings: page 1 (its episode, its own audio, 11 min) (readings are switched off)", logged.last())
+
+        // A change waits for the edition to be opened again.
+        choices = Recordings(episodes = false)
+        assertEquals("https://cdn.example/transcript.mp3", readings.at(3, 1)?.url)
+        load()
+        assertEquals("https://cdn.example/narrated.mp3", readings.at(3, 0)?.url)
+        assertNull("episodes are off", readings.at(3, 1))
+        assertEquals("Readings: edition 3, recorded readings: page 0 (its own audio, 11 min); read by the voice instead: page 1 (transcript: episodes are switched off)", logged.last())
+
+        // Off, the kinds chosen under it don't count.
+        choices = Recordings(on = false)
+        load()
+        assertNull(readings.at(3, 0))
+        assertNull(readings.at(3, 1))
     }
 }

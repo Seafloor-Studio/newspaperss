@@ -9,6 +9,7 @@ import android.media.MediaPlayer
 import android.net.ConnectivityManager
 import androidx.annotation.RawRes
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -115,6 +116,7 @@ internal fun ListeningVoices(s: AppSettings, vm: SettingsViewModel, kokoro: Koko
                 OutlinedButton(onClick = onGetPhoneVoice) { Text("Get Speech Services by Google") }
             }
         }
+        if (phoneVoice != null) Box(Modifier.padding(start = INDENT)) { ChangePhoneVoiceLink() }
         val unsupported = (kokoro as? KokoroState.Unsupported)?.why
         VoiceOption(
             selected = podcast,

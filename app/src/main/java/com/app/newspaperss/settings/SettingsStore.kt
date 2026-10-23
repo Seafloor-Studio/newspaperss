@@ -89,6 +89,15 @@ enum class PodcastVoice(val label: String, val accent: String) {
     GEORGE("George", "British"),
 }
 
+/**
+ * Which recordings Listen plays in a post's place: none while [on] is off, else [readings] (an
+ * article read aloud by a person) and [episodes] (the episode a transcript records).
+ */
+data class Recordings(val on: Boolean = true, val readings: Boolean = true, val episodes: Boolean = true) {
+    val playReadings: Boolean get() = on && readings
+    val playEpisodes: Boolean get() = on && episodes
+}
+
 data class Settings(
     val onboarded: Boolean = false,
     val device: Device? = null,
@@ -121,6 +130,8 @@ data class Settings(
     val podcastPace: Float? = null,
     /** Whether [podcastPace] comes from real podcasts made on this phone, not only the check. */
     val podcastPaceMeasured: Boolean = false,
+    /** What Listen plays in a post's place instead of its voice, in debug builds. */
+    val recordings: Recordings = Recordings(),
 ) {
     /**
      * The setup chosen, or before it's settled, the one [SettingsStore.settleFeedsFrom] will
@@ -167,6 +178,9 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val podcastVoice = stringPreferencesKey("podcast_voice")
         val podcastPace = floatPreferencesKey("podcast_pace")
         val podcastPaceMeasured = booleanPreferencesKey("podcast_pace_measured")
+        val playRecordings = booleanPreferencesKey("listen_play_recordings")
+        val playReadings = booleanPreferencesKey("listen_play_readings")
+        val playEpisodes = booleanPreferencesKey("listen_play_episodes")
     }
 
     val settings: Flow<Settings> = store.data.map(::read)
@@ -199,6 +213,9 @@ class SettingsStore(private val store: DataStore<Preferences>) {
             prefs[Keys.podcastVoice] = s.podcastVoice.name
             if (s.podcastPace != null) prefs[Keys.podcastPace] = s.podcastPace else prefs.remove(Keys.podcastPace)
             prefs[Keys.podcastPaceMeasured] = s.podcastPaceMeasured
+            prefs[Keys.playRecordings] = s.recordings.on
+            prefs[Keys.playReadings] = s.recordings.readings
+            prefs[Keys.playEpisodes] = s.recordings.episodes
         }
     }
 
@@ -247,6 +264,11 @@ class SettingsStore(private val store: DataStore<Preferences>) {
             podcastVoice = p[Keys.podcastVoice]?.let { runCatching { PodcastVoice.valueOf(it) }.getOrNull() } ?: d.podcastVoice,
             podcastPace = p[Keys.podcastPace],
             podcastPaceMeasured = p[Keys.podcastPaceMeasured] ?: d.podcastPaceMeasured,
+            recordings = Recordings(
+                on = p[Keys.playRecordings] ?: d.recordings.on,
+                readings = p[Keys.playReadings] ?: d.recordings.readings,
+                episodes = p[Keys.playEpisodes] ?: d.recordings.episodes,
+            ),
         )
     }
 }
