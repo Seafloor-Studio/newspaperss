@@ -350,6 +350,7 @@ labelled corpus are [research/podcast-episodes.md](research/podcast-episodes.md)
 - [ ] **Readings for editions made before #322:** their audio was never timed, so an article's own audio isn't played. Time what's missing when Listen opens an edition
 - [x] **Step 4, transcripts:** a transcript plays its episode in its place, streamed
 - [ ] **Step 4, notes:** notes are read without their furniture and their episode plays at the end; streamed
+- [ ] **Substack voiceovers play in place:** an author's reading isn't in the feed; one request to the site's posts API finds it, for sites that record them. Measured in R7 of `docs/research/podcast-episodes.md`
 - [ ] **Step 5:** downloads for listening offline
 - [x] **The `handle-issues` skill** handles "Episode label:" and "Extraction:" issues: CLAUDE.md's "Issues the app files" says how
 - [x] **An `episodes` label** on the repo, for the wrong-label reports to carry (`extraction` too)

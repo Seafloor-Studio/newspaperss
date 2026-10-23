@@ -167,6 +167,9 @@ public feeds it hadn't seen and on one reader's own list of 91 feeds:
 - **Later: following a player to its audio.** A player isn't an audio file. Anchor and Apple
   Podcasts players lead to the show's public feed, which has the episode's file; a Spotify link
   leads nowhere playable, since Spotify publishes no audio files.
+- **Later: Substack voiceovers.** An author's reading of their own post isn't in the feed, but
+  the post's entry in Substack's posts API names it, and it plays. See R7 in
+  [podcast-episodes.md](podcast-episodes.md).
 - **Not planned: paid audio.** Some publications keep the audio in a members' podcast feed at a
   private address (Stratechery). The only way in is for the reader to add that feed as a
   source, which the app could then match by title.
