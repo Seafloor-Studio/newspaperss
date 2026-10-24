@@ -2,6 +2,7 @@ package com.app.newspaperss.ui.sources
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.app.newspaperss.EPISODES
 import com.app.newspaperss.core.extract.ContentMode
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleHistory
@@ -49,6 +50,8 @@ data class SourceDetail(
  * writing, on its [PublicationEntity].
  *
  * @param onSourceChanged asks for a sync, after a change to what the source fetches.
+ * @param recordings whether recordings play in Listen at all in this build, and so whether a
+ *   source that posts them offers its switch.
  */
 class SourceDetailViewModel(
     private val repository: SourceRepository,
@@ -56,6 +59,7 @@ class SourceDetailViewModel(
     defaultMax: Flow<Int>,
     val key: String = PublicationEntity.OWN,
     private val onSourceChanged: () -> Unit = {},
+    val recordings: Boolean = EPISODES,
 ) : ViewModel() {
     /** A tt-rss feed's page rather than a source's. */
     val isFeed get() = key != PublicationEntity.OWN
@@ -101,6 +105,11 @@ class SourceDetailViewModel(
 
     fun setSkipPaidPosts(skip: Boolean) {
         viewModelScope.launch { repository.setSkipPaidPosts(id, key, skip) }
+    }
+
+    /** Whether its posts' recordings play in Listen, from the next edition opened there. */
+    fun setRecordingsOn(on: Boolean) {
+        viewModelScope.launch { repository.setRecordingsOff(id, key, !on) }
     }
 
     fun chooseContentMode(mode: ContentMode) {

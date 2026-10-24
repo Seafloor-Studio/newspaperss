@@ -226,6 +226,7 @@ class FeedMoves(
                 chosenMode = phone.chosenMode,
                 maxArticles = phone.maxArticles,
                 skipPaidPosts = phone.skipPaidPosts,
+                recordingsOff = phone.recordingsOff,
                 leftOut = phone.leftOut || wasPaused,
             ),
         )

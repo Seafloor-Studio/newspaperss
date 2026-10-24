@@ -104,7 +104,7 @@ class MigrationTest {
 
         helper.runMigrationsAndValidate(DB, 3, true, AppDatabase.MIGRATION_2_3).close()
         val room = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java, DB)
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16, AppDatabase.MIGRATION_16_17).allowMainThreadQueries().build()
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16, AppDatabase.MIGRATION_16_17, AppDatabase.MIGRATION_17_18).allowMainThreadQueries().build()
         try {
             runBlocking {
                 assertEquals(7000L, room.articles().byId(4)!!.starredAt?.toEpochMilli())
@@ -455,6 +455,24 @@ class MigrationTest {
                 assertEquals("An episode", c.getString(0))
                 assertEquals("<p>Notes</p>", c.getString(1))
                 assertTrue(c.isNull(2) && c.isNull(3) && c.isNull(4))
+            }
+        }
+    }
+
+    /** A publication's settings carry over, and its recordings keep playing until the reader says otherwise. */
+    @Test
+    fun version18KeepsEachPublicationsSettingsAndLetsItsRecordingsPlay() {
+        helper.createDatabase(DB, 17).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, kind, url, title, position, contentMode, contentModeChosen, fullTextStreak, paused, markReadOnServer, addedAt) " +
+                    "VALUES (1, 'FEED', 'https://a.example/feed', 'A', 0, 'AUTO', 0, 0, 0, 1, 0)",
+            )
+            db.execSQL("INSERT INTO publications (sourceId, `key`, contentMode, fullTextStreak, maxArticles, skipPaidPosts) VALUES (1, '', 'AUTO', 0, 2, 1)")
+        }
+        helper.runMigrationsAndValidate(DB, 18, true, AppDatabase.MIGRATION_17_18).use { db ->
+            db.query("SELECT maxArticles, skipPaidPosts, recordingsOff FROM publications WHERE sourceId = 1").use { c ->
+                c.moveToFirst()
+                assertEquals(listOf(2, 1, 0), listOf(c.getInt(0), c.getInt(1), c.getInt(2)))
             }
         }
     }

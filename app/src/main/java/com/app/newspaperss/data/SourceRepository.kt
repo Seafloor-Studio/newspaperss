@@ -152,6 +152,9 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
 
     suspend fun setSkipPaidPosts(sourceId: Long, key: String, skip: Boolean) = editPublication(sourceId, key) { it.copy(skipPaidPosts = skip) }
 
+    /** Whether its posts' recordings play in Listen; from the next edition opened there. */
+    suspend fun setRecordingsOff(sourceId: Long, key: String, off: Boolean) = editPublication(sourceId, key) { it.copy(recordingsOff = off) }
+
     fun observePaidOnly(sourceId: Long, key: String): Flow<PaidOnlyCount> = db.articles().observePaidOnly(sourceId, key)
 
     /** See [ArticleDao.markPaidOnly]. */

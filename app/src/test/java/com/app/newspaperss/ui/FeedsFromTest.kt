@@ -200,7 +200,7 @@ class FeedsFromTest {
         server.feeds[11] = FakeTtrss.Feed("Both", "http://both.example/feed", categoryId = 4)
         runBlocking {
             db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "ttrss:1", url = "https://news.example/1", title = "Waiting", originId = "1")))
-            db.sources().savePublication(PublicationEntity(id, "7", maxArticles = 2, chosenMode = ContentMode.FEED))
+            db.sources().savePublication(PublicationEntity(id, "7", maxArticles = 2, chosenMode = ContentMode.FEED, recordingsOff = true))
             db.sources().savePublication(PublicationEntity(id, "8", leftOut = true))
             // Already on the phone, under a slightly different address, and paused there.
             db.sources().setPaused(sources.addFeed("https://www.both.example/feed/", "Both"), true)
@@ -230,6 +230,7 @@ class FeedsFromTest {
         assertEquals(false, blog.paused)
         val settings = runBlocking { db.sources().publication(blog.id, PublicationEntity.OWN) }!!
         assertEquals("with its settings", 2 to ContentMode.FEED, settings.maxArticles to settings.chosenMode)
+        assertTrue("its recordings stay off", settings.recordingsOff)
         assertEquals("left out comes paused", true, phone.getValue("https://quiet.example/feed").paused)
         assertEquals("one already here stays as the reader left it", true, phone.getValue("https://www.both.example/feed/").paused)
         assertTrue("its articles go with it", runBlocking { db.articles().byIds(listOf(1L, 2L, 3L)) }.isEmpty())

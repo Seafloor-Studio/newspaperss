@@ -192,7 +192,7 @@ class TtrssRepository(
                                 sourceId = id, key = PublicationEntity.OWN, contentMode = feed.contentMode,
                                 fullTextEvidence = feed.fullTextEvidence, fullTextStreak = feed.fullTextStreak, fullTextDay = feed.fullTextDay,
                                 checkedDay = feed.checkedDay, chosenMode = feed.chosenMode, maxArticles = feed.maxArticles,
-                                skipPaidPosts = feed.skipPaidPosts,
+                                skipPaidPosts = feed.skipPaidPosts, recordingsOff = feed.recordingsOff,
                             ),
                         )
                         db.sources().setPaused(id, true)

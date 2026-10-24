@@ -8,6 +8,7 @@ import com.app.newspaperss.core.listen.ListenTime
 import com.app.newspaperss.data.AppDatabase
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.EditionContent
+import com.app.newspaperss.data.PublicationEntity
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -42,7 +43,9 @@ class Readings(private val db: AppDatabase, private val log: (String) -> Unit = 
     /**
      * Finds the recordings for an edition's [contents], in book order, reading the pages that may
      * have one with [script]. Logs what it found, and why each transcript the voice reads has no
-     * episode to play: how often each reason comes up, on a reader's own feeds.
+     * episode to play: how often each reason comes up, on a reader's own feeds. A source whose
+     * recordings are switched off ([PublicationEntity.recordingsOff]) is read by the voice; the
+     * switch is read here, so an edition already open carries on as it started.
      */
     suspend fun load(editionId: Long, contents: List<EditionContent>, script: suspend (page: Int) -> ListenScript?) {
         val found = mutableMapOf<Int, Reading>()
@@ -50,6 +53,10 @@ class Readings(private val db: AppDatabase, private val log: (String) -> Unit = 
         val read = mutableListOf<String>()
         contents.forEachIndexed { page, content ->
             val article = content.entry.articleId?.let { db.articles().byId(it) } ?: return@forEachIndexed
+            if (article.episodeKind in RECORDED && db.sources().publication(article.sourceId, PublicationEntity.keyOf(article))?.recordingsOff == true) {
+                read += "page $page (its source's recordings are switched off)"
+                return@forEachIndexed
+            }
             val reading = try {
                 when (article.episodeKind) {
                     EpisodeKind.ARTICLE -> readingOf(article, page, script)
@@ -77,6 +84,11 @@ class Readings(private val db: AppDatabase, private val log: (String) -> Unit = 
             "Readings: edition $editionId, recorded readings: ${notes.joinToString().ifEmpty { "none" }}" +
                 if (read.isEmpty()) "" else "; read by the voice instead: ${read.joinToString()}",
         )
+    }
+
+    private companion object {
+        /** The kinds that can play a recording in their place. */
+        val RECORDED = setOf(EpisodeKind.ARTICLE, EpisodeKind.TRANSCRIPT)
     }
 
     private suspend fun readingOf(article: ArticleEntity, page: Int, script: suspend (page: Int) -> ListenScript?): Reading? {
