@@ -329,7 +329,7 @@ class TtrssFeedsTest {
         compose.onNodeWithText("Bring back").performClick()
         idleUntil { runBlocking { db.sources().publication(account, "7")!!.leftOut } == false }
         idleUntil { compose.waitForIdle(); visible("Article text") }
-        compose.onNodeWithContentDescription("This site's settings: Full-page text · At most 2 articles").assertExists()
+        compose.onNodeWithContentDescription("This site's settings: Full page · At most 2 articles").assertExists()
     }
 
     private fun openSettings() {

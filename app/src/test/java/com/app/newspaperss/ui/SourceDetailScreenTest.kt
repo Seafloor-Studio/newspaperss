@@ -169,12 +169,12 @@ class SourceDetailScreenTest {
         settle { hasSettingsRow("Paused · At most 2 articles") }
         compose.onNodeWithText("Article text").performClick()
         compose.onNodeWithText("Always fetch the full page").performClick()
-        settle { hasSettingsRow("Paused · Full-page text · At most 2 articles") }
+        settle { hasSettingsRow("Paused · Full page · At most 2 articles") }
 
         compose.onNodeWithText("Pause this site").assertIsOn().performClick()
-        settle { hasSettingsRow("Full-page text · At most 2 articles") && !visible("Paused") }
+        settle { hasSettingsRow("Full page · At most 2 articles") && !visible("Paused") }
         compose.onNodeWithText("Use your edition setting").performClick()
-        settle { hasSettingsRow("Full-page text") }
+        settle { hasSettingsRow("Full page") }
     }
 
     /** Only a source that posts recordings has the switch; off, Listen's voice reads its posts instead. */
@@ -186,8 +186,15 @@ class SourceDetailScreenTest {
         openSettings()
         assertFalse("not on a source that posts none", visible("Its recordings in Listen"))
 
+        // An episode's notes play nothing in place, so their audio alone doesn't bring the switch.
         runBlocking {
-            db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "read", url = "https://example.com/read", title = "Article read aloud", audioUrl = "https://cdn.example/read.mp3")))
+            db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "notes", url = "https://example.com/notes", title = "Article notes", audioUrl = "https://cdn.example/notes.mp3", episodeKind = EpisodeKind.NOTES)))
+        }
+        settle { visible("Article notes") }
+        assertFalse(visible("Its recordings in Listen"))
+
+        runBlocking {
+            db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "read", url = "https://example.com/read", title = "Article read aloud", audioUrl = "https://cdn.example/read.mp3", episodeKind = EpisodeKind.ARTICLE)))
         }
         settle { visible("Its recordings in Listen") }
         compose.onNodeWithText("Its recordings in Listen").assertIsOn().performClick()
@@ -203,7 +210,7 @@ class SourceDetailScreenTest {
     fun withoutRecordingsInTheBuildThereIsNoSwitch() {
         val id = runBlocking {
             val id = repo.addFeed("https://example.com/feed", "Example")
-            db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "read", url = "https://example.com/read", title = "Article read aloud", audioUrl = "https://cdn.example/read.mp3")))
+            db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "read", url = "https://example.com/read", title = "Article read aloud", audioUrl = "https://cdn.example/read.mp3", episodeKind = EpisodeKind.ARTICLE)))
             id
         }
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1), recordings = false))

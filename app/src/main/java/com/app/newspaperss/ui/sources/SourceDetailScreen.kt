@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.app.newspaperss.ui.components.showWhileStarted
+import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.core.extract.ContentMode
 import com.app.newspaperss.core.plural
 import com.app.newspaperss.data.PublicationEntity
@@ -218,7 +219,7 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
                         Health(source, publication, articles.maxOfOrNull { it.discoveredAt }, episodes, locale, is24Hour, onCopied)
                     }
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                    SettingsRow(settingsSummary(offered, source, publication), onClick = { settingsOpen = true })
+                    SettingsRow(settingsSummary(offered, source, publication), nounFor(source), onClick = { settingsOpen = true })
                     HorizontalDivider()
                     ArticlesHeading(articles, selecting, onSelect = { selecting = true })
                     if (building && articles.isNotEmpty()) {
@@ -408,9 +409,16 @@ private fun offeredSettings(
         cap = !leftOut && (viewModel.isFeed || source.kind != SourceKind.TTRSS),
         // Only once the publication has had one: most never do. Kept while it's on, so it can be turned off.
         paidPosts = ownsPosts && paidOnly != null && (skip || paidOnly.found > 0),
-        // Only on a source that posts recordings, as for paid posts.
-        recordings = ownsPosts && viewModel.recordings && (off || articles.any { it.audioUrl != null }),
+        // Only on a source with a post that could play one in Listen (see Readings), as for paid posts.
+        recordings = ownsPosts && viewModel.recordings && (off || articles.any(::mayPlayARecording)),
     )
+}
+
+/** A reading, its audio version, or a transcript with an episode: notes' episodes don't play in place. */
+private fun mayPlayARecording(article: ArticleEntity) = when (article.episodeKind) {
+    EpisodeKind.ARTICLE, EpisodeKind.AUDIO_VERSION -> article.audioUrl != null
+    EpisodeKind.TRANSCRIPT -> article.audioUrl != null || article.episodePair != null
+    else -> false
 }
 
 /**
@@ -421,11 +429,7 @@ internal fun settingsSummary(offered: SiteSettings, source: SourceEntity?, publi
     listOfNotNull(
         "Paused".takeIf { offered.pause && source?.paused == true },
         "Left out".takeIf { offered.leaveOut && publication?.leftOut == true },
-        when (publication?.chosenMode) {
-            ContentMode.FEED -> "Feed's text"
-            ContentMode.PAGE -> "Full-page text"
-            else -> null
-        }?.takeIf { offered.mode },
+        publication?.chosenMode?.takeIf { offered.mode }?.let { modeName(publication) },
         publication?.maxArticles?.takeIf { offered.cap }?.let { "At most ${plural(it, "article")}" },
         "Skips paid posts".takeIf { offered.paidPosts && publication?.skipPaidPosts == true },
         "Recordings off".takeIf { offered.recordings && publication?.recordingsOff == true },
@@ -433,13 +437,13 @@ internal fun settingsSummary(offered: SiteSettings, source: SourceEntity?, publi
 
 /** One line that says how the site is set and opens its settings; no heading, the icon says what it is. */
 @Composable
-private fun SettingsRow(summary: String, onClick: () -> Unit) {
+private fun SettingsRow(summary: String, noun: String, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth()
             .heightIn(min = 56.dp)
             .clickable(role = Role.Button, onClick = onClick)
             .clearAndSetSemantics {
-                contentDescription = "$SETTINGS_TITLE: $summary"
+                contentDescription = "${settingsTitle(noun)}: $summary"
                 role = Role.Button
                 onClick { onClick(); true }
             }
@@ -452,7 +456,10 @@ private fun SettingsRow(summary: String, onClick: () -> Unit) {
     }
 }
 
-internal const val SETTINGS_TITLE = "This site's settings"
+private fun settingsTitle(noun: String) = "This $noun's settings"
+
+/** What the page's settings belong to: a curated list and the reading list aren't one site. */
+private fun nounFor(source: SourceEntity?) = if (source?.kind == SourceKind.LIST || source?.kind == SourceKind.READING_LIST) "list" else "site"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -472,13 +479,13 @@ private fun SettingsSheet(
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
             Text(
-                SETTINGS_TITLE,
+                settingsTitle(nounFor(source)),
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp).semantics { heading() },
             )
             val rows = buildList<@Composable () -> Unit> {
                 if (offered.pause) add {
-                    SwitchRow("Pause this site", "Nothing new comes from it until you start it again.", source.paused, onChange = { viewModel.togglePaused() })
+                    SwitchRow("Pause this ${nounFor(source)}", "Nothing new comes from it until you start it again.", source.paused, onChange = { viewModel.togglePaused() })
                 }
                 if (offered.leaveOut) add {
                     if (publication?.leftOut == true) {
@@ -497,7 +504,7 @@ private fun SettingsSheet(
                 if (offered.recordings) add {
                     SwitchRow(
                         "Its recordings in Listen",
-                        "Readings and episodes play in place of the voice, from the next edition you open in Listen.",
+                        "Readings and episodes play in place of the voice, from the next time you open an edition in Listen.",
                         publication?.recordingsOff != true,
                         onChange = viewModel::setRecordingsOn,
                     )

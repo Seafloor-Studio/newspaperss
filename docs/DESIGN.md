@@ -656,11 +656,12 @@ whose Kindle and KOReader answers ask for more on the same page).
     gone) hands back to the voice from where it got. See
     [episodes-design.md](research/episodes-design.md).
   - **Its recordings in Listen**, a switch in a source's settings (debug
-    builds), shows on a source whose recent posts have audio, or while
+    builds), shows on a source with a recent post that could play one (a
+    reading, its audio version, or a transcript with an episode), or while
     it's off. Off, the voice reads that source's posts, readings and
     episodes alike; on a tt-rss account it's each feed's own. It's read
-    when an edition opens in Listen, so one already open carries on as it
-    started. The per-article choice above stays for "not this one".
+    each time an edition opens in Listen, so one already open carries on
+    as it started. The per-article choice above stays for "not this one".
   - **Transcripts** (debug builds) play their episode in their place the
     same way: its own audio, or else its notes post's. The voice says "Now
     the episode itself, 1 hour 27 minutes.", and the note above the page
@@ -795,14 +796,14 @@ whose Kindle and KOReader answers ask for more on the same page).
   - **The settings row** is one line between two rules: a tune icon, what's
     set differently for this site, and ›. Nothing changed, it says "Default
     settings"; otherwise only the differences, in the sheet's order, joined
-    by " · ": "Paused · At most 2 articles", "Full-page text · Recordings
-    off". Most sites keep the defaults, so most rows stay quiet. TalkBack
-    reads it as "This site's settings: Default settings, button".
+    by " · ": "Paused · At most 2 articles", "Full page · Recordings off". Most sites keep the defaults, so most rows stay quiet. TalkBack
+    reads it as "This site's settings: Default settings, button" ("This
+    list's settings" on a curated list or the reading list).
   - **Tapping it opens a sheet**, "This site's settings", fully open and
     scrolling at large text. In order, where each applies: **Pause this
     site** (a tt-rss feed has **Leave out of the paper**, or **Bring back**
-    while left out, instead), **Article text ›** (the same chooser as
-    before), the article limit with − and +, **Skip paid posts with nothing
+    while left out, instead), **Article text ›** (a chooser of
+    Automatic, the feed's text or the full page), the article limit with − and +, **Skip paid posts with nothing
     free**, and **Its recordings in Listen**. A left-out tt-rss feed offers
     only Bring back. The sheet stays open across a rotation.
   - **Paused** also leads the page, in the status line: "Paused · nothing

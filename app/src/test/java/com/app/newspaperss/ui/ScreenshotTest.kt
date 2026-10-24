@@ -1170,7 +1170,7 @@ class ScreenshotTest {
                 posts.mapIndexed { i, title ->
                     ArticleEntity(
                         sourceId = id, guid = title, url = "https://example.com/$i", title = title, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1)),
-                        audioUrl = "https://example.com/$i.mp3".takeIf { i == 0 },
+                        audioUrl = "https://example.com/$i.mp3".takeIf { i == 0 || i == 2 },
                     )
                 },
             )

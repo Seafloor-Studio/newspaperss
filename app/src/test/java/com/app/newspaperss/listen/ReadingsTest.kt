@@ -151,8 +151,8 @@ class ReadingsTest {
         val account = db.sources().insert(SourceEntity(kind = SourceKind.TTRSS, url = "https://rss.example/", title = "tt-rss"))
         db.sources().savePublication(PublicationEntity(off, PublicationEntity.OWN, recordingsOff = true))
         db.sources().savePublication(PublicationEntity(account, "7", recordingsOff = true))
-        suspend fun post(source: Long, guid: String, kind: EpisodeKind = EpisodeKind.ARTICLE, seconds: Int = 640, origin: String? = null) = db.articles().insertIgnoring(
-            ArticleEntity(sourceId = source, guid = guid, url = "https://a.example/$guid", title = guid, episodeKind = kind, audioUrl = "https://cdn.example/$guid.mp3", audioSeconds = seconds, originId = origin),
+        suspend fun post(source: Long, guid: String, kind: EpisodeKind = EpisodeKind.ARTICLE, seconds: Int? = 640, origin: String? = null) = db.articles().insertIgnoring(
+            ArticleEntity(sourceId = source, guid = guid, url = "https://a.example/$guid", title = guid, episodeKind = kind, audioUrl = seconds?.let { "https://cdn.example/$guid.mp3" }, audioSeconds = seconds, originId = origin),
         )
         val ids = listOf(
             post(off, "off-narrated"),
@@ -160,6 +160,8 @@ class ReadingsTest {
             post(on, "on-narrated"),
             post(account, "feed-off", origin = "7"),
             post(account, "feed-on", origin = "8"),
+            // Nothing to play, so nothing switched off: the log counts only recordings the switch kept out.
+            post(off, "off-plain", seconds = null),
         )
         val contents = ids.mapIndexed { i, id -> EditionContent(EditionArticleEntity(editionId = 3, articleId = id, position = i, title = "$i", sourceTitle = "A", minutes = 7.0), state = null) }
 
