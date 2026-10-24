@@ -18,6 +18,10 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Sat 24 Oct
 
+### A source's page: settings behind one row, and a switch for its recordings (#384)
+- **What you asked:** option A1 for a source's page, and a per-source switch for its recordings in Listen.
+- **Built:** the page leads with how the site is doing and its articles. Its settings (Pause, Article text, the article limit, Skip paid posts, and, on a source that posts recordings, **Its recordings in Listen**) are in a sheet behind one row that names only what differs from the defaults, or "Default settings". Paused also leads the status line. The switch is read when an edition opens in Listen (debug builds), and carries across a move to or from tt-rss. Database version 18.
+
 ### No build for a merge that changes nothing in the app
 - **What you asked:** stop the test build offering an update that changes nothing (build 1031 was the voiceover research, docs only).
 - **Built:** before publishing, CI lists the files changed since the last published build. If all of them are docs, tests, tools, other workflows or the dependency checksums, nothing is published, and those changes go out with the next build that does change the app. Whatever it can't tell (no build yet, over 300 files, the GitHub API failing) is published.
