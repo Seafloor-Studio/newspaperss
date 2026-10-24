@@ -218,9 +218,9 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
                     } else {
                         Health(source, publication, articles.maxOfOrNull { it.discoveredAt }, episodes, locale, is24Hour, onCopied)
                     }
-                    HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    SettingsRule()
                     SettingsRow(settingsSummary(offered, source, publication), nounFor(source), onClick = { settingsOpen = true })
-                    HorizontalDivider()
+                    SettingsRule()
                     ArticlesHeading(articles, selecting, onSelect = { selecting = true })
                     if (building && articles.isNotEmpty()) {
                         Text(BUILDING_NOTE, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
@@ -456,6 +456,10 @@ private fun SettingsRow(summary: String, noun: String, onClick: () -> Unit) {
     }
 }
 
+/** A pale rule around the settings and between them: lighter than the list's, so the settings stay quiet. */
+@Composable
+private fun SettingsRule() = HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest)
+
 private fun settingsTitle(noun: String) = "This $noun's settings"
 
 /** What the page's settings belong to: a curated list and the reading list aren't one site. */
@@ -511,7 +515,7 @@ private fun SettingsSheet(
                 }
             }
             rows.forEachIndexed { i, row ->
-                if (i > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                if (i > 0) SettingsRule()
                 row()
             }
         }

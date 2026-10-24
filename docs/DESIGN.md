@@ -793,7 +793,7 @@ whose Kindle and KOReader answers ask for more on the same page).
     settings are behind one row above the articles. **Remove source** is in
     its ⋮ menu. A tt-rss account has no page of its own: its settings, and
     leaving it, are in Settings, and each of its feeds has a page.
-  - **The settings row** is one line between two rules: a tune icon, what's
+  - **The settings row** is one line between two pale rules: a tune icon, what's
     set differently for this site, and ›. Nothing changed, it says "Default
     settings"; otherwise only the differences, in the sheet's order, joined
     by " · ": "Paused · At most 2 articles", "Full page · Recordings off". Most sites keep the defaults, so most rows stay quiet. TalkBack
