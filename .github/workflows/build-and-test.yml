@@ -111,11 +111,48 @@ jobs:
       group: latest-debug
       cancel-in-progress: false
     steps:
+      # Every tester's build offers to install each new one, so a merge of docs, tests or tooling
+      # alone isn't published: it would be the same app with a higher number. Compared with the
+      # last published build, not the last merge, so skipped merges' changes go out with the next
+      # one. Anything it can't tell is published: a spare build costs less than a missing one.
+      - name: Anything changed in the app since the last published build?
+        id: changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          published=$(gh api "repos/$GH_REPO/git/ref/tags/latest-debug" --jq .object.sha 2>/dev/null || true)
+          files=""
+          if [ -n "$published" ] && [ "$published" != "$GITHUB_SHA" ]; then
+            # The compare API lists at most 300 files: past that, publish.
+            files=$(gh api "repos/$GH_REPO/compare/$published...$GITHUB_SHA" \
+              --jq 'if (.files | length) >= 300 then "too many" else (.files[] | .filename, (.previous_filename // empty)) end' 2>/dev/null || true)
+          fi
+          if [ -z "$files" ] || [ "$files" = "too many" ]; then
+            echo "Can't tell what changed since ${published:-no build}: publishing."
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Paths that never reach the APK. This workflow does: it signs it.
+          outside='^(docs/|tools/|epubsink/|\.claude/|fastlane/|[^/]*\.md$|app/src/(test|testDebug|androidTest|sharedTest)/|core/src/test/|gradle/verification-metadata\.xml$|\.github/)'
+          app=$(printf '%s\n' "$files" | { grep -vE "$outside" || true; }
+            printf '%s\n' "$files" | { grep -xF '.github/workflows/build-and-test.yml' || true; })
+          if [ -z "$app" ]; then
+            echo "Nothing in the app changed since ${published:0:7}: not publishing. Changed:"
+            printf '%s\n' "$files" | sed 's/^/  /'
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Changed in the app since ${published:0:7}:"
+            printf '%s\n' "$app" | sed 's/^/  /'
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.changed.outputs.publish == 'true'
         with:
           name: newspaperss-debug-apk
       # The shared debug key, which signed every build testers have: the new key's rotation names it.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.changed.outputs.publish == 'true'
         with:
           persist-credentials: false
           sparse-checkout: app/debug.keystore
@@ -128,6 +165,7 @@ jobs:
       # in the build, which runs plugins' and dependencies' code and every PR's.
       - name: Sign with the debug channel's own key
         id: sign
+        if: steps.changed.outputs.publish == 'true'
         env:
           DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
           DEBUG_KEYSTORE_PASSWORD: ${{ secrets.DEBUG_KEYSTORE_PASSWORD }}
@@ -165,6 +203,7 @@ jobs:
           done
           echo "signed=true" >> "$GITHUB_OUTPUT"
       - name: Update the latest-debug release
+        if: steps.changed.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}

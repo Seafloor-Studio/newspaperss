@@ -4,7 +4,7 @@ A running log of the build cycles: what's in flight, and what each cycle shipped
 caught, and what got in the way. Newest first. Times are Pacific.
 
 **Latest debug build:** [newspapeRSS-debug.apk](https://github.com/Seafloor-Studio/newspaperss/releases/download/latest-debug/newspapeRSS-debug.apk)
-(updated on every merge to main; installs beside a release build as `com.app.newspaperss.debug`)
+(updated on every merge to main that changes the app; installs beside a release build as `com.app.newspaperss.debug`)
 
 ## Status
 
@@ -15,6 +15,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
   2. Start Google Play's closed test now: 12 testers opted in for 14 days in a row before production can be applied for. It's the longest wait in the project, and it runs alongside F-Droid's.
   3. Once it's published, tell people where readers are (r/rss, r/androidapps): F-Droid's only early exception is "proven to have some users".
 - **Also waiting on you:** on a phone, ⋮ › Save a copy… on a sent edition, saved to Downloads, then opened from Files in an e-reader app (#338). The F-Droid merge request now has a date on it: **not before late December 2026**, three months of active development from this repository's first commit (29 Sep) — the one exception in reach is "proven to have some users", so readers on the GitHub APK are what moves it earlier. `docs/RELEASING.md` has the template's requirements. Also: two weeks of episode labels in real use (report a wrong one with Send for a look), and how the recordings sound in Listen; an `episodes` label on the repo; whether the `handle-issues` skill learns about "Episode label:" issues (claude-playground). [#18](https://github.com/Seafloor-Studio/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
+
+## Sat 24 Oct
+
+### No build for a merge that changes nothing in the app
+- **What you asked:** stop the test build offering an update that changes nothing (build 1031 was the voiceover research, docs only).
+- **Built:** before publishing, CI lists the files changed since the last published build. If all of them are docs, tests, tools, other workflows or the dependency checksums, nothing is published, and those changes go out with the next build that does change the app. Whatever it can't tell (no build yet, over 300 files, the GitHub API failing) is published.
 
 ## Thu 22 Oct
 
