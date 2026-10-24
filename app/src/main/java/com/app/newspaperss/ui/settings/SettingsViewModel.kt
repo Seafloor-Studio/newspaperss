@@ -11,6 +11,7 @@ import com.app.newspaperss.settings.ListenVoice
 import com.app.newspaperss.settings.PodcastVoice
 import com.app.newspaperss.settings.Device
 import com.app.newspaperss.settings.PreviewTextSize
+import com.app.newspaperss.settings.Recordings
 import com.app.newspaperss.settings.Settings
 import com.app.newspaperss.settings.SettingsStore
 import kotlinx.coroutines.Dispatchers
@@ -78,6 +79,10 @@ class SettingsViewModel(
 
     fun setListenSpeed(speed: Float) {
         viewModelScope.launch { store.update { it.copy(listenSpeed = speed) } }
+    }
+
+    fun setRecordings(change: (Recordings) -> Recordings) {
+        viewModelScope.launch { store.update { it.copy(recordings = change(it.recordings)) } }
     }
 
     fun listenLive() {

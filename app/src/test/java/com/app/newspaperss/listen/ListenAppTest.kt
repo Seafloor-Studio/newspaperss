@@ -36,6 +36,7 @@ import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionRepository
 import com.app.newspaperss.data.EditionStatus
+import com.app.newspaperss.settings.Recordings
 import com.app.newspaperss.testutil.FakeSpeaker
 import com.app.newspaperss.testutil.TestApp
 import com.app.newspaperss.testutil.ViewModels
@@ -132,7 +133,7 @@ class ListenAppTest {
             ),
         )
 
-        val book = ListenBook.open(repo, id, Readings(db))!!
+        val book = ListenBook.open(repo, id, Readings(db, { Recordings() }))!!
 
         assertEquals(15.0, book.pages[0].minutes, 0.001)
         assertEquals(ListenTime.fromReading(2.0), book.pages[1].minutes, 0.001)

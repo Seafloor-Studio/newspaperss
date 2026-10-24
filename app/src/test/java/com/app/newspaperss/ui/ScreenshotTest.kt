@@ -56,6 +56,7 @@ import com.app.newspaperss.settings.ListenVoice
 import com.app.newspaperss.settings.PodcastVoice
 import com.app.newspaperss.settings.Device
 import com.app.newspaperss.settings.PreviewTextSize
+import com.app.newspaperss.settings.Recordings
 import com.app.newspaperss.settings.Settings
 import com.app.newspaperss.settings.SettingsStore
 import com.app.newspaperss.testutil.FakeHttp
@@ -1233,6 +1234,25 @@ class ScreenshotTest {
         runBlocking { store.update { it.copy(listenSpeed = 1.2f) } }
         val vm = SettingsViewModel(store) {}
         shoot("07o-settings-listening", ready = { vm.settings.value != null }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
+    }
+
+    /** At twice the font size: the four speeds still fit one row. */
+    @Test
+    @Config(fontScale = 2f)
+    fun settingsListeningLargestFont() {
+        installVoice(ApplicationProvider.getApplicationContext())
+        runBlocking { store.update { it.copy(listenSpeed = 0.8f) } }
+        val vm = SettingsViewModel(store) {}
+        shoot("07o3-settings-listening-font-200", ready = { vm.settings.value != null }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
+    }
+
+    /** Recordings switched off: the kinds go away. */
+    @Test
+    fun settingsListeningRecordingsOff() {
+        installVoice(ApplicationProvider.getApplicationContext())
+        runBlocking { store.update { it.copy(listenSpeed = 1.2f, recordings = Recordings(on = false)) } }
+        val vm = SettingsViewModel(store) {}
+        shoot("07o2-settings-listening-recordings-off", ready = { vm.settings.value != null }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
     }
 
     /** Kokoro with its real download's size, which Settings shows. */

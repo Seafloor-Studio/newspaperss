@@ -184,7 +184,7 @@ class AppContainer(
     private val logPlaying: (String) -> Unit = { message -> appScope.launch(logWriter) { podcastLog.add(message) } }
 
     /** The recordings that play in an article's place (debug builds; see [ReadingSpeaker]). */
-    private val readings = Readings(db, log = logPlaying)
+    private val readings = Readings(db, choices = { settings.current().recordings }, log = logPlaying)
 
     /** Plays a recording, streamed. Focus is [ListenService]'s, as for the phone's voice. */
     private val readingPlayer: () -> Player = { newReadingPlayer(context) }
