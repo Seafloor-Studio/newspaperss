@@ -45,7 +45,8 @@ and pushes the result.
 Changing a Room entity means bumping the database version, adding a
 Migration with a `MigrationTest` case, and committing the new schema JSON
 in `app/schemas`. CI publishes main's debug APK to the `latest-debug`
-release; its version name carries the CI run and commit.
+release when a merge changes the app (not for docs, tests or tooling alone);
+its version name carries the CI run and commit.
 
 Delivery ends in another app's hands. The device tests prove the file reaches
 another app's process; what that app does with it can only be checked by a
