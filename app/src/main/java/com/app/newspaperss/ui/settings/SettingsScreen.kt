@@ -90,6 +90,13 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import com.app.newspaperss.EPISODES
+import com.app.newspaperss.settings.Recordings
 
 /** Settings: a row per page, each with a line saying how it's set now, so the setup reads at a glance. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -382,7 +389,11 @@ private fun TextSizeSection(s: AppSettings, vm: SettingsViewModel) {
 
 private const val SAMPLE_LINE = "The quiet return of the night train"
 
-/** Listen's voice, the phone's own, with a sample; the speed it reads at; and where Android changes the voice. */
+/**
+ * Listen's voice, the phone's own, with a sample and a link to where Android changes it; the speed
+ * it reads at; and, in debug builds, which recordings play in a post's place.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ListeningSection(s: AppSettings, vm: SettingsViewModel) {
     val context = LocalContext.current
@@ -409,35 +420,62 @@ private fun ListeningSection(s: AppSettings, vm: SettingsViewModel) {
         )
         OutlinedButton(onClick = { if (!PhoneVoice.get(context)) nothingOpens(context) }) { Text("Get Speech Services by Google") }
     }
+    // With the podcast offered, ListeningVoices puts the link under the phone's voice itself.
+    if (vm.podcast == null && voice != null) ChangePhoneVoiceLink()
     SubHeading("Speed", Modifier.padding(top = 24.dp))
-    Column(Modifier.selectableGroup()) {
-        LISTEN_SPEEDS.sorted().forEach { speed ->
-            Row(
-                Modifier.fillMaxWidth().selectable(s.listenSpeed == speed, role = Role.RadioButton) { vm.setListenSpeed(speed) }.heightIn(min = 48.dp).padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(selected = s.listenSpeed == speed, onClick = null)
-                Text(speedLabel(speed) + if (speed == 1f) " · normal" else "", Modifier.padding(start = 12.dp))
-            }
+    val speeds = LISTEN_SPEEDS.sorted()
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        speeds.forEachIndexed { i, speed ->
+            SegmentedButton(
+                selected = s.listenSpeed == speed,
+                onClick = { vm.setListenSpeed(speed) },
+                shape = SegmentedButtonDefaults.itemShape(i, speeds.size),
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) { Text(speedLabel(speed), maxLines = 1) }
         }
     }
-    if (voice != null) {
-        HorizontalDivider(Modifier.padding(top = 16.dp))
-        Row(
-            Modifier.fillMaxWidth().clickable(role = Role.Button) { if (!PhoneVoice.openSettings(context)) nothingOpens(context) }.heightIn(min = 48.dp).padding(vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("Change the phone's voice", style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    "Another voice, language or engine, in Android's text-to-speech settings.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    if (EPISODES) RecordingsSection(s.recordings, vm::setRecordings)
+}
+
+/**
+ * Whether a post's recording plays in Listen in place of the voice, and of which kinds. Off, the
+ * kinds go away rather than sit greyed out. One article can still be turned back to the voice
+ * while it plays.
+ */
+@Composable
+private fun RecordingsSection(r: Recordings, change: ((Recordings) -> Recordings) -> Unit) {
+    SubHeading("Recordings", Modifier.padding(top = 24.dp))
+    Row(
+        Modifier.fillMaxWidth().toggleable(r.on, role = Role.Switch) { on -> change { it.copy(on = on) } }.heightIn(min = 48.dp).padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Play a post's own recording", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                "Where a post has one, it plays in place of the voice.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = r.on, onCheckedChange = null, modifier = Modifier.padding(start = 16.dp))
+    }
+    if (r.on) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CheckChip(r.readings, { change { it.copy(readings = !it.readings) } }, "Readings")
+            CheckChip(r.episodes, { change { it.copy(episodes = !it.episodes) } }, "Episodes")
         }
     }
+}
+
+/** Opens Android's text-to-speech settings, where the voice, language and engine are changed. */
+@Composable
+internal fun ChangePhoneVoiceLink() {
+    val context = LocalContext.current
+    TextButton(
+        onClick = { if (!PhoneVoice.openSettings(context)) nothingOpens(context) },
+        contentPadding = PaddingValues(vertical = 12.dp),
+        modifier = Modifier.semantics { contentDescription = "Change the phone's voice" },
+    ) { Text("Change the phone's voice ›") }
 }
 
 private fun nothingOpens(context: android.content.Context) =

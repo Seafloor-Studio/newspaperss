@@ -349,6 +349,8 @@ labelled corpus are [research/podcast-episodes.md](research/podcast-episodes.md)
 - [ ] **Rule 3's silent stub:** an audio version's own short post is still read by the voice when it's in the same edition as its article. Listen needs a way to pass over a page
 - [ ] **Readings for editions made before #322:** their audio was never timed, so an article's own audio isn't played. Time what's missing when Listen opens an edition
 - [x] **Step 4, transcripts:** a transcript plays its episode in its place, streamed
+- [x] **Switches for recordings** in Settings › Listening: all of them, or by kind (#384)
+- [x] **A source's own switch for its recordings**, in its settings sheet, with the source page's settings behind one row (#384)
 - [ ] **Step 4, notes:** notes are read without their furniture and their episode plays at the end; streamed
 - [ ] **Substack voiceovers play in place:** an author's reading isn't in the feed; one request to the site's posts API finds it, for sites that record them. Measured in R7 of `docs/research/podcast-episodes.md`
 - [ ] **Step 5:** downloads for listening offline

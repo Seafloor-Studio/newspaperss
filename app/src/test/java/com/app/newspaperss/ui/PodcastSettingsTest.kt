@@ -174,7 +174,7 @@ class PodcastSettingsTest {
         waitFor("Too slow on this phone")
         waitFor("25 minutes would take about 2½ hours")
         compose.onAllNodes(hasText("Use it")).fetchSemanticsNodes().let { assertEquals(0, it.size) }
-        compose.onNodeWithText("Remove Kokoro (0 MB)").performClick()
+        compose.onNodeWithText("Remove Kokoro (0 MB)").performScrollTo().performClick()
         // Waited for on the screen's own state: blocking the main thread for the store would hold
         // up the removal, which finishes there.
         idleUntil { vm.settings.value?.podcastPace == null }

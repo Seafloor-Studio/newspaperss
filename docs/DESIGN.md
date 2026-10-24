@@ -655,6 +655,12 @@ whose Kindle and KOReader answers ask for more on the same page).
     reads has no episode to play. A recording that won't play (offline,
     gone) hands back to the voice from where it got. See
     [episodes-design.md](research/episodes-design.md).
+  - **Which recordings play** (debug builds) is set in Settings ›
+    Listening under Recordings: **Play a post's own recording**, on by
+    default, and under it two chips, **Readings** and **Episodes**. Off,
+    the chips go away and the voice reads everything. A change is used
+    from the next edition opened in Listen; one already open carries on
+    as it started, so the voice doesn't change part way through.
   - **Its recordings in Listen**, a switch in a source's settings (debug
     builds), shows on a source with a recent post that could play one (a
     reading, its audio version, or a transcript with an episode), or while
@@ -936,10 +942,11 @@ whose Kindle and KOReader answers ask for more on the same page).
   - **Listening** (its row says "Your phone's voice · 1×", or "No voice on
     this phone", which isn't shown as a problem: many e-readers have none):
     the phone's text-to-speech engine by name with **Hear it**, a sample line
-    at the chosen speed (it pauses an edition that's playing); the speed as
-    radio rows, 0.8× to 1.5×, the same one the player's speed button sets;
-    and **Change the phone's voice**, which opens Android's text-to-speech
-    settings. A voice, language or engine changed there is heard from the next start or jump.
+    at the chosen speed (it pauses an edition that's playing), and under it
+    **Change the phone's voice ›**, which opens Android's text-to-speech
+    settings; then the speed as one row of four buttons, 0.8× to 1.5×, the
+    same one the player's speed button sets. A voice, language or engine
+    changed there is heard from the next start or jump.
     A speed asked for by a car or watch becomes the nearest of these.
     Without an engine the page says so and offers Speech Services by Google.
     Debug builds make the voice a choice of two: **Your phone's voice**, which
