@@ -411,6 +411,7 @@ erDiagram
         int maxArticles
         bool leftOut
         bool skipPaidPosts
+        bool recordingsOff "Listen's voice reads its posts"
         string title "tt-rss"
         string feedUrl "tt-rss"
         string category "tt-rss"
@@ -462,7 +463,7 @@ erDiagram
   (a feed address, a tt-rss account, the reading list, a curated list):
   sync, read sync, sign-in and Pause are per source. A publication is who
   wrote them, and holds the settings about the writing: article text, cap,
-  left out, Skip paid posts. A feed added here and a feed in tt-rss differ
+  left out, Skip paid posts, its recordings in Listen. A feed added here and a feed in tt-rss differ
   only in which source carries them. An article's publication is
   `(sourceId, originId ?: "")` (`PublicationEntity.keyOf`).
 - **A publication's row** is written only once there's something to keep;

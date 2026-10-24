@@ -429,7 +429,7 @@ internal fun settingsSummary(offered: SiteSettings, source: SourceEntity?, publi
     listOfNotNull(
         "Paused".takeIf { offered.pause && source?.paused == true },
         "Left out".takeIf { offered.leaveOut && publication?.leftOut == true },
-        publication?.chosenMode?.takeIf { offered.mode }?.let { modeName(publication) },
+        publication?.chosenMode?.takeIf { offered.mode && it != ContentMode.AUTO }?.let { modeName(publication) },
         publication?.maxArticles?.takeIf { offered.cap }?.let { "At most ${plural(it, "article")}" },
         "Skips paid posts".takeIf { offered.paidPosts && publication?.skipPaidPosts == true },
         "Recordings off".takeIf { offered.recordings && publication?.recordingsOff == true },
