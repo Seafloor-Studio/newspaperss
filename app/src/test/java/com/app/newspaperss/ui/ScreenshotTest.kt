@@ -2,6 +2,7 @@ package com.app.newspaperss.ui
 
 import com.app.newspaperss.ui.components.EpisodeJudgement
 import com.app.newspaperss.listen.Reading
+import com.app.newspaperss.listen.Readings
 import com.app.newspaperss.listen.ReadingSpeaker
 import com.app.newspaperss.core.episodes.EpisodeKind
 import androidx.compose.material3.LocalRippleConfiguration
@@ -551,11 +552,11 @@ class ScreenshotTest {
     }
 
     /** A player with a voice that says nothing, over [db]'s editions in [files]. */
-    private fun listenPlayer(files: File = tmp.newFolder()): Pair<ListenPlayer, FakeSpeaker> {
+    private fun listenPlayer(files: File = tmp.newFolder(), readings: Readings? = null): Pair<ListenPlayer, FakeSpeaker> {
         val repo = EditionRepository(db, files, clock)
         val speaker = FakeSpeaker()
         val progress = StoredListenProgress(ApplicationProvider.getApplicationContext())
-        return ListenPlayer(speaker, progress, open = { ListenBook.open(repo, it) }, kotlinx.coroutines.MainScope()) to speaker
+        return ListenPlayer(speaker, progress, open = { ListenBook.open(repo, it, readings) }, kotlinx.coroutines.MainScope()) to speaker
     }
 
     private fun listening(): Listening {
@@ -587,6 +588,40 @@ class ScreenshotTest {
     /** A transcript playing its episode in its place. */
     @Test
     fun listenPlayingEpisode() = shootListening("11f-listen-episode", voice = null, recording = true, episode = true)
+
+    /** Past the edition's end: a notes post's episode, playing on a page of its own. */
+    @Test
+    fun listenPlayingAnEpisodeAtTheEnd() {
+        val files = tmp.newFolder()
+        val articles = listOf(
+            EditionArticle(title = "Episode 212: The ferry planner", sourceTitle = "The Example Show", url = "https://example.com/212", bodyHtml = "<p>This week, a ferry planner.</p>", minutes = 1.0),
+            EditionArticle(title = "What do octopuses dream about?", sourceTitle = "Nautilus", url = "https://example.com/o", bodyHtml = "<p>Text.</p>", minutes = 5.0),
+            EditionArticle(title = "Episode 48: Night trains", sourceTitle = "Rail Talk", url = "https://example.com/48", bodyHtml = "<p>Night trains are back.</p>", minutes = 1.0),
+        )
+        File(files, "e.epub").outputStream().use {
+            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000011", listOf(EditionSection(null, articles))), it)
+        }
+        val id = runBlocking {
+            val show = db.sources().insert(SourceEntity(url = "https://example.com/show.xml", title = "The Example Show"))
+            val rail = db.sources().insert(SourceEntity(url = "https://example.com/rail.xml", title = "Rail Talk"))
+            fun notes(source: Long, guid: String, a: EditionArticle, seconds: Int) =
+                ArticleEntity(sourceId = source, guid = guid, url = a.url, title = a.title, episodeKind = EpisodeKind.NOTES, audioUrl = "https://cdn.example/$guid.mp3", audioSeconds = seconds)
+            val ids = listOf(db.articles().insertIgnoring(notes(show, "212", articles[0], 3_480)), null, db.articles().insertIgnoring(notes(rail, "48", articles[2], 2_700)))
+            val id = db.editions().insert(EditionEntity(title = "Thursday Morning Edition", status = EditionStatus.DELIVERED, fileName = "e.epub", articleCount = articles.size, minutes = 7.0))
+            db.editions().insertArticles(articles.mapIndexed { i, a -> EditionArticleEntity(editionId = id, articleId = ids[i], position = i, title = a.title, sourceTitle = a.sourceTitle, minutes = a.minutes) })
+            id
+        }
+        val readings = Readings(db, { Recordings() })
+        val (player, speaker) = listenPlayer(files, readings)
+        // The closing page is page 3; the episodes are 4 and 5.
+        player.start(id, ListenPosition(4, 0))
+        idleUntil { player.state.value.script != null }
+        speaker.startNext()
+        val now = ReadingSpeaker.Now(id, 4, readings.at(id, 4)!!, voiceInstead = false)
+        shoot("11g-listen-episode-at-the-end", ready = { player.state.value.at.page == 4 }) {
+            ListenScreen(player, onBack = {}, reading = MutableStateFlow(now))
+        }
+    }
 
     private fun shootListening(name: String, voice: PodcastVoice?, instead: PodcastSpeaker.Instead? = null, textSize: PreviewTextSize = PreviewTextSize.DEFAULT, recording: Boolean = false, episode: Boolean = false) {
         val files = tmp.newFolder()

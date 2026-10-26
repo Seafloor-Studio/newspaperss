@@ -1,12 +1,10 @@
 package com.app.newspaperss.listen
 
 import android.content.Context
-import com.app.newspaperss.core.plural
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
-import kotlin.math.roundToInt
 
 /**
  * Which articles the reader has turned back to Listen's voice from their recording, by edition
@@ -59,6 +57,12 @@ class ReadingSpeaker(
     /** Plays on from a line, as a tap on it does: the voice takes over there when a recording fails. */
     var restart: (LineId) -> Unit = {}
 
+    /**
+     * Moves on from the page of a line, as ⏭ does: an episode after the edition that won't play
+     * has nothing for the voice to read instead, only its time in marks.
+     */
+    var skip: (LineId) -> Unit = {}
+
     /** The article that has a recording, while it's the one playing: shown, with the switch. */
     data class Now(val editionId: Long, val page: Int, val reading: Reading, val voiceInstead: Boolean)
 
@@ -87,15 +91,18 @@ class ReadingSpeaker(
     private var reported = -1
     /** How far into the recording it last was, for the log when it stops. */
     private var atMs = 0L
+    /** The voice saying an episode won't play: only its own end moves on, not one said before a seek. */
+    private var skipping: String? = null
 
     init {
         voice.listener = object : Speaker.Listener {
             override fun onStart(id: String) {
-                if (!id.startsWith(HANDOVER)) listener?.onStart(id.removePrefix(HEADING))
+                if (!id.startsWith(HANDOVER) && !id.startsWith(SKIPPING)) listener?.onStart(id.removePrefix(HEADING))
             }
 
             override fun onDone(id: String) {
                 if (id.startsWith(HANDOVER)) return handedOver(id)
+                if (id.startsWith(SKIPPING)) return skipped(id)
                 val own = id.removePrefix(HEADING)
                 listener?.onDone(own)
                 headingSaid(own)
@@ -104,6 +111,7 @@ class ReadingSpeaker(
             override fun onError(id: String) {
                 // A handover the voice can't say is skipped: the recording plays anyway.
                 if (id.startsWith(HANDOVER)) return handedOver(id)
+                if (id.startsWith(SKIPPING)) return skipped(id)
                 val own = id.removePrefix(HEADING)
                 listener?.onError(own)
                 // A heading line the voice couldn't say is past too: the recording mustn't wait for it.
@@ -125,6 +133,7 @@ class ReadingSpeaker(
             return voice.speak(id, text, language, rate, flush)
         }
         val here = line.editionId to line.page
+        if (flush) skipping = null
         if (here != article || flush) choose(here)
         if (flush) stopRecording()
         val reading = reading ?: return voice.speak(id, text, language, rate, flush)
@@ -160,8 +169,9 @@ class ReadingSpeaker(
         handingOver = null
         val (editionId, page) = here
         val found = readingAt(editionId, page)
-        // One that failed to play is the voice's too, until the reader asks for it again.
-        val instead = found != null && (choices.voiceInstead(editionId, page) || here in failed)
+        // One that failed to play is the voice's too, until the reader asks for it again. Not an
+        // episode after the edition: the voice has nothing to read for it, so it's tried again.
+        val instead = found != null && !found.atTheEnd && (choices.voiceInstead(editionId, page) || here in failed)
         _now.value = found?.let { Now(editionId, page, it, instead) }
         reading = found?.takeIf { !instead }
     }
@@ -193,7 +203,7 @@ class ReadingSpeaker(
         reported = from.line - 1
         // By the length the player found, as reach() reaches lines by, else the feed's. Without
         // either, it starts from the beginning and seeks once the player knows the length.
-        val total = lengths[reading.url] ?: reading.seconds?.let { it * 1000L }
+        val total = markedMs(reading) ?: lengths[reading.url] ?: reading.seconds?.let { it * 1000L }
         val share = reading.shareAt(from.line)
         val ms = total?.let { (share * it).toLong() } ?: 0L
         seekWhenKnown = share.takeIf { total == null && it > 0 }
@@ -215,7 +225,7 @@ class ReadingSpeaker(
             return
         }
         atMs = ms
-        val total = durationMs.takeIf { it > 0 } ?: reading.seconds?.let { it * 1000L } ?: return
+        val total = markedMs(reading) ?: durationMs.takeIf { it > 0 } ?: reading.seconds?.let { it * 1000L } ?: return
         val share = (ms + Media3Audio.TICK_MS).toDouble() / total
         val upTo = reading.bodyLine + reading.starts.indexOfLast { it <= share }
         while (reported < upTo.coerceAtMost(at.lines - 1)) {
@@ -240,6 +250,13 @@ class ReadingSpeaker(
     /** The recording won't play (no connection, gone): the voice reads on from where it got to, and keeps this article. */
     private fun failedToPlay(code: String) {
         val at = playing ?: return
+        if (reading?.atTheEnd == true) {
+            log("Reading: ${reading?.url} failed ($code); an episode after the edition, so on to the next page")
+            stopRecording()
+            skipping = "$SKIPPING$at"
+            voice.speak(skipping!!, "The episode won't play right now.", null, rate, flush = true)
+            return
+        }
         article?.let { failed += it }
         val line = maxOf(reported, at.line)
         log("Reading: ${reading?.url} failed ($code); the voice from line $line")
@@ -266,8 +283,18 @@ class ReadingSpeaker(
         log("Reading: edition ${at.editionId} page ${at.page} $why at ${clock(atMs)}$of")
     }
 
+    /** An episode after the edition is placed by the length its marks were made from, so "1:30:00" plays from 1:30:00. */
+    private fun markedMs(reading: Reading): Long? = reading.seconds?.takeIf { reading.atTheEnd }?.let { it * 1000L }
+
+    private fun skipped(id: String) {
+        if (id != skipping) return
+        skipping = null
+        LineId.parse(id.removePrefix(SKIPPING))?.let { skip(it) }
+    }
+
     override fun stop() {
         waiting = null
+        skipping = null
         stopRecording("stopped")
         voice.stop()
     }
@@ -285,6 +312,9 @@ class ReadingSpeaker(
         /** Ids of the heading lines of an article with a recording, said as plain speech. */
         const val HEADING = "heading:"
 
+        /** Ids of the voice saying an episode won't play, before moving on. */
+        const val SKIPPING = "skipping:"
+
         fun what(reading: Reading?) = when {
             reading?.episode == true -> "its episode"
             reading?.own == true -> "its own audio"
@@ -295,9 +325,7 @@ class ReadingSpeaker(
 
         fun announce(reading: Reading): String {
             val what = if (reading.episode) "Now the episode itself" else "Now its recorded reading"
-            val minutes = reading.seconds?.let { maxOf(1, (it / 60.0).roundToInt()) } ?: return "$what."
-            val length = if (minutes < 60) plural(minutes, "minute") else listOfNotNull(plural(minutes / 60, "hour"), (minutes % 60).takeIf { it > 0 }?.let { plural(it, "minute") }).joinToString(" ")
-            return "$what, $length."
+            return reading.seconds?.let { "$what, ${spokenLength(it)}." } ?: "$what."
         }
     }
 }

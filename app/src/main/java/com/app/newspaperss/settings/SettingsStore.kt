@@ -90,12 +90,14 @@ enum class PodcastVoice(val label: String, val accent: String) {
 }
 
 /**
- * Which recordings Listen plays in a post's place: none while [on] is off, else [readings] (an
- * article read aloud by a person) and [episodes] (the episode a transcript records).
+ * Which recordings Listen plays: none while [on] is off, else [readings] (an article read aloud by
+ * a person) and [episodes] (the episode a transcript records) in a post's place, and [atTheEnd]
+ * (the episode a notes post is about) after the edition's closing page.
  */
-data class Recordings(val on: Boolean = true, val readings: Boolean = true, val episodes: Boolean = true) {
+data class Recordings(val on: Boolean = true, val readings: Boolean = true, val episodes: Boolean = true, val atTheEnd: Boolean = true) {
     val playReadings: Boolean get() = on && readings
     val playEpisodes: Boolean get() = on && episodes
+    val playAtTheEnd: Boolean get() = on && atTheEnd
 }
 
 data class Settings(
@@ -181,6 +183,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val playRecordings = booleanPreferencesKey("listen_play_recordings")
         val playReadings = booleanPreferencesKey("listen_play_readings")
         val playEpisodes = booleanPreferencesKey("listen_play_episodes")
+        val playAtTheEnd = booleanPreferencesKey("listen_play_at_the_end")
     }
 
     val settings: Flow<Settings> = store.data.map(::read)
@@ -216,6 +219,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
             prefs[Keys.playRecordings] = s.recordings.on
             prefs[Keys.playReadings] = s.recordings.readings
             prefs[Keys.playEpisodes] = s.recordings.episodes
+            prefs[Keys.playAtTheEnd] = s.recordings.atTheEnd
         }
     }
 
@@ -268,6 +272,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
                 on = p[Keys.playRecordings] ?: d.recordings.on,
                 readings = p[Keys.playReadings] ?: d.recordings.readings,
                 episodes = p[Keys.playEpisodes] ?: d.recordings.episodes,
+                atTheEnd = p[Keys.playAtTheEnd] ?: d.recordings.atTheEnd,
             ),
         )
     }

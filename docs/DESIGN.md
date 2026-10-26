@@ -658,7 +658,8 @@ whose Kindle and KOReader answers ask for more on the same page).
     [episodes-design.md](research/episodes-design.md).
   - **Which recordings play** (debug builds) is set in Settings ›
     Listening under Recordings: **Play a post's own recording**, on by
-    default, and under it two chips, **Readings** and **Episodes**. Off,
+    default, and under it three chips, **Readings**, **Episodes** and
+    **Episodes at the end**. Off,
     the chips go away and the voice reads everything. A change is used
     from the next edition opened in Listen; one already open carries on
     as it started, so the voice doesn't change part way through.
@@ -671,6 +672,24 @@ whose Kindle and KOReader answers ask for more on the same page).
     times count the episode's length, not the transcript's. Each
     recording plays once an edition; a second post with the same one is
     read by the voice.
+  - **Episode notes** (debug builds) are read by the voice in their place,
+    and their episode plays once the edition is over: after "That's all
+    for today", each on a page of its own, in book order. The voice reads
+    the show and the episode's title, says "Now the episode itself, 38
+    minutes.", and the episode plays, streamed. An episode a transcript
+    already plays in its place isn't played again.
+    - The page shows a mark every 30 seconds ("0:00", "0:30"), tinted as
+      the episode reaches it: a pause, a call or a speed change plays on
+      from the last mark, ↷ skips 30 seconds, and a tapped mark plays from
+      there. An episode's length comes from its feed, or from its file's
+      first bytes when the edition is made; without one, a single line.
+    - They aren't the edition's: the contents list them as "Episode", the
+      title reads "Listening · episode 1 of 2", and the edition's bar and
+      its times leave them out. Past "That's all for today" the edition
+      counts as heard, and where it got to in an episode isn't kept.
+    - There's no switch back to the voice, which has nothing to read for
+      them. One that won't play (offline, gone): "The episode won't play
+      right now.", and on to the next.
   - Between one article and the next, in either voice, a pause of about
     4 seconds: a moment's quiet, a soft breath of sound with a page
     turning, then the next article, so the listener can change contexts.

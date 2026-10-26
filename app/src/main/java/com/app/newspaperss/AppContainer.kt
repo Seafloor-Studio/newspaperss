@@ -243,6 +243,8 @@ class AppContainer(
         ).also { player ->
             // A recording that won't play: on from where it got, in the voice.
             if (EPISODES) readingSpeaker.restart = { line -> if (player.state.value.editionId == line.editionId) player.seek(ListenPosition(line.page, line.line)) }
+            // Only from the page it's about: a skip asked for there mustn't skip the next one.
+            if (EPISODES) readingSpeaker.skip = { line -> player.state.value.takeIf { it.editionId == line.editionId && it.at.page == line.page }?.let { player.next() } }
         }
     }
     val listen: ListenPlayer by listenMade

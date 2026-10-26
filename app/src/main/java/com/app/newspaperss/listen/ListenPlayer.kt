@@ -35,8 +35,12 @@ data class ListenState(
     /** In the pause between one article and the next: [at] is already the next one's start. */
     val between: Boolean = false,
 ) {
-    /** About how far in, and how long the whole edition takes, in seconds at normal speed. */
-    val secondsIn: Double get() = pages.take(at.page).sumOf { it.minutes * 60 } + secondsInPage
+    /**
+     * About how far in, and how long the whole edition takes, in seconds at normal speed. The
+     * episodes after it aren't the edition's: on one, the whole edition is behind.
+     */
+    val secondsIn: Double get() =
+        pages.take(at.page).filter { !it.episode }.sumOf { it.minutes * 60 } + if (pages.getOrNull(at.page)?.episode == true) 0.0 else secondsInPage
 
     /**
      * How far into the page being read: the share of its sentences heard, of the page's time.
@@ -46,9 +50,14 @@ data class ListenState(
         get() {
             val script = script ?: return 0.0
             if (script.seconds <= 0.0) return 0.0
-            return script.secondsBefore(at.line) / script.seconds * (pages.getOrNull(at.page)?.minutes ?: 0.0) * 60
+            val page = pages.getOrNull(at.page) ?: return 0.0
+            // An episode's page is its heading, then its marks: only the marks are its time.
+            val from = if (page.episode) script.secondsBefore(script.lines.indexOfFirst { (script.blocks[it.block] as? ListenScript.Block.Text)?.kind == ListenScript.Kind.PARAGRAPH }.coerceAtLeast(0)) else 0.0
+            val of = script.seconds - from
+            if (of <= 0.0) return 0.0
+            return ((script.secondsBefore(at.line) - from) / of).coerceIn(0.0, 1.0) * page.minutes * 60
         }
-    val secondsTotal: Double get() = pages.sumOf { it.minutes * 60 }
+    val secondsTotal: Double get() = pages.filter { !it.episode }.sumOf { it.minutes * 60 }
 }
 
 /**
@@ -251,6 +260,9 @@ class ListenPlayer(
     private fun nextPage(play: Boolean, chimeFirst: Boolean = false) {
         val current = _state.value
         if (chimeFirst) pausedAfter = current.at.page
+        // Past its closing page, into the episodes after it, the edition is heard: Resume and
+        // "Finish it first?" are about the paper, not an hour's episode left part way.
+        if (current.pages.getOrNull(current.at.page)?.end == true) current.editionId?.let(progress::finish)
         if (current.at.page < current.pages.lastIndex) move(ListenPosition(current.at.page + 1, 0), play, chimeFirst) else finish()
     }
 
@@ -352,8 +364,16 @@ class ListenPlayer(
         if (missing != current.missingLanguage) _state.update { it.copy(missingLanguage = missing) }
     }
 
+    /**
+     * Not on an episode after the edition: which episodes there are can change by the next time
+     * it's opened. Nor on the closing page once the edition is heard, as ⏮ from an episode gets
+     * there: it would make it unfinished again.
+     */
     private fun save(at: ListenPosition) {
-        _state.value.editionId?.let { progress.set(it, at) }
+        val id = _state.value.editionId ?: return
+        val page = _state.value.pages.getOrNull(at.page)
+        if (page?.episode == true || (page?.end == true && progress.finished(id))) return
+        progress.set(id, at)
     }
 
     /** The line an id names, if it's of the current generation and page. */

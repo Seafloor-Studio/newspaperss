@@ -109,6 +109,49 @@ class ReadingSpeakerTest {
         assertEquals("Reading: edition 7 page 0 stopped at 1:40 of 3:20 (50%)", logged.last())
     }
 
+    /**
+     * An episode after the edition: a heading of two lines, then a mark every 30 seconds of its two
+     * minutes. Played again from a mark (after a pause, a call, a speed change), it plays on from
+     * there, not from the top; turned back to the voice it can't be, as there's nothing to read;
+     * and one that won't play is said, and passed over.
+     */
+    @Test
+    fun anEpisodeAfterTheEditionPlaysOnFromItsMarksAndIsPassedOverWhenItWontPlay() {
+        val episode = Reading("https://cdn.example/12.mp3", 120, own = true, bodyLine = 2, starts = listOf(0.0, 0.25, 0.5, 0.75), episode = true, atTheEnd = true)
+        val skipped = mutableListOf<LineId>()
+        choices.setVoiceInstead(7, 4, instead = true)
+        val speaker = ReadingSpeaker(voice, audio, { e, p -> episode.takeIf { e == 7L && p == 4 } }, choices, logged::add).also {
+            it.skip = { line -> skipped += line }
+            it.restart = { line -> restarted += line }
+        }
+        speaker.speak(id(2, page = 4), "0:00", null, 1f, flush = true)
+        voice.sayNext()
+        assertEquals("a choice kept for the page doesn't silence it", "Now the episode itself, 2 minutes.", voice.said.last().text)
+        assertEquals(Triple(episode.url, 0L, 1f), audio.played.last())
+
+        // Paused at 1:10, then played: on from the mark it reached, a minute in. By the clock its
+        // marks show, though the file turns out twice as long as its feed said.
+        audio.listener!!.onPosition(70_000, 240_000)
+        speaker.stop()
+        speaker.speak(id(4, page = 4), "1:00", null, 1f, flush = true)
+        assertEquals(Triple(episode.url, 60_000L, 1f), audio.played.last())
+
+        // Said it won't play, then a mark tapped before that's done: the late end of it doesn't skip.
+        audio.listener!!.onError("offline")
+        val stale = "skipping:" + LineId(1, 7, 4, 4, 6)
+        speaker.speak(id(3, page = 4), "0:30", null, 1f, flush = true)
+        voice.listener!!.onDone(stale)
+        assertTrue(skipped.isEmpty())
+
+        audio.listener!!.onError("offline")
+        assertEquals("The episode won't play right now.", voice.said.last().text)
+        assertTrue("not until it's said", skipped.isEmpty())
+        voice.sayNext()
+        assertEquals("from the line it was playing when it failed", listOf(LineId(1, 7, 4, 3, 6)), skipped)
+        assertTrue("the voice doesn't read its marks instead", restarted.isEmpty())
+        assertTrue(logged.toString(), logged.any { "failed (offline); an episode after the edition" in it })
+    }
+
     @Test
     fun startingAtTheBodysFirstLineAnnouncesTheRecordingFirst() {
         listen()

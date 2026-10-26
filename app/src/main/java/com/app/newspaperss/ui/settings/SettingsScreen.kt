@@ -445,8 +445,9 @@ private fun ListeningSection(s: AppSettings, vm: SettingsViewModel, onOpenNatura
 }
 
 /**
- * Whether a post's recording plays in Listen in place of the voice, and of which kinds. Off, the
- * kinds go away rather than sit greyed out. One article can still be turned back to the voice
+ * Whether a post's recording plays in Listen in place of the voice, and of which kinds: readings
+ * and transcripts' episodes in the post's place, notes posts' episodes once the edition is over. Off,
+ * the kinds go away rather than sit greyed out. One article can still be turned back to the voice
  * while it plays.
  */
 @Composable
@@ -470,6 +471,7 @@ private fun RecordingsSection(r: Recordings, change: ((Recordings) -> Recordings
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CheckChip(r.readings, { change { it.copy(readings = !it.readings) } }, "Readings")
             CheckChip(r.episodes, { change { it.copy(episodes = !it.episodes) } }, "Episodes")
+            CheckChip(r.atTheEnd, { change { it.copy(atTheEnd = !it.atTheEnd) } }, "Episodes at the end")
         }
     }
 }
