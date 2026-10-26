@@ -47,9 +47,9 @@ class AudioLengthsTest {
 
         assertEquals(3, db.articles().byId(own)!!.audioSeconds)
         assertEquals(3, db.articles().byId(reading)!!.audioSeconds)
-        assertNull("an episode's notes don't play in place", db.articles().byId(notes)!!.audioSeconds)
+        assertEquals("an episode's notes: it plays after the edition, placed by its length", 3, db.articles().byId(notes)!!.audioSeconds)
         assertEquals("already known, not fetched", 600, db.articles().byId(known)!!.audioSeconds)
-        assertEquals(setOf("https://cdn.example/own.mp3", "https://cdn.example/reading.mp3"), http.ranges.map { it.first }.toSet())
+        assertEquals(setOf("https://cdn.example/own.mp3", "https://cdn.example/reading.mp3", "https://cdn.example/notes.mp3"), http.ranges.map { it.first }.toSet())
         // The first bytes, then from where the tag ends.
         assertEquals(listOf(0L, 40_010L), http.ranges.filter { it.first.endsWith("own.mp3") }.map { it.second })
     }
@@ -69,7 +69,7 @@ class AudioLengthsTest {
         assertEquals(3, db.articles().byId(transcript)!!.audioSeconds)
         assertEquals("found through the transcript it's paired with", 3, db.articles().byId(notes)!!.audioSeconds)
         assertEquals("in case the transcript's own audio is a trailer", 3, db.articles().byId(trailerNotes)!!.audioSeconds)
-        assertNull("notes on their own play at the end, untimed", db.articles().byId(lone)!!.audioSeconds)
+        assertEquals("notes on their own: their episode plays after the edition", 3, db.articles().byId(lone)!!.audioSeconds)
     }
 
     // runBlocking, not runTest: the timeout must be real time, or it passes while Room works on its own thread.

@@ -57,6 +57,12 @@ class ReadingSpeaker(
     /** Plays on from a line, as a tap on it does: the voice takes over there when a recording fails. */
     var restart: (LineId) -> Unit = {}
 
+    /**
+     * Moves on from the page of a line, as ⏭ does: an episode after the edition that won't play
+     * has nothing for the voice to read instead, only its time in marks.
+     */
+    var skip: (LineId) -> Unit = {}
+
     /** The article that has a recording, while it's the one playing: shown, with the switch. */
     data class Now(val editionId: Long, val page: Int, val reading: Reading, val voiceInstead: Boolean)
 
@@ -89,11 +95,12 @@ class ReadingSpeaker(
     init {
         voice.listener = object : Speaker.Listener {
             override fun onStart(id: String) {
-                if (!id.startsWith(HANDOVER)) listener?.onStart(id.removePrefix(HEADING))
+                if (!id.startsWith(HANDOVER) && !id.startsWith(SKIPPING)) listener?.onStart(id.removePrefix(HEADING))
             }
 
             override fun onDone(id: String) {
                 if (id.startsWith(HANDOVER)) return handedOver(id)
+                if (id.startsWith(SKIPPING)) return skipped(id)
                 val own = id.removePrefix(HEADING)
                 listener?.onDone(own)
                 headingSaid(own)
@@ -102,6 +109,7 @@ class ReadingSpeaker(
             override fun onError(id: String) {
                 // A handover the voice can't say is skipped: the recording plays anyway.
                 if (id.startsWith(HANDOVER)) return handedOver(id)
+                if (id.startsWith(SKIPPING)) return skipped(id)
                 val own = id.removePrefix(HEADING)
                 listener?.onError(own)
                 // A heading line the voice couldn't say is past too: the recording mustn't wait for it.
@@ -158,8 +166,9 @@ class ReadingSpeaker(
         handingOver = null
         val (editionId, page) = here
         val found = readingAt(editionId, page)
-        // One that failed to play is the voice's too, until the reader asks for it again.
-        val instead = found != null && (choices.voiceInstead(editionId, page) || here in failed)
+        // One that failed to play is the voice's too, until the reader asks for it again. Not an
+        // episode after the edition: the voice has nothing to read for it, so it's tried again.
+        val instead = found != null && !found.atTheEnd && (choices.voiceInstead(editionId, page) || here in failed)
         _now.value = found?.let { Now(editionId, page, it, instead) }
         reading = found?.takeIf { !instead }
     }
@@ -238,6 +247,12 @@ class ReadingSpeaker(
     /** The recording won't play (no connection, gone): the voice reads on from where it got to, and keeps this article. */
     private fun failedToPlay(code: String) {
         val at = playing ?: return
+        if (reading?.atTheEnd == true) {
+            log("Reading: ${reading?.url} failed ($code); an episode after the edition, so on to the next page")
+            stopRecording()
+            voice.speak("$SKIPPING$at", "The episode won't play right now.", null, rate, flush = true)
+            return
+        }
         article?.let { failed += it }
         val line = maxOf(reported, at.line)
         log("Reading: ${reading?.url} failed ($code); the voice from line $line")
@@ -264,6 +279,10 @@ class ReadingSpeaker(
         log("Reading: edition ${at.editionId} page ${at.page} $why at ${clock(atMs)}$of")
     }
 
+    private fun skipped(id: String) {
+        LineId.parse(id.removePrefix(SKIPPING))?.let { skip(it) }
+    }
+
     override fun stop() {
         waiting = null
         stopRecording("stopped")
@@ -282,6 +301,9 @@ class ReadingSpeaker(
 
         /** Ids of the heading lines of an article with a recording, said as plain speech. */
         const val HEADING = "heading:"
+
+        /** Ids of the voice saying an episode won't play, before moving on. */
+        const val SKIPPING = "skipping:"
 
         fun what(reading: Reading?) = when {
             reading?.episode == true -> "its episode"

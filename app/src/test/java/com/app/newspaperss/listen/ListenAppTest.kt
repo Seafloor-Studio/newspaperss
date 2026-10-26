@@ -178,16 +178,20 @@ class ListenAppTest {
         assertEquals("https://cdn.example/12.mp3", readings.at(id, 3)?.url)
         assertNull("the notes are read in their place", readings.at(id, 0))
 
-        // Without the recording's speaker, the voice reads what the episode's page says.
+        // Without the recording's speaker, the voice says the episode page's lines: its heading and marks.
         val heard = mutableListOf<String>()
-        while (speaker.queue.isNotEmpty()) {
+        while (speaker.queue.isNotEmpty() && player.state.value.at.page < 3) {
             heard += speaker.sayNext()
             idleUntil { speaker.queue.isNotEmpty() || player.state.value.finished }
         }
         val end = heard.indexOf("That's all for today.")
         assertTrue(heard.toString(), heard.indexOf("This week we talk to a ferry planner.") in 0 until end)
-        assertEquals(listOf("The Example Show", "Episode 12: The ferry planner", "The episode, 38 minutes."), heard.takeLast(3))
+        idleUntil { player.state.value.at.page == 3 && speaker.queue.isNotEmpty() }
+        assertEquals("The Example Show", speaker.sayNext())
+        // Into the episodes, the edition is heard: Resume and "Finish it first?" are about the paper.
         assertTrue(progress.finished(id))
+        assertNull("where it is in an episode isn't kept", listening.saved(id))
+        assertEquals("the edition's own length, not the episode's", player.state.value.secondsTotal, player.state.value.secondsIn, 0.001)
 
         compose.setContent { ListenScreen(player, onBack = {}) }
         player.seek(ListenPosition(3, 0))

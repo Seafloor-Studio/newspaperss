@@ -11,6 +11,7 @@ import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.EditionContent
 import com.app.newspaperss.settings.Recordings
 import kotlinx.coroutines.CancellationException
+import java.util.Locale
 
 /**
  * A recording that plays in an article's place instead of Listen's voice: its audio version (a
@@ -24,8 +25,17 @@ import kotlinx.coroutines.CancellationException
  * @param seconds how long the recording plays, if known.
  * @param own the post's own audio, not its audio version's or its notes post's.
  * @param episode the episode a transcript records, rather than a reading of an article.
+ * @param atTheEnd a notes post's episode, played after the edition (see [EndEpisode]).
  */
-data class Reading(val url: String, val seconds: Int?, val own: Boolean, val bodyLine: Int, val starts: List<Double>, val episode: Boolean = false) {
+data class Reading(
+    val url: String,
+    val seconds: Int?,
+    val own: Boolean,
+    val bodyLine: Int,
+    val starts: List<Double>,
+    val episode: Boolean = false,
+    val atTheEnd: Boolean = false,
+) {
     /** The share of the recording before [line]. */
     fun shareAt(line: Int): Double = starts.getOrElse(line - bodyLine) { if (line < bodyLine) 0.0 else 1.0 }
 }
@@ -36,17 +46,30 @@ data class Reading(val url: String, val seconds: Int?, val own: Boolean, val bod
  * @param notesPage where its notes are read.
  */
 data class EndEpisode(val notesPage: Int, val title: String, val source: String?, val reading: Reading) {
-    /** Its page: the notes' source and title, then a line saying what plays, which the episode plays over. */
+    /** Its page: the notes' source and title, then the episode's time in marks (see [script]). */
     val script: ListenScript get() = script(title, source, reading.seconds)
 
     companion object {
+        /**
+         * The page's body is a mark every [MARK_SECONDS] of the episode ("0:00", "0:30"), each a
+         * line: the player places a recording, pauses and resumes it, skips and shows how far it
+         * got by line, so an hour on one line would start again from the top after a pause. Without
+         * a length, one line.
+         */
         fun script(title: String, source: String?, seconds: Int?): ListenScript = ListenScript(
             listOfNotNull(
                 source?.let { ListenScript.Block.Text(ListenScript.Kind.KICKER, listOf(it)) },
                 ListenScript.Block.Text(ListenScript.Kind.TITLE, listOf(title)),
-                ListenScript.Block.Text(ListenScript.Kind.PARAGRAPH, listOf(seconds?.let { "The episode, ${spokenLength(it)}." } ?: "The episode.")),
+                ListenScript.Block.Text(ListenScript.Kind.PARAGRAPH, marks(seconds).map(::clock).ifEmpty { listOf("The episode.") }),
             ),
         )
+
+        /** Where each mark falls, in seconds into the episode. */
+        fun marks(seconds: Int?): List<Int> = if (seconds == null || seconds <= 0) emptyList() else (0 until seconds step MARK_SECONDS).toList()
+
+        private fun clock(s: Int) = if (s >= 3600) "%d:%02d:%02d".format(Locale.ROOT, s / 3600, s / 60 % 60, s % 60) else "%d:%02d".format(Locale.ROOT, s / 60, s % 60)
+
+        const val MARK_SECONDS = 30
     }
 }
 
@@ -151,8 +174,12 @@ class Readings(
             if (article.episodeKind != EpisodeKind.NOTES) return@forEachIndexed
             val url = article.audioUrl ?: return@forEachIndexed
             if (!urls.add(url)) return@forEachIndexed
-            val script = EndEpisode.script(content.entry.title, content.entry.sourceTitle, article.audioSeconds)
-            val reading = Reading(url, article.audioSeconds, own = true, bodyLine = script.lines.lastIndex, starts = listOf(0.0), episode = true)
+            val seconds = article.audioSeconds
+            val script = EndEpisode.script(content.entry.title, content.entry.sourceTitle, seconds)
+            val marks = EndEpisode.marks(seconds)
+            val bodyLine = script.lines.size - maxOf(marks.size, 1)
+            val starts = if (seconds == null || marks.isEmpty()) listOf(0.0) else marks.map { it.toDouble() / seconds }
+            val reading = Reading(url, seconds, own = true, bodyLine = bodyLine, starts = starts, episode = true, atTheEnd = true)
             ending += EndEpisode(page, content.entry.title, content.entry.sourceTitle, reading)
         }
         return ending

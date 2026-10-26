@@ -385,7 +385,8 @@ private fun PlayerDock(state: ListenState, player: ListenPlayer, voice: PodcastV
                             .semantics { contentDescription = "Audio, in ${voice.label}'s voice" },
                     )
                 }
-                if (page?.end != true) Text("${minutes(pageLeft)} left", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
+                // An episode's length may be unknown: its page has no time to count down.
+                if (page?.end != true && !(page?.episode == true && page.minutes == 0.0)) Text("${minutes(pageLeft)} left", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
             }
             Chapters(state, Modifier.padding(vertical = 8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
@@ -496,8 +497,11 @@ private fun RecordingNote(now: ReadingSpeaker.Now, onVoiceInstead: (Boolean) -> 
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        TextButton(onClick = { onVoiceInstead(!now.voiceInstead) }, modifier = Modifier.heightIn(min = 48.dp)) {
-            Text(if (now.voiceInstead) "Play $what" else "Have the voice read it instead")
+        // An episode after the edition has nothing for the voice to read instead.
+        if (!now.reading.atTheEnd) {
+            TextButton(onClick = { onVoiceInstead(!now.voiceInstead) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(if (now.voiceInstead) "Play $what" else "Have the voice read it instead")
+            }
         }
     }
 }

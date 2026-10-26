@@ -177,11 +177,19 @@ class ReadingsTest {
         assertEquals(ending[0].reading, readings.at(3, 7))
         assertEquals(ending[1].reading, readings.at(3, 8))
         assertNull(readings.at(3, 9))
-        // Its page: the source, the title, and what plays, over which the episode plays.
-        assertEquals(listOf("A", "Title 0", "The episode, 38 minutes."), ending[0].script.lines.map { it.spoken })
+        // Its page: the source and the title, then a mark every 30 seconds, which the episode plays over.
+        val lines = ending[0].script.lines.map { it.spoken }
+        assertEquals(listOf("A", "Title 0", "0:00", "0:30", "1:00"), lines.take(5))
+        assertEquals("37:30", lines.last())
+        assertEquals(2 + 76, lines.size)
         assertEquals(2, ending[0].reading.bodyLine)
-        assertEquals("The episode.", ending[1].script.lines.last().spoken)
-        assertEquals(true, ending[0].reading.episode)
+        assertEquals(0.5, ending[0].reading.shareAt(2 + 38), 0.001)
+        assertTrue(ending[0].reading.episode && ending[0].reading.atTheEnd)
+        // Without a length, one line.
+        assertEquals(listOf("A", "Title 4", "The episode."), ending[1].script.lines.map { it.spoken })
+        assertEquals(2, ending[1].reading.bodyLine)
+        // Past the hour, marks say the hours.
+        assertEquals("1:00:30", EndEpisode.script("T", null, 3_660).lines.last().spoken)
         assertEquals(
             "Readings: edition 3, recorded readings: page 1 (its episode, its notes post's, 99 min); episodes at the end: page 0's, 38 min, page 4's, length unknown",
             logged.last(),

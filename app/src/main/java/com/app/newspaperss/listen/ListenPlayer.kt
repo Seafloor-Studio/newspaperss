@@ -35,8 +35,12 @@ data class ListenState(
     /** In the pause between one article and the next: [at] is already the next one's start. */
     val between: Boolean = false,
 ) {
-    /** About how far in, and how long the whole edition takes, in seconds at normal speed. */
-    val secondsIn: Double get() = pages.take(at.page).sumOf { it.minutes * 60 } + secondsInPage
+    /**
+     * About how far in, and how long the whole edition takes, in seconds at normal speed. The
+     * episodes after it aren't the edition's: on one, the whole edition is behind.
+     */
+    val secondsIn: Double get() =
+        pages.take(at.page).filter { !it.episode }.sumOf { it.minutes * 60 } + if (pages.getOrNull(at.page)?.episode == true) 0.0 else secondsInPage
 
     /**
      * How far into the page being read: the share of its sentences heard, of the page's time.
@@ -48,7 +52,7 @@ data class ListenState(
             if (script.seconds <= 0.0) return 0.0
             return script.secondsBefore(at.line) / script.seconds * (pages.getOrNull(at.page)?.minutes ?: 0.0) * 60
         }
-    val secondsTotal: Double get() = pages.sumOf { it.minutes * 60 }
+    val secondsTotal: Double get() = pages.filter { !it.episode }.sumOf { it.minutes * 60 }
 }
 
 /**
@@ -251,6 +255,9 @@ class ListenPlayer(
     private fun nextPage(play: Boolean, chimeFirst: Boolean = false) {
         val current = _state.value
         if (chimeFirst) pausedAfter = current.at.page
+        // Past its closing page, into the episodes after it, the edition is heard: Resume and
+        // "Finish it first?" are about the paper, not an hour's episode left part way.
+        if (current.pages.getOrNull(current.at.page)?.end == true) current.editionId?.let(progress::finish)
         if (current.at.page < current.pages.lastIndex) move(ListenPosition(current.at.page + 1, 0), play, chimeFirst) else finish()
     }
 
@@ -352,7 +359,9 @@ class ListenPlayer(
         if (missing != current.missingLanguage) _state.update { it.copy(missingLanguage = missing) }
     }
 
+    /** Not on an episode after the edition: which episodes there are can change by the next time it's opened. */
     private fun save(at: ListenPosition) {
+        if (_state.value.pages.getOrNull(at.page)?.episode == true) return
         _state.value.editionId?.let { progress.set(it, at) }
     }
 
