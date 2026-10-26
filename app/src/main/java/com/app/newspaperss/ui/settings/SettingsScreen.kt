@@ -167,7 +167,13 @@ private fun SummaryRow(title: String, summary: Summary, onClick: () -> Unit) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsPageScreen(viewModel: SettingsViewModel, page: SettingsPage, onBack: () -> Unit, feedsFrom: FeedsFromViewModel? = null) {
+fun SettingsPageScreen(
+    viewModel: SettingsViewModel,
+    page: SettingsPage,
+    onBack: () -> Unit,
+    feedsFrom: FeedsFromViewModel? = null,
+    onOpenNaturalVoice: () -> Unit = {},
+) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val signingIn = page == SettingsPage.FEEDS && feedsFrom != null && feedsFrom.form.collectAsStateWithLifecycle().value != null
     // Signing in takes the page over, as a step of its own: Back returns to the page.
@@ -204,7 +210,7 @@ fun SettingsPageScreen(viewModel: SettingsViewModel, page: SettingsPage, onBack:
                 SettingsPage.EDITION -> EditionSection(s, viewModel)
                 SettingsPage.SCHEDULE -> ScheduleSection(s, viewModel)
                 SettingsPage.TEXT_SIZE -> TextSizeSection(s, viewModel)
-                SettingsPage.LISTENING -> ListeningSection(s, viewModel)
+                SettingsPage.LISTENING -> ListeningSection(s, viewModel, onOpenNaturalVoice)
                 SettingsPage.DELIVERY -> {
                     ReaderPicker(s, viewModel)
                     DeliverySection(s, viewModel)
@@ -395,14 +401,14 @@ private const val SAMPLE_LINE = "The quiet return of the night train"
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ListeningSection(s: AppSettings, vm: SettingsViewModel) {
+private fun ListeningSection(s: AppSettings, vm: SettingsViewModel, onOpenNaturalVoice: () -> Unit) {
     val context = LocalContext.current
     val voice = rememberPhoneVoice()
     SubHeading("Voice")
     if (vm.podcast != null) {
         val kokoro by vm.kokoro.collectAsStateWithLifecycle()
         val size by vm.kokoroSize.collectAsStateWithLifecycle()
-        ListeningVoices(s, vm, kokoro, size, voice, onGetPhoneVoice = { if (!PhoneVoice.get(context)) nothingOpens(context) })
+        ListeningVoices(s, vm, kokoro, size, voice, onGetPhoneVoice = { if (!PhoneVoice.get(context)) nothingOpens(context) }, onOpenNaturalVoice = onOpenNaturalVoice)
     } else if (voice != null) {
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {

@@ -936,10 +936,12 @@ whose Kindle and KOReader answers ask for more on the same page).
     says what your paper would take to make: up to about an hour, "This
     phone can do it"; up to 2½ hours, "slow, but it can"; beyond, "Too
     slow", offering only Remove and the paper size that would fit. A 32-bit
-    phone sees the option greyed, with why. In use, it lists Heart,
+    phone sees the option greyed, with why. In use, a row under it,
+    **Voices and audio** (the voice picked and the space its audio takes),
+    opens a page of its own, so Listening stays one screen: Heart,
     Michael, Emma and George, each with a clip shipped in the app,
-    **Delete all audio** with the space it takes (Kokoro stays, so
-    it can be made again), **Remove Kokoro**, and **Audio log**: what the making and playing did,
+    what a paper takes to make here, **Delete all audio** with the space it takes (Kokoro stays, so
+    it can be made again), **Remove Kokoro** (back to Listening), and **Audio log**: what the making and playing did,
     newest first, with Share to send it to whoever's fixing it. While it's in use, each scheduled edition's audio
     is made after the book, only while the phone charges: unplugged, it
     stops and keeps what's made. It runs at low priority, so using

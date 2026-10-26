@@ -73,6 +73,7 @@ import com.app.newspaperss.ui.readinglist.ReadingListViewModel
 import com.app.newspaperss.ui.settings.FeedsFromViewModel
 import com.app.newspaperss.ui.settings.SettingsPage
 import com.app.newspaperss.ui.settings.SettingsPageScreen
+import com.app.newspaperss.ui.settings.NaturalVoiceScreen
 import com.app.newspaperss.ui.settings.SettingsScreen
 import com.app.newspaperss.ui.settings.SettingsViewModel
 import com.app.newspaperss.work.SyncWorker
@@ -94,6 +95,7 @@ private const val FEED = "source/{id}/feed/{key}"
 private const val LEFT_OUT = "source/{id}/left-out"
 private const val NOT_IN_PAPER = "source/{id}/not-in-paper"
 private const val SETTINGS_PAGE = "settings/{page}"
+private const val NATURAL_VOICE = "settings/listening/natural-voice"
 private const val LISTEN = "listen"
 private val FEEDS_FROM = "settings/${SettingsPage.FEEDS.slug}"
 
@@ -369,7 +371,14 @@ private fun App(
                 val page = SettingsPage.of(entry.arguments?.getString("page")) ?: SettingsPage.EDITION
                 val context = LocalContext.current.applicationContext
                 val feedsFrom = if (page != SettingsPage.FEEDS) null else viewModel { FeedsFromViewModel(container.settings, container.ttrss, container.feedMoves, container.sources, createSavedStateHandle()) { SyncWorker.syncNow(context) } }
-                SettingsPageScreen(settingsViewModel(container), page, onBack = { nav.navigateUp() }, feedsFrom = feedsFrom)
+                SettingsPageScreen(
+                    settingsViewModel(container), page, onBack = { nav.navigateUp() }, feedsFrom = feedsFrom,
+                    onOpenNaturalVoice = { nav.navigate(NATURAL_VOICE) { launchSingleTop = true } },
+                )
+            }
+            composable(NATURAL_VOICE) {
+                // Leaving by itself, it pops only its own page: a Back pressed meanwhile already has.
+                NaturalVoiceScreen(settingsViewModel(container), onBack = { nav.navigateUp() }, onGone = { nav.popBackStack(NATURAL_VOICE, inclusive = true) })
             }
         }
     }

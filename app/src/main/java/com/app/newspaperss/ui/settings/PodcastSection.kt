@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import android.media.MediaPlayer
 import android.net.ConnectivityManager
 import androidx.annotation.RawRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,15 +22,23 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -69,7 +78,15 @@ private val INDENT = 44.dp
  * however long ago the check finished, for them to take or leave.
  */
 @Composable
-internal fun ListeningVoices(s: AppSettings, vm: SettingsViewModel, kokoro: KokoroState?, size: Long?, phoneVoice: String?, onGetPhoneVoice: () -> Unit) {
+internal fun ListeningVoices(
+    s: AppSettings,
+    vm: SettingsViewModel,
+    kokoro: KokoroState?,
+    size: Long?,
+    phoneVoice: String?,
+    onGetPhoneVoice: () -> Unit,
+    onOpenNaturalVoice: () -> Unit,
+) {
     val context = LocalContext.current
     var asking by rememberSaveable { mutableStateOf(false) }
     // Choosing to read live puts a failed setup aside for this visit.
@@ -167,7 +184,7 @@ internal fun ListeningVoices(s: AppSettings, vm: SettingsViewModel, kokoro: Koko
             Text(kokoro.message)
             Buttons { OutlinedButton(onClick = ::pickPodcast) { Text("Try again") } }
         }
-        kokoro is KokoroState.Ready && s.listenVoice == ListenVoice.PODCAST -> Podcast(s, vm, kokoro, mb, samples)
+        kokoro is KokoroState.Ready && s.listenVoice == ListenVoice.PODCAST -> NaturalVoiceLink(s, vm, onOpenNaturalVoice)
         kokoro is KokoroState.Ready -> CheckResult(s, kokoro, mb, onUse = vm::useKokoro, onRemove = vm::removeKokoro)
     }
 }
@@ -247,11 +264,65 @@ private fun earlier(s: AppSettings, kokoro: KokoroState.Ready): String {
     return " Scheduled editions will start $minutes minutes earlier, so the audio is ready by $ready."
 }
 
+/**
+ * Under the natural voice in use, the way to its own page: the voice picked, and the space its
+ * audio takes. Its voices and the rest are kept there, so Listening stays one screen.
+ */
+@Composable
+private fun NaturalVoiceLink(s: AppSettings, vm: SettingsViewModel, onOpen: () -> Unit) {
+    val bytes by vm.podcastBytes.collectAsStateWithLifecycle()
+    val audio = bytes?.takeIf { it > 0 }?.let { " · ${megabytes(it)} of audio" }.orEmpty()
+    Row(
+        Modifier.fillMaxWidth().padding(start = INDENT).clickable(role = Role.Button, onClick = onOpen).heightIn(min = 48.dp).padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Voices and audio", style = MaterialTheme.typography.bodyLarge)
+            Text("${s.podcastVoice.label}$audio", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/**
+ * Settings › Listening › Voices and audio: the natural voice in use, its voices, what a paper
+ * costs on this phone, its audio and log, and removing it. Once it's no longer in use (removed,
+ * say), there's nothing here, and the page goes back to Listening.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NaturalVoiceScreen(vm: SettingsViewModel, onBack: () -> Unit, onGone: () -> Unit = onBack) {
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    val kokoro by vm.kokoro.collectAsStateWithLifecycle()
+    val size by vm.kokoroSize.collectAsStateWithLifecycle()
+    val s = settings
+    val ready = kokoro as? KokoroState.Ready
+    val inUse = s != null && ready != null && s.listenVoice == ListenVoice.PODCAST
+    // Null is a state not read yet, as after the app is restored: not a reason to leave.
+    val gone = s != null && kokoro != null && !inUse
+    LaunchedEffect(gone) { if (gone) onGone() }
+    val samples = remember { SamplePlayer() }
+    DisposableEffect(Unit) { onDispose { samples.release() } }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Voices and audio") },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
+            )
+        },
+    ) { padding ->
+        if (!inUse || s == null || ready == null) return@Scaffold
+        Column(Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) {
+            Podcast(s, vm, ready, size?.let { "${it / 1_000_000} MB" } ?: "a few hundred MB", samples)
+        }
+    }
+}
+
 /** Kokoro in use: its voices, what a paper costs on this phone, and removing it. */
 @Composable
 private fun Podcast(s: AppSettings, vm: SettingsViewModel, kokoro: KokoroState.Ready, size: String, samples: SamplePlayer) {
     val context = LocalContext.current
-    Column(Modifier.padding(start = INDENT).selectableGroup()) {
+    Column(Modifier.selectableGroup()) {
         PodcastVoice.entries.forEach { voice ->
             VoiceOption(
                 selected = s.podcastVoice == voice,
