@@ -3,6 +3,7 @@ package com.app.newspaperss.core.extract
 import java.util.Locale
 import com.app.newspaperss.core.ReadingTime
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -18,6 +19,7 @@ import org.jsoup.select.NodeVisitor
 import java.net.IDN
 import java.net.URI
 import java.net.URISyntaxException
+import java.net.URLEncoder
 import java.util.Collections
 import java.util.IdentityHashMap
 
@@ -63,6 +65,7 @@ object HtmlCleaner {
         keepQuoteCredits(body)
         body.select(REMOVE_TAGS.joinToString(",")).remove()
         expandSubstackNotes(body)
+        expandSubstackGalleries(body)
         removeScreenReaderOnly(body)
         capitalizeSmallCaps(body)
         removeJunk(body)
@@ -741,6 +744,43 @@ object HtmlCleaner {
     }
 
     /**
+     * Substack's feed has a gallery as an empty element its page script fills in from `data-attrs`,
+     * so without the script its pictures and caption would go with the other empty blocks. They
+     * make a figure instead. The gallery lists the uploaded originals, which run past what an image
+     * may weigh here (a camera's 7000-pixel JPEG is 10 MB), so those come through Substack's image
+     * service at the width its own posts use.
+     */
+    private fun expandSubstackGalleries(body: Element) {
+        for (el in body.select("[data-attrs]")) {
+            if (el.childrenSize() > 0 || el.text().isNotBlank()) continue
+            val attrs = runCatching { Json.parseToJsonElement(el.attr("data-attrs")) as? JsonObject }.getOrNull() ?: continue
+            val gallery = attrs["gallery"] as? JsonObject ?: continue
+            val images = (gallery["images"] as? JsonArray).orEmpty()
+                .mapNotNull { ((it as? JsonObject)?.get("src") as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { src -> src.isNotEmpty() } }
+            if (images.isEmpty()) continue
+            val alt = (gallery["alt"] as? JsonPrimitive)?.contentOrNull?.trim().orEmpty()
+            val figure = Element("figure")
+            images.forEach { figure.appendElement("img").attr("src", substackSized(it)).attr("alt", alt) }
+            (gallery["caption"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }?.let { figure.appendElement("figcaption").text(it) }
+            // A figure can't sit inside a paragraph in XHTML: one embedded in one goes after it.
+            val paragraph = el.parents().firstOrNull { it.tagName() == "p" }
+            if (paragraph != null) {
+                el.remove()
+                paragraph.after(figure)
+            } else {
+                el.replaceWith(figure)
+            }
+        }
+    }
+
+    private fun substackSized(src: String): String {
+        val host = runCatching { URI(src).host }.getOrNull()?.lowercase() ?: return src
+        if (host != SUBSTACK_UPLOADS) return src
+        return "https://substackcdn.com/image/fetch/w_1456,c_limit,f_auto,q_auto:good,fl_progressive:steep/" +
+            URLEncoder.encode(src, "UTF-8")
+    }
+
+    /**
      * Gets footnote links working again after tt-rss, which strips ids and resolves "#footnote-4"
      * against the site's address (which may have a path, like a blog's). A footnote's missing target
      * is found from its other link, the one with the same number whose fragment is named alike
@@ -1006,6 +1046,7 @@ object HtmlCleaner {
         "data-src", "data-original", "data-lazy-src", "data-hi-res-src", "data-full-src", "data-url",
     )
     private val MODERN_FORMATS = listOf("webp", "avif")
+    private const val SUBSTACK_UPLOADS = "substack-post-media.s3.amazonaws.com"
 
     private val KEEPS_A_BLOCK = setOf("img", "hr", "table")
     private val EMPTY_REMOVABLE_TAGS = setOf(

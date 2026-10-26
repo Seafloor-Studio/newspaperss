@@ -48,6 +48,31 @@ class HtmlCleanerTest {
         assertEquals(1, Regex("jane doe").findAll(page).count())
     }
 
+    /** Substack's feed has a gallery as an empty div its page script fills in from `data-attrs`. */
+    @Test
+    fun aSubstackGalleryKeepsItsPicturesAndCaption() {
+        val upload = "https://substack-post-media.s3.amazonaws.com/public/images/0000-aaaa_6960x4640.jpeg"
+        val attrs = """{"gallery":{"images":[{"type":"image/jpeg","src":"$upload"},{"type":"image/png","src":"https://example.com/two.png"}],""" +
+            """"caption":"Birds seen this year. © 2026 A. Writer","alt":"","staticGalleryImage":{"type":"image/png","src":"https://example.com/all.png"}},"isEditorNode":true}"""
+        val embed = """<div class="image-gallery-embed" data-attrs="${attrs.replace("\"", "&quot;")}"></div>"""
+        val html = clean("<p>Enjoy my field photos.</p>$embed<p>$longText</p>")
+        val figure = Jsoup.parse(html).select("figure").single()
+        assertEquals(
+            // The 10 MB original comes resized by Substack's image service; another host's picture as it is.
+            listOf(
+                "https://substackcdn.com/image/fetch/w_1456,c_limit,f_auto,q_auto:good,fl_progressive:steep/" +
+                    "https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F0000-aaaa_6960x4640.jpeg",
+                "https://example.com/two.png",
+            ),
+            figure.select("img").map { it.attr("src") },
+        )
+        assertEquals("Birds seen this year. © 2026 A. Writer", figure.select("figcaption").text())
+        assertTrue("it stays where it was", html.indexOf("field photos") < html.indexOf("<figure>"))
+        // The page itself has the script's result: the pictures aren't doubled.
+        val page = clean("""<div data-attrs="${attrs.replace("\"", "&quot;")}"><img src="https://example.com/two.png" alt=""/></div><p>$longText</p>""")
+        assertEquals(1, Jsoup.parse(page).select("img").size)
+    }
+
     /** tt-rss strips ids and resolves "#footnote-4" against the site; the book's footnotes must still work. */
     @Test
     fun footnotesSurviveTtrssStrippingTheirIdsAndResolvingTheirLinks() {
