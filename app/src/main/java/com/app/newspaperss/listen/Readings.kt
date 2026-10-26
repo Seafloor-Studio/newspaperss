@@ -1,6 +1,7 @@
 package com.app.newspaperss.listen
 
 import com.app.newspaperss.core.ReadingTime
+import com.app.newspaperss.core.plural
 import com.app.newspaperss.core.episodes.AudioLength
 import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.core.listen.ListenScript
@@ -30,6 +31,33 @@ data class Reading(val url: String, val seconds: Int?, val own: Boolean, val bod
 }
 
 /**
+ * A notes post's episode, played after the edition's closing page, on a page of its own.
+ *
+ * @param notesPage where its notes are read.
+ */
+data class EndEpisode(val notesPage: Int, val title: String, val source: String?, val reading: Reading) {
+    /** Its page: the notes' source and title, then a line saying what plays, which the episode plays over. */
+    val script: ListenScript get() = script(title, source, reading.seconds)
+
+    companion object {
+        fun script(title: String, source: String?, seconds: Int?): ListenScript = ListenScript(
+            listOfNotNull(
+                source?.let { ListenScript.Block.Text(ListenScript.Kind.KICKER, listOf(it)) },
+                ListenScript.Block.Text(ListenScript.Kind.TITLE, listOf(title)),
+                ListenScript.Block.Text(ListenScript.Kind.PARAGRAPH, listOf(seconds?.let { "The episode, ${spokenLength(it)}." } ?: "The episode.")),
+            ),
+        )
+    }
+}
+
+/** How long a recording plays, as the voice says it: "38 minutes", "1 hour 27 minutes". */
+fun spokenLength(seconds: Int): String {
+    val minutes = maxOf(1, (seconds + 30) / 60)
+    if (minutes < 60) return plural(minutes, "minute")
+    return listOfNotNull(plural(minutes / 60, "hour"), (minutes % 60).takeIf { it > 0 }?.let { plural(it, "minute") }).joinToString(" ")
+}
+
+/**
  * Which pages of the edition Listen has open play a recording (see [Reading]). Worked out when
  * the edition is opened, so the voice can be chosen at once as each article starts; [choices]
  * are the kinds the reader lets play, read then, so a change in Settings waits for the next
@@ -40,11 +68,22 @@ class Readings(
     private val choices: suspend () -> Recordings,
     private val log: (String) -> Unit = {},
 ) {
-    /** The edition Listen has open, and its pages' recordings: only one is open at a time. */
-    @Volatile private var loaded: Pair<Long, Map<Int, Reading>>? = null
+    /**
+     * The edition Listen has open, its pages' recordings, and the episodes after its end, whose
+     * pages follow its closing page: only one edition is open at a time.
+     */
+    @Volatile private var loaded: Loaded? = null
+
+    private class Loaded(val editionId: Long, val articles: Int, val readings: Map<Int, Reading>, val ending: List<EndEpisode>)
 
     /** The recording that plays for [page] of [editionId], if it has one. */
-    fun at(editionId: Long, page: Int): Reading? = loaded?.takeIf { it.first == editionId }?.second?.get(page)
+    fun at(editionId: Long, page: Int): Reading? {
+        val l = loaded?.takeIf { it.editionId == editionId } ?: return null
+        return l.readings[page] ?: l.ending.getOrNull(page - l.articles - 1)?.reading
+    }
+
+    /** The episodes that play after [editionId]'s closing page, in book order. */
+    fun ending(editionId: Long): List<EndEpisode> = loaded?.takeIf { it.editionId == editionId }?.ending.orEmpty()
 
     /**
      * Finds the recordings for an edition's [contents], in book order, reading the pages that may
@@ -85,12 +124,38 @@ class Readings(
             found[page] = reading
             notes += "page $page (${describe(reading)})"
         }
-        loaded = editionId to found
+        val ending = if (choices.playAtTheEnd) episodesAtTheEnd(contents, found.values.map { it.url }) else emptyList()
+        loaded = Loaded(editionId, contents.size, found, ending)
         log(
             "Readings: edition $editionId, recorded readings: ${notes.joinToString().ifEmpty { "none" }}" +
                 (if (choices.playReadings) "" else " (readings are switched off)") +
-                if (read.isEmpty()) "" else "; read by the voice instead: ${read.joinToString()}",
+                (if (read.isEmpty()) "" else "; read by the voice instead: ${read.joinToString()}") +
+                "; episodes at the end: " + when {
+                    !choices.playAtTheEnd -> "switched off"
+                    ending.isEmpty() -> "none"
+                    else -> ending.joinToString { "page ${it.notesPage}'s, ${minutes(it.reading.seconds)}" }
+                },
         )
+    }
+
+    /**
+     * Notes posts' episodes, in book order: each once, and not one a transcript already plays in
+     * its place. A notes post is a minute or two of text about an episode of an hour or more, so
+     * the notes are read in their place and the episode waits until the edition is over.
+     */
+    private suspend fun episodesAtTheEnd(contents: List<EditionContent>, playing: List<String>): List<EndEpisode> {
+        val urls = playing.toMutableSet()
+        val ending = mutableListOf<EndEpisode>()
+        contents.forEachIndexed { page, content ->
+            val article = content.entry.articleId?.let { db.articles().byId(it) } ?: return@forEachIndexed
+            if (article.episodeKind != EpisodeKind.NOTES) return@forEachIndexed
+            val url = article.audioUrl ?: return@forEachIndexed
+            if (!urls.add(url)) return@forEachIndexed
+            val script = EndEpisode.script(content.entry.title, content.entry.sourceTitle, article.audioSeconds)
+            val reading = Reading(url, article.audioSeconds, own = true, bodyLine = script.lines.lastIndex, starts = listOf(0.0), episode = true)
+            ending += EndEpisode(page, content.entry.title, content.entry.sourceTitle, reading)
+        }
+        return ending
     }
 
     private suspend fun readingOf(article: ArticleEntity, page: Int, script: suspend (page: Int) -> ListenScript?): Reading? {

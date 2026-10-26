@@ -1,12 +1,10 @@
 package com.app.newspaperss.listen
 
 import android.content.Context
-import com.app.newspaperss.core.plural
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
-import kotlin.math.roundToInt
 
 /**
  * Which articles the reader has turned back to Listen's voice from their recording, by edition
@@ -295,9 +293,7 @@ class ReadingSpeaker(
 
         fun announce(reading: Reading): String {
             val what = if (reading.episode) "Now the episode itself" else "Now its recorded reading"
-            val minutes = reading.seconds?.let { maxOf(1, (it / 60.0).roundToInt()) } ?: return "$what."
-            val length = if (minutes < 60) plural(minutes, "minute") else listOfNotNull(plural(minutes / 60, "hour"), (minutes % 60).takeIf { it > 0 }?.let { plural(it, "minute") }).joinToString(" ")
-            return "$what, $length."
+            return reading.seconds?.let { "$what, ${spokenLength(it)}." } ?: "$what."
         }
     }
 }

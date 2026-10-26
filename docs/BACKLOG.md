@@ -351,7 +351,9 @@ labelled corpus are [research/podcast-episodes.md](research/podcast-episodes.md)
 - [x] **Step 4, transcripts:** a transcript plays its episode in its place, streamed
 - [x] **Switches for recordings** in Settings › Listening: all of them, or by kind (#384)
 - [ ] **A source's own switch for its recordings** (#384): madCode wants it, with a shorter source page; the layout is still being chosen on the issue
-- [ ] **Step 4, notes:** notes are read without their furniture and their episode plays at the end; streamed
+- [x] **Step 4, notes: their episode plays at the end**, after the closing page, streamed
+- [ ] **Step 4, notes read without their furniture:** timestamps, sponsor blocks, link lists and subscribe lines left out when the voice reads notes
+- [ ] **The notes say their episode is at the end** ("The episode, 38 minutes, is at the end of this edition."): a line the voice reads after the notes. Kokoro's audio is kept only when made from the same lines Listen reads, and the maker doesn't know which episodes play, so the line has to be decided the same way in both first
 - [ ] **Substack voiceovers play in place:** an author's reading isn't in the feed; one request to the site's posts API finds it, for sites that record them. Measured in R7 of `docs/research/podcast-episodes.md`
 - [ ] **Step 5:** downloads for listening offline
 - [x] **The `handle-issues` skill** handles "Episode label:" and "Extraction:" issues: CLAUDE.md's "Issues the app files" says how

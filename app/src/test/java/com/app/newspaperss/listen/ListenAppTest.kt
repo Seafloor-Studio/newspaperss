@@ -139,6 +139,66 @@ class ListenAppTest {
         assertEquals(ListenTime.fromReading(2.0), book.pages[1].minutes, 0.001)
     }
 
+    /**
+     * A notes post's episode plays once the edition is over, after "That's all for today", on a
+     * page of its own; the notes are read in their place.
+     */
+    @Test
+    fun aNotesPostsEpisodePlaysAfterTheClosingPage() {
+        val notes = EditionArticle(
+            title = "Episode 12: The ferry planner", sourceTitle = "The Example Show", url = "https://example.com/12",
+            bodyHtml = "<p>This week we talk to a ferry planner.</p>", minutes = 1.0,
+        )
+        FileOutputStream(File(editionsDir, "n.epub")).use {
+            EpubWriter.write(EditionDoc("Saturday Morning Edition", LocalDate.of(2026, 10, 3), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000030", listOf(EditionSection(null, listOf(notes, lagos)))), it)
+        }
+        val id = runBlocking {
+            val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Show"))
+            val article = db.articles().insertIgnoring(
+                ArticleEntity(sourceId = source, guid = "12", url = notes.url, title = notes.title, episodeKind = EpisodeKind.NOTES, audioUrl = "https://cdn.example/12.mp3", audioSeconds = 2_280),
+            )
+            db.editions().insert(EditionEntity(title = "Saturday Morning Edition", status = EditionStatus.DELIVERED, fileName = "n.epub", articleCount = 2, minutes = 3.0)).also { id ->
+                db.editions().insertArticles(
+                    listOf(
+                        EditionArticleEntity(editionId = id, articleId = article, position = 0, title = notes.title, sourceTitle = notes.sourceTitle, minutes = notes.minutes),
+                        EditionArticleEntity(editionId = id, articleId = null, position = 1, title = lagos.title, sourceTitle = lagos.sourceTitle, minutes = lagos.minutes),
+                    ),
+                )
+            }
+        }
+        val readings = Readings(db, { Recordings() })
+        val player = ListenPlayer(speaker, progress, open = { ListenBook.open(repo, it, readings) }, CoroutineScope(SupervisorJob() + Dispatchers.Main))
+
+        player.start(id)
+        idleUntil { player.state.value.script != null }
+        val pages = player.state.value.pages
+        assertEquals(listOf(false, false, true, false), pages.map { it.end })
+        assertEquals(listOf(false, false, false, true), pages.map { it.episode })
+        assertEquals(38.0, pages[3].minutes, 0.001)
+        assertEquals("https://cdn.example/12.mp3", readings.at(id, 3)?.url)
+        assertNull("the notes are read in their place", readings.at(id, 0))
+
+        // Without the recording's speaker, the voice reads what the episode's page says.
+        val heard = mutableListOf<String>()
+        while (speaker.queue.isNotEmpty()) {
+            heard += speaker.sayNext()
+            idleUntil { speaker.queue.isNotEmpty() || player.state.value.finished }
+        }
+        val end = heard.indexOf("That's all for today.")
+        assertTrue(heard.toString(), heard.indexOf("This week we talk to a ferry planner.") in 0 until end)
+        assertEquals(listOf("The Example Show", "Episode 12: The ferry planner", "The episode, 38 minutes."), heard.takeLast(3))
+        assertTrue(progress.finished(id))
+
+        compose.setContent { ListenScreen(player, onBack = {}) }
+        player.seek(ListenPosition(3, 0))
+        idleUntil { player.state.value.at.page == 3 }
+        compose.onNodeWithText("Listening · episode 1 of 1").assertIsDisplayed()
+        player.seek(ListenPosition(1, 0))
+        idleUntil { player.state.value.at.page == 1 }
+        compose.onNodeWithText("Listening · 2 of 2").assertIsDisplayed()
+        player.stop()
+    }
+
     @Test
     fun theBookIsReadArticleByArticleWithItsPicturesThenItsClosingPage() {
         val id = edition()

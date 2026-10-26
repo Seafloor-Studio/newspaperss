@@ -133,10 +133,12 @@ fun ListenScreen(
         null -> null
     }
     var contents by rememberSaveable { mutableStateOf(false) }
+    val onPage = state.pages.getOrNull(state.at.page)
     val title = when {
         state.pages.isEmpty() -> "Listening"
-        state.pages.getOrNull(state.at.page)?.end == true -> "Listening · the end"
-        else -> "Listening · ${state.at.page + 1} of ${state.pages.size - 1}"
+        onPage?.end == true -> "Listening · the end"
+        onPage?.episode == true -> "Listening · episode ${state.pages.take(state.at.page + 1).count { it.episode }} of ${state.pages.count { it.episode }}"
+        else -> "Listening · ${state.at.page + 1} of ${state.pages.count { !it.end && !it.episode }}"
     }
     Scaffold(
         topBar = {
@@ -415,13 +417,18 @@ private fun PlayerDock(state: ListenState, player: ListenPlayer, voice: PodcastV
     }
 }
 
-/** The edition as one bar, a piece per article sized by its length: its shape, and where you are in it. */
+/**
+ * The edition as one bar, a piece per article sized by its length: its shape, and where you are in
+ * it. The episodes after its end aren't the edition's, and an hour's episode would flatten the rest.
+ */
 @Composable
 private fun Chapters(state: ListenState, modifier: Modifier) {
     val done = MaterialTheme.colorScheme.primary
     val todo = MaterialTheme.colorScheme.outlineVariant
-    val pages = state.pages.filter { !it.end }
-    Row(modifier.fillMaxWidth().height(4.dp).semantics { contentDescription = "Article ${state.at.page + 1} of ${pages.size}" }, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+    // The articles come first, so a piece's index is its page's.
+    val pages = state.pages.filter { !it.end && !it.episode }
+    val description = if (state.at.page < pages.size) "Article ${state.at.page + 1} of ${pages.size}" else "Past the edition's end"
+    Row(modifier.fillMaxWidth().height(4.dp).semantics { contentDescription = description }, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         pages.forEachIndexed { i, page ->
             val weight = page.minutes.toFloat().coerceAtLeast(0.2f)
             Box(Modifier.weight(weight).fillMaxSize().background(if (i < state.at.page || state.finished) done else todo)) {
@@ -453,7 +460,9 @@ private fun Contents(state: ListenState, onPick: (Int) -> Unit, onDismiss: () ->
                             style = MaterialTheme.typography.bodyLarge,
                             color = if (here) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                         )
-                        val details = listOfNotNull(page.source, if (page.end) null else minutes(page.minutes * 60), "Playing".takeIf { here }).joinToString(" · ")
+                        // An episode has its notes' title, so it says what it is; its length may be unknown.
+                        val length = minutes(page.minutes * 60).takeUnless { page.end || (page.episode && page.minutes == 0.0) }
+                        val details = listOfNotNull("Episode".takeIf { page.episode }, page.source, length, "Playing".takeIf { here }).joinToString(" · ")
                         if (details.isNotEmpty()) Text(details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     HorizontalDivider()

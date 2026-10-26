@@ -658,7 +658,8 @@ whose Kindle and KOReader answers ask for more on the same page).
     [episodes-design.md](research/episodes-design.md).
   - **Which recordings play** (debug builds) is set in Settings ›
     Listening under Recordings: **Play a post's own recording**, on by
-    default, and under it two chips, **Readings** and **Episodes**. Off,
+    default, and under it three chips, **Readings**, **Episodes** and
+    **Episodes at the end**. Off,
     the chips go away and the voice reads everything. A change is used
     from the next edition opened in Listen; one already open carries on
     as it started, so the voice doesn't change part way through.
@@ -671,6 +672,15 @@ whose Kindle and KOReader answers ask for more on the same page).
     times count the episode's length, not the transcript's. Each
     recording plays once an edition; a second post with the same one is
     read by the voice.
+  - **Episode notes** (debug builds) are read by the voice in their place,
+    and their episode plays once the edition is over: after "That's all
+    for today", each on a page of its own, in book order. The voice reads
+    the show and the episode's title, says "Now the episode itself, 38
+    minutes.", and the episode plays, streamed. An episode a transcript
+    already plays in its place isn't played again. Their pages are
+    listed in the contents as "Episode", the title reads "Listening ·
+    episode 1 of 2", and the edition's bar leaves them out: they aren't
+    part of its length.
   - Between one article and the next, in either voice, a pause of about
     4 seconds: a moment's quiet, a soft breath of sound with a page
     turning, then the next article, so the listener can change contexts.
