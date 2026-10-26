@@ -91,6 +91,8 @@ class ReadingSpeaker(
     private var reported = -1
     /** How far into the recording it last was, for the log when it stops. */
     private var atMs = 0L
+    /** The voice saying an episode won't play: only its own end moves on, not one said before a seek. */
+    private var skipping: String? = null
 
     init {
         voice.listener = object : Speaker.Listener {
@@ -131,6 +133,7 @@ class ReadingSpeaker(
             return voice.speak(id, text, language, rate, flush)
         }
         val here = line.editionId to line.page
+        if (flush) skipping = null
         if (here != article || flush) choose(here)
         if (flush) stopRecording()
         val reading = reading ?: return voice.speak(id, text, language, rate, flush)
@@ -200,7 +203,7 @@ class ReadingSpeaker(
         reported = from.line - 1
         // By the length the player found, as reach() reaches lines by, else the feed's. Without
         // either, it starts from the beginning and seeks once the player knows the length.
-        val total = lengths[reading.url] ?: reading.seconds?.let { it * 1000L }
+        val total = markedMs(reading) ?: lengths[reading.url] ?: reading.seconds?.let { it * 1000L }
         val share = reading.shareAt(from.line)
         val ms = total?.let { (share * it).toLong() } ?: 0L
         seekWhenKnown = share.takeIf { total == null && it > 0 }
@@ -222,7 +225,7 @@ class ReadingSpeaker(
             return
         }
         atMs = ms
-        val total = durationMs.takeIf { it > 0 } ?: reading.seconds?.let { it * 1000L } ?: return
+        val total = markedMs(reading) ?: durationMs.takeIf { it > 0 } ?: reading.seconds?.let { it * 1000L } ?: return
         val share = (ms + Media3Audio.TICK_MS).toDouble() / total
         val upTo = reading.bodyLine + reading.starts.indexOfLast { it <= share }
         while (reported < upTo.coerceAtMost(at.lines - 1)) {
@@ -250,7 +253,8 @@ class ReadingSpeaker(
         if (reading?.atTheEnd == true) {
             log("Reading: ${reading?.url} failed ($code); an episode after the edition, so on to the next page")
             stopRecording()
-            voice.speak("$SKIPPING$at", "The episode won't play right now.", null, rate, flush = true)
+            skipping = "$SKIPPING$at"
+            voice.speak(skipping!!, "The episode won't play right now.", null, rate, flush = true)
             return
         }
         article?.let { failed += it }
@@ -279,12 +283,18 @@ class ReadingSpeaker(
         log("Reading: edition ${at.editionId} page ${at.page} $why at ${clock(atMs)}$of")
     }
 
+    /** An episode after the edition is placed by the length its marks were made from, so "1:30:00" plays from 1:30:00. */
+    private fun markedMs(reading: Reading): Long? = reading.seconds?.takeIf { reading.atTheEnd }?.let { it * 1000L }
+
     private fun skipped(id: String) {
+        if (id != skipping) return
+        skipping = null
         LineId.parse(id.removePrefix(SKIPPING))?.let { skip(it) }
     }
 
     override fun stop() {
         waiting = null
+        skipping = null
         stopRecording("stopped")
         voice.stop()
     }

@@ -129,17 +129,25 @@ class ReadingSpeakerTest {
         assertEquals("a choice kept for the page doesn't silence it", "Now the episode itself, 2 minutes.", voice.said.last().text)
         assertEquals(Triple(episode.url, 0L, 1f), audio.played.last())
 
-        // Paused at 1:10, then played: on from the mark it reached, a minute in.
-        audio.listener!!.onPosition(70_000, 120_000)
+        // Paused at 1:10, then played: on from the mark it reached, a minute in. By the clock its
+        // marks show, though the file turns out twice as long as its feed said.
+        audio.listener!!.onPosition(70_000, 240_000)
         speaker.stop()
         speaker.speak(id(4, page = 4), "1:00", null, 1f, flush = true)
         assertEquals(Triple(episode.url, 60_000L, 1f), audio.played.last())
+
+        // Said it won't play, then a mark tapped before that's done: the late end of it doesn't skip.
+        audio.listener!!.onError("offline")
+        val stale = "skipping:" + LineId(1, 7, 4, 4, 6)
+        speaker.speak(id(3, page = 4), "0:30", null, 1f, flush = true)
+        voice.listener!!.onDone(stale)
+        assertTrue(skipped.isEmpty())
 
         audio.listener!!.onError("offline")
         assertEquals("The episode won't play right now.", voice.said.last().text)
         assertTrue("not until it's said", skipped.isEmpty())
         voice.sayNext()
-        assertEquals(listOf(LineId(1, 7, 4, 4, 6)), skipped)
+        assertEquals("from the line it was playing when it failed", listOf(LineId(1, 7, 4, 3, 6)), skipped)
         assertTrue("the voice doesn't read its marks instead", restarted.isEmpty())
         assertTrue(logged.toString(), logged.any { "failed (offline); an episode after the edition" in it })
     }

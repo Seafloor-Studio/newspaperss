@@ -192,6 +192,17 @@ class ListenAppTest {
         assertTrue(progress.finished(id))
         assertNull("where it is in an episode isn't kept", listening.saved(id))
         assertEquals("the edition's own length, not the episode's", player.state.value.secondsTotal, player.state.value.secondsIn, 0.001)
+        // The episode's time is its marks', not its heading's: at "19:00", 19 minutes in.
+        player.seek(ListenPosition(3, 2 + 38))
+        idleUntil { player.state.value.at == ListenPosition(3, 40) }
+        assertEquals(19 * 60.0, player.state.value.secondsInPage, 1.0)
+        // ⏮ from its start lands on the closing page, which doesn't make the edition unfinished again.
+        player.seek(ListenPosition(3, 0))
+        idleUntil { player.state.value.at == ListenPosition(3, 0) }
+        player.pause()
+        player.previous()
+        idleUntil { player.state.value.at.page == 2 }
+        assertTrue(progress.finished(id))
 
         compose.setContent { ListenScreen(player, onBack = {}) }
         player.seek(ListenPosition(3, 0))

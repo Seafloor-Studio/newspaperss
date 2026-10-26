@@ -50,7 +50,12 @@ data class ListenState(
         get() {
             val script = script ?: return 0.0
             if (script.seconds <= 0.0) return 0.0
-            return script.secondsBefore(at.line) / script.seconds * (pages.getOrNull(at.page)?.minutes ?: 0.0) * 60
+            val page = pages.getOrNull(at.page) ?: return 0.0
+            // An episode's page is its heading, then its marks: only the marks are its time.
+            val from = if (page.episode) script.secondsBefore(script.lines.indexOfFirst { (script.blocks[it.block] as? ListenScript.Block.Text)?.kind == ListenScript.Kind.PARAGRAPH }.coerceAtLeast(0)) else 0.0
+            val of = script.seconds - from
+            if (of <= 0.0) return 0.0
+            return ((script.secondsBefore(at.line) - from) / of).coerceIn(0.0, 1.0) * page.minutes * 60
         }
     val secondsTotal: Double get() = pages.filter { !it.episode }.sumOf { it.minutes * 60 }
 }
@@ -359,10 +364,16 @@ class ListenPlayer(
         if (missing != current.missingLanguage) _state.update { it.copy(missingLanguage = missing) }
     }
 
-    /** Not on an episode after the edition: which episodes there are can change by the next time it's opened. */
+    /**
+     * Not on an episode after the edition: which episodes there are can change by the next time
+     * it's opened. Nor on the closing page once the edition is heard, as ⏮ from an episode gets
+     * there: it would make it unfinished again.
+     */
     private fun save(at: ListenPosition) {
-        if (_state.value.pages.getOrNull(at.page)?.episode == true) return
-        _state.value.editionId?.let { progress.set(it, at) }
+        val id = _state.value.editionId ?: return
+        val page = _state.value.pages.getOrNull(at.page)
+        if (page?.episode == true || (page?.end == true && progress.finished(id))) return
+        progress.set(id, at)
     }
 
     /** The line an id names, if it's of the current generation and page. */
