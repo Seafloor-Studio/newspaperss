@@ -920,11 +920,13 @@ whose Kindle and KOReader answers ask for more on the same page).
     e-reader's own settings.
   - **Listening** (its row says "Your phone's voice · 1×", or "No voice on
     this phone", which isn't shown as a problem: many e-readers have none):
-    the phone's text-to-speech engine by name with **Hear it**, a sample line
+    the speed first, as one row of four buttons, 0.8× to 1.5×, the same one
+    the player's speed button sets; in debug builds, Recordings (see
+    Listening); then the voice, longest and least often changed: the phone's
+    text-to-speech engine by name with **Hear it**, a sample line
     at the chosen speed (it pauses an edition that's playing), and under it
     **Change the phone's voice ›**, which opens Android's text-to-speech
-    settings; then the speed as one row of four buttons, 0.8× to 1.5×, the
-    same one the player's speed button sets. A voice, language or engine
+    settings. A voice, language or engine
     changed there is heard from the next start or jump.
     A speed asked for by a car or watch becomes the nearest of these.
     Without an engine the page says so and offers Speech Services by Google.

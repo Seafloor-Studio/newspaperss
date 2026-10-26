@@ -134,7 +134,7 @@ class PodcastSettingsTest {
         show()
         pickPodcast()
         waitFor("You're not on Wi-Fi")
-        compose.onNodeWithText("Use mobile data").performClick()
+        compose.onNodeWithText("Use mobile data").performScrollTo().performClick()
         assertEquals(listOf(true), started)
     }
 
@@ -143,7 +143,7 @@ class PodcastSettingsTest {
         on(ConnectivityManager.TYPE_MOBILE)
         show()
         pickPodcast()
-        compose.onNodeWithText("Wait for Wi-Fi").performClick()
+        compose.onNodeWithText("Wait for Wi-Fi").performScrollTo().performClick()
         assertEquals(listOf(false), started)
         work.value = WorkInfo(UUID.randomUUID(), WorkInfo.State.ENQUEUED, emptySet(), constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build())
         waitFor("download by itself on the next Wi-Fi")
@@ -158,7 +158,7 @@ class PodcastSettingsTest {
         work.value = runningWork(PodcastSetup.GOT to 154_000_000L, PodcastSetup.TOTAL to 384_077_374L)
         waitFor("154 of 384 MB")
         compose.onNodeWithText("A natural voice").assertIsSelected()
-        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithText("Cancel").performScrollTo().performClick()
         assertEquals(1, stopped)
     }
 
@@ -173,7 +173,7 @@ class PodcastSettingsTest {
         work.value = WorkInfo(UUID.randomUUID(), WorkInfo.State.SUCCEEDED, emptySet())
         waitFor("This phone can do it")
         waitFor("Your 30-minute paper takes about 55 minutes to make here")
-        compose.onNodeWithText("Use it").performClick()
+        compose.onNodeWithText("Use it").performScrollTo().performClick()
         idleUntil { vm.settings.value?.listenVoice == ListenVoice.PODCAST }
         // In use: its voices, each with a sample, on a page of their own.
         waitFor("Voices and audio")
@@ -207,7 +207,7 @@ class PodcastSettingsTest {
         show()
         work.value = WorkInfo(UUID.randomUUID(), WorkInfo.State.FAILED, emptySet(), outputData = workDataOf(PodcastSetup.ERROR to "Kokoro couldn't start on this phone."))
         waitFor("Kokoro couldn't start on this phone.")
-        compose.onNodeWithText("Try again").performClick()
+        compose.onNodeWithText("Try again").performScrollTo().performClick()
         assertEquals(listOf(false), started)
     }
 
@@ -300,7 +300,7 @@ class PodcastSettingsTest {
         show()
         work.value = runningWork(PodcastSetup.GOT to 1_000_000L, PodcastSetup.TOTAL to 384_077_374L)
         waitFor("1 of 384 MB")
-        compose.onNodeWithText("Your phone's voice").performClick()
+        compose.onNodeWithText("Your phone's voice").performScrollTo().performClick()
         assertEquals(1, stopped)
     }
 
@@ -311,7 +311,7 @@ class PodcastSettingsTest {
         work.value = WorkInfo(UUID.randomUUID(), WorkInfo.State.ENQUEUED, emptySet(), runAttemptCount = 1, constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build())
         waitFor("Trying again shortly")
         assertEquals(0, compose.onAllNodes(hasText("Waiting for Wi-Fi")).fetchSemanticsNodes().size)
-        compose.onNodeWithText("Use mobile data").performClick()
+        compose.onNodeWithText("Use mobile data").performScrollTo().performClick()
         assertEquals(listOf(true), started)
     }
 
@@ -320,7 +320,7 @@ class PodcastSettingsTest {
         show()
         work.value = WorkInfo(UUID.randomUUID(), WorkInfo.State.FAILED, emptySet(), outputData = workDataOf(PodcastSetup.ERROR to "Couldn't download Kokoro."))
         waitFor("Couldn't download Kokoro.")
-        compose.onNodeWithText("Your phone's voice").performClick()
+        compose.onNodeWithText("Your phone's voice").performScrollTo().performClick()
         idleUntil { compose.onAllNodes(hasText("Couldn't download Kokoro.")).fetchSemanticsNodes().isEmpty() }
     }
 
