@@ -200,8 +200,9 @@ module so it's all unit-tested without Android.
     at the whole footnote, so a Kindle's popup shows its text, and markers
     side by side are split with a comma ("3, 4"). Notes a page keeps in a
     `<footer>` or `<aside>` come along when the text links to them. Substack
-    Notes quoted where the post embeds them, and @-mentions keep the name
-    the page's script would have filled in. tt-rss strips both, so a
+    Notes quoted where the post embeds them, galleries as a figure of their
+    pictures and caption, and @-mentions keep the name the page's script
+    would have filled in. tt-rss strips all three, so a
     Substack post from tt-rss with an embed gone is read from the post's
     page, which carries the whole post in its data (one page fetch; not
     for a paid post, whose page has only the free part);
