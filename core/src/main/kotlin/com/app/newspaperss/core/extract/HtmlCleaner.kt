@@ -751,6 +751,7 @@ object HtmlCleaner {
      * service at the width its own posts use.
      */
     private fun expandSubstackGalleries(body: Element) {
+        val placedAfter = mutableMapOf<Element, Element>()
         for (el in body.select("[data-attrs]")) {
             if (el.childrenSize() > 0 || el.text().isNotBlank()) continue
             val attrs = runCatching { Json.parseToJsonElement(el.attr("data-attrs")) as? JsonObject }.getOrNull() ?: continue
@@ -766,7 +767,8 @@ object HtmlCleaner {
             val paragraph = el.parents().firstOrNull { it.tagName() == "p" }
             if (paragraph != null) {
                 el.remove()
-                paragraph.after(figure)
+                (placedAfter[paragraph] ?: paragraph).after(figure)
+                placedAfter[paragraph] = figure
             } else {
                 el.replaceWith(figure)
             }

@@ -9,15 +9,17 @@ import java.net.URI
 
 /**
  * A Substack post's own text, from its page's data. tt-rss strips the `data-attrs` that Substack's
- * embeds (a Note, an @-mention) carry their content in, leaving an empty `<div>` where a Note was
- * and the sentence introducing it hanging. The page's rendered HTML has only a placeholder there
- * too, but the page ships the whole post as the feed has it, in a JSON script its own code reads.
+ * embeds (a Note, a gallery, an @-mention) carry their content in, leaving an empty `<div>` where
+ * a Note was and the sentence introducing it hanging. The page's rendered HTML has only a
+ * placeholder there too, but the page ships the whole post as the feed has it, in a JSON script
+ * its own code reads.
  */
 internal object SubstackPost {
     /**
      * Feed text from a Substack post whose embeds were stripped: a Substack address or Substack's
      * image host (a custom domain), no `data-attrs` left anywhere, and an empty block after a
-     * paragraph, where a Note goes. Not one after a picture: that's its stripped zoom button.
+     * paragraph or heading, where a Note or gallery goes. Not one after a picture: that's its
+     * stripped zoom button.
      */
     fun stripped(feedHtml: String, url: String): Boolean {
         if (DATA_ATTRS in feedHtml || !EMPTY_DIV.containsMatchIn(feedHtml)) return false
@@ -38,5 +40,5 @@ internal object SubstackPost {
     private const val DATA_ATTRS = "data-attrs"
     private const val PRELOADS = "preloads-json"
     private const val CDN = "substackcdn.com/"
-    private val EMPTY_DIV = Regex("""</p>\s*<div>\s*</div>""")
+    private val EMPTY_DIV = Regex("""</(p|h[1-6])>\s*<div>\s*</div>""")
 }

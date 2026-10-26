@@ -68,6 +68,10 @@ class HtmlCleanerTest {
         )
         assertEquals("Birds seen this year. © 2026 A. Writer", figure.select("figcaption").text())
         assertTrue("it stays where it was", html.indexOf("field photos") < html.indexOf("<figure>"))
+        val second = attrs.replace("Birds seen", "Flowers seen").replace("\"", "&quot;")
+        val inline = clean("""<p>Look: <span data-attrs="${attrs.replace("\"", "&quot;")}"></span><span data-attrs="$second"></span> done.</p><p>$longText</p>""")
+        assertTrue("a figure can't sit inside a paragraph", inline.contains("done.</p><figure>"))
+        assertTrue("several keep their order", inline.indexOf("Birds seen") < inline.indexOf("Flowers seen"))
         // The page itself has the script's result: the pictures aren't doubled.
         val page = clean("""<div data-attrs="${attrs.replace("\"", "&quot;")}"><img src="https://example.com/two.png" alt=""/></div><p>$longText</p>""")
         assertEquals(1, Jsoup.parse(page).select("img").size)

@@ -110,6 +110,12 @@ class SubstackPostTest {
         assertFalse(SubstackPost.stripped(ttrss.replace("substackcdn.com", "cdn.example.com"), "https://www.slowboring.com/p/a-post"))
     }
 
+    /** A gallery tt-rss stripped leaves an empty block too, and a heading can introduce it. */
+    @Test
+    fun aGalleryStrippedAfterAHeadingIsFetched() {
+        assertTrue(SubstackPost.stripped("<p>Peace.</p><h3>Field photos</h3><div></div><p>Bye.</p>", "https://writer.substack.com/p/a-post"))
+    }
+
     /** Most Substack posts have an empty block where tt-rss stripped a picture's zoom button: no Note there, no fetch. */
     @Test
     fun aPicturesStrippedButtonIsntANote() {
