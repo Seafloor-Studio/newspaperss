@@ -167,7 +167,13 @@ private fun SummaryRow(title: String, summary: Summary, onClick: () -> Unit) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsPageScreen(viewModel: SettingsViewModel, page: SettingsPage, onBack: () -> Unit, feedsFrom: FeedsFromViewModel? = null) {
+fun SettingsPageScreen(
+    viewModel: SettingsViewModel,
+    page: SettingsPage,
+    onBack: () -> Unit,
+    feedsFrom: FeedsFromViewModel? = null,
+    onOpenNaturalVoice: () -> Unit = {},
+) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val signingIn = page == SettingsPage.FEEDS && feedsFrom != null && feedsFrom.form.collectAsStateWithLifecycle().value != null
     // Signing in takes the page over, as a step of its own: Back returns to the page.
@@ -204,7 +210,7 @@ fun SettingsPageScreen(viewModel: SettingsViewModel, page: SettingsPage, onBack:
                 SettingsPage.EDITION -> EditionSection(s, viewModel)
                 SettingsPage.SCHEDULE -> ScheduleSection(s, viewModel)
                 SettingsPage.TEXT_SIZE -> TextSizeSection(s, viewModel)
-                SettingsPage.LISTENING -> ListeningSection(s, viewModel)
+                SettingsPage.LISTENING -> ListeningSection(s, viewModel, onOpenNaturalVoice)
                 SettingsPage.DELIVERY -> {
                     ReaderPicker(s, viewModel)
                     DeliverySection(s, viewModel)
@@ -390,19 +396,33 @@ private fun TextSizeSection(s: AppSettings, vm: SettingsViewModel) {
 private const val SAMPLE_LINE = "The quiet return of the night train"
 
 /**
- * Listen's voice, the phone's own, with a sample and a link to where Android changes it; the speed
- * it reads at; and, in debug builds, which recordings play in a post's place.
+ * The speed Listen reads at; in debug builds, which recordings play in a post's place; then its
+ * voice, the phone's own, with a sample and a link to where Android changes it. The voice is the
+ * longest and least often changed, so it comes last.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ListeningSection(s: AppSettings, vm: SettingsViewModel) {
+private fun ListeningSection(s: AppSettings, vm: SettingsViewModel, onOpenNaturalVoice: () -> Unit) {
     val context = LocalContext.current
     val voice = rememberPhoneVoice()
-    SubHeading("Voice")
+    SubHeading("Speed")
+    val speeds = LISTEN_SPEEDS.sorted()
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        speeds.forEachIndexed { i, speed ->
+            SegmentedButton(
+                selected = s.listenSpeed == speed,
+                onClick = { vm.setListenSpeed(speed) },
+                shape = SegmentedButtonDefaults.itemShape(i, speeds.size),
+                modifier = Modifier.heightIn(min = 48.dp),
+            ) { Text(speedLabel(speed), maxLines = 1) }
+        }
+    }
+    if (EPISODES) RecordingsSection(s.recordings, vm::setRecordings)
+    SubHeading("Voice", Modifier.padding(top = 24.dp))
     if (vm.podcast != null) {
         val kokoro by vm.kokoro.collectAsStateWithLifecycle()
         val size by vm.kokoroSize.collectAsStateWithLifecycle()
-        ListeningVoices(s, vm, kokoro, size, voice, onGetPhoneVoice = { if (!PhoneVoice.get(context)) nothingOpens(context) })
+        ListeningVoices(s, vm, kokoro, size, voice, onGetPhoneVoice = { if (!PhoneVoice.get(context)) nothingOpens(context) }, onOpenNaturalVoice = onOpenNaturalVoice)
     } else if (voice != null) {
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -422,19 +442,6 @@ private fun ListeningSection(s: AppSettings, vm: SettingsViewModel) {
     }
     // With the podcast offered, ListeningVoices puts the link under the phone's voice itself.
     if (vm.podcast == null && voice != null) ChangePhoneVoiceLink()
-    SubHeading("Speed", Modifier.padding(top = 24.dp))
-    val speeds = LISTEN_SPEEDS.sorted()
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        speeds.forEachIndexed { i, speed ->
-            SegmentedButton(
-                selected = s.listenSpeed == speed,
-                onClick = { vm.setListenSpeed(speed) },
-                shape = SegmentedButtonDefaults.itemShape(i, speeds.size),
-                modifier = Modifier.heightIn(min = 48.dp),
-            ) { Text(speedLabel(speed), maxLines = 1) }
-        }
-    }
-    if (EPISODES) RecordingsSection(s.recordings, vm::setRecordings)
 }
 
 /**

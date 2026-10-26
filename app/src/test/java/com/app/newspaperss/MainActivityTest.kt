@@ -46,6 +46,12 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
+import android.os.Build
+import androidx.compose.ui.test.isSelected
+import com.app.newspaperss.core.listen.KokoroFile
+import com.app.newspaperss.settings.ListenVoice
+import com.app.newspaperss.testutil.finishDownload
 
 @RunWith(AndroidJUnit4::class)
 @Config(application = TestApp::class)
@@ -121,6 +127,31 @@ class MainActivityTest {
         compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
         shows("About 30 minutes")
         compose.onNodeWithText("The quiet return of the night train").assertDoesNotExist()
+    }
+
+    /** Listening's own page, the natural voice's voices and audio, is still in the Settings tab. */
+    @Test
+    fun theNaturalVoicesPageIsInTheSettingsTabAndTheTabGoesBackToItsTop() = try {
+        // Kokoro is offered only on a 64-bit phone.
+        ReflectionHelpers.setStaticField(Build::class.java, "SUPPORTED_64_BIT_ABIS", arrayOf("x86_64"))
+        app.kokoroFiles = listOf(KokoroFile("tokens.txt", 6, "ce013625030ba8dba906f756967f9e9ca394464a"))
+        app.kokoroInstall.finishDownload()
+        runBlocking { app.container.settings.update { it.copy(podcastPace = 1.2f, listenVoice = ListenVoice.PODCAST) } }
+        launchWith(onboarded = true)
+        shows("Sources")
+        compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
+        shows("Listening")
+        compose.onNodeWithText("Listening").performScrollTo().performClick()
+        shows("Voices and audio")
+        compose.onNodeWithText("Voices and audio").performScrollTo().performClick()
+        shows("Emma")
+        compose.onAllNodes(hasText("Settings") and isSelected()).onFirst().assertExists()
+
+        compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
+        shows("About 30 minutes")
+        compose.onNodeWithText("Emma").assertDoesNotExist()
+    } finally {
+        ReflectionHelpers.setStaticField(Build::class.java, "SUPPORTED_64_BIT_ABIS", arrayOf<String>())
     }
 
     @Test

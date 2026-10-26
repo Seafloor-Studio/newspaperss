@@ -105,6 +105,7 @@ import com.app.newspaperss.data.TtrssRepository
 import com.app.newspaperss.testutil.FakeTtrss
 import com.app.newspaperss.testutil.testCipher
 import com.app.newspaperss.ui.settings.FeedsFromViewModel
+import com.app.newspaperss.ui.settings.NaturalVoiceScreen
 import com.app.newspaperss.ui.settings.SettingsPage
 import com.app.newspaperss.ui.settings.SettingsPageScreen
 import com.app.newspaperss.ui.settings.SettingsScreen
@@ -1305,16 +1306,27 @@ class ScreenshotTest {
         }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
     }
 
-    @Test
-    fun settingsPodcastInUse() {
-        // Two editions' podcasts made, 38 MB between them.
+    /** Two editions' podcasts made, 38 MB between them. */
+    private fun podcastInUse(): SettingsViewModel {
         val made = PodcastStore(tmp.newFolder())
         listOf(7L, 8L).forEach { id ->
             made.want(id, PodcastVoice.HEART)
             made.keep(id, 0, 0, made.scratch(id, 0, 0).apply { writeBytes(ByteArray(19_000_000)) }, listOf(0.0))
         }
-        val vm = podcastSettings(pace = 1.2f, inUse = true, podcasts = made)
+        return podcastSettings(pace = 1.2f, inUse = true, podcasts = made)
+    }
+
+    @Test
+    fun settingsPodcastInUse() {
+        val vm = podcastInUse()
         shoot("07s-settings-podcast-in-use", ready = { vm.kokoro.value is KokoroState.Ready && vm.podcastBytes.value != null }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
+    }
+
+    /** Settings › Listening › Voices and audio: the natural voice's own page. */
+    @Test
+    fun settingsPodcastVoicesAndAudio() {
+        val vm = podcastInUse()
+        shoot("07s2-settings-voices-and-audio", ready = { vm.kokoro.value is KokoroState.Ready && vm.podcastBytes.value != null }) { NaturalVoiceScreen(vm, onBack = {}) }
     }
 
     @Test
@@ -1340,7 +1352,7 @@ class ScreenshotTest {
                 idleUntil { compose.onAllNodes(hasText("Stopped: unplugged", substring = true)).fetchSemanticsNodes().isNotEmpty() }
             },
             dialog = true,
-        ) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
+        ) { NaturalVoiceScreen(vm, onBack = {}) }
     }
 
     /** Settings › Where your feeds live, signed in to a tt-rss account. */

@@ -920,11 +920,13 @@ whose Kindle and KOReader answers ask for more on the same page).
     e-reader's own settings.
   - **Listening** (its row says "Your phone's voice · 1×", or "No voice on
     this phone", which isn't shown as a problem: many e-readers have none):
-    the phone's text-to-speech engine by name with **Hear it**, a sample line
+    the speed first, as one row of four buttons, 0.8× to 1.5×, the same one
+    the player's speed button sets; in debug builds, Recordings (see
+    Listening); then the voice, longest and least often changed: the phone's
+    text-to-speech engine by name with **Hear it**, a sample line
     at the chosen speed (it pauses an edition that's playing), and under it
     **Change the phone's voice ›**, which opens Android's text-to-speech
-    settings; then the speed as one row of four buttons, 0.8× to 1.5×, the
-    same one the player's speed button sets. A voice, language or engine
+    settings. A voice, language or engine
     changed there is heard from the next start or jump.
     A speed asked for by a car or watch becomes the nearest of these.
     Without an engine the page says so and offers Speech Services by Google.
@@ -936,10 +938,12 @@ whose Kindle and KOReader answers ask for more on the same page).
     says what your paper would take to make: up to about an hour, "This
     phone can do it"; up to 2½ hours, "slow, but it can"; beyond, "Too
     slow", offering only Remove and the paper size that would fit. A 32-bit
-    phone sees the option greyed, with why. In use, it lists Heart,
+    phone sees the option greyed, with why. In use, a row under it,
+    **Voices and audio** (the voice picked and the space its audio takes),
+    opens a page of its own, so Listening stays one screen: Heart,
     Michael, Emma and George, each with a clip shipped in the app,
-    **Delete all audio** with the space it takes (Kokoro stays, so
-    it can be made again), **Remove Kokoro**, and **Audio log**: what the making and playing did,
+    what a paper takes to make here, **Delete all audio** with the space it takes (Kokoro stays, so
+    it can be made again), **Remove Kokoro** (back to Listening), and **Audio log**: what the making and playing did,
     newest first, with Share to send it to whoever's fixing it. While it's in use, each scheduled edition's audio
     is made after the book, only while the phone charges: unplugged, it
     stops and keeps what's made. It runs at low priority, so using
