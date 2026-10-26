@@ -222,7 +222,7 @@ private fun App(
                 Tab.entries.forEach { tab ->
                     val route = current?.destination?.route
                     val inTab = route == tab.route || (tab == Tab.SOURCES && (route == READING_LIST || route == SOURCE || route == FEED || route == LEFT_OUT || route == NOT_IN_PAPER)) ||
-                        (tab == Tab.TODAY && (route == EDITION || route == ARTICLE || route == LISTEN)) || (tab == Tab.SETTINGS && route == SETTINGS_PAGE)
+                        (tab == Tab.TODAY && (route == EDITION || route == ARTICLE || route == LISTEN)) || (tab == Tab.SETTINGS && (route == SETTINGS_PAGE || route == NATURAL_VOICE))
                     NavigationBarItem(
                         selected = inTab,
                         onClick = {
