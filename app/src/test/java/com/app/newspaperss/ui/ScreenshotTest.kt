@@ -582,8 +582,8 @@ class ScreenshotTest {
 
     /** The app's tabs, with Listen's bar over them as MainActivity puts it, around [content]. */
     @Composable
-    private fun WithListenBar(playing: Boolean, content: @Composable () -> Unit) {
-        val state = ListenState(
+    private fun WithListenBar(playing: Boolean, loading: Boolean = false, content: @Composable () -> Unit) {
+        val state = if (loading) ListenState(editionId = 1, loading = true, playing = true) else ListenState(
             editionId = 1, editionTitle = "Thursday Morning Edition", playing = playing,
             pages = listOf(ListenPage("The Mathematician Who Counted the Shapes of Knots", "Quanta Magazine", 8.0)),
         )
@@ -601,7 +601,7 @@ class ScreenshotTest {
         ) { padding -> Box(Modifier.padding(padding)) { content() } }
     }
 
-    private fun todayWithListenBar(name: String, playing: Boolean) {
+    private fun todayWithListenBar(name: String, playing: Boolean, loading: Boolean = false) {
         runBlocking {
             val now = Instant.parse("2026-09-29T06:30:00Z")
             val latest = db.editions().insert(EditionEntity(title = "Thursday Morning Edition", createdAt = now, status = EditionStatus.READY, fileName = "x.epub", articleCount = 8, minutes = 33.4))
@@ -609,7 +609,7 @@ class ScreenshotTest {
         }
         val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
         val vm = viewModels.add(TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {})
-        shoot(name, ready = { vm.state.value.editions?.isNotEmpty() == true }) { WithListenBar(playing) { TodayScreen(vm) } }
+        shoot(name, ready = { vm.state.value.editions?.isNotEmpty() == true }) { WithListenBar(playing, loading) { TodayScreen(vm) } }
     }
 
     /** Today with Listen's bar over the tabs, while an edition plays. */
@@ -619,6 +619,10 @@ class ScreenshotTest {
     /** Paused: the bar stays, with Play, until it's stopped or heard to the end. */
     @Test
     fun todayWithTheListenBarPaused() = todayWithListenBar("11h2-listen-bar-paused", playing = false)
+
+    /** Opening an edition, as when switching to another: the bar stays, saying so. */
+    @Test
+    fun todayWithTheListenBarOpening() = todayWithListenBar("11h4-listen-bar-opening", playing = true, loading = true)
 
     /** At twice the font size: one line each, cut short, the buttons still in reach. */
     @Test
