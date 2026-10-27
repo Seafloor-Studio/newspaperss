@@ -52,11 +52,17 @@ class ListenService : MediaSessionService() {
         session = MediaSession.Builder(this, SessionPlayer(listen))
             .setSessionActivity(open)
             .setMediaButtonPreferences(
+                // Back and forward by sentence, with skip icons rather than "previous track" where the
+                // notification draws its own; by article second (see SessionPlayer.handleSeek).
                 listOf(
-                    CommandButton.Builder(CommandButton.ICON_SKIP_BACK).setPlayerCommand(Player.COMMAND_SEEK_BACK)
-                        .setDisplayName("Back a sentence").setSlots(CommandButton.SLOT_BACK_SECONDARY).build(),
-                    CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD).setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
-                        .setDisplayName("Next sentence").setSlots(CommandButton.SLOT_FORWARD_SECONDARY).build(),
+                    CommandButton.Builder(CommandButton.ICON_SKIP_BACK).setPlayerCommand(Player.COMMAND_SEEK_TO_PREVIOUS)
+                        .setDisplayName("Back a sentence").setSlots(CommandButton.SLOT_BACK).build(),
+                    CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD).setPlayerCommand(Player.COMMAND_SEEK_TO_NEXT)
+                        .setDisplayName("Next sentence").setSlots(CommandButton.SLOT_FORWARD).build(),
+                    CommandButton.Builder(CommandButton.ICON_PREVIOUS).setPlayerCommand(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                        .setDisplayName("Previous article").setSlots(CommandButton.SLOT_BACK_SECONDARY).build(),
+                    CommandButton.Builder(CommandButton.ICON_NEXT).setPlayerCommand(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                        .setDisplayName("Next article").setSlots(CommandButton.SLOT_FORWARD_SECONDARY).build(),
                 ),
             )
             .build()
