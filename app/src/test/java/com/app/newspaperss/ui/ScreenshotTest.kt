@@ -1,5 +1,21 @@
 package com.app.newspaperss.ui
 
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Newspaper
+import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
+import com.app.newspaperss.listen.ListenState
+import com.app.newspaperss.listen.ListenPage
+import com.app.newspaperss.ui.listen.ListenBar
 import com.app.newspaperss.ui.components.EpisodeJudgement
 import com.app.newspaperss.listen.Reading
 import com.app.newspaperss.listen.Readings
@@ -563,6 +579,55 @@ class ScreenshotTest {
         val (player, _) = listenPlayer()
         return Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock)) {}
     }
+
+    /** The app's tabs, with Listen's bar over them as MainActivity puts it, around [content]. */
+    @Composable
+    private fun WithListenBar(playing: Boolean, loading: Boolean = false, content: @Composable () -> Unit) {
+        val state = if (loading) ListenState(editionId = 1, loading = true, playing = true) else ListenState(
+            editionId = 1, editionTitle = "Thursday Morning Edition", playing = playing,
+            pages = listOf(ListenPage("The Mathematician Who Counted the Shapes of Knots", "Quanta Magazine", 8.0)),
+        )
+        Scaffold(
+            bottomBar = {
+                Column {
+                    ListenBar(state, onOpen = {}, onToggle = {}, onClose = {})
+                    NavigationBar {
+                        listOf("Today" to Icons.Default.Newspaper, "Sources" to Icons.AutoMirrored.Filled.List, "Settings" to Icons.Default.Settings).forEachIndexed { i, (label, icon) ->
+                            NavigationBarItem(selected = i == 0, onClick = {}, icon = { Icon(icon, contentDescription = null) }, label = { Text(label) })
+                        }
+                    }
+                }
+            },
+        ) { padding -> Box(Modifier.padding(padding)) { content() } }
+    }
+
+    private fun todayWithListenBar(name: String, playing: Boolean, loading: Boolean = false) {
+        runBlocking {
+            val now = Instant.parse("2026-09-29T06:30:00Z")
+            val latest = db.editions().insert(EditionEntity(title = "Thursday Morning Edition", createdAt = now, status = EditionStatus.READY, fileName = "x.epub", articleCount = 8, minutes = 33.4))
+            db.editions().insertArticles(sampleArticles(latest))
+        }
+        val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
+        val vm = viewModels.add(TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {})
+        shoot(name, ready = { vm.state.value.editions?.isNotEmpty() == true }) { WithListenBar(playing, loading) { TodayScreen(vm) } }
+    }
+
+    /** Today with Listen's bar over the tabs, while an edition plays. */
+    @Test
+    fun todayWithTheListenBar() = todayWithListenBar("11h-listen-bar", playing = true)
+
+    /** Paused: the bar stays, with Play, until it's stopped or heard to the end. */
+    @Test
+    fun todayWithTheListenBarPaused() = todayWithListenBar("11h2-listen-bar-paused", playing = false)
+
+    /** Opening an edition, as when switching to another: the bar stays, saying so. */
+    @Test
+    fun todayWithTheListenBarOpening() = todayWithListenBar("11h4-listen-bar-opening", playing = true, loading = true)
+
+    /** At twice the font size: one line each, cut short, the buttons still in reach. */
+    @Test
+    @Config(fontScale = 2f)
+    fun todayWithTheListenBarAtTwiceTheFontSize() = todayWithListenBar("11h3-listen-bar-font-200", playing = true)
 
     /** Listening to an article, two sentences in, its picture just ahead. */
     @Test

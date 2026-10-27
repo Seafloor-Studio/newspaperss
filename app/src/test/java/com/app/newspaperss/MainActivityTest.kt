@@ -85,6 +85,60 @@ class MainActivityTest {
         shows("Nothing is playing")
     }
 
+    /** While an edition is open in Listen, a bar along the bottom of every screen shows it, pauses it and opens the player. */
+    @Test
+    fun aBarAlongTheBottomShowsWhatListenIsReadingAndOpensThePlayer() {
+        launchWith(onboarded = true)
+        shows("Sources")
+        // Not before Listen is used: showing it mustn't start the player either.
+        compose.onAllNodes(hasText("Listening ·", substring = true)).fetchSemanticsNodes().let { assertEquals(0, it.size) }
+        val id = runBlocking {
+            val dir = File(app.filesDir, "editions").apply { mkdirs() }
+            val article = EditionArticle("The ferry planner", "Rail Talk", "https://example.com/f", "<p>One. Two. Three.</p>", 1.0)
+            File(dir, "l.epub").outputStream().use {
+                com.app.newspaperss.core.epub.EpubWriter.write(
+                    com.app.newspaperss.core.epub.EditionDoc("Edition", java.time.LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000031", listOf(com.app.newspaperss.core.epub.EditionSection(null, listOf(article)))), it,
+                )
+            }
+            app.container.db.editions().insert(EditionEntity(title = "Edition", status = EditionStatus.DELIVERED, fileName = "l.epub", articleCount = 1, minutes = 1.0)).also { id ->
+                app.container.db.editions().insertArticles(listOf(EditionArticleEntity(editionId = id, articleId = null, position = 0, title = article.title, sourceTitle = article.sourceTitle, minutes = 1.0)))
+            }
+        }
+        app.container.listen.start(id)
+        shows("The ferry planner")
+        shows("Listening · Rail Talk")
+
+        compose.onNodeWithContentDescription("Pause").performClick()
+        idleUntil { !app.container.listen.state.value.playing }
+        shows("Paused · Rail Talk")
+        compose.onNodeWithContentDescription("Play").performClick()
+        idleUntil { app.container.listen.state.value.playing }
+
+        // On every tab, and it opens the player, where it isn't shown: the player is the same and more.
+        compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
+        shows("About 30 minutes")
+        compose.onNodeWithText("The ferry planner").performClick()
+        shows("Listening · 1 of 1")
+        compose.onAllNodes(hasText("Listening · Rail Talk")).fetchSemanticsNodes().let { assertEquals("not on the player", 0, it.size) }
+        // Opened from Settings, it's on Settings' stack: that tab stays lit. Left for another tab, the
+        // player isn't kept there; tapped again, the tab goes back to its top.
+        compose.onAllNodes(hasText("Settings") and isSelected()).onFirst().assertExists()
+        compose.onAllNodes(hasText("Today") and hasClickAction()).onFirst().performClick()
+        compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
+        shows("About 30 minutes")
+        compose.onAllNodes(hasText("Listening · 1 of 1")).fetchSemanticsNodes().let { assertEquals("the player isn't kept in Settings", 0, it.size) }
+        compose.onNodeWithText("The ferry planner").performClick()
+        shows("Listening · 1 of 1")
+        compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
+        shows("About 30 minutes")
+        compose.onAllNodes(hasText("Listening · 1 of 1")).fetchSemanticsNodes().let { assertEquals(0, it.size) }
+
+        // Stopped from the bar: it goes, and the place is kept.
+        compose.onNodeWithContentDescription("Stop listening").performClick()
+        idleUntil { compose.onAllNodes(hasText("The ferry planner")).fetchSemanticsNodes().isEmpty() }
+        assertNull(app.container.listen.state.value.editionId)
+    }
+
     @Test
     fun aFirstRunStartsWithOnboarding() {
         launchWith(onboarded = false)

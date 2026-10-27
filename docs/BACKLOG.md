@@ -295,8 +295,9 @@ and the playing screen (the same article redrawn in Compose, one sentence at a t
 They split because the playing screen tints and taps single sentences, which a WebView with
 JavaScript off can't do. Two steps, the first useful alone:
 
-**1. A mini player in the reading view (small, one PR).** The preview's 🎧 starts Listen from that
-article without leaving the page.
+**1. A mini player in the reading view (small, one PR).** Built as a bar along the bottom of
+every screen, not only the preview, at madCode's request: what's being read, play and pause, and a
+tap to the playing screen. The rest of this step is what it was planned as.
 - A bar at the bottom of the preview while Listen plays: the article playing, play/pause, ↶ ↷, and
   a tap to open the full playing screen. The playing screen stays as it is.
 - The page doesn't follow the voice: reading on, or opening another article, leaves the bar playing.

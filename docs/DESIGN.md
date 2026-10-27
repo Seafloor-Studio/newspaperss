@@ -720,6 +720,17 @@ whose Kindle and KOReader answers ask for more on the same page).
     notification's second pair of buttons by article. A call or another app's
     audio pauses it; after a short interruption it carries on. Unplugging
     headphones pauses it.
+  - While an edition is open in Listen, playing or paused and not yet
+    heard to its end, a bar along the bottom of every screen, over the
+    tabs, says what it's reading ("Listening · Quanta Magazine" and the
+    title) with play and pause, and ✕ to stop listening, which puts it
+    away and keeps the place. A tap opens the playing screen, on the tab
+    it was tapped from, where the bar isn't shown. After an error it goes:
+    the playing screen says what's wrong. While an edition opens, as when
+    switching to another, it stays and says "Opening the edition…" with a
+    still hourglass. No progress bar or spinner, as each redraw
+    flashes on e-ink. It appears once Listen has been used since the app
+    started: showing it never starts the voice.
   - It stops at "That's all for today", not running on into anything.
   - Where it stopped is kept for the ten most recent editions: the
     edition's button says **Resume · 3 min left**. Listening to a newer

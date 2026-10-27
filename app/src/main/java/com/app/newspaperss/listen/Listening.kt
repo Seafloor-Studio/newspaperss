@@ -38,6 +38,16 @@ class Listening(
         return null
     }
 
+    /** Plays or pauses the edition open in the player; playing binds the service first, as [start] does. */
+    fun toggle() {
+        if (player.state.value.playing) {
+            player.pause()
+        } else {
+            connect()
+            player.play()
+        }
+    }
+
     /** Plays [editionId] from [from], or from where it was left. */
     fun start(editionId: Long, from: ListenPosition? = null) {
         connect()
