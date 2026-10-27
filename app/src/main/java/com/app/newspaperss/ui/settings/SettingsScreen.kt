@@ -460,7 +460,7 @@ private fun RecordingsSection(r: Recordings, change: ((Recordings) -> Recordings
         Column(Modifier.weight(1f)) {
             Text("Play a post's own recording", style = MaterialTheme.typography.bodyLarge)
             Text(
-                "Where a post has one, it plays in place of the voice.",
+                "Where a post has one, it plays in place of the voice. One that needs a subscription or a sign-in can't be reached, so the voice reads that post.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

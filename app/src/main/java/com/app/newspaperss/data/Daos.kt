@@ -791,6 +791,11 @@ data class EditionContent(
     val episodeKind: EpisodeKind? = null,
     /** The post it pairs with ([ArticleEntity.episodePair]), if that is still stored. */
     @Embedded(prefix = "pair_") val pair: EpisodePair? = null,
+    /** Whether it has audio of its own ([ArticleEntity.audioUrl]), and its pair; how long each plays, if known. */
+    val hasAudio: Boolean = false,
+    val pairHasAudio: Boolean = false,
+    val audioSeconds: Int? = null,
+    val pairAudioSeconds: Int? = null,
 ) {
     /**
      * The page to open for where this article came from, or null when there is none to open: its
@@ -901,6 +906,8 @@ interface EditionDao {
     @Query(
         """SELECT edition_articles.*, articles.state AS state, articles.starredAt AS starredAt, articles.episodeKind AS episodeKind,
                   pair.guid AS pair_guid, pair.title AS pair_title, pair.episodeKind AS pair_episodeKind,
+                  articles.audioUrl IS NOT NULL AS hasAudio, pair.audioUrl IS NOT NULL AS pairHasAudio,
+                  articles.audioSeconds AS audioSeconds, pair.audioSeconds AS pairAudioSeconds,
                   articles.sourceId AS sourceId, articles.originId AS originId,
                   sources.kind AS sourceKind, sources.title AS sourceName, sources.paused AS sourcePaused,
                   COALESCE(publications.title, articles.originTitle) AS publicationTitle FROM edition_articles
