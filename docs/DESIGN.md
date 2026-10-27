@@ -715,8 +715,9 @@ whose Kindle and KOReader answers ask for more on the same page).
     returns. Tapping a sentence reads from there. The bar under it is the
     edition, one piece per article.
   - It keeps playing with the screen off, with Android's media controls on
-    the lock screen, headphones and in the car: there the skip buttons move
-    by article and the seek buttons by sentence. A call or another app's
+    the lock screen, headphones and in the car: there back and forward move
+    by a sentence, as a podcast app's skip a few seconds, and the media
+    notification's second pair of buttons by article. A call or another app's
     audio pauses it; after a short interruption it carries on. Unplugging
     headphones pauses it.
   - It stops at "That's all for today", not running on into anything.

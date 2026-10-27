@@ -4,7 +4,9 @@ import android.content.Intent
 import android.media.AudioManager
 import android.os.Bundle
 import android.os.Looper
+import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
+import androidx.media3.session.publishedButtons
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.core.epub.EditionArticle
@@ -17,6 +19,7 @@ import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.testutil.TestApp
 import com.app.newspaperss.testutil.idleUntil
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -73,6 +76,28 @@ class ListenServiceTest {
         assertFalse(player.state.value.playing)
         focus.listener.onAudioFocusChange(AudioManager.AUDIOFOCUS_GAIN)
         assertFalse(player.state.value.playing)
+        service.destroy()
+    }
+
+    /**
+     * What Android's media controls get from the session (the notification, the lock screen, a
+     * car): back and forward a sentence in the usual places, and the articles as two more buttons.
+     */
+    @Test
+    fun theMediaControlsGoBackAndOnASentenceAndHaveButtonsForTheArticles() {
+        val service = Robolectric.buildService(ListenService::class.java).create()
+        val session = service.get().onGetSession(MediaSession.ControllerInfo.createTestOnlyControllerInfo("com.example", 0, 0, 0, 0, false, Bundle(), false))!!
+        val published = publishedButtons(session.mediaButtonPreferences)
+        assertEquals(
+            listOf(
+                "Back a sentence" to Player.COMMAND_SEEK_TO_PREVIOUS,
+                "Next sentence" to Player.COMMAND_SEEK_TO_NEXT,
+                "Previous article" to Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+                "Next article" to Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+            ).sortedBy { it.first },
+            // Published as custom actions named for the player command they stand for.
+            published.map { it.displayName.toString() to it.sessionCommand!!.customAction.substringAfterLast('_').toInt() }.sortedBy { it.first },
+        )
         service.destroy()
     }
 

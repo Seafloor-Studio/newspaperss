@@ -20,8 +20,9 @@ import kotlin.math.roundToLong
 
 /**
  * The [ListenPlayer] as Android's media controls see it: on the lock screen, in the notification,
- * from headphones and in a car. Each article is a track, so ⏮ ⏭ move by article; the seek back
- * and forward buttons go back and on a sentence, not a number of seconds.
+ * from headphones and in a car. Each article is a track. Back and forward, and seek back and
+ * forward, go back and on a sentence rather than a number of seconds; the previous and next
+ * track, by article, are the media notification's second pair of buttons.
  */
 @OptIn(UnstableApi::class)
 class SessionPlayer(private val listen: ListenPlayer) : SimpleBasePlayer(Looper.getMainLooper()) {
@@ -75,11 +76,14 @@ class SessionPlayer(private val listen: ListenPlayer) : SimpleBasePlayer(Looper.
     }
 
     override fun handleSeek(mediaItemIndex: Int, positionMs: Long, seekCommand: Int): ListenableFuture<*> {
+        // The media notification's and headphones' own back and forward are a sentence, as a
+        // podcast app's are a few seconds: an article is a long way to jump by mistake. Articles are
+        // the notification's second pair of buttons (ListenService), as "media items".
         when (seekCommand) {
-            Player.COMMAND_SEEK_BACK -> listen.back()
-            Player.COMMAND_SEEK_FORWARD -> listen.forward()
-            Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM -> listen.next()
-            Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM -> listen.previous()
+            Player.COMMAND_SEEK_BACK, Player.COMMAND_SEEK_TO_PREVIOUS -> listen.back()
+            Player.COMMAND_SEEK_FORWARD, Player.COMMAND_SEEK_TO_NEXT -> listen.forward()
+            Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM -> listen.next()
+            Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM -> listen.previous()
             Player.COMMAND_SEEK_TO_MEDIA_ITEM -> listen.seek(ListenPosition(mediaItemIndex, 0))
         }
         return Futures.immediateVoidFuture()

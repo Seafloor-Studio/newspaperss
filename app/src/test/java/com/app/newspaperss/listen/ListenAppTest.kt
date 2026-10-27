@@ -466,7 +466,7 @@ class ListenAppTest {
     }
 
     @Test
-    fun theLockScreensControlsMoveByArticleAndBySentence() {
+    fun theMediaNotificationsBackAndForwardMoveBySentenceAndItsSecondPairByArticle() {
         val id = edition()
         startAndWait(id)
         val session = SessionPlayer(player)
@@ -475,15 +475,23 @@ class ListenAppTest {
         assertEquals("The Mathematician Who Counted Knots", session.mediaMetadata.title)
         assertEquals("Quanta Magazine", session.mediaMetadata.artist)
         assertTrue(session.playWhenReady)
+        // Its own back and forward, as the notification, headphones and a car send them: a sentence.
+        session.seekToNext()
+        assertEquals(1, player.state.value.at.line)
+        assertEquals(0, player.state.value.at.page)
+        // Just started, so back goes to the sentence before.
+        speaker.startNext()
+        session.seekToPrevious()
+        assertEquals(0, player.state.value.at.line)
         session.seekForward()
         assertEquals(1, player.state.value.at.line)
-        // Just started, so back goes to the sentence before.
         speaker.startNext()
         session.seekBack()
         assertEquals(0, player.state.value.at.line)
-        session.seekToNext()
+        // The second pair: an article.
+        session.seekToNextMediaItem()
         idleUntil { player.state.value.at.page == 1 }
-        session.seekToPrevious()
+        session.seekToPreviousMediaItem()
         idleUntil { player.state.value.at.page == 0 }
         session.seekToDefaultPosition(1)
         idleUntil { player.state.value.at.page == 1 }
