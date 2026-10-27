@@ -20,8 +20,9 @@ import kotlin.math.roundToLong
 
 /**
  * The [ListenPlayer] as Android's media controls see it: on the lock screen, in the notification,
- * from headphones and in a car. Each article is a track, so ⏮ ⏭ move by article; the seek back
- * and forward buttons go back and on a sentence, not a number of seconds.
+ * from headphones and in a car. Each article is a track. Back and forward, and seek back and
+ * forward, go back and on a sentence rather than a number of seconds; the previous and next
+ * track, by article, are the media notification's second pair of buttons.
  */
 @OptIn(UnstableApi::class)
 class SessionPlayer(private val listen: ListenPlayer) : SimpleBasePlayer(Looper.getMainLooper()) {
