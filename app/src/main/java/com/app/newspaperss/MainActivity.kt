@@ -25,6 +25,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -74,6 +75,8 @@ import com.app.newspaperss.ui.settings.FeedsFromViewModel
 import com.app.newspaperss.ui.settings.SettingsPage
 import com.app.newspaperss.ui.settings.SettingsPageScreen
 import com.app.newspaperss.ui.settings.NaturalVoiceScreen
+import com.app.newspaperss.ui.listen.ListenBar
+import com.app.newspaperss.ui.listen.showsListenBar
 import com.app.newspaperss.ui.settings.SettingsScreen
 import com.app.newspaperss.ui.settings.SettingsViewModel
 import com.app.newspaperss.work.SyncWorker
@@ -216,27 +219,38 @@ private fun App(
         if (opening != null) onOpened()
     }
     val current by nav.currentBackStackEntryAsState()
+    val listenNow by container.listenNow.collectAsStateWithLifecycle()
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                Tab.entries.forEach { tab ->
-                    val route = current?.destination?.route
-                    val inTab = route == tab.route || (tab == Tab.SOURCES && (route == READING_LIST || route == SOURCE || route == FEED || route == LEFT_OUT || route == NOT_IN_PAPER)) ||
-                        (tab == Tab.TODAY && (route == EDITION || route == ARTICLE || route == LISTEN)) || (tab == Tab.SETTINGS && (route == SETTINGS_PAGE || route == NATURAL_VOICE))
-                    NavigationBarItem(
-                        selected = inTab,
-                        onClick = {
-                            // Tapping the tab you're in goes back to its top screen; restoring
-                            // saved state would otherwise reopen the detail screen you're on.
-                            if (inTab) nav.popBackStack(tab.route, inclusive = false) else nav.navigate(tab.route) {
-                                popUpTo(nav.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(tab.icon, contentDescription = null) },
-                        label = { Text(tab.label) },
-                    )
+            Column {
+                // Not over the playing screen, which is the same and more.
+                listenNow?.takeIf { showsListenBar(it) && current?.destination?.route != LISTEN }?.let { state ->
+                    ListenBar(state, onOpen = { nav.navigate(LISTEN) { launchSingleTop = true } }, onToggle = container.listening::toggle, onClose = container.listen::stop)
+                }
+                // The tab whose stack the screen is on: switching tabs pops back to Today, the start,
+                // and pushes the other tab's top, so at most one other tab's root is on the stack. Not
+                // by the screen's route: the player, say, opens from the bar on any tab.
+                val tabNow = current?.let { Tab.entries.lastOrNull { tab -> runCatching { nav.getBackStackEntry(tab.route) }.isSuccess } } ?: Tab.TODAY
+                NavigationBar {
+                    Tab.entries.forEach { tab ->
+                        val inTab = tab == tabNow
+                        NavigationBarItem(
+                            selected = inTab,
+                            onClick = {
+                                // Tapping the tab you're in goes back to its top screen; restoring
+                                // saved state would otherwise reopen the detail screen you're on.
+                                // The player isn't kept in the tab left: coming back, the tab shows itself.
+                                if (!inTab && current?.destination?.route == LISTEN) nav.popBackStack()
+                                if (inTab) nav.popBackStack(tab.route, inclusive = false) else nav.navigate(tab.route) {
+                                    popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = { Icon(tab.icon, contentDescription = null) },
+                            label = { Text(tab.label) },
+                        )
+                    }
                 }
             }
         },

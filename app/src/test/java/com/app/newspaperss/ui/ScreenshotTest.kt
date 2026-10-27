@@ -1,5 +1,15 @@
 package com.app.newspaperss.ui
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
+import com.app.newspaperss.listen.ListenState
+import com.app.newspaperss.listen.ListenPage
+import com.app.newspaperss.ui.listen.ListenBar
 import com.app.newspaperss.ui.components.EpisodeJudgement
 import com.app.newspaperss.listen.Reading
 import com.app.newspaperss.listen.Readings
@@ -562,6 +572,24 @@ class ScreenshotTest {
     private fun listening(): Listening {
         val (player, _) = listenPlayer()
         return Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock)) {}
+    }
+
+    /** Listen's bar along the bottom of the app, over the tabs, while an edition plays. */
+    @Test
+    fun listenBar() = shoot("11h-listen-bar") {
+        val state = ListenState(
+            editionId = 1, editionTitle = "Thursday Morning Edition", playing = true,
+            pages = listOf(ListenPage("The Mathematician Who Counted the Shapes of Knots", "Quanta Magazine", 8.0)),
+        )
+        Column(Modifier.fillMaxSize()) {
+            Spacer(Modifier.weight(1f))
+            ListenBar(state, onOpen = {}, onToggle = {}, onClose = {})
+            NavigationBar {
+                listOf("Today", "Sources", "Settings").forEachIndexed { i, label ->
+                    NavigationBarItem(selected = i == 0, onClick = {}, icon = {}, label = { Text(label) })
+                }
+            }
+        }
     }
 
     /** Listening to an article, two sentences in, its picture just ahead. */
