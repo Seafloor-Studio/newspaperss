@@ -16,7 +16,7 @@ import androidx.compose.runtime.mutableStateOf
 import android.content.Intent
 import com.app.newspaperss.listen.KokoroSupport
 import com.app.newspaperss.listen.ListenPosition
-import com.app.newspaperss.ui.components.EpisodeJudgement
+import com.app.newspaperss.ui.components.episodeJudgement
 import com.app.newspaperss.ui.listen.ListenScreen
 import android.os.Bundle
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -289,6 +289,7 @@ private fun App(
                 val moving by remember { container.feedMoves.state }.collectAsStateWithLifecycle(initialValue = FeedMoves.State())
                 val editionTitle by produceState<String?>(null, id) { value = container.editions.byId(id)?.title }
                 val textSize by remember { container.settings.settings.map { it.previewTextSize } }.collectAsStateWithLifecycle(initialValue = null)
+                val recordings by remember { container.settings.settings.map { it.recordings } }.collectAsStateWithLifecycle(initialValue = com.app.newspaperss.settings.Recordings())
                 ArticlePreviewScreen(
                     loadFile = { container.editions.byId(id)?.let(container.editions::fileOf) },
                     position = position,
@@ -304,7 +305,7 @@ private fun App(
                     onOpenSource = { position ->
                         goTo(contents, moving, position)?.let { nav.navigate(sourceRoute(it)) { launchSingleTop = true } }
                     },
-                    episodeFor = { article -> contents.getOrNull(article)?.let { c -> c.episodeKind?.let { EpisodeJudgement(it, c.pair) } } },
+                    episodeFor = { article -> contents.getOrNull(article)?.let { episodeJudgement(it, recordings) } },
                 )
             }
             composable(LISTEN) {

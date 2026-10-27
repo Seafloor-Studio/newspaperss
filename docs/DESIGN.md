@@ -629,7 +629,13 @@ whose Kindle and KOReader answers ask for more on the same page).
   more than an article says so under its title, in an edition's contents and a
   source's newest articles: "Episode notes", "Transcript of …", "Audio version of
   “October 15”", or "Has an audio version" on the post a reading belongs to. The
-  article screen has the same as a line above the page, for the article on screen.
+  article screen has the same as a line above the page, for the article on screen,
+  saying what Listen does with it as Settings › Listening has it: "Episode notes.
+  Listen reads them, then plays the episode after the edition." (only with audio of
+  their own and Episodes at the end on), or that a transcript plays its episode in
+  its place when it can. A transcript whose only audio is far too short for it
+  (under a third of it read aloud) says "Its audio is a 5-min preview, so Listen
+  reads it." A pair's title is cut to about 45 characters, so the line fits.
   A source that posts episodes says how often, among its newest judged posts:
   "Posts episodes: 9 of the last 17 posts". Release builds never judge posts, so
   show none of this. See [episodes-design.md](research/episodes-design.md).
@@ -659,7 +665,9 @@ whose Kindle and KOReader answers ask for more on the same page).
   - **Which recordings play** (debug builds) is set in Settings ›
     Listening under Recordings: **Play a post's own recording**, on by
     default, and under it three chips, **Readings**, **Episodes** and
-    **Episodes at the end**. Off,
+    **Episodes at the end**. The switch's line says a recording that needs a
+    subscription or a sign-in can't be reached, so the voice reads that post:
+    the app can't tell every such case, so it says the rule once. Off,
     the chips go away and the voice reads everything. A change is used
     from the next edition opened in Listen; one already open carries on
     as it started, so the voice doesn't change part way through.

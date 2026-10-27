@@ -226,7 +226,7 @@ class ArticlePreviewScreenTest {
     fun theLineAboutAnEpisodeFollowsTheArticleOnScreen() {
         val file = tmp.newFile("n.epub")
         file.writeEpub(listOf("Episode 12", "An essay").map { EditionArticle(title = it, sourceTitle = "S", url = "https://a.example/$it", bodyHtml = "<p>x</p>", minutes = 3.0) })
-        val note = "Episode notes: this post comes with a podcast episode."
+        val note = "Episode notes. Listen reads them, then plays the episode after the edition."
         compose.setContent {
             ArticlePreviewScreen(loadFile = { file }, position = 0, title = "Episode 12", onBack = {}, episodeFor = { if (it == 0) EpisodeJudgement(EpisodeKind.NOTES) else null })
         }

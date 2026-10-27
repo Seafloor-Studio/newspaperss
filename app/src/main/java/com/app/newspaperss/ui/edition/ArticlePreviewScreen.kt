@@ -285,9 +285,9 @@ fun ArticlePreviewScreen(
                 // Keyed: the WebView is built once, so a new article needs a new one. A new size or
                 // alignment is applied to it in place.
                 Column(Modifier.fillMaxSize().padding(padding)) {
-                    noteArticle?.let(episodeFor)?.let { episodeNote(it.kind, it.pair) }?.let { note ->
-                        // Held to three lines: it stays above the article for the whole read.
-                        Text(note, style = MaterialTheme.typography.bodySmall, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    noteArticle?.let(episodeFor)?.let(::episodeNote)?.let { note ->
+                        // Held to four lines: it stays above the article for the whole read.
+                        Text(note, style = MaterialTheme.typography.bodySmall, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                         HorizontalDivider()
                     }
                     key(p) {
