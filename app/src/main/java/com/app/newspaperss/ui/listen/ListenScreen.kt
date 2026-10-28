@@ -92,6 +92,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.layout.BoxWithConstraints
 import com.app.newspaperss.core.listen.ListenScript
 import com.app.newspaperss.core.listen.ListenScript.Block
 import com.app.newspaperss.core.listen.ListenScript.Kind
@@ -237,16 +240,9 @@ private fun Page(
             val marks = if (state.pages.getOrNull(state.at.page)?.episode == true) script.blocks.indexOfFirst { it is Block.Text && it.kind == Kind.PARAGRAPH } else -1
             itemsIndexed(script.blocks) { index, block ->
                 val current = line?.block == index
-                // In the same row as the marks, so the rows the page follows by stay the script's blocks.
+                // Under the row before the marks, the heading's: the rows the page follows by stay the
+                // script's blocks, and the marks' own row starts at its first mark, as the voice's place does.
                 Column {
-                    if (index == marks && script.lines.count { it.block == index } > 1) {
-                        Text(
-                            "Tap a time to play from there.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 8.dp),
-                        )
-                    }
                     when (block) {
                         is Block.Text -> TextBlock(
                             block, if (current) line!!.index else null, textSize,
@@ -254,6 +250,14 @@ private fun Page(
                             onTap = { sentence -> player.seek(ListenPosition(state.at.page, script.lines.indexOfFirst { it.block == index && it.index == sentence })) },
                         )
                         is Block.Image -> ImageBlock(block, current, player, textSize) { player.seek(ListenPosition(state.at.page, script.lines.indexOfFirst { it.block == index })) }
+                    }
+                    if (index == marks - 1 && script.lines.count { it.block == marks } > 1) {
+                        Text(
+                            "Tap a time to play from there.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
                     }
                 }
             }
@@ -410,7 +414,8 @@ private fun PlayerDock(state: ListenState, player: ListenPlayer, voice: PodcastV
             if (episodes.isNotEmpty() && page?.episode != true) {
                 TextButton(
                     onClick = { player.seek(ListenPosition(episodes.first(), 0)) },
-                    modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp),
+                    modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp)
+                        .semantics { contentDescription = "Go to the ${plural(episodes.size, "episode")} after the edition" },
                     contentPadding = PaddingValues(horizontal = 8.dp),
                 ) { Text("Then ${plural(episodes.size, "episode")} ›", style = MaterialTheme.typography.labelLarge) }
             }
@@ -445,7 +450,7 @@ private fun PlayerDock(state: ListenState, player: ListenPlayer, voice: PodcastV
                 } else {
                     "${minutes(state.secondsIn)} in · ${minutes((total - state.secondsIn).coerceAtLeast(0.0))} left"
                 }
-                Text(times, style = MaterialTheme.typography.labelMedium)
+                Text(times, Modifier.weight(1f, fill = false).padding(start = 8.dp), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.End)
             }
         }
     }
@@ -470,17 +475,27 @@ private fun Chapters(state: ListenState, modifier: Modifier) {
     }
     @Composable
     fun Piece(index: Int, minutes: Double, modifier: Modifier) {
-        Box(modifier.fillMaxHeight().background(if (index < state.at.page || state.finished) done else todo)) {
+        // One of unknown length can't fill as it plays: it's shown heard from the start, so the bar still says which is on.
+        val heard = index < state.at.page || state.finished || (index == state.at.page && minutes <= 0.0)
+        Box(modifier.fillMaxHeight().background(if (heard) done else todo)) {
             if (index == state.at.page && !state.finished && minutes > 0.0) {
                 val fraction = (state.secondsInPage / (minutes * 60)).toFloat().coerceIn(0f, 1f)
                 if (fraction > 0f) Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(done))
             }
         }
     }
-    Row(modifier.fillMaxWidth().height(4.dp).semantics { contentDescription = description }, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        pages.forEachIndexed { i, page -> Piece(i, page.minutes, Modifier.weight(page.minutes.toFloat().coerceAtLeast(0.2f))) }
-        if (episodes.isNotEmpty()) Spacer(Modifier.width(9.dp))
-        episodes.forEach { i -> Piece(i, state.pages[i].minutes, Modifier.width(20.dp)) }
+    BoxWithConstraints(modifier.fillMaxWidth().height(4.dp).semantics { contentDescription = description }) {
+        // At most a quarter of the bar, however many there are, so the articles always have room.
+        val episodesWidth = min(20.dp * episodes.size + 3.dp * (episodes.size - 1).coerceAtLeast(0), maxWidth / 4)
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            pages.forEachIndexed { i, page -> Piece(i, page.minutes, Modifier.weight(page.minutes.toFloat().coerceAtLeast(0.2f))) }
+            if (episodes.isNotEmpty()) {
+                Spacer(Modifier.width(6.dp))
+                Row(Modifier.width(episodesWidth).fillMaxHeight(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    episodes.forEach { i -> Piece(i, state.pages[i].minutes, Modifier.weight(1f)) }
+                }
+            }
+        }
     }
 }
 
