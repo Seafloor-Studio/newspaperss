@@ -212,6 +212,12 @@ class ListenScriptTest {
             listOf(Triple("Three", "3.", 1), Triple("Four", "4.", 1), Triple("Inside", "•", 2), Triple("still four", null, 1), Triple("Term", null, 0)),
             items.map { Triple(it.shown, it.marker, it.depth) },
         )
+        fun markers(html: String) = page(html).blocks.filterIsInstance<Block.Text>().filter { it.kind == Kind.ITEM || it.kind == Kind.PARAGRAPH }.map { it.shown to it.marker }
+        // An item opening with a list gives that list's first item its number too.
+        assertEquals(listOf("in" to "1. •", "tail" to null, "two" to "2."), markers("<ol><li><ul><li>in</li></ul>tail</li><li>two</li></ol>"))
+        // An item with no text of its own leaves its bullet with it, not on what follows.
+        assertEquals(listOf("After." to null), markers("<ul><li><img src=\"a.png\" alt=\"x\"/></li></ul><p>After.</p>"))
+        assertEquals(listOf("Three" to "3.", "Two" to "2.", "Seven" to "7."), markers("<ol reversed=\"reversed\"><li>Three</li><li>Two</li><li value=\"7\">Seven</li></ol>"))
     }
 
     @Test
@@ -227,9 +233,16 @@ class ListenScriptTest {
 
     @Test
     fun aCodeBlockKeepsItsSpacingThoughTheVoiceRunsItTogether() {
-        val text = page("<pre>\nfun main() {\n    println(1)\n}</pre>").blocks.filterIsInstance<Block.Text>().single { it.kind == Kind.PREFORMATTED }
+        val text = page("<pre>\nfun main() {\n    println(1)\n}</pre>").blocks.filterIsInstance<Block.Text>().single { it.preformatted }
         assertEquals("fun main() {\n    println(1)\n}", text.shown)
         assertEquals(listOf("fun main() { println(1) }"), text.sentences)
+        // Only an opening line break is dropped, as a browser does; the first line's indent stays.
+        // (On a bare page: the book's writer already tidies a code block's opening.)
+        fun bare(pre: String) = ListenScript.parse("<html><body><div class=\"article-body\">$pre</div></body></html>").blocks.filterIsInstance<Block.Text>().single().shown
+        assertEquals("\n  x", bare("<pre>\n\n  x</pre>"))
+        assertEquals("    indented", bare("<pre>    indented</pre>"))
+        // Inside a quote it's still a quote's, as the playing screen draws it.
+        assertEquals(Kind.QUOTE, page("<blockquote><pre>code</pre></blockquote>").blocks.filterIsInstance<Block.Text>().single { it.preformatted }.kind)
     }
 
     @Test

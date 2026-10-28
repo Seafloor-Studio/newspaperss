@@ -44,6 +44,7 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
          * @param ranges where each of [sentences] is in [shown].
          * @param marker a list item's number ("3.") or bullet, drawn before it.
          * @param depth how many lists it's inside.
+         * @param preformatted a code block's: [shown] keeps its own spacing and line breaks.
          */
         data class Text(
             val kind: Kind,
@@ -53,6 +54,7 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
             val styles: List<Style> = emptyList(),
             val marker: String? = null,
             val depth: Int = 0,
+            val preformatted: Boolean = false,
         ) : Block {
             override val said: List<String> get() = sentences
         }
@@ -66,8 +68,12 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
             override val said: List<String> get() = listOf(spoken)
         }
 
-        /** Read a row at a time, its cells run together: cell by cell, with a pause after each, is hard to follow. */
-        data class Table(val rows: List<Row>, val caption: String? = null) : Block {
+        /**
+         * Read a row at a time, its cells run together: cell by cell, with a pause after each, is hard to follow.
+         *
+         * @param kind what it sits in: a quote's, a list item's, or a paragraph's.
+         */
+        data class Table(val rows: List<Row>, val caption: String? = null, val kind: Kind = Kind.PARAGRAPH) : Block {
             override val said: List<String> get() = rows.flatMap { it.sentences }
 
             /** @param sentences what's said of it, its cells joined by commas. */
@@ -88,7 +94,7 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
     enum class StyleKind { BOLD, ITALIC, UNDERLINE, STRIKE, CODE, SUB, SUP, SMALL, MARK, LINK }
 
     /** [META] is page furniture, shown small and never read: the link to the original, the "Next" line. */
-    enum class Kind { KICKER, TITLE, BYLINE, HEADING, PARAGRAPH, QUOTE, ITEM, PREFORMATTED, META }
+    enum class Kind { KICKER, TITLE, BYLINE, HEADING, PARAGRAPH, QUOTE, ITEM, META }
 
     /** One thing the voice says: the [index]th line of the [block]th block. */
     data class Line(val block: Int, val index: Int, val spoken: String)
@@ -137,8 +143,10 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
             private val text = Inline()
             private var marker: String? = null
             private val lists = ArrayDeque<ListState>()
+            private var pre = 0
 
-            private class ListState(val ordered: Boolean, var next: Int)
+            /** [step] is -1 for a list numbered down (`<ol reversed>`). */
+            private class ListState(val ordered: Boolean, var next: Int, val step: Int)
 
             fun byline(byline: String) {
                 val parts = byline.split(" · ")
@@ -162,14 +170,14 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
             private fun flush(kind: Kind) {
                 val taken = text.take()
                 if (taken.shown.isNotEmpty()) {
-                    blocks += Block.Text(kind, taken.sentences, taken.shown, taken.ranges, taken.styles, marker, lists.size)
+                    blocks += Block.Text(kind, taken.sentences, taken.shown, taken.ranges, taken.styles, marker, lists.size, pre > 0)
                     marker = null
                 }
             }
 
             private fun visit(node: Node, kind: Kind, silent: Boolean) {
                 when (node) {
-                    is TextNode -> text.append(node.wholeText, spoken = !silent, keepSpacing = kind == Kind.PREFORMATTED)
+                    is TextNode -> text.append(node.wholeText, spoken = !silent, keepSpacing = pre > 0)
                     is Element -> when (val tag = node.normalName()) {
                         in SKIPPED -> {}
                         // A footnote's marker or its link back, which would be read as a stray
@@ -190,7 +198,7 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
                         }
                         "table" -> {
                             flush(kind)
-                            table(node)
+                            table(node, kind)
                         }
                         "hr" -> {
                             flush(kind)
@@ -208,15 +216,29 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
                             val inner = when (tag) {
                                 "h1", "h2", "h3", "h4", "h5", "h6" -> Kind.HEADING
                                 "blockquote" -> Kind.QUOTE
-                                "pre" -> Kind.PREFORMATTED
                                 "li", "dd", "dt" -> if (kind == Kind.QUOTE) kind else Kind.ITEM
                                 else -> kind
                             }
-                            if (tag == "ul" || tag == "ol") lists.addLast(ListState(tag == "ol", node.attr("start").toIntOrNull() ?: 1))
-                            // The item's first block carries its number; one after a list inside it doesn't.
-                            if (tag == "li") marker = lists.lastOrNull()?.let { if (it.ordered) "${it.next++}." else "•" }
+                            if (tag == "ul" || tag == "ol") {
+                                val down = tag == "ol" && node.hasAttr("reversed")
+                                val start = node.attr("start").toIntOrNull() ?: if (down) node.children().count { it.normalName() == "li" } else 1
+                                lists.addLast(ListState(tag == "ol", start, if (down) -1 else 1))
+                            }
+                            // The item's first block carries its number; one after a list inside it doesn't. An
+                            // item that opens with a list gives its number to that list's first item.
+                            if (tag == "li") {
+                                val own = lists.lastOrNull()?.let { list ->
+                                    node.attr("value").toIntOrNull()?.let { list.next = it }
+                                    if (list.ordered) "${list.next}.".also { list.next += list.step } else "•"
+                                }
+                                marker = listOfNotNull(marker, own).joinToString(" ").ifEmpty { null }
+                            }
+                            if (tag == "pre") pre++
                             for (child in node.childNodes()) visit(child, inner, silent)
                             flush(inner)
+                            if (tag == "pre") pre--
+                            // Not left for what follows, when the item had no text of its own.
+                            if (tag == "li") marker = null
                             if (tag == "ul" || tag == "ol") lists.removeLast()
                         }
                         else -> for (child in node.childNodes()) visit(child, kind, silent)
@@ -246,7 +268,7 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
                 blocks += Block.Image(img.attr("src"), description, caption)
             }
 
-            private fun table(table: Element) {
+            private fun table(table: Element, kind: Kind) {
                 val rows = table.select("tr").map { row ->
                     val cells = row.select("th, td")
                     Block.Table.Row(
@@ -254,7 +276,7 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
                         Sentences.split(cells.joinToString(", ") { it.text() }),
                     )
                 }
-                if (rows.isNotEmpty()) blocks += Block.Table(rows, table.selectFirst("caption")?.text()?.trim()?.ifEmpty { null })
+                if (rows.isNotEmpty()) blocks += Block.Table(rows, table.selectFirst("caption")?.text()?.trim()?.ifEmpty { null }, kind)
             }
         }
 
@@ -318,7 +340,7 @@ internal class Inline {
             val last = shown.lastOrNull()
             when {
                 // A code block's own spacing, but not a line break opening it, as a browser drops.
-                kept[i] -> if (last != null || c !in SPACES) shown.append(c)
+                kept[i] -> if (last != null || c != BREAK || i > 0 && kept[i - 1]) shown.append(c)
                 c != ' ' && c != BREAK -> shown.append(c)
                 last == null -> {}
                 last == ' ' || last == BREAK -> if (c == BREAK) shown.setCharAt(shown.length - 1, BREAK)
@@ -350,7 +372,9 @@ internal class Inline {
         }
         val mapped = styles.mapNotNull { s ->
             val start = at[s.start]
-            val end = minOf(at[s.end], shown.length)
+            var end = minOf(at[s.end], shown.length)
+            // Not over a space it ended on, which a line break after it may have taken the place of.
+            while (end > start && (shown[end - 1] == ' ' || shown[end - 1] == BREAK) && !kept[s.end - 1]) end--
             if (end > start) s.copy(start = start, end = end) else null
         }
         val out = Taken(shown.toString(), sentences, ranges, mapped)

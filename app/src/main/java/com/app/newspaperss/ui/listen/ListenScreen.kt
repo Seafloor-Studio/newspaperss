@@ -296,7 +296,7 @@ internal fun said(block: Block): Block.Text? = when (block) {
             ListenScript.joinedRanges(row.sentences).forEach { ranges += (at + it.first)..(at + it.last) }
             shown.append(row.sentences.joinToString(" "))
         }
-        if (ranges.isEmpty()) null else Block.Text(Kind.PARAGRAPH, block.said, shown.toString(), ranges)
+        if (ranges.isEmpty()) null else Block.Text(block.kind, block.said, shown.toString(), ranges)
     }
     is Block.Image, Block.Rule -> null
 }
@@ -310,7 +310,7 @@ private fun TextBlock(block: Block.Text, current: Int?, textSize: PreviewTextSiz
         Kind.BYLINE -> typography.bodySmall
         Kind.HEADING -> typography.titleMedium
         Kind.QUOTE -> typography.bodyLarge.copy(fontStyle = FontStyle.Italic)
-        Kind.PARAGRAPH, Kind.ITEM, Kind.PREFORMATTED, Kind.META -> typography.bodyLarge
+        Kind.PARAGRAPH, Kind.ITEM, Kind.META -> typography.bodyLarge
     }.sized(textSize)
     val tint = MaterialTheme.colorScheme.secondaryContainer
     val ranges = block.ranges
