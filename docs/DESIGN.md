@@ -692,8 +692,13 @@ whose Kindle and KOReader answers ask for more on the same page).
       there. An episode's length comes from its feed, or from its file's
       first bytes when the edition is made; without one, a single line.
     - They aren't the edition's: the contents list them as "Episode", the
-      title reads "Listening · episode 1 of 2", and the edition's bar and
-      its times leave them out. Past "That's all for today" the edition
+      title reads "Listening · episode 1 of 2", and the edition's times
+      leave them out. The edition's bar shows them after a gap, a short
+      piece each whatever their length, so an hour's episode doesn't
+      flatten the articles. In the edition, "Then 2 episodes ›" under the
+      bar goes to the first. On one, the times are its own ("Episode 1 of
+      2 · 12 min in · 46 min left"), and "Tap a time to play from there."
+      sits above the marks. Past "That's all for today" the edition
       counts as heard, and where it got to in an episode isn't kept.
     - There's no switch back to the voice, which has nothing to read for
       them. One that won't play (offline, gone): "The episode won't play
