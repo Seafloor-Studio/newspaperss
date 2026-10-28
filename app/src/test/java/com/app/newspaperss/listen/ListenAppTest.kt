@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.performScrollToNode
@@ -475,7 +476,7 @@ class ListenAppTest {
         val plain = compose.onNodeWithText("Plain bold and the paper.", useUnmergedTree = true).fetchSemanticsNode().config[SemanticsProperties.Text].single()
         assertEquals(listOf("bold"), plain.spanStyles.filter { it.item.fontWeight == FontWeight.Bold }.map { plain.text.substring(it.start, it.end) })
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Three"))
-        compose.onNodeWithText("3. ", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithContentDescription("3.", useUnmergedTree = true).assertIsDisplayed()
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("x = 1\n  y = 2"))
 
         // A table row tapped is read from, a row at a time.
@@ -488,9 +489,32 @@ class ListenAppTest {
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Plain bold", substring = true))
         tapWord(hasText("Plain bold and the paper."), "the paper")
         assertEquals(listOf("https://example.com/paper"), opened)
+        // TalkBack has each link as an action of its paragraph.
+        val actions = compose.onNodeWithText("Plain bold and the paper.").fetchSemanticsNode().config[SemanticsActions.CustomActions]
+        assertEquals(listOf("Open the paper"), actions.map { it.label })
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Next:", substring = true))
+        val next = compose.onNodeWithText("Next:", substring = true).fetchSemanticsNode().config[SemanticsActions.CustomActions].single()
+        assertEquals("Go to Lagos Drivers Built Their Own App", next.label)
         tapWord(hasText("Next:", substring = true), "Lagos")
         idleUntil { player.state.value.at.page == 1 }
+        player.seek(ListenPosition(0, 0))
+        idleUntil { player.state.value.at.page == 0 }
+        compose.runOnIdle { next.action() }
+        idleUntil { player.state.value.at.page == 1 }
+    }
+
+    @Test
+    fun aLongTableIsFollowedDownToTheRowBeingRead() {
+        val rows = (1..80).joinToString("") { "<tr><td>Row $it</td><td>${it * 2}</td></tr>" }
+        val id = edition("Long table", knots.copy(bodyHtml = "<p>The counts.</p><table><tr><th>Row</th><th>Twice</th></tr>$rows</table>", images = emptyList()), lagos)
+        startAndWait(id)
+        player.pause()
+        compose.setContent { ListenScreen(player, onBack = {}) }
+        compose.onNodeWithText("Row 70").assertIsNotDisplayed()
+        // Source, title, byline, the paragraph, the header row, then rows 1 to 70.
+        player.seek(ListenPosition(0, 4 + 70))
+        idleUntil { player.state.value.at.line == 74 }
+        compose.waitUntil(5_000) { runCatching { compose.onNodeWithText("Row 70").assertIsDisplayed() }.isSuccess }
     }
 
     @Test

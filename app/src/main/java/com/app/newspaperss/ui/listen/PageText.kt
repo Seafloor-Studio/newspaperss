@@ -1,6 +1,16 @@
 package com.app.newspaperss.ui.listen
 
 import androidx.compose.foundation.background
+import com.app.newspaperss.core.listen.ListenScript
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -155,15 +165,27 @@ internal fun TextBlock(
                 if (sentence >= 0) tap(sentence)
             }
         }
-        // For TalkBack, the paragraph is one stop that reads from its start.
+        // For TalkBack, the paragraph is one stop that reads from its start, with an action for each link in it.
         .semantics {
             if (said) onClick(label = "Read from here") { tap(0); true }
             if (block.kind == Kind.TITLE || block.kind == Kind.HEADING) heading()
+            val links = block.styles.filter { it.kind == StyleKind.LINK }.mapNotNull { style ->
+                val words = block.shown.substring(style.start, style.end)
+                when (val target = linkAt(block, style.start)) {
+                    is LinkTarget.Web -> CustomAccessibilityAction("Open $words") { runCatching { uri.openUri(target.url) }; true }
+                    is LinkTarget.Page -> CustomAccessibilityAction("Go to $words") { page(target); true }
+                    null -> null
+                }
+            }
+            if (links.isNotEmpty()) customActions = links
         }
     val drawn = @Composable { m: Modifier -> Text(text, m, style = style, softWrap = !block.preformatted, onTextLayout = { layout = it; onLayout(it) }) }
     Row(outer) {
         // A number is read out with its item; a bullet would be read as the word "bullet".
-        block.marker?.let { Text("$it ", style = style, modifier = if (it.any(Char::isDigit)) Modifier else Modifier.clearAndSetSemantics {}) }
+        block.marker?.let { marker ->
+            val number = marker.replace("•", "").trim()
+            Text("$marker ", style = style, modifier = Modifier.clearAndSetSemantics { if (number.isNotEmpty()) contentDescription = number })
+        }
         if (block.preformatted) {
             // A code block keeps its lines: it scrolls sideways rather than wrapping.
             Row(Modifier.weight(1f).background(colors.code, MaterialTheme.shapes.small).horizontalScroll(rememberScrollState()).padding(8.dp)) { drawn(modifier) }
@@ -173,35 +195,115 @@ internal fun TextBlock(
     }
 }
 
+/** Where a table's rows are drawn, from its top: what the page scrolls by to follow the voice down a long table. */
+internal class TableRows {
+    var top = 0f
+    val rows = mutableMapOf<Int, Float>()
+
+    fun offset(row: Int): Float? = rows[row]?.let { it - top }
+}
+
+/** A table past this many cells is drawn as lines of text: laying out thousands of cells freezes the screen. */
+internal const val MOST_TABLE_CELLS = 1_500
+
+internal fun Block.Table.tooBig() = rows.sumOf { it.cells.size } > MOST_TABLE_CELLS
+
+/** A block as the text it's drawn as, with its sentences' places: a table too big to draw cell by cell is too. */
+internal fun drawnAsText(block: Block): Block.Text? = when (block) {
+    is Block.Text -> block
+    is Block.Table -> block.takeIf { it.tooBig() }?.asText()
+    else -> null
+}
+
+/** A table as lines of text, a row a line, as it's said: for one too big to draw cell by cell. */
+internal fun Block.Table.asText(): Block.Text {
+    val shown = StringBuilder()
+    val ranges = mutableListOf<IntRange>()
+    for (row in rows.filter { it.sentences.isNotEmpty() }) {
+        if (shown.isNotEmpty()) shown.append('\n')
+        val at = shown.length
+        ListenScript.joinedRanges(row.sentences).forEach { ranges += (at + it.first)..(at + it.last) }
+        shown.append(row.sentences.joinToString(" "))
+    }
+    return Block.Text(kind, said, shown.toString(), ranges)
+}
+
+/** A column of a table's row: a cell, a column a cell to its left spans across, or one a cell above spans down. */
+internal sealed interface Slot {
+    data class Cell(val cell: Block.Table.Cell) : Slot
+    data object Across : Slot
+    data object Down : Slot
+}
+
+/** Each row's columns: a cell spanning down from a row above leaves the columns under it taken. */
+internal fun Block.Table.grid(): List<List<Slot>> {
+    val below = mutableMapOf<Int, Int>()
+    return rows.map { row ->
+        val out = mutableListOf<Slot>()
+        fun spannedDown() {
+            while ((below[out.size] ?: 0) > 0) {
+                below[out.size] = below.getValue(out.size) - 1
+                out += Slot.Down
+            }
+        }
+        for (cell in row.cells) {
+            spannedDown()
+            val at = out.size
+            out += Slot.Cell(cell)
+            repeat(cell.colspan.coerceIn(1, MOST_COLUMNS) - 1) { out += Slot.Across }
+            if (cell.rowspan > 1) for (c in at until out.size) below[c] = cell.rowspan.coerceAtMost(MOST_TABLE_CELLS) - 1
+        }
+        spannedDown()
+        out
+    }
+}
+
+private const val MOST_COLUMNS = 50
+
 /**
  * A table, cell by cell, its header cells bold. It's read a row at a time, so the row being read is
- * tinted and a tap on a row reads from it.
+ * tinted and a tap on a row reads from it. Too wide for the screen at this text size, it scrolls
+ * sideways rather than wrapping words a letter to a line.
  */
 @Composable
-internal fun TableBlock(block: Block.Table, current: Int?, textSize: PreviewTextSize, onTap: (Int) -> Unit) {
+internal fun TableBlock(block: Block.Table, current: Int?, textSize: PreviewTextSize, positions: TableRows, onTap: (Int) -> Unit) {
     val style = MaterialTheme.typography.bodyMedium.sized(textSize)
     val line = MaterialTheme.colorScheme.outlineVariant
     val tint = MaterialTheme.colorScheme.secondaryContainer
+    val grid = remember(block) { block.grid() }
+    val columns = grid.maxOfOrNull { it.size } ?: 0
     // Each row's first line within the block: rows with nothing to say have none.
-    val firsts = block.rows.runningFold(0) { at, row -> at + row.sentences.size }
-    Column(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+    val firsts = remember(block) { block.rows.runningFold(0) { at, row -> at + row.sentences.size } }
+    // About eight letters a column at least.
+    val least = with(LocalDensity.current) { style.fontSize.toDp() } * 4 * columns
+    Column(Modifier.fillMaxWidth().padding(bottom = 12.dp).onGloballyPositioned { positions.top = it.positionInRoot().y }) {
         block.caption?.let { Text(it, style = MaterialTheme.typography.bodySmall.sized(textSize), modifier = Modifier.padding(bottom = 4.dp)) }
-        Column(Modifier.fillMaxWidth().border(1.dp, line)) {
-            block.rows.forEachIndexed { r, row ->
-                val reading = current != null && row.sentences.isNotEmpty() && current in firsts[r] until firsts[r + 1]
-                val rowModifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
-                    .then(if (reading) Modifier.background(tint) else Modifier)
-                    .then(if (row.sentences.isNotEmpty()) Modifier.clickable(onClickLabel = "Read from here") { onTap(firsts[r]) } else Modifier)
-                if (r > 0) HorizontalDivider(color = line)
-                Row(rowModifier) {
-                    row.cells.forEachIndexed { c, cell ->
-                        if (c > 0) Box(Modifier.fillMaxHeight().background(line).padding(start = 1.dp))
-                        Text(
-                            cell.shown,
-                            Modifier.weight(cell.colspan.coerceAtLeast(1).toFloat()).padding(horizontal = 6.dp, vertical = 4.dp),
-                            style = if (cell.header) style.copy(fontWeight = FontWeight.Bold) else style,
-                            textDecoration = if (reading) TextDecoration.Underline else null,
-                        )
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            Column(Modifier.horizontalScroll(rememberScrollState()).width(maxOf(maxWidth, least)).border(1.dp, line)) {
+                block.rows.forEachIndexed { r, row ->
+                    val reading = current != null && row.sentences.isNotEmpty() && current in firsts[r] until firsts[r + 1]
+                    val rowModifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
+                        .onGloballyPositioned { positions.rows[r] = it.positionInRoot().y }
+                        .then(if (reading) Modifier.background(tint) else Modifier)
+                        .then(if (row.sentences.isNotEmpty()) Modifier.clickable(onClickLabel = "Read from here") { onTap(firsts[r]) } else Modifier)
+                    if (r > 0) HorizontalDivider(color = line)
+                    Row(rowModifier) {
+                        grid[r].forEachIndexed { c, slot ->
+                            // A cell spanning across is drawn once, over its columns; one spanning down leaves a gap.
+                            if (slot == Slot.Across) return@forEachIndexed
+                            val cell = (slot as? Slot.Cell)?.cell
+                            if (c > 0) Box(Modifier.fillMaxHeight().background(line).padding(start = 1.dp))
+                            Text(
+                                cell?.shown.orEmpty(),
+                                Modifier.weight((cell?.colspan ?: 1).coerceIn(1, MOST_COLUMNS).toFloat()).padding(horizontal = 6.dp, vertical = 4.dp),
+                                style = if (cell?.header == true) style.copy(fontWeight = FontWeight.Bold) else style,
+                                textDecoration = if (reading) TextDecoration.Underline else null,
+                            )
+                        }
+                        repeat(columns - grid[r].size) {
+                            Box(Modifier.fillMaxHeight().background(line).padding(start = 1.dp))
+                            Spacer(Modifier.weight(1f))
+                        }
                     }
                 }
             }

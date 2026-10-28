@@ -205,6 +205,16 @@ class ListenScriptTest {
     }
 
     @Test
+    fun aLinkOrBoldAroundABlockCoversItsWordsInEachBlock() {
+        val texts = page("<p>Before <a href=\"https://example.com/u\">link words <span><b>bold start </b></span><div>a block</div> after</a> end.</p>").blocks
+            .filterIsInstance<Block.Text>().filter { it.kind == Kind.PARAGRAPH }
+        fun over(text: Block.Text, kind: ListenScript.StyleKind) = text.styles.filter { it.kind == kind }.map { text.shown.substring(it.start, it.end) }
+        assertEquals(listOf("Before link words bold start", "a block", "after end."), texts.map { it.shown })
+        assertEquals(listOf(listOf("link words bold start"), listOf("a block"), listOf("after")), texts.map { over(it, ListenScript.StyleKind.LINK) })
+        assertEquals(listOf("bold start"), over(texts[0], ListenScript.StyleKind.BOLD))
+    }
+
+    @Test
     fun listsAreNumberedFromTheirStartAndNestedInsideEachOther() {
         val items = page("<ol start=\"3\"><li>Three</li><li>Four<ul><li>Inside</li></ul>still four</li></ol><dl><dt>Term</dt></dl>").blocks
             .filterIsInstance<Block.Text>().filter { it.kind == Kind.ITEM }

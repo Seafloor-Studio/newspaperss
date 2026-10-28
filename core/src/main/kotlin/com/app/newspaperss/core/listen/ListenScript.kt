@@ -309,6 +309,10 @@ internal class Inline {
     private val kept = java.util.BitSet()
     private val styles = mutableListOf<ListenScript.Style>()
 
+    /** A style still open: a link or bold around a paragraph runs across blocks, each taking its own part. */
+    private class Open(val kind: ListenScript.StyleKind, val href: String?, var start: Int)
+    private val open = ArrayDeque<Open>()
+
     /** Outside a code block, any run of spaces, tabs and newlines is one space, as on a web page. */
     fun append(text: String, spoken: Boolean, keepSpacing: Boolean = false) {
         for (c in text) {
@@ -324,12 +328,19 @@ internal class Inline {
     }
 
     fun styled(kind: ListenScript.StyleKind, href: String?, inner: () -> Unit) {
-        val start = chars.length
+        val style = Open(kind, href, chars.length)
+        open.addLast(style)
         inner()
-        if (chars.length > start) styles += ListenScript.Style(start, chars.length, kind, href)
+        open.removeLast()
+        if (chars.length > style.start) styles += ListenScript.Style(style.start, chars.length, kind, href)
     }
 
     fun take(): Taken {
+        // The open styles' part of this block; they go on from the start of the next.
+        for (style in open) {
+            if (chars.length > style.start) styles += ListenScript.Style(style.start, chars.length, style.kind, style.href)
+            style.start = 0
+        }
         // Shown: runs of space are one (a line break wins), none at either end.
         val shown = StringBuilder()
         val shownSaid = java.util.BitSet()

@@ -203,6 +203,7 @@ private fun Page(
     val dragged by list.interactionSource.collectIsDraggedAsState()
     LaunchedEffect(dragged) { if (dragged) following = false }
     val layouts = remember(script) { mutableStateMapOf<Int, TextLayoutResult>() }
+    val tables = remember(script) { mutableMapOf<Int, TableRows>() }
     // Notes above the article take the first rows.
     val notes = listOfNotNull(recording, voiceNote, state.missingLanguage, state.error).size
     val line = script.lines.getOrNull(state.at.line)
@@ -214,9 +215,17 @@ private fun Page(
         if (!following || line == null) return@LaunchedEffect
         list.scrollToItem(notes + line.block)
         // A long paragraph: down to the sentence, a little below the top.
-        val layout = layouts[line.block] ?: return@LaunchedEffect
-        val ranges = (script.blocks[line.block] as? Block.Text)?.ranges ?: return@LaunchedEffect
-        val top = layout.getLineTop(layout.getLineForOffset(ranges[line.index].first))
+        val block = script.blocks[line.block]
+        val text = drawnAsText(block)
+        val top = if (text != null) {
+            val layout = layouts[line.block] ?: return@LaunchedEffect
+            layout.getLineTop(layout.getLineForOffset(text.ranges[line.index].first))
+        } else {
+            // A table drawn cell by cell: down to the row being read.
+            val table = block as? Block.Table ?: return@LaunchedEffect
+            val row = table.rows.runningFold(0) { at, r -> at + r.sentences.size }.indexOfLast { it <= line.index }.coerceAtLeast(0)
+            tables[line.block]?.offset(row) ?: return@LaunchedEffect
+        }
         val viewport = list.layoutInfo.viewportSize.height
         if (top > viewport / 3) list.scrollBy(top - viewport / 4f)
     }
@@ -251,7 +260,11 @@ private fun Page(
                             // The "Next" line: the voice goes on to that article, as ⏭ does.
                             onPage = { target -> player.seek(ListenPosition(target.index ?: state.pages.indexOfFirst { it.end }, 0)) },
                         )
-                        is Block.Table -> TableBlock(block, if (current) line!!.index else null, textSize, onTap = readFrom)
+                        is Block.Table -> if (block.tooBig()) {
+                            TextBlock(block.asText(), if (current) line!!.index else null, textSize, onLayout = { layouts[index] = it }, onTap = readFrom)
+                        } else {
+                            TableBlock(block, if (current) line!!.index else null, textSize, tables.getOrPut(index) { TableRows() }, onTap = readFrom)
+                        }
                         Block.Rule -> RuleBlock()
                     }
                     if (index == marks - 1 && script.lines.count { it.block == marks } > 1) {
