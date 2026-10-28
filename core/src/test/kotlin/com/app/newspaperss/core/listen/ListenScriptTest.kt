@@ -206,12 +206,14 @@ class ListenScriptTest {
 
     @Test
     fun aLinkOrBoldAroundABlockCoversItsWordsInEachBlock() {
-        val texts = page("<p>Before <a href=\"https://example.com/u\">link words <span><b>bold start </b></span><div>a block</div> after</a> end.</p>").blocks
-            .filterIsInstance<Block.Text>().filter { it.kind == Kind.PARAGRAPH }
+        // As HTML allows: a link around whole blocks, not inside a paragraph (which the book's writer would split).
+        val texts = ListenScript.parse(
+            "<html><body><div class=\"article-body\"><div>Before <a href=\"https://example.com/u\">link words <b>bold start <div>a block</div> bold tail</b></a> end.</div></div></body></html>",
+        ).blocks.filterIsInstance<Block.Text>()
         fun over(text: Block.Text, kind: ListenScript.StyleKind) = text.styles.filter { it.kind == kind }.map { text.shown.substring(it.start, it.end) }
-        assertEquals(listOf("Before link words bold start", "a block", "after end."), texts.map { it.shown })
-        assertEquals(listOf(listOf("link words bold start"), listOf("a block"), listOf("after")), texts.map { over(it, ListenScript.StyleKind.LINK) })
-        assertEquals(listOf("bold start"), over(texts[0], ListenScript.StyleKind.BOLD))
+        assertEquals(listOf("Before link words bold start", "a block", "bold tail end."), texts.map { it.shown })
+        assertEquals(listOf(listOf("link words bold start"), listOf("a block"), listOf("bold tail")), texts.map { over(it, ListenScript.StyleKind.LINK) })
+        assertEquals(listOf(listOf("bold start"), listOf("a block"), listOf("bold tail")), texts.map { over(it, ListenScript.StyleKind.BOLD) })
     }
 
     @Test
