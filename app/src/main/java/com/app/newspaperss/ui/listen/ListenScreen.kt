@@ -215,7 +215,7 @@ private fun Page(
         list.scrollToItem(notes + line.block)
         // A long paragraph: down to the sentence, a little below the top.
         val layout = layouts[line.block] ?: return@LaunchedEffect
-        val ranges = said(script.blocks[line.block])?.ranges ?: return@LaunchedEffect
+        val ranges = (script.blocks[line.block] as? Block.Text)?.ranges ?: return@LaunchedEffect
         val top = layout.getLineTop(layout.getLineForOffset(ranges[line.index].first))
         val viewport = list.layoutInfo.viewportSize.height
         if (top > viewport / 3) list.scrollBy(top - viewport / 4f)
@@ -243,16 +243,16 @@ private fun Page(
                 // Under the row before the marks, the heading's: the rows the page follows by stay the
                 // script's blocks, and the marks' own row starts at its first mark, as the voice's place does.
                 Column {
-                    if (block is Block.Image) {
-                        ImageBlock(block, current, player, textSize) { player.seek(ListenPosition(state.at.page, script.lines.indexOfFirst { it.block == index })) }
-                    } else {
-                        said(block)?.let { text ->
-                            TextBlock(
-                                text, if (current) line!!.index else null, textSize,
-                                onLayout = { layouts[index] = it },
-                                onTap = { sentence -> player.seek(ListenPosition(state.at.page, script.lines.indexOfFirst { it.block == index && it.index == sentence })) },
-                            )
-                        }
+                    val readFrom = { sentence: Int -> player.seek(ListenPosition(state.at.page, script.lines.indexOfFirst { it.block == index && it.index == sentence })) }
+                    when (block) {
+                        is Block.Image -> ImageBlock(block, current, player, textSize) { readFrom(0) }
+                        is Block.Text -> TextBlock(
+                            block, if (current) line!!.index else null, textSize, onLayout = { layouts[index] = it }, onTap = readFrom,
+                            // The "Next" line: the voice goes on to that article, as ⏭ does.
+                            onPage = { target -> player.seek(ListenPosition(target.index ?: state.pages.indexOfFirst { it.end }, 0)) },
+                        )
+                        is Block.Table -> TableBlock(block, if (current) line!!.index else null, textSize, onTap = readFrom)
+                        Block.Rule -> RuleBlock()
                     }
                     if (index == marks - 1 && script.lines.count { it.block == marks } > 1) {
                         Text(
@@ -275,79 +275,6 @@ private fun Page(
                     .background(MaterialTheme.colorScheme.inverseSurface, CircleShape),
             ) { Text("Back to where it's reading", color = MaterialTheme.colorScheme.inverseOnSurface) }
         }
-    }
-}
-
-/** [this] at the article text size, on top of Android's font size as every size here is. */
-private fun TextStyle.sized(size: PreviewTextSize) = copy(fontSize = fontSize * size.percent / 100, lineHeight = lineHeight * size.percent / 100)
-
-/**
- * What this screen draws of a block: only what's said, as plain text, a table a row to a line. Null
- * for what's only shown, like the link to the original.
- */
-internal fun said(block: Block): Block.Text? = when (block) {
-    is Block.Text -> if (block.sentences.isEmpty()) null else Block.Text(block.kind, block.sentences)
-    is Block.Table -> {
-        val shown = StringBuilder()
-        val ranges = mutableListOf<IntRange>()
-        for (row in block.rows.filter { it.sentences.isNotEmpty() }) {
-            if (shown.isNotEmpty()) shown.append('\n')
-            val at = shown.length
-            ListenScript.joinedRanges(row.sentences).forEach { ranges += (at + it.first)..(at + it.last) }
-            shown.append(row.sentences.joinToString(" "))
-        }
-        if (ranges.isEmpty()) null else Block.Text(block.kind, block.said, shown.toString(), ranges)
-    }
-    is Block.Image, Block.Rule -> null
-}
-
-@Composable
-private fun TextBlock(block: Block.Text, current: Int?, textSize: PreviewTextSize, onLayout: (TextLayoutResult) -> Unit, onTap: (Int) -> Unit) {
-    val typography = MaterialTheme.typography
-    val style = when (block.kind) {
-        Kind.KICKER -> typography.labelLarge
-        Kind.TITLE -> typography.headlineSmall
-        Kind.BYLINE -> typography.bodySmall
-        Kind.HEADING -> typography.titleMedium
-        Kind.QUOTE -> typography.bodyLarge.copy(fontStyle = FontStyle.Italic)
-        Kind.PARAGRAPH, Kind.ITEM, Kind.META -> typography.bodyLarge
-    }.sized(textSize)
-    val tint = MaterialTheme.colorScheme.secondaryContainer
-    val ranges = block.ranges
-    // Rebuilt only when this block's sentence changes, not for every sentence read elsewhere.
-    val text: AnnotatedString = remember(block, current, tint) {
-        buildAnnotatedString {
-            append(block.shown)
-            // Underlined as well as tinted: on e-ink the tint is too faint to follow.
-            ranges.getOrNull(current ?: -1)?.let { addStyle(SpanStyle(background = tint, textDecoration = TextDecoration.Underline), it.first, it.last + 1) }
-        }
-    }
-    // The gesture below lives as long as the block; the next article's equal block needs this one's tap.
-    val tap by rememberUpdatedState(onTap)
-    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
-    val outer = Modifier.fillMaxWidth()
-        .padding(
-            start = if (block.kind == Kind.QUOTE || block.kind == Kind.ITEM) 16.dp else 0.dp,
-            bottom = if (block.kind == Kind.KICKER || block.kind == Kind.TITLE) 4.dp else 12.dp,
-        )
-    // On the text itself, so a tap's offset is the text's own, not shifted by a list item's bullet.
-    val modifier = Modifier
-        .pointerInput(block) {
-            detectTapGestures { offset ->
-                val at = layout?.getOffsetForPosition(offset) ?: return@detectTapGestures
-                val sentence = ranges.indexOfFirst { at <= it.last + 1 }
-                if (sentence >= 0) tap(sentence)
-            }
-        }
-        // For TalkBack, the paragraph is one stop that reads from its start.
-        .semantics {
-            onClick(label = "Read from here") { tap(0); true }
-            if (block.kind == Kind.TITLE || block.kind == Kind.HEADING) heading()
-        }
-    val prefix = if (block.kind == Kind.ITEM) "• " else ""
-    Row(outer) {
-        if (prefix.isNotEmpty()) Text(prefix, style = style, modifier = Modifier.clearAndSetSemantics {})
-        Text(text, modifier.weight(1f), style = style, onTextLayout = { layout = it; onLayout(it) })
     }
 }
 

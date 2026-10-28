@@ -6,7 +6,19 @@ import android.content.Intent
 import android.speech.tts.TextToSpeech
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -61,6 +73,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import java.io.FileOutputStream
 import java.time.LocalDate
@@ -417,6 +430,66 @@ class ListenAppTest {
 
         compose.onNodeWithContentDescription("Contents").performClick()
         compose.onNode(hasText("Lagos Drivers Built Their Own App") and hasAnyAncestor(isDialog())).performClick()
+        idleUntil { player.state.value.at.page == 1 }
+    }
+
+    /** Taps [word] where it's drawn in the text of the node [matcher] finds. */
+    private fun tapWord(matcher: SemanticsMatcher, word: String) {
+        val node = compose.onNode(matcher, useUnmergedTree = true)
+        val text = node.fetchSemanticsNode().config[SemanticsProperties.Text].joinToString("") { it.text }
+        val layouts = mutableListOf<TextLayoutResult>()
+        node.fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+        // A point the text's own layout puts inside the word, rather than its glyph box: what a tap is measured by.
+        val layout = layouts.single()
+        val inside = text.indexOf(word).let { it until it + word.length }
+        val point = (0 until layout.lineCount).asSequence().flatMap { l ->
+            val y = (layout.getLineTop(l) + layout.getLineBottom(l)) / 2
+            (0..layout.size.width step 2).asSequence().map { x -> Offset(x.toFloat(), y) }
+        }.firstOrNull { layout.getOffsetForPosition(it) in inside && layout.getOffsetForPosition(it) > inside.first }
+            ?: error("\"$word\" isn't where a tap can reach it in \"$text\"")
+        node.performTouchInput { click(point) }
+    }
+
+    // Real text layout: without it every letter is drawn at no width, and a tap can't land on a word.
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun theArticleIsDrawnWithItsFormattingAndItsLinksGoWhereTheySay() {
+        val formatted = knots.copy(
+            bodyHtml = "<p>Plain <b>bold</b> and <a href=\"https://example.com/paper\">the paper</a>.</p><ol start=\"3\"><li>Three</li></ol>" +
+                "<table><tr><th>Crossings</th><th>Knots</th></tr><tr><td>3</td><td>1</td></tr></table><pre>x = 1\n  y = 2</pre>",
+            // Long enough for the book to end it with a "Next" line.
+            images = emptyList(), minutes = 9.0,
+        )
+        val id = edition("Formatted", formatted, lagos)
+        startAndWait(id)
+        player.pause()
+        val opened = mutableListOf<String>()
+        val uris = object : UriHandler {
+            override fun openUri(uri: String) {
+                opened += uri
+            }
+        }
+        compose.setContent { CompositionLocalProvider(LocalUriHandler provides uris) { ListenScreen(player, onBack = {}) } }
+        // The byline whole, not only the author the voice reads; bold where it was bold; a list's own numbers; a code block's spacing.
+        compose.onNodeWithText("By Erica Klarreich · 9 min read").assertIsDisplayed()
+        val plain = compose.onNodeWithText("Plain bold and the paper.", useUnmergedTree = true).fetchSemanticsNode().config[SemanticsProperties.Text].single()
+        assertEquals(listOf("bold"), plain.spanStyles.filter { it.item.fontWeight == FontWeight.Bold }.map { plain.text.substring(it.start, it.end) })
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Three"))
+        compose.onNodeWithText("3. ", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("x = 1\n  y = 2"))
+
+        // A table row tapped is read from, a row at a time.
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Crossings"))
+        compose.onNode(hasText("3") and hasClickAction()).performClick()
+        idleUntil { speaker.queue.firstOrNull()?.text == "3, 1" }
+        player.pause()
+
+        // A web link opens; the "Next" line moves the voice to the next article.
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Plain bold", substring = true))
+        tapWord(hasText("Plain bold and the paper."), "the paper")
+        assertEquals(listOf("https://example.com/paper"), opened)
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Next:", substring = true))
+        tapWord(hasText("Next:", substring = true), "Lagos")
         idleUntil { player.state.value.at.page == 1 }
     }
 
