@@ -215,7 +215,7 @@ private fun Page(
         list.scrollToItem(notes + line.block)
         // A long paragraph: down to the sentence, a little below the top.
         val layout = layouts[line.block] ?: return@LaunchedEffect
-        val ranges = sentenceRanges(script.blocks[line.block])
+        val ranges = said(script.blocks[line.block])?.ranges ?: return@LaunchedEffect
         val top = layout.getLineTop(layout.getLineForOffset(ranges[line.index].first))
         val viewport = list.layoutInfo.viewportSize.height
         if (top > viewport / 3) list.scrollBy(top - viewport / 4f)
@@ -243,13 +243,16 @@ private fun Page(
                 // Under the row before the marks, the heading's: the rows the page follows by stay the
                 // script's blocks, and the marks' own row starts at its first mark, as the voice's place does.
                 Column {
-                    when (block) {
-                        is Block.Text -> TextBlock(
-                            block, if (current) line!!.index else null, textSize,
-                            onLayout = { layouts[index] = it },
-                            onTap = { sentence -> player.seek(ListenPosition(state.at.page, script.lines.indexOfFirst { it.block == index && it.index == sentence })) },
-                        )
-                        is Block.Image -> ImageBlock(block, current, player, textSize) { player.seek(ListenPosition(state.at.page, script.lines.indexOfFirst { it.block == index })) }
+                    if (block is Block.Image) {
+                        ImageBlock(block, current, player, textSize) { player.seek(ListenPosition(state.at.page, script.lines.indexOfFirst { it.block == index })) }
+                    } else {
+                        said(block)?.let { text ->
+                            TextBlock(
+                                text, if (current) line!!.index else null, textSize,
+                                onLayout = { layouts[index] = it },
+                                onTap = { sentence -> player.seek(ListenPosition(state.at.page, script.lines.indexOfFirst { it.block == index && it.index == sentence })) },
+                            )
+                        }
                     }
                     if (index == marks - 1 && script.lines.count { it.block == marks } > 1) {
                         Text(
@@ -278,11 +281,24 @@ private fun Page(
 /** [this] at the article text size, on top of Android's font size as every size here is. */
 private fun TextStyle.sized(size: PreviewTextSize) = copy(fontSize = fontSize * size.percent / 100, lineHeight = lineHeight * size.percent / 100)
 
-/** Each sentence's characters in its block's text, which is the sentences joined by spaces. */
-internal fun sentenceRanges(block: Block): List<IntRange> {
-    if (block !is Block.Text) return emptyList()
-    var at = 0
-    return block.sentences.map { sentence -> (at until at + sentence.length).also { at += sentence.length + 1 } }
+/**
+ * What this screen draws of a block: only what's said, as plain text, a table a row to a line. Null
+ * for what's only shown, like the link to the original.
+ */
+internal fun said(block: Block): Block.Text? = when (block) {
+    is Block.Text -> if (block.sentences.isEmpty()) null else Block.Text(block.kind, block.sentences)
+    is Block.Table -> {
+        val shown = StringBuilder()
+        val ranges = mutableListOf<IntRange>()
+        for (row in block.rows.filter { it.sentences.isNotEmpty() }) {
+            if (shown.isNotEmpty()) shown.append('\n')
+            val at = shown.length
+            ListenScript.joinedRanges(row.sentences).forEach { ranges += (at + it.first)..(at + it.last) }
+            shown.append(row.sentences.joinToString(" "))
+        }
+        if (ranges.isEmpty()) null else Block.Text(block.kind, block.said, shown.toString(), ranges)
+    }
+    is Block.Image, Block.Rule -> null
 }
 
 @Composable
@@ -294,18 +310,16 @@ private fun TextBlock(block: Block.Text, current: Int?, textSize: PreviewTextSiz
         Kind.BYLINE -> typography.bodySmall
         Kind.HEADING -> typography.titleMedium
         Kind.QUOTE -> typography.bodyLarge.copy(fontStyle = FontStyle.Italic)
-        Kind.PARAGRAPH, Kind.ITEM -> typography.bodyLarge
+        Kind.PARAGRAPH, Kind.ITEM, Kind.META -> typography.bodyLarge
     }.sized(textSize)
     val tint = MaterialTheme.colorScheme.secondaryContainer
-    val ranges = remember(block) { sentenceRanges(block) }
+    val ranges = block.ranges
     // Rebuilt only when this block's sentence changes, not for every sentence read elsewhere.
     val text: AnnotatedString = remember(block, current, tint) {
         buildAnnotatedString {
-            block.sentences.forEachIndexed { i, sentence ->
-                if (i > 0) append(' ')
-                // Underlined as well as tinted: on e-ink the tint is too faint to follow.
-                if (i == current) withStyle(SpanStyle(background = tint, textDecoration = TextDecoration.Underline)) { append(sentence) } else append(sentence)
-            }
+            append(block.shown)
+            // Underlined as well as tinted: on e-ink the tint is too faint to follow.
+            ranges.getOrNull(current ?: -1)?.let { addStyle(SpanStyle(background = tint, textDecoration = TextDecoration.Underline), it.first, it.last + 1) }
         }
     }
     // The gesture below lives as long as the block; the next article's equal block needs this one's tap.

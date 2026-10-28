@@ -262,9 +262,15 @@ flowchart LR
 ```
 
 - **`ListenScript`** (`core/listen/`) reads a book page into blocks (title,
-  paragraphs, quotes, list items, pictures) and splits them into lines:
-  one sentence each (`Sentences`), or a picture's one-line description.
-  A line is what ↶ goes back to and what the screen tints.
+  paragraphs, quotes, list items, tables, pictures) and splits them into
+  lines: one sentence each (`Sentences`), or a picture's one-line
+  description. A line is what ↶ goes back to and what the screen tints.
+  Each block also holds what's shown: its text with bold, links and the
+  like, a list item's number, and furniture that's never said (the
+  byline's date, a footnote's marker, the "Next" line). Each sentence
+  knows where it's shown, so one walk of the page serves both the eye
+  and the voice. `PlatformCorpusTest` checks every word of each corpus
+  page is held, in order.
 - **`ListenPlayer`** is the one player, in `AppContainer`, made on first
   use. It gives the voice the line being read and the next, so there's no
   gap, and moves the position when a line starts. Each line's id carries a

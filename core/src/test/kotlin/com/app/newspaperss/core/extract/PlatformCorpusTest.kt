@@ -1,5 +1,13 @@
 package com.app.newspaperss.core.extract
 
+import com.app.newspaperss.core.epub.EditionArticle
+import com.app.newspaperss.core.epub.EditionDoc
+import com.app.newspaperss.core.epub.EditionSection
+import com.app.newspaperss.core.epub.EpubWriter
+import com.app.newspaperss.core.listen.pageProblems
+import java.io.ByteArrayOutputStream
+import java.time.LocalDate
+import java.util.zip.ZipInputStream
 import com.app.newspaperss.core.net.HttpBytes
 import com.app.newspaperss.core.net.HttpClient
 import com.app.newspaperss.core.net.HttpResponse
@@ -166,6 +174,23 @@ class PlatformCorpusTest(private val post: Post, @Suppress("unused") private val
         assumeTrue(post.storyUrl != null)
         assertFalse("used the pitch: ${article.note}", article.usedFeedContent)
         assertTrue("${article.wordCount} words", article.wordCount > 1000)
+    }
+
+    /**
+     * As a page of the book, everything on it is in the page Listen and the preview draw from, in
+     * order, and every sentence the voice says is where it's shown.
+     */
+    @Test
+    fun itsPageHoldsAllItsTextAndSaysWhatItShows() {
+        val doc = EditionDoc(
+            "Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000099",
+            listOf(EditionSection(null, listOf(EditionArticle(title = article.title, sourceTitle = "Source", url = post.url, bodyHtml = article.html, minutes = article.minutes, author = article.author, note = article.note)))),
+        )
+        val book = ByteArrayOutputStream().also { EpubWriter.write(doc, it) }.toByteArray()
+        val page = ZipInputStream(book.inputStream()).use { zip ->
+            generateSequence { zip.nextEntry }.first { it.name.endsWith("article-001.xhtml") }.let { zip.readBytes().toString(Charsets.UTF_8) }
+        }
+        assertEquals(emptyList<String>(), pageProblems(page))
     }
 
     private fun dump() {
