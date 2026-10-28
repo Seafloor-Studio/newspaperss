@@ -290,54 +290,24 @@ The phone's voice reading an edition, and Settings › Listening for it, are bui
 - **Save as audio:** the edition as a file with a chapter per article, for a podcast or audiobook app. With the audio made, it's already most of the way there.
 
 ### Listening in the reading view *(you asked)*
-Today the article preview (the book's own page in a WebView, with Aa, pinch zoom and quote sharing)
-and the playing screen (the same article redrawn in Compose, one sentence at a time) are separate.
-They split because the playing screen tints and taps single sentences, which a WebView with
-JavaScript off can't do. Two steps, the first useful alone:
+The article preview (the book's page in a WebView) and the playing screen (the article redrawn
+in Compose, a sentence at a time) are separate, and the playing screen loses the article's
+formatting. Step 1, the bar along the bottom of every screen, is built (#398).
 
-**1. A mini player in the reading view (small, one PR).** Built as a bar along the bottom of
-every screen, not only the preview, at madCode's request: what's being read, play and pause, and a
-tap to the playing screen. The rest of this step is what it was planned as.
-- A bar at the bottom of the preview while Listen plays: the article playing, play/pause, ↶ ↷, and
-  a tap to open the full playing screen. The playing screen stays as it is.
-- The page doesn't follow the voice: reading on, or opening another article, leaves the bar playing.
-- The same bar could later sit on the edition page and Today.
-- Cost: the playing screen's dock, made smaller; the player already outlives screens.
-- Open questions: whether ⏮ ⏭ belong on the bar; on e-ink, no progress bar that redraws every second.
+**Step 2, decided: one renderer for both**, drawn by the app from `ListenScript`, not a WebView
+with JavaScript. Each step its own PR:
+- [x] **The page model:** `ListenScript` holds what's shown as well as what's said (styles, list
+  numbers, tables, furniture), each sentence knowing where it's shown. Spoken lines unchanged.
+- [ ] **The playing screen draws it:** bold, italics, links, numbered lists, tables, code, the
+  byline's date; the book's typeface and Aa size.
+- [ ] **The preview switches to it:** quote sharing rebuilt on Compose's selection, wide tables
+  and code scrolling sideways, pictures at their size. Pinch zoom goes (Aa covers it), and the
+  preview stops claiming to be exactly the e-reader's page. Check on the CI emulator: the old
+  WebView preview and the new one side by side from the same book; and on a Boox by madCode.
+- [ ] **Later, madCode's call: one view for both.** The decisions from the first plan that still
+  hold: contents a pop-up; the view and the voice stay on one article; while playing, a tap plays
+  from there and real links open; on e-ink, turn a screen at a time rather than scroll.
 
-**2. One view for both (about two PRs).** The playing screen goes; the preview becomes it.
-- While listening, the paragraph being read is tinted on the book's page and the page follows it;
-  scrolling away stops following, as now.
-- The bar from step 1 is the player, with the playing screen's edition bar and times.
-- **Decided: contents stay a pop-up** over the article, opened from the top bar, as on the playing
-  screen now: the voice plays on while it's open, and picking an article moves both. The book's own
-  contents page would be a page of its own, breaking "the view and the voice stay on one article".
-- Gains: one place to read and listen, the book's own look, Aa and quote sharing while listening.
-- **Decided: tint the paragraph, not the sentence.** ↶ ↷ still move by sentence. The walk that
-  builds `ListenScript` also marks the page, wrapping each piece of text in a `<span>` numbered with
-  its paragraph: text never crosses tags, so the wrapping is always valid, and one walk means the page
-  and the audio can't disagree. Sentence tints later only if paragraphs feel too coarse; that needs
-  the text split at sentence boundaries too.
-- **Decided: JavaScript on, with no bridge.** Moving the tint without reloading needs JavaScript,
-  and it is safe here: the preview already answers every request from the book or with nothing, and
-  article HTML has its scripts and `on…` attributes stripped. Page code talks to the app only by
-  going to a made-up `listen:` address, which the WebView client catches, so even hostile markup
-  could only colour text. To confirm when building: `javascript:` links are dropped.
-- **Decided: tapping.** While Listen plays, a tap on text plays from its paragraph; real links still
-  open. When it isn't playing, taps work as now, and the long-press menu gets "Listen from here"
-  beside quote sharing.
-- **Decided: on e-ink, turn a whole screen at a time** when the voice reaches the bottom, rather
-  than scrolling with it: each scroll there is a full refresh.
-- **Decided: the view and the voice stay on the same article.** Scrolling within it is free (it
-  stops following until "Back to where it's reading"). Going to another article while listening,
-  by "Next", a link in the book or the contents, moves the voice to its start; when the voice
-  finishes an article, the view turns to the next. So the bar never has to show an article other
-  than the one on screen. Nothing else can move it: the view only shows this edition's book, and
-  other links open in the browser.
-- **Rotation and restore:** the WebView is rebuilt; it re-tints from the player's line when the page loads.
-- **Images:** an image's description is a line with no text on the page; tint the picture's frame.
-
-Recommendation: build step 1, use it for a week, then decide on step 2.
 
 ### Podcast episodes in feeds *(you asked)*
 The plan is [research/episodes-design.md](research/episodes-design.md); the research and the
