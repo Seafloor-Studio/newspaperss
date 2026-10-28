@@ -211,6 +211,15 @@ class ListenAppTest {
         player.seek(ListenPosition(1, 0))
         idleUntil { player.state.value.at.page == 1 }
         compose.onNodeWithText("Listening · 2 of 2").assertIsDisplayed()
+        // From the edition, one tap to the episodes after it; on one, its own times and how to move in it.
+        compose.onNodeWithText("Then 1 episode ›").performClick()
+        idleUntil { player.state.value.at.page == 3 }
+        compose.onNodeWithText("Episode 1 of 1 · 0 min in · 38 min left").assertIsDisplayed()
+        compose.onNodeWithText("Tap a time to play from there.").assertExists()
+        compose.onAllNodesWithText("Then 1 episode ›").fetchSemanticsNodes().let { assertEquals("not on the episode itself", 0, it.size) }
+        player.seek(ListenPosition(3, 2 + 38))
+        idleUntil { player.state.value.at == ListenPosition(3, 40) }
+        compose.onNodeWithText("Episode 1 of 1 · 19 min in · 19 min left").assertIsDisplayed()
         player.stop()
     }
 

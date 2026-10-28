@@ -656,7 +656,14 @@ class ScreenshotTest {
 
     /** Past the edition's end: a notes post's episode, playing on a page of its own. */
     @Test
-    fun listenPlayingAnEpisodeAtTheEnd() {
+    fun listenPlayingAnEpisodeAtTheEnd() = shootEditionWithEpisodes("11g-listen-episode-at-the-end", page = 4)
+
+    /** In the edition, with two notes posts' episodes waiting after it. */
+    @Test
+    fun listenPlayingAnEditionWithEpisodesAfterIt() = shootEditionWithEpisodes("11g2-listen-episodes-after", page = 1)
+
+    /** Three articles, two of them notes posts: the closing page is page 3, their episodes 4 and 5. */
+    private fun shootEditionWithEpisodes(name: String, page: Int) {
         val files = tmp.newFolder()
         val articles = listOf(
             EditionArticle(title = "Episode 212: The ferry planner", sourceTitle = "The Example Show", url = "https://example.com/212", bodyHtml = "<p>This week, a ferry planner.</p>", minutes = 1.0),
@@ -678,12 +685,11 @@ class ScreenshotTest {
         }
         val readings = Readings(db, { Recordings() })
         val (player, speaker) = listenPlayer(files, readings)
-        // The closing page is page 3; the episodes are 4 and 5.
-        player.start(id, ListenPosition(4, 0))
+        player.start(id, ListenPosition(page, 0))
         idleUntil { player.state.value.script != null }
         speaker.startNext()
-        val now = ReadingSpeaker.Now(id, 4, readings.at(id, 4)!!, voiceInstead = false)
-        shoot("11g-listen-episode-at-the-end", ready = { player.state.value.at.page == 4 }) {
+        val now = readings.at(id, page)?.let { ReadingSpeaker.Now(id, page, it, voiceInstead = false) }
+        shoot(name, ready = { player.state.value.at.page == page }) {
             ListenScreen(player, onBack = {}, reading = MutableStateFlow(now))
         }
     }
