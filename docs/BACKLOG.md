@@ -295,21 +295,45 @@ in Compose, a sentence at a time) are separate, and the playing screen loses the
 formatting. Step 1, the bar along the bottom of every screen, is built (#398).
 
 **Step 2, decided: one view for reading and listening**, drawn by the app from `ListenScript`,
-not a WebView with JavaScript: one renderer, one language, all of it testable on the JVM. Each
-step its own PR:
+not a WebView with JavaScript: one renderer, one language, all of it testable on the JVM.
+madCode chose it on 2026-10-28 as the ideal. Each step its own PR:
 - [x] **The page model:** `ListenScript` holds what's shown as well as what's said (styles, list
   numbers, tables, furniture), each sentence knowing where it's shown. Spoken lines unchanged (#400).
-- [ ] **The playing screen draws it:** bold, italics, links, numbered lists, tables, code, the
-  byline's date and the page's furniture, at the Aa size.
-- [ ] **One view for both, madCode's choice:** the article page becomes the playing screen, with
-  the player under it, and the WebView preview goes. Quote sharing is rebuilt on Compose's
-  selection, wide tables and code scroll sideways, pictures show at their size. Pinch zoom goes
-  (Aa covers it), and the page stops claiming to be exactly the e-reader's. Decided from the first
-  plan: contents a pop-up; the view and the voice stay on one article; while playing, a tap plays
-  from there and real links open; on e-ink, turn a screen at a time rather than scroll. Checks:
-  the old preview and the new view side by side on the CI emulator from the same book, and on a
-  Boox by madCode.
-
+- [x] **The playing screen draws it** (`ui/listen/PageText.kt`): bold, links, numbered lists,
+  tables, code, the byline's date and the page's furniture, at the Aa size (#401).
+- [ ] **The preview drawn from the page model,** no WebView. It keeps all it does now, with
+  nothing of Listen's added yet:
+  - Aa, Share, Go to source and Send for a look in the top bar; the episode label line; the
+    "Next" line at the end; pictures at their size (as `imageSizes` sizes them now).
+  - Quote sharing rebuilt on Compose's text selection, with the same "where it's from" line.
+  - Pinch zoom goes (Aa covers it). DESIGN.md stops saying the page is exactly the e-reader's:
+    each e-reader sets its own fonts and margins; `tools/render-epub.sh` is how to check the book.
+  - Checks: before/after screenshots of every preview shot (the WebView ones come out blank on the
+    JVM, so "before" comes from the CI emulator, drawn from the same book), and on a Boox by madCode.
+- [ ] **One view for both:** the preview becomes the playing screen, and the separate playing
+  screen goes. Opening an article, the bar along the bottom, or the media notification all land
+  in it.
+  - **The player** sits under the page while Listen has this edition open: the dock as now
+    (edition bar, ↶ ↷ ⏮ ⏭, speed, times, episodes after the edition). Otherwise the top bar's
+    **Listen from here** starts it at this article.
+  - **The view and the voice stay on one article.** Scrolling within it is free (it stops
+    following until "Back to where it's reading"). Going to another article while listening, by
+    "Next", a link in the book or the contents, moves the voice to its start; when the voice
+    finishes an article, the view turns to the next.
+  - **Contents stay a pop-up** over the article, as on the playing screen now: the voice plays on
+    while it's open, and picking an article moves both.
+  - **Taps:** while Listen plays, a tap on a sentence reads from it and a web link opens. Not
+    playing, taps do nothing but links. Long-press selects text, with quote sharing and **Listen
+    from here** in its menu.
+  - **The sentence being read** is tinted and underlined, and the page follows the voice.
+  - **E-ink:** turn a screen at a time when the voice reaches the bottom, not scroll with it:
+    each scroll there is a full refresh.
+  - **Pages that aren't articles,** the closing page and the episodes after the edition, are drawn
+    from their scripts in the same view, as the playing screen does now.
+  - **Rotation and restore:** where the page was, the sentence tinted, an open contents pop-up or
+    text selection; `StateRestorationTester` for what must happen once.
+  - Checks: TalkBack (each paragraph a stop that can "Read from here", links as actions), 200% font,
+    landscape (the dock's height), and a Boox by madCode.
 
 ### Podcast episodes in feeds *(you asked)*
 The plan is [research/episodes-design.md](research/episodes-design.md); the research and the
