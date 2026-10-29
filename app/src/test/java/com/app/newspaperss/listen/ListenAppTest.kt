@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.speech.tts.TextToSpeech
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalUriHandler
@@ -308,17 +310,44 @@ class ListenAppTest {
         compose.onNodeWithText("Resume · 3 min left").assertIsDisplayed()
     }
 
-    /** Released as not sent when a newer one was made, its book is still here: where it was left is offered. */
+    /**
+     * Listen is on every edition whose book is still here, whatever it says about sending: ready,
+     * sent, or released as not sent when a newer one was made, which may have been heard part way.
+     * Not on one being made, one that couldn't be made, or one whose book is gone.
+     */
     @Test
-    fun anEditionReleasedAsNotSentStillOffersWhereItWasLeft() {
-        val id = edition()
-        runBlocking { db.editions().update(db.editions().byId(id)!!.copy(status = EditionStatus.FAILED, error = EditionBuilder.NOT_SENT)) }
-        progress.set(id, ListenPosition(1, 0))
-        val vm = viewModels.add(EditionDetailViewModel(repo, id) {})
-        compose.setContent { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = {}) }
-        idleUntil { compose.onAllNodesWithText("Resume · 3 min left").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText("Resume · 3 min left").performClick()
-        idleUntil { player.state.value.editionId == id && player.state.value.at.page == 1 }
+    fun everyEditionWithItsBookOffersListenAndWhereItWasLeft() {
+        val cases = listOf(
+            Triple(EditionStatus.READY, null, true),
+            Triple(EditionStatus.DELIVERED, null, true),
+            Triple(EditionStatus.FAILED, EditionBuilder.NOT_SENT, true),
+            Triple(EditionStatus.FAILED, "Couldn't reach any of your sources.", false),
+            Triple(EditionStatus.BUILDING, null, false),
+        )
+        var showing by mutableStateOf<EditionDetailViewModel?>(null)
+        compose.setContent { showing?.let { vm -> key(vm) { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = {}) } } }
+        fun show(id: Long) {
+            showing = viewModels.add(EditionDetailViewModel(repo, id) {})
+            idleUntil { compose.onAllNodesWithText("Contents").fetchSemanticsNodes().isNotEmpty() }
+        }
+        for ((status, error, offered) in cases) {
+            val id = edition("$status $error")
+            runBlocking { db.editions().update(db.editions().byId(id)!!.copy(status = status, error = error)) }
+            progress.set(id, ListenPosition(1, 0))
+            show(id)
+            assertEquals("$status $error", offered, compose.onAllNodesWithText("Resume · 3 min left").fetchSemanticsNodes().isNotEmpty())
+            if (offered) {
+                compose.onNodeWithText("Resume · 3 min left").performClick()
+                idleUntil { player.state.value.editionId == id && player.state.value.at.page == 1 }
+                player.stop()
+            }
+        }
+        // Its book gone, a sent one has nothing to read aloud.
+        val gone = edition("Gone")
+        runBlocking { File(editionsDir, db.editions().byId(gone)!!.fileName!!).delete() }
+        show(gone)
+        compose.onNodeWithText("This edition's file has been deleted, so it can't be sent or opened.").assertExists()
+        assertEquals(0, compose.onAllNodesWithText("Listen", substring = true).fetchSemanticsNodes().size)
     }
 
     @Test
