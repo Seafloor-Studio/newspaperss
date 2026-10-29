@@ -62,6 +62,14 @@ class PodcastMaker(
             val waited = seconds(now() - asked)
             if (waited >= 1) log.add("Waited ${waited}s for the last run's sentence to end")
             store.dropScratch()
+            // Best effort: without it, audio made before keys were noted is only made again.
+            try {
+                noteKeys()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log.add("Couldn't note what earlier audio says: ${e.javaClass.simpleName}")
+            }
             makeUnderLock()
         }
     }
@@ -77,6 +85,20 @@ class PodcastMaker(
         settings.update { s ->
             val last = s.podcastPace ?: return@update s
             s.copy(podcastPace = PodcastPace.learn(last.toDouble(), s.podcastPaceMeasured, nanos / 1e9, speech).toFloat(), podcastPaceMeasured = true)
+        }
+    }
+
+    /** Notes the key of each page made before keys were, from its edition's book, so a later edition can reuse it. */
+    private suspend fun noteKeys() {
+        for ((editionId, pages) in store.unsaid()) {
+            val voice = store.voice(editionId) ?: continue
+            val book = ListenBook.open(editions, editionId) ?: continue
+            book.use {
+                for (page in pages) {
+                    val lines = script(book, page)?.lines?.takeIf { it.isNotEmpty() } ?: continue
+                    store.saidKey(editionId, page, saidKey(voice, lines))
+                }
+            }
         }
     }
 
@@ -122,7 +144,7 @@ class PodcastMaker(
                             store.addCost(editionId, now() - began, 0.0)
                             log.add("Kokoro loaded (${voice.label}, $threads threads) in ${seconds(now() - began)}s")
                         }
-                        makePage(editionId, asked, page, script(book, page), kokoro!!.third)
+                        makePage(editionId, asked, page, script(book, page), voice, kokoro!!.third)
                     }
                     // Stopped during its last page: not finished, so Make the rest can carry on.
                     if (!store.wanted(editionId, asked)) return@use
@@ -153,13 +175,24 @@ class PodcastMaker(
         null
     }
 
-    private suspend fun makePage(editionId: Long, asked: String?, page: Int, script: ListenScript?, kokoro: PodcastEngine) {
+    private suspend fun makePage(editionId: Long, asked: String?, page: Int, script: ListenScript?, voice: PodcastVoice, kokoro: PodcastEngine) {
         if (script == null || script.lines.isEmpty() || !english(script.language)) {
             store.leaveLive(editionId, page)
             return
         }
         val lines = script.lines
         store.lines(editionId, page, lines.size)
+        val key = saidKey(voice, lines)
+        store.saidKey(editionId, page, key)
+        // The same article, said the same way, already made for another edition: its audio, not Kokoro's time.
+        if (store.linesMade(editionId, page) == 0) {
+            store.madeElsewhere(key, editionId)?.let { (other, otherPage) ->
+                if (store.wanted(editionId, asked) && store.reuse(other, otherPage, editionId, page)) {
+                    log.add("Page $page: the same as edition $other page $otherPage, its audio reused")
+                    return
+                }
+            }
+        }
         val (died, deaths) = store.deaths(editionId, page)
         // The marker says which line was in flight when the process ended, not that the line
         // ended it. Android taking the app for memory doesn't make a line unsayable, and two of
@@ -305,6 +338,20 @@ class PodcastMaker(
 
         /** Runs failing on the same page before it's left to the phone's voice. */
         internal const val FAILURES = 3
+
+        /**
+         * What a page's audio says and how: the voice, each line, and where the breath between
+         * paragraphs falls. Pages with the same key have the same audio, whatever edition they're in.
+         */
+        fun saidKey(voice: PodcastVoice, lines: List<ListenScript.Line>): String {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            digest.update("${voice.name}\n".toByteArray())
+            lines.forEachIndexed { i, line ->
+                val pause = i > 0 && lines[i - 1].block != line.block
+                digest.update("${if (pause) "¶" else ""}${line.spoken}\n".toByteArray())
+            }
+            return digest.digest().joinToString("") { "%02x".format(it) }
+        }
 
         /** Kokoro's voices here are English ones; a page with no language is taken to be English. */
         fun english(language: String?): Boolean = language == null || Locale.forLanguageTag(language).language == "en"

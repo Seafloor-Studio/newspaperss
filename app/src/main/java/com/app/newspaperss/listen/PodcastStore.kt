@@ -20,6 +20,10 @@ import java.util.UUID
  * A folder is made only when a podcast is asked for, and once deleted (with its edition, or with
  * Kokoro) nothing writes into it again: a piece finishing after that is dropped. [write] is where
  * that's kept, and [keep] for the audio.
+ *
+ * Each page also notes its [saidKey]: what's said on it and in which voice. An article that comes
+ * back in a later edition (one not sent gives its articles back) has the same key, and [reuse]
+ * links the audio already made rather than Kokoro making it again.
  */
 class PodcastStore(val dir: File) {
     private val _changes = MutableStateFlow(0)
@@ -230,6 +234,68 @@ class PodcastStore(val dir: File) {
         return File(dir, "$editionId$SEP$page$SEP$firstLine.$PART")
     }
 
+    /** Notes what's said on [page] and in which voice ([PodcastMaker.saidKey]), for a later edition to [reuse] its audio. */
+    @Synchronized
+    fun saidKey(editionId: Long, page: Int, key: String) {
+        write(editionId, "$page.$KEY", key)
+    }
+
+    fun saidKey(editionId: Long, page: Int): String? = read(editionId, "$page.$KEY")
+
+    /** A page made whole, in another edition than [except], whose audio says [key]: its edition and page. */
+    fun madeElsewhere(key: String, except: Long): Pair<Long, Int>? {
+        for (folder in dir.listFiles() ?: emptyArray()) {
+            val editionId = folder.name.toLongOrNull()?.takeIf { it != except } ?: continue
+            for (file in folder.listFiles() ?: emptyArray()) {
+                val page = file.name.takeIf { it.endsWith(".$KEY") }?.removeSuffix(".$KEY")?.toIntOrNull() ?: continue
+                if (made(editionId, page) && read(editionId, file.name) == key) return editionId to page
+            }
+        }
+        return null
+    }
+
+    /** Editions with pages made before keys were noted: [PodcastMaker] notes theirs from their books. */
+    fun unsaid(): Map<Long, List<Int>> = (dir.listFiles() ?: emptyArray()).mapNotNull { folder ->
+        val editionId = folder.name.toLongOrNull() ?: return@mapNotNull null
+        val pages = (folder.listFiles() ?: emptyArray())
+            .mapNotNull { it.name.takeIf { n -> n.endsWith(".$MADE") }?.removeSuffix(".$MADE")?.toIntOrNull() }
+            .filter { saidKey(editionId, it) == null }
+        (editionId to pages).takeIf { pages.isNotEmpty() }
+    }.toMap()
+
+    /**
+     * Makes [page] of [editionId] whole with the audio of [fromPage] of [from], which says the same:
+     * each piece hard-linked where the phone allows (no more space taken, and still there when the
+     * other edition is deleted), copied where it doesn't. False if either is gone.
+     */
+    @Synchronized
+    fun reuse(from: Long, fromPage: Int, editionId: Long, page: Int): Boolean {
+        val folder = folder(editionId)
+        val pieces = pieces(from, fromPage)
+        if (!folder.exists() || pieces.isEmpty() || !made(from, fromPage)) return false
+        for (piece in pieces) {
+            val name = "$page$SEP${piece.firstLine}"
+            val target = File(folder, "$name.$AUDIO")
+            if (target.exists()) continue
+            val part = scratch(editionId, page, piece.firstLine)
+            part.delete()
+            try {
+                java.nio.file.Files.createLink(part.toPath(), piece.audio.toPath())
+            } catch (_: Exception) {
+                piece.audio.copyTo(part, overwrite = true)
+            }
+            write(editionId, "$name.$STARTS", piece.starts.joinToString("\n", postfix = "\n") { "%.3f".format(Locale.ROOT, it) })
+            if (!part.renameTo(target)) {
+                part.delete()
+                throw IOException("Couldn't keep $name")
+            }
+        }
+        write(editionId, "$page.$MADE", "")
+        saidKey(from, fromPage)?.let { write(editionId, "$page.$KEY", it) }
+        changed()
+        return true
+    }
+
     /** Pieces left half-written by an app that died: only called with nothing being made. */
     fun dropScratch() {
         dir.listFiles { file -> file.name.endsWith(".$PART") }?.forEach { it.delete() }
@@ -276,6 +342,7 @@ class PodcastStore(val dir: File) {
         const val COST = "cost"
         const val LINES = "lines"
         const val PART = "part"
+        const val KEY = "said"
     }
 }
 
