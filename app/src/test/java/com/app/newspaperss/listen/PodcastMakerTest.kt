@@ -311,6 +311,77 @@ class PodcastMakerTest {
     }
 
     @Test
+    fun anEditionOfAudioAlreadyMadeNeverLoadsKokoroAndItsSpaceIsCountedOnce() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos)
+        request(wednesday)
+        make()
+        val loads = voices.size
+        val space = store.bytes()
+
+        // Made again from the same articles: the closing page says the same too.
+        said.clear()
+        val again = edition("Wednesday again", lagos)
+        request(again)
+        make()
+        assertTrue(store.finished(again))
+        assertTrue(said.toString(), said.isEmpty())
+        assertEquals("Kokoro isn't loaded for nothing to say", loads, voices.size)
+        // Linked, not copied: the total is what it was, though each edition holds it all.
+        assertEquals(space, store.bytes())
+        assertEquals(store.bytes(wednesday), store.bytes(again))
+    }
+
+    /** Older audio that doesn't cover its page as it's read today isn't passed on, nor looked at again. */
+    @Test
+    fun olderAudioThatDoesntMatchItsPageTodayIsMadeAfresh() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos)
+        request(wednesday)
+        make()
+        store.dir.walk().filter { it.name.endsWith(".said") }.forEach { it.delete() }
+        // As if the page was read with a line fewer when it was made.
+        val starts = store.dir.walk().first { it.name == "0-0.starts" }
+        starts.writeText(starts.readLines().dropLast(1).joinToString("\n", postfix = "\n"))
+
+        said.clear()
+        val thursday = edition("Thursday", lagos)
+        request(thursday)
+        make()
+        assertTrue(said.toString(), "Lagos Drivers" in said)
+        assertEquals(emptyMap<Long, List<Int>>(), store.unsaid())
+    }
+
+    @Test
+    fun olderAudioWhoseBookIsGoneIsntLookedAtAgain() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos)
+        request(wednesday)
+        make()
+        store.dir.walk().filter { it.name.endsWith(".said") }.forEach { it.delete() }
+        File(editionsDir, runBlocking { db.editions().byId(wednesday)!!.fileName!! }).delete()
+        make()
+        assertEquals(emptyMap<Long, List<Int>>(), store.unsaid())
+    }
+
+    /** Deleted and asked for again since the page was found, it's another podcast: nothing of the old is put in it. */
+    @Test
+    fun audioIsntReusedIntoAPodcastAskedForAgain() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos)
+        val thursday = edition("Thursday", lagos)
+        request(wednesday)
+        request(thursday)
+        val asked = store.asked(wednesday)
+        make()
+        podcasts.delete(wednesday)
+        request(wednesday)
+        assertFalse(store.reuse(thursday, 0, wednesday, 0, asked))
+        assertTrue(store.pieces(wednesday, 0).isEmpty())
+        assertTrue(store.reuse(thursday, 0, wednesday, 0, store.asked(wednesday)))
+    }
+
+    @Test
     fun aPodcastKeepsTheVoiceItStartedIn() {
         inUse(PodcastVoice.HEART)
         val first = edition("Wednesday", lagos)

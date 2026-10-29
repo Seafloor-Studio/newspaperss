@@ -105,17 +105,25 @@ class PodcastStore(val dir: File) {
     /** The space [editionId]'s podcast's audio takes, in bytes: none until a piece is kept. */
     fun bytes(editionId: Long): Long = audioBytes(folder(editionId))
 
-    /** The space every podcast's audio takes, in bytes. */
-    fun bytes(): Long = audioBytes(dir)
+    /** The space every podcast's audio takes, in bytes: audio one edition reused from another counted once. */
+    fun bytes(): Long = audioBytes(dir, mutableSetOf())
 
     // Not File.walk(): it asserts a folder it entered is still one, and a delete on another thread
     // can take it away in between, as it can a file (whose length is then 0).
-    private fun audioBytes(folder: File): Long = (folder.listFiles() ?: emptyArray()).sumOf { file ->
+    private fun audioBytes(folder: File, seen: MutableSet<Any>? = null): Long = (folder.listFiles() ?: emptyArray()).sumOf { file ->
         when {
-            file.isDirectory -> audioBytes(file)
-            file.name.endsWith(".$AUDIO") -> file.length()
-            else -> 0L
+            file.isDirectory -> audioBytes(file, seen)
+            !file.name.endsWith(".$AUDIO") -> 0L
+            // A piece linked into two editions is one file: its inode says so, where the phone tells it.
+            seen != null && fileKey(file)?.let { !seen.add(it) } == true -> 0L
+            else -> file.length()
         }
+    }
+
+    private fun fileKey(file: File): Any? = try {
+        java.nio.file.Files.readAttributes(file.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java).fileKey()
+    } catch (_: Exception) {
+        null
     }
 
     fun voice(editionId: Long): PodcastVoice? =
@@ -269,10 +277,11 @@ class PodcastStore(val dir: File) {
      * other edition is deleted), copied where it doesn't. False if either is gone.
      */
     @Synchronized
-    fun reuse(from: Long, fromPage: Int, editionId: Long, page: Int): Boolean {
+    fun reuse(from: Long, fromPage: Int, editionId: Long, page: Int, asked: String?): Boolean {
         val folder = folder(editionId)
         val pieces = pieces(from, fromPage)
-        if (!folder.exists() || pieces.isEmpty() || !made(from, fromPage)) return false
+        // Checked here, under the lock: deleted and asked for again (perhaps in another voice), it's another podcast.
+        if (!folder.exists() || read(editionId, ASKED) != asked || pieces.isEmpty() || !made(from, fromPage)) return false
         for (piece in pieces) {
             val name = "$page$SEP${piece.firstLine}"
             val target = File(folder, "$name.$AUDIO")
@@ -327,22 +336,24 @@ class PodcastStore(val dir: File) {
         changed()
     }
 
-    private companion object {
-        const val SEP = "-"
-        const val VOICE = "voice"
-        const val FINISHED = "finished"
-        const val STOPPED = "stopped"
-        const val ASKED = "asked"
-        const val AUDIO = "m4a"
-        const val STARTS = "starts"
-        const val MADE = "made"
-        const val LIVE = "live"
-        const val SAYING = "saying"
-        const val FAILED = "failed"
-        const val COST = "cost"
-        const val LINES = "lines"
-        const val PART = "part"
-        const val KEY = "said"
+    companion object {
+        /** A page made before keys were, whose key couldn't be found from its book: not tried again. */
+        const val NO_KEY = "-"
+        private const val SEP = "-"
+        private const val VOICE = "voice"
+        private const val FINISHED = "finished"
+        private const val STOPPED = "stopped"
+        private const val ASKED = "asked"
+        private const val AUDIO = "m4a"
+        private const val STARTS = "starts"
+        private const val MADE = "made"
+        private const val LIVE = "live"
+        private const val SAYING = "saying"
+        private const val FAILED = "failed"
+        private const val COST = "cost"
+        private const val LINES = "lines"
+        private const val PART = "part"
+        private const val KEY = "said"
     }
 }
 
