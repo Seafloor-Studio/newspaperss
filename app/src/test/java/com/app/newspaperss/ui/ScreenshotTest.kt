@@ -629,6 +629,35 @@ class ScreenshotTest {
     @Config(fontScale = 2f)
     fun todayWithTheListenBarAtTwiceTheFontSize() = todayWithListenBar("11h3-listen-bar-font-200", playing = true)
 
+    /** An article with its formatting: bold, a link, a quote, a numbered list, a table and code. */
+    @Test
+    fun listenPlayingAFormattedArticle() {
+        val files = tmp.newFolder()
+        val article = EditionArticle(
+            title = "How a Retired Teacher Counted the Knots", sourceTitle = "Quanta Magazine", url = "https://example.com/count",
+            bodyHtml = "<p>The count took <b>a week</b> of computer time, and the <a href=\"https://example.com/paper\">paper</a> ran to <em>forty pages</em>.</p>" +
+                "<blockquote><p>We thought it would take a century.</p></blockquote>" +
+                "<p>The method came in three steps:</p><ol><li>Draw every knot with few crossings.</li><li>Throw out the ones that are the same.</li><li>Check what's left by hand.</li></ol>" +
+                "<table><tr><th>Crossings</th><th>Knots</th></tr><tr><td>3</td><td>1</td></tr><tr><td>4</td><td>1</td></tr><tr><td>5</td><td>2</td></tr></table>" +
+                "<pre>for knot in knots:\n    if new(knot):\n        keep(knot)</pre>",
+            minutes = 3.0, author = "Erica Klarreich", published = LocalDate.of(2026, 9, 30),
+        )
+        File(files, "f.epub").outputStream().use {
+            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000012", listOf(EditionSection(null, listOf(article)))), it)
+        }
+        val id = runBlocking {
+            val id = db.editions().insert(EditionEntity(title = "Thursday Morning Edition", status = EditionStatus.DELIVERED, fileName = "f.epub", articleCount = 1, minutes = 3.0))
+            db.editions().insertArticles(listOf(EditionArticleEntity(editionId = id, articleId = null, position = 0, title = article.title, sourceTitle = article.sourceTitle, minutes = 3.0)))
+            id
+        }
+        val (player, speaker) = listenPlayer(files)
+        // The quote, after the source, title, byline and first paragraph.
+        player.start(id, ListenPosition(0, 4))
+        idleUntil { player.state.value.script != null }
+        speaker.startNext()
+        shoot("11i-listen-formatted", ready = { player.state.value.at.line == 4 }) { ListenScreen(player, onBack = {}) }
+    }
+
     /** Listening to an article, two sentences in, its picture just ahead. */
     @Test
     fun listenPlaying() = shootListening("11a-listen-playing", voice = null)

@@ -294,19 +294,21 @@ The article preview (the book's page in a WebView) and the playing screen (the a
 in Compose, a sentence at a time) are separate, and the playing screen loses the article's
 formatting. Step 1, the bar along the bottom of every screen, is built (#398).
 
-**Step 2, decided: one renderer for both**, drawn by the app from `ListenScript`, not a WebView
-with JavaScript. Each step its own PR:
+**Step 2, decided: one view for reading and listening**, drawn by the app from `ListenScript`,
+not a WebView with JavaScript: one renderer, one language, all of it testable on the JVM. Each
+step its own PR:
 - [x] **The page model:** `ListenScript` holds what's shown as well as what's said (styles, list
-  numbers, tables, furniture), each sentence knowing where it's shown. Spoken lines unchanged.
+  numbers, tables, furniture), each sentence knowing where it's shown. Spoken lines unchanged (#400).
 - [ ] **The playing screen draws it:** bold, italics, links, numbered lists, tables, code, the
-  byline's date; the book's typeface and Aa size.
-- [ ] **The preview switches to it:** quote sharing rebuilt on Compose's selection, wide tables
-  and code scrolling sideways, pictures at their size. Pinch zoom goes (Aa covers it), and the
-  preview stops claiming to be exactly the e-reader's page. Check on the CI emulator: the old
-  WebView preview and the new one side by side from the same book; and on a Boox by madCode.
-- [ ] **Later, madCode's call: one view for both.** The decisions from the first plan that still
-  hold: contents a pop-up; the view and the voice stay on one article; while playing, a tap plays
-  from there and real links open; on e-ink, turn a screen at a time rather than scroll.
+  byline's date and the page's furniture, at the Aa size.
+- [ ] **One view for both, madCode's choice:** the article page becomes the playing screen, with
+  the player under it, and the WebView preview goes. Quote sharing is rebuilt on Compose's
+  selection, wide tables and code scroll sideways, pictures show at their size. Pinch zoom goes
+  (Aa covers it), and the page stops claiming to be exactly the e-reader's. Decided from the first
+  plan: contents a pop-up; the view and the voice stay on one article; while playing, a tap plays
+  from there and real links open; on e-ink, turn a screen at a time rather than scroll. Checks:
+  the old preview and the new view side by side on the CI emulator from the same book, and on a
+  Boox by madCode.
 
 
 ### Podcast episodes in feeds *(you asked)*
