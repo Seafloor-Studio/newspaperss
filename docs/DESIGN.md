@@ -1005,8 +1005,12 @@ whose Kindle and KOReader answers ask for more on the same page).
     Android 15 for 6 hours a day; otherwise it's made a few minutes at a
     time, slowly.
     English articles only; the rest are left
-    to the phone's voice. An edition's audio is deleted with its book, and
-    all of it with Kokoro. Listen plays an article in the natural voice once
+    to the phone's voice. An article that comes back in a later edition
+    (one not sent gives its articles back) isn't made again: if it says
+    exactly the same in the same voice, the audio already made is used,
+    taking no more space. An edition's audio is deleted with its book (an
+    article reused in a later one keeps its audio there), and all of it
+    with Kokoro. Listen plays an article in the natural voice once
     its audio is made, and in the phone's voice until then: from the next play or
     jump once it's made, never mid-sentence. The playing screen shows the natural voice's name by
     the source, and a quiet line when an article of an edition with
