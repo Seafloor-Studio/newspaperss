@@ -49,6 +49,7 @@ import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionRepository
 import com.app.newspaperss.data.EditionStatus
+import com.app.newspaperss.edition.EditionBuilder
 import com.app.newspaperss.settings.Recordings
 import com.app.newspaperss.testutil.FakeSpeaker
 import com.app.newspaperss.testutil.TestApp
@@ -305,6 +306,19 @@ class ListenAppTest {
         player.pause()
         idleUntil { compose.onAllNodesWithText("Resume · 3 min left").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Resume · 3 min left").assertIsDisplayed()
+    }
+
+    /** Released as not sent when a newer one was made, its book is still here: where it was left is offered. */
+    @Test
+    fun anEditionReleasedAsNotSentStillOffersWhereItWasLeft() {
+        val id = edition()
+        runBlocking { db.editions().update(db.editions().byId(id)!!.copy(status = EditionStatus.FAILED, error = EditionBuilder.NOT_SENT)) }
+        progress.set(id, ListenPosition(1, 0))
+        val vm = viewModels.add(EditionDetailViewModel(repo, id) {})
+        compose.setContent { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = {}) }
+        idleUntil { compose.onAllNodesWithText("Resume · 3 min left").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Resume · 3 min left").performClick()
+        idleUntil { player.state.value.editionId == id && player.state.value.at.page == 1 }
     }
 
     @Test

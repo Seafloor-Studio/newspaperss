@@ -219,7 +219,11 @@ fun EditionDetailScreen(
             Text("This edition has been deleted.", modifier = Modifier.padding(padding).padding(24.dp))
             return@Scaffold
         }
-        val listenable = listening?.takeIf { current.file != null && current.contents.isNotEmpty() && (edition.status == EditionStatus.READY || edition.status == EditionStatus.DELIVERED) }
+        // Any edition whose book is still here, a ready one, a sent one or one released as not sent:
+        // it may have been read aloud part way before a newer one came.
+        val readable = edition.status == EditionStatus.READY || edition.status == EditionStatus.DELIVERED ||
+            (edition.status == EditionStatus.FAILED && edition.error == EditionBuilder.NOT_SENT)
+        val listenable = listening?.takeIf { current.file != null && current.contents.isNotEmpty() && readable }
         val minutes = current.contents.sortedBy { it.entry.position }.map { it.entry.minutes }
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
