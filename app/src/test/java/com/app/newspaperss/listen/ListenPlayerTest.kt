@@ -251,6 +251,14 @@ class ListenPlayerTest {
         clock = 10_000
         player.back()
         assertEquals(40_000L to 1.5f, audio.played.last())
+
+        // Paused, then a step back and forward to the same line: played, it's from the line's start.
+        audio.listener!!.onPosition(52_000, 100_000)
+        player.pause()
+        player.back()
+        player.forward()
+        player.play()
+        assertEquals(40_000L to 1.5f, audio.played.last())
     }
 
     @Test

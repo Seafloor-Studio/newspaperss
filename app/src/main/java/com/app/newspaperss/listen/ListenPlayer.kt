@@ -271,7 +271,8 @@ class ListenPlayer(
         val at = ListenPosition(current.at.page, line.coerceIn(0, script.lines.lastIndex))
         _state.update { it.copy(at = at) }
         save(at)
-        if (current.playing) speakFrom(at.line)
+        // Paused, ↶ or ↷ forgets where a recording was paused: played, it's from the line's start.
+        if (current.playing) speakFrom(at.line) else speaker.stop()
     }
 
     private fun move(position: ListenPosition, play: Boolean, chimeFirst: Boolean = false) {
