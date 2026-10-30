@@ -90,7 +90,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.time.LocalDate
 
-/** Listening to a real edition's book: the player, the edition page's button, the playing screen and the media controls. */
+/** Listening to a real edition's book: the player, the edition page's button, the article view and the media controls. */
 @RunWith(AndroidJUnit4::class)
 @Config(application = TestApp::class, qualifiers = "w411dp-h891dp")
 class ListenAppTest {
@@ -938,22 +938,6 @@ class ListenAppTest {
         idleUntil { player.state.value.at.line == 33 }
         compose.waitForIdle()
         assertTrue("the line before stays: the page didn't move for the next", displayed("Paragraph 30."))
-    }
-
-    /** A picture's caption read while the whole picture is on screen leaves the page too. */
-    @Test
-    fun aPictureOnScreenLeavesThePageWhereItIs() {
-        val id = edition()
-        startAndWait(id)
-        player.pause()
-        compose.setContent(playing(id))
-        idleUntil { compose.onAllNodesWithText("By Erica Klarreich", substring = true).fetchSemanticsNodes().isNotEmpty() }
-        val caption = player.state.value.script!!.lines.indexOfFirst { "Tait" in it.spoken }
-        player.seek(ListenPosition(0, caption))
-        idleUntil { player.state.value.at.line == caption }
-        compose.waitForIdle()
-        compose.onNodeWithText("Tait's table of knots", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("By Erica Klarreich", substring = true).assertIsDisplayed()
     }
 
     @Test

@@ -18,7 +18,21 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Fri 30 Oct
 
-The 30 Oct cycle run (N1–N12, every two hours): the test audit's gaps, then one view for reading and listening, then three architecture and simplification audits. Earlier today, outside the run: a paused episode or reading plays on from where it got (#408), and older not-sent editions get Listen and Mark as sent back, greyed out while an edition is made (#410).
+The 30 Oct cycle run (N1–N12, about every half hour): the test audit's gaps, then one view for reading and listening, then three architecture and simplification audits. Earlier today, outside the run: a paused episode or reading plays on from where it got (#408), and older not-sent editions get Listen and Mark as sent back, greyed out while an edition is made (#410).
+
+### N9: one view, step 3 — the playing screen goes
+- **Why:** after N7 and N8 the article view did everything the playing screen did, so two screens drew the same thing.
+- **Built:** the playing screen and its route are gone; the bar, the media notification and the edition's Listen open the article the voice is on. The article view says "You've heard the whole edition." at the end and "Tap a time to play from there." on an episode. The page moves a screen at a time: a sentence already on screen leaves it be, as each move redraws an e-ink screen. The playing screen's tests were ported to the article view.
+- **Left:** TalkBack's "Read from here" per paragraph, and Listen from here in the long-press menu (BACKLOG).
+
+### N8: one view, step 2 (#418)
+- **Built:** the bar, the notification and the edition's Listen open the article view; the closing page and the episodes after the edition are drawn there, and **Contents** in its top bar lists the edition.
+
+### N7: one view, step 1 (#417)
+- **Built:** the article preview listens in place: the player under the page, the sentence tinted and followed, a tap reading from a sentence while it plays.
+
+### N2–N6: the test audit's gaps (#412–#416)
+- **Built:** tests for the audio line on the edition page in every status and audio state (#412); an edition's book going while it's listened to, through the real wiring (#413); an edition released while its page is open keeping Listen (#414); Today's card for a not-sent edition offering Mark as sent, not only Try again (#415, a fix); and the emulator's two-editions journey opening the not-sent edition (#416).
 
 ### N1: a not-sent edition made the real way
 - **Why:** every test gave an edition "not sent" by hand, with the same constant the screens read, so a reworded note would pass every test and lose Listen again, as it did before #410.

@@ -164,7 +164,7 @@ private sealed interface Book {
 
 /**
  * One article of the edition, read straight out of the EPUB and drawn by the app from its page
- * ([ListenScript], as the playing screen draws it): close to the e-reader's page, though each
+ * ([ListenScript]): close to the e-reader's page, though each
  * e-reader sets its own fonts and margins. The "Next" line at its end turns to the next article.
  *
  * @param loadFile the edition's file, or null if it's gone. Called off the main thread.

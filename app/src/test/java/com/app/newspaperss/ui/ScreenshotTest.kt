@@ -1809,7 +1809,7 @@ class ScreenshotTest {
     }
 
     private companion object {
-        /** An article with bold, a link, a quote, a numbered list, a table and code: for the playing screen and the preview. */
+        /** An article with bold, a link, a quote, a numbered list, a table and code: for the article view, read and listened to. */
         val FORMATTED = EditionArticle(
             title = "How a Retired Teacher Counted the Knots", sourceTitle = "Quanta Magazine", url = "https://example.com/count",
             bodyHtml = "<p>The count took <b>a week</b> of computer time, and the <a href=\"https://example.com/paper\">paper</a> ran to <em>forty pages</em>.</p>" +

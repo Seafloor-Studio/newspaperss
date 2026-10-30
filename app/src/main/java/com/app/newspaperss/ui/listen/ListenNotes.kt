@@ -43,7 +43,7 @@ internal fun voiceNote(why: PodcastSpeaker.Instead?): String? = when (why) {
 /**
  * What Listen has to say above the page it's reading: the recording playing in the article's
  * place and the switch to the voice, the natural voice's note, a missing voice for the page's
- * language, and an error. Shown by the playing screen and the article preview alike.
+ * language, and an error. Shown above the article view's page.
  */
 @Composable
 internal fun ListenNotes(state: ListenState, voiceNote: String?, recording: ReadingSpeaker.Now?, onVoiceInstead: (Boolean) -> Unit, modifier: Modifier = Modifier) {

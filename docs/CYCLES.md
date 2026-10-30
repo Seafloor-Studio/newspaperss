@@ -3,6 +3,27 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle N9 (30 Oct) — build: one view, step 3 — the playing screen goes
+
+See [DEVLOG.md](DEVLOG.md).
+- **A test's "is it on screen?" has to find the one thing it means.** The top bar carries the article's title, so a check for the title on the page passed with the fix taken out; the byline, which only the page draws, failed as it should. Falsify any visibility check.
+- **Commit before falsifying, again.** A `git checkout` of a file under falsification would have discarded the uncommitted feature in it; auto mode refused it. Commit, break, `git restore`.
+- **Don't merge or edit the tree under a running Gradle build.** The results are of neither version; stop it and run again.
+- **Reproduce a reviewer's finding before fixing it.** Two of N9's (the bar reusing another edition's page, the notification not turning back) read as certain from the code, and neither happened: Navigation's single-top gives the view fresh state for new arguments. The test written for each stayed green with the "fix" taken out, which is how that showed.
+
+### Cycles N7 and N8 (30 Oct) — build: one view, steps 1 and 2
+
+See [DEVLOG.md](DEVLOG.md).
+- **A stacked branch meets its base squashed.** Merging main (with the squash of the branch below) into the branch above conflicts on every file both touched; take the upper branch's side, which already holds the lower one's changes, and run the suite.
+- **When the new screen replaces the old, port the old screen's tests rather than keep both.** Each ported test showed what the new screen had to do differently (Next only moves the voice while playing).
+
+### Cycles N2–N6 (30 Oct) — build: the test audit's gaps
+
+See [DEVLOG.md](DEVLOG.md).
+- **Delete the test results before every run, above all a falsifying one.** A break that doesn't compile leaves the old XML, which reads as green; count failures from the XML, not from Gradle's quiet output.
+- **A test that stays green under its break is too weak, not proof.** Three did (the closing page against the last article's "Next" line, the old screen against the new in the bar test, a Today state that can't be reached); each was tightened or the code it guarded removed.
+- **A failure in a service the diff doesn't touch is still checked before re-running:** #413's Robolectric download and #416's save-copy pull were each said on the PR, then re-run once.
+
 ### Cycle N1 (30 Oct) — build: a not-sent edition made the real way
 
 See [DEVLOG.md](DEVLOG.md).

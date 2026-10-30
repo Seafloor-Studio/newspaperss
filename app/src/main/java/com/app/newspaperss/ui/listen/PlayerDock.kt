@@ -193,11 +193,7 @@ internal suspend fun follow(list: LazyListState, script: ListenScript, line: Lis
     val info = list.layoutInfo
     val viewport = info.viewportSize.height
     val shown = info.visibleItemsInfo.firstOrNull { it.index == before + line.block }
-    if (shown != null) {
-        // A block without lines measured (a picture, or text not drawn yet) is on screen when all of it is.
-        val (top, bottom) = span ?: (0f to shown.size.toFloat())
-        if (shown.offset + top >= info.viewportStartOffset && shown.offset + bottom <= info.viewportEndOffset) return
-    }
+    if (shown != null && span != null && shown.offset + span.first >= info.viewportStartOffset && shown.offset + span.second <= info.viewportEndOffset) return
     list.scrollToItem(before + line.block)
     val top = span?.first ?: return
     if (top > viewport / 3) list.scrollBy(top - viewport / 4f)

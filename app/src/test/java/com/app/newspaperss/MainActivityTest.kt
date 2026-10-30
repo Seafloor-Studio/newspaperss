@@ -127,7 +127,7 @@ class MainActivityTest {
         compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
         shows("About 30 minutes")
         compose.onNodeWithText("The ferry planner").performClick()
-        // The article's page, its byline at the top, with the preview's own Aa: not the old playing screen.
+        // The article's page, its byline at the top, with the preview's own Aa.
         shows("1 min read")
         compose.onNodeWithContentDescription("Text size").assertExists()
         compose.onNodeWithContentDescription("Next article").assertExists()
