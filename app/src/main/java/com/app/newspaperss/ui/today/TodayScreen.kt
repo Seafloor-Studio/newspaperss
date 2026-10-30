@@ -129,7 +129,6 @@ fun TodayScreen(
     onOpenEdition: (Long) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val building by viewModel.building.collectAsStateWithLifecycle()
     val context = LocalContext.current
     fun launch(intent: android.content.Intent): Boolean = try {
         context.startActivity(intent)
@@ -206,7 +205,6 @@ fun TodayScreen(
                     offerOpen = state.offerOpen,
                     kindleReader = state.kindleReader,
                     hasFile = hasFile,
-                    building = building,
                     sentToKindle = state.sentToKindle[latest.id],
                     // Only when Send opens the mail app itself; otherwise it's the share sheet, as usual.
                     emailsKindle = state.kindleEmail?.let { remember(it) { EditionIntents.mailAppFor(context, it) } } != null,
@@ -343,7 +341,6 @@ private fun LatestEdition(
     offerOpen: Boolean,
     kindleReader: Boolean,
     hasFile: Boolean,
-    building: Boolean,
     sentToKindle: KindleSend?,
     emailsKindle: Boolean,
     onRetry: () -> Unit,
@@ -423,11 +420,21 @@ private fun LatestEdition(
                 }
                 EditionStatus.FAILED -> {
                     val error = edition.error ?: "This edition couldn't be made."
-                    // Its own stop too, so it's read just before Try again.
+                    // Its own stop too, so it's read just before the button that answers it.
                     if (error != saidAbove) Text(error, color = failureColor(edition.error), modifier = Modifier.padding(top = 8.dp).semantics(mergeDescendants = true) {})
-                    // Released as not sent, it offers what its page does while its book is here.
+                    // Released as not sent, it offers what its page does while its book is here. Not
+                    // greyed out while one is made: the card is then the edition being made.
                     if (EditionBuilder.released(edition)) {
-                        if (hasFile) MarkAsSentLine(preferOpen, onSent, Modifier.padding(top = 4.dp), waiting = building)
+                        if (hasFile) {
+                            MarkAsSentLine(preferOpen, onSent, Modifier.padding(top = 4.dp))
+                        } else {
+                            Text(
+                                "This edition's file has been deleted, so it can't be sent or opened.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(top = 8.dp).semantics(mergeDescendants = true) {},
+                            )
+                        }
                     } else {
                         OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("Try again") }
                     }
