@@ -57,9 +57,10 @@ internal object PageExtractor {
     // there it reaches further, for the post's header.
     private const val PAYWALL_PITCH = ".mepr-unauthorized-message, .passport-marketing-page"
     // What platforms put in place of the rest of a paid post: Ghost's upgrade box (from its
-    // {{content}} helper, so every theme has it), Substack's paywall, and the sales pitches of
-    // MemberPress (a WordPress membership plugin) and Passport (Stratechery's).
-    private const val PAYWALL = ".gh-post-upgrade-cta, [data-testid=paywall], $PAYWALL_PITCH"
+    // {{content}} helper, so every theme has it), Substack's paywall or the sign-up wall it shows
+    // first on some paid posts, and the sales pitches of MemberPress (a WordPress membership plugin)
+    // and Passport (Stratechery's).
+    private const val PAYWALL = ".gh-post-upgrade-cta, [data-testid=paywall], [data-testid=freewall], $PAYWALL_PITCH"
     // A sign-in form in the article itself, where a site with its own paywall (a magazine's) puts it
     // after the free part. Only in a lone <article>: a site's header or a modal can hold one anywhere.
     private const val SIGN_IN_IN_ARTICLE = "input[type=password]"

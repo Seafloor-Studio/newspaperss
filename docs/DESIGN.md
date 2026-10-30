@@ -88,7 +88,8 @@ module so it's all unit-tested without Android.
   is the item's address.
 - **Paid posts.** A post for paying subscribers goes in as its free part,
   with a note saying so. It's known by what the platform puts on the page
-  in place of the rest: Ghost's upgrade box, Substack's paywall, the sales
+  in place of the rest: Ghost's upgrade box, Substack's paywall or its
+  "Subscribe for free to continue reading" wall, the sales
   pitch of MemberPress (a WordPress plugin) or of Passport (Stratechery's),
   or a sign-in form inside the article beside an offer to subscribe or buy
   (a magazine's own paywall, like New Left Review's). Those two pitches are

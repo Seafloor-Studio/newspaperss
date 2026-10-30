@@ -490,6 +490,19 @@ class ArticleExtractorTest {
         assertFalse("an excerpt feed's page is the whole post", free.paidPost)
     }
 
+    /** Substack can put a sign-up wall where the paywall goes, and the rest of the post isn't on the page either way. */
+    @Test
+    fun aSubstackSignUpWallIsAPaywallToo() = runTest {
+        val freewall = """<div data-testid="freewall" role="region" aria-label="Subscribe for free to continue reading">""" +
+            """<div class="fade" aria-hidden="true"></div><div><h2>Subscribe for free to continue reading</h2>""" +
+            """<div>Enter your email and get every post from The Example Letter.</div>""" +
+            """<form action="/api/v1/free?nojs=true" method="post"><input type="email" name="email"><button>Subscribe</button></form></div></div>"""
+        val opening = "<p>${sentence.repeat(3)}</p><p><a href=\"$url\">Read more</a></p>"
+        val article = ArticleExtractor(FakeHttp(mapOf(url to paywalledPage(50, freewall)))).extract(input(opening))
+        assertTrue(article.paidPost)
+        assertEquals(ArticleExtractor.PAID_NOTE, article.note)
+    }
+
     /** A link post's pitch is the pitcher's own words, free whatever the story's site does. */
     @Test
     fun aLinkPostsPitchIsntAPaidPost() = runTest {
