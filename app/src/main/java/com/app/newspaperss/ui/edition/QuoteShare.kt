@@ -1,22 +1,11 @@
 package com.app.newspaperss.ui.edition
 
-import android.content.Context
-import android.content.ContextWrapper
 import android.content.Intent
-import android.os.Bundle
 import androidx.core.content.IntentCompat
 
-/**
- * The context the preview's WebView is made with. Selected text's Share is the WebView's own: it
- * builds a share of just the text and starts it through this context, with no hook for the app.
- * So the share is caught here, on its way out, and [source]'s address added under the text, so a
- * quote says where it's from.
- */
-internal class QuoteShareContext(base: Context, private val source: () -> ArticleLink?) : ContextWrapper(base) {
-    override fun startActivity(intent: Intent) = super.startActivity(withSource(intent, source()))
-
-    override fun startActivity(intent: Intent, options: Bundle?) = super.startActivity(withSource(intent, source()), options)
-}
+/** A share of [quote], selected on the page, with [link]'s address under it so it says where it's from. */
+internal fun quoteIntent(quote: String, link: ArticleLink?): Intent =
+    withSource(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, quote), null), link)
 
 /**
  * [intent] with [link]'s address on its own line under the text, if it shares text, directly or

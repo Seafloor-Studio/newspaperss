@@ -57,8 +57,22 @@ class PageTextTest {
         assertEquals(LinkTarget.Web("https://example.com/a"), at("https://example.com/a"))
         assertEquals(LinkTarget.Page(1), at("article-002.xhtml"))
         assertEquals(LinkTarget.Page(null), at("end.xhtml"))
-        // A footnote stays on the page; anything but the web opens nothing.
-        for (href in listOf("article-002.xhtml#fn1", "#fn1", "javascript:alert(1)", "intent://x#Intent;end", "file:///etc/hosts", "mailto:a@example.com")) assertNull(href, at(href))
+        // A footnote, on this page or the second article's; anything but the web opens nothing.
+        assertEquals(LinkTarget.Anchor("fn1"), at("#fn1"))
+        assertEquals(LinkTarget.Anchor("fn1", 1), at("article-002.xhtml#fn1"))
+        for (href in listOf("#", "javascript:alert(1)", "intent://x#Intent;end", "file:///etc/hosts", "mailto:a@example.com")) assertNull(href, at(href))
         assertNull(linkAt(Block.Text(Kind.META, emptyList(), "Plain"), 2))
+    }
+
+    @Test
+    fun linksAreNamedForTalkBackByWhereTheyGo() {
+        fun label(shown: String, href: String): String {
+            val block = Block.Text(Kind.META, emptyList(), shown, styles = listOf(ListenScript.Style(0, shown.length, StyleKind.LINK, href)))
+            return linkLabel(block, linkAt(block, 0)!!)
+        }
+        assertEquals("Go to Next: Two · 30 min", label("Next: Two · 30 min\u00A0→", "article-002.xhtml"))
+        assertEquals("Open the paper", label("the paper", "https://example.com/paper"))
+        assertEquals("Go to note 3", label("3", "#fn3"))
+        assertEquals("Back to the text", label("↩", "#ref3"))
     }
 }

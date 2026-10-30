@@ -1,83 +1,84 @@
 package com.app.newspaperss.ui.edition
 
-import androidx.compose.runtime.saveable.Saver
-import androidx.compose.runtime.saveable.rememberSaveable
-import java.util.Locale
-import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.BitmapFactory
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.contextmenu.builder.item
+import androidx.compose.foundation.text.contextmenu.modifier.appendTextContextMenuComponents
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.text.selection.rememberSelectionState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import com.app.newspaperss.ui.components.EpisodeJudgement
-import com.app.newspaperss.ui.components.episodeNote
-import com.app.newspaperss.settings.PreviewTextSize
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.viewinterop.AndroidView
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.withContext
+import androidx.compose.ui.unit.dp
 import com.app.newspaperss.core.epub.EpubWriter
+import com.app.newspaperss.core.listen.ListenScript
+import com.app.newspaperss.settings.PreviewTextSize
+import com.app.newspaperss.ui.components.EpisodeJudgement
+import com.app.newspaperss.ui.components.episodeNote
+import com.app.newspaperss.ui.listen.LinkTarget
+import com.app.newspaperss.ui.listen.RuleBlock
+import com.app.newspaperss.ui.listen.TableBlock
+import com.app.newspaperss.ui.listen.TableRows
+import com.app.newspaperss.ui.listen.TextBlock
+import com.app.newspaperss.ui.listen.asText
+import com.app.newspaperss.ui.listen.sized
+import com.app.newspaperss.ui.listen.tooBig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
-import org.jsoup.nodes.Document
-import org.jsoup.nodes.Entities
 import org.jsoup.parser.Parser
-import java.io.ByteArrayInputStream
 import java.io.File
 import kotlin.math.roundToInt
-
-// Pages are served under a made-up https origin so the book's relative links (style.css,
-// images/…, the "Next" link) resolve against it; nothing is fetched from the network.
-internal const val BOOK_ORIGIN = "https://edition.newspaperss.invalid/"
-
-private sealed interface Preview {
-    data object Loading : Preview
-    data object Missing : Preview
-    class Ready(val pages: EpubPages, val xhtml: String, val link: ArticleLink?) : Preview
-}
 
 /** An article's title and the web address of its original, as the book's page gives them. */
 internal data class ArticleLink(val title: String, val url: String)
@@ -90,19 +91,6 @@ internal fun articleLink(xhtml: String): ArticleLink? {
     val doc = Jsoup.parse(xhtml, "", Parser.xmlParser())
     val url = doc.selectFirst("p.source-link a[href]")?.attr("href")?.takeIf { it.isNotBlank() } ?: return null
     return ArticleLink(doc.selectFirst("h1.article-title")?.text().orEmpty(), url)
-}
-
-/** A book page's heading, or null if it has none, and its [articleLink]. */
-internal data class BookPage(val title: String?, val link: ArticleLink?)
-
-/** The [BookPage] at [url], or null if [url] isn't a page of the book. */
-internal fun bookPage(url: String, pages: EpubPages): BookPage? {
-    if (!url.startsWith(BOOK_ORIGIN)) return null
-    val path = "OEBPS/" + url.removePrefix(BOOK_ORIGIN).substringBefore('#').substringBefore('?')
-    if (EpubPages.mimeOf(path) != "application/xhtml+xml") return null
-    val xhtml = pages.entry(path)?.toString(Charsets.UTF_8) ?: return null
-    val title = Jsoup.parse(xhtml, "", Parser.xmlParser()).selectFirst("h1.article-title")?.text()?.ifEmpty { null }
-    return BookPage(title, articleLink(xhtml))
 }
 
 // The book's own line, as EpubWriter writes it after a long article.
@@ -141,8 +129,19 @@ internal fun shareIntent(link: ArticleLink, fallbackTitle: String): Intent {
     return Intent.createChooser(send, null)
 }
 
+/** The page on screen: which article, what it holds, and its original's address and title. */
+private class PreviewPage(val article: Int, val script: ListenScript, val link: ArticleLink?, val title: String?)
+
+private sealed interface Book {
+    data object Loading : Book
+    data object Missing : Book
+    class Open(val pages: EpubPages, val articles: Int) : Book
+}
+
 /**
- * One article as the e-reader will show it, read straight out of the EPUB.
+ * One article of the edition, read straight out of the EPUB and drawn by the app from its page
+ * ([ListenScript], as the playing screen draws it): close to the e-reader's page, though each
+ * e-reader sets its own fonts and margins. The "Next" line at its end turns to the next article.
  *
  * @param loadFile the edition's file, or null if it's gone. Called off the main thread.
  * @param textSize the preview's text size, on top of Android's font size; null until it's known,
@@ -175,78 +174,54 @@ fun ArticlePreviewScreen(
 ) {
     // Read in the background so the screen shows at once: reading a large edition during
     // composition holds up the frame, and the tap that opened it seems not to have registered.
-    val preview by produceState<Preview>(Preview.Loading, position) {
+    val book by produceState<Book>(Book.Loading, position) {
         val pages = withContext(Dispatchers.IO) { loadFile()?.let(::EpubPages) }
         try {
-            val xhtml = pages?.let { withContext(Dispatchers.IO) { it.article(position)?.let { page -> withNextLine(page, EpubPages.articleHref(position), it) } } }
-            val link = xhtml?.let { withContext(Dispatchers.IO) { articleLink(it) } }
-            // Set on the main thread: under a test's unconfined dispatcher the code after
-            // withContext(IO) can resume on the IO thread, and the new state then touches views.
-            withContext(Dispatchers.Main.immediate) {
-                value = if (pages != null && xhtml != null) Preview.Ready(pages, xhtml, link) else Preview.Missing
-            }
+            val articles = pages?.let { withContext(Dispatchers.IO) { generateSequence(0) { it + 1 }.takeWhile { at -> it.has("OEBPS/" + EpubPages.articleHref(at)) }.count() } } ?: 0
+            value = if (pages != null && articles > position) Book.Open(pages, articles) else Book.Missing
             awaitCancellation()
         } finally {
             pages?.close()
         }
     }
-    // The page on screen can change under the preview: every article ends in a "Next" link.
-    var link by remember(preview) { mutableStateOf((preview as? Preview.Ready)?.link) }
-    // The article [link] belongs to, changed with it: after a rotation the link is the first
-    // article's until the restored page reports itself, whatever article was on screen.
-    var linkArticle by remember(preview) { mutableStateOf<Int?>(position) }
-    var pageTitle by remember(preview) { mutableStateOf<String?>(null) }
-    // Which article is on screen, for Listen: null on the book's other pages, such as its end,
-    // and on any page the book doesn't have, which a link in an article could point to.
-    // Kept across rotation: the restored page reports itself only once it has loaded again.
-    var shownArticle by rememberSaveable(position) { mutableStateOf<Int?>(position) }
-    // The article the line above the page is about: changed only once the new page is known, not
-    // cleared in between as shownArticle is, so on e-ink a page turn redraws it once, not twice.
-    var noteArticle by rememberSaveable(position) { mutableStateOf<Int?>(position) }
-    val shownTitle = pageTitle ?: title
-    val scope = rememberCoroutineScope()
-    var reading by remember { mutableStateOf<Job?>(null) }
-    val onPage = { url: String, pages: EpubPages ->
-        // Only book pages: the first page is loaded as data and may report about:blank.
-        if (url.startsWith(BOOK_ORIGIN)) {
-            val article = EpubPages.articleAt(url.removePrefix(BOOK_ORIGIN).substringBefore('#').substringBefore('?'))
-            // Hidden until the page is known to be one of the book's.
-            if (article != shownArticle) shownArticle = null
-            reading?.cancel()
-            reading = scope.launch {
-                val read = withContext(Dispatchers.IO) { bookPage(url, pages) }
-                // Set on the main thread, where a newer page cancels this read: resumed on the IO
-                // thread (as under a test's unconfined dispatcher), a read cancelled a moment too
-                // late could write its page's link over the newer one.
-                withContext(Dispatchers.Main.immediate) {
-                    ensureActive()
-                    link = read?.link
-                    linkArticle = article.takeIf { read != null }
-                    pageTitle = read?.title
-                    shownArticle = article.takeIf { read != null }
-                    noteArticle = shownArticle
-                }
+    // The article on screen: the "Next" line turns to the next. Kept across rotation.
+    var article by rememberSaveable(position) { mutableIntStateOf(position) }
+    val open = book as? Book.Open
+    // The page on screen stays, title, note and buttons with it, until the next is read: on e-ink a
+    // page turn then redraws once, not blank and again.
+    var shown by remember(open) { mutableStateOf<PreviewPage?>(null) }
+    var unreadable by remember(open) { mutableStateOf(false) }
+    LaunchedEffect(open, article) {
+        val opened = open ?: return@LaunchedEffect
+        // A saved article the file no longer has, after it was made again, say.
+        if (article !in 0 until opened.articles) {
+            article = position
+            return@LaunchedEffect
+        }
+        val read = withContext(Dispatchers.IO) {
+            opened.pages.article(article)?.let { withNextLine(it, EpubPages.articleHref(article), opened.pages) }?.let { xhtml ->
+                val heading = Jsoup.parse(xhtml, "", Parser.xmlParser()).selectFirst("h1.article-title")?.text()?.ifEmpty { null }
+                PreviewPage(article, parsed(xhtml), articleLink(xhtml), heading)
             }
         }
+        unreadable = read == null
+        if (read != null) shown = read
     }
-    // Outside the WebView, which a rotation, a theme change or a tab switch rebuilds: without it
-    // the reader would be back at the top of the first article, however many "Next"s ago.
-    val place = rememberSaveable(position, saver = PLACE_SAVER) { Place() }
+    val link = shown?.link
+    val shownTitle = shown?.title ?: title
     val context = LocalContext.current
     // The address asked about, so the question stays up across rotation; asked only about the
     // page it was asked on.
     var lookAt by rememberSaveable(position) { mutableStateOf<String?>(null) }
-    link?.takeIf { it.url == lookAt }?.let { SendForALookDialog(it, linkArticle?.let(episodeFor), onDismiss = { lookAt = null }) }
+    link?.takeIf { it.url == lookAt }?.let { SendForALookDialog(it, shown?.article?.let(episodeFor), onDismiss = { lookAt = null }) }
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(shownTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
                 actions = {
-                    if (onListen != null && preview is Preview.Ready) {
-                        shownArticle?.let { article ->
-                            IconButton(onClick = { onListen(article) }) { Icon(Icons.Default.Headphones, contentDescription = "Listen from here") }
-                        }
+                    shown?.takeIf { onListen != null }?.let { onScreen ->
+                        IconButton(onClick = { onListen?.invoke(onScreen.article) }) { Icon(Icons.Default.Headphones, contentDescription = "Listen from here") }
                     }
                     link?.let { l ->
                         IconButton(onClick = { runCatching { context.startActivity(shareIntent(l, shownTitle)) } }) {
@@ -256,48 +231,167 @@ fun ArticlePreviewScreen(
                     textSize?.let { TextSizeMenu(it, onTextSize) }
                     // The page on screen's own source, which following "Next" changes, as Share and
                     // Listen do. The menu itself is there for whichever of the two it has.
-                    val goTo = shownArticle?.takeIf { onOpenSource != null }?.let { at -> sourceAt(at)?.let { at to it } }
-                    val l = link
-                    if (l != null || goTo != null) {
+                    val onScreen = shown?.article
+                    val goTo = onScreen?.let { at -> onOpenSource?.let { sourceAt(at) } }
+                    if (link != null || goTo != null) {
                         MoreMenu(
-                            onSendForALook = l?.let { { lookAt = it.url } },
-                            source = goTo?.second,
-                            onOpenSource = goTo?.let { (at, _) -> { onOpenSource?.invoke(at) } },
+                            onSendForALook = link?.let { { lookAt = it.url } },
+                            source = goTo,
+                            onOpenSource = goTo?.let { { onScreen?.let { onOpenSource?.invoke(it) } } },
                         )
                     }
                 },
             )
         },
     ) { padding ->
-        val p = preview
         when {
-            p == Preview.Missing -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            book == Book.Missing -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Text("This edition's file is gone, so the article can't be shown.")
             }
+            unreadable && shown == null -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Text("This article can't be read from the edition's file.")
+            }
             // Words, not an animated bar, which smears on e-ink.
-            p !is Preview.Ready || textSize == null -> Text("Opening…", Modifier.padding(padding).padding(24.dp))
-            else -> {
-                val colors = MaterialTheme.colorScheme
-                // Setting textZoom replaces the WebView's own scaling by Android's font size, so apply
-                // that here: someone who reads with large system text gets it at "Default" too.
-                val textZoom = (textSize.percent * LocalDensity.current.fontScale).roundToInt()
-                val justify = justifies(textSize, textZoom)
-                // Keyed: the WebView is built once, so a new article needs a new one. A new size or
-                // alignment is applied to it in place.
-                Column(Modifier.fillMaxSize().padding(padding)) {
-                    noteArticle?.let(episodeFor)?.let(::episodeNote)?.let { note ->
-                        // Held to four lines: it stays above the article for the whole read.
-                        Text(note, style = MaterialTheme.typography.bodySmall, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                        HorizontalDivider()
-                    }
-                    key(p) {
-                        BookView(p.pages, p.xhtml, colors.background.toArgb(), colors.onBackground.toArgb(), textZoom, justify, BOOK_ORIGIN + EpubPages.articleHref(position), { onPage(it, p.pages) }, { link }, place, Modifier.fillMaxWidth().weight(1f))
-                    }
+            open == null || shown == null || textSize == null -> Text("Opening…", Modifier.padding(padding).padding(24.dp))
+            else -> Column(Modifier.fillMaxSize().padding(padding)) {
+                val onScreen = shown!!
+                episodeFor(onScreen.article)?.let(::episodeNote)?.let { note ->
+                    // Held to four lines: it stays above the article for the whole read.
+                    Text(note, style = MaterialTheme.typography.bodySmall, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    HorizontalDivider()
+                }
+                key(onScreen.article) {
+                    PreviewPageView(
+                        onScreen, open.pages, textSize, link,
+                        onArticle = { at -> if (at in 0 until open.articles) article = at },
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
                 }
             }
         }
     }
 }
+
+/**
+ * A page read into blocks. One nested too deep for the parser says so, and keeps its "Next" line,
+ * so the way on through the paper isn't lost with it.
+ */
+private fun parsed(xhtml: String): ListenScript = try {
+    ListenScript.parse(xhtml)
+} catch (_: StackOverflowError) {
+    val next = BOOK_NEXT_LINE.find(xhtml)?.value.orEmpty()
+    ListenScript.parse("<html><body><p class=\"note\">This article is built too deeply to show here; it's whole in the book.</p>$next</body></html>")
+}
+
+/**
+ * The article's blocks, its text selectable: the selection menu's **Share** sends the words with
+ * the original's address under them, so a quote says where it's from.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PreviewPageView(page: PreviewPage, pages: EpubPages, textSize: PreviewTextSize, link: ArticleLink?, onArticle: (Int) -> Unit, modifier: Modifier) {
+    val script = page.script
+    // Where the reader was in this article, across rotation and coming back to it.
+    val list = rememberSaveable(page.article, saver = LazyListState.Saver) { LazyListState() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val selection = rememberSelectionState()
+    val currentLink by rememberUpdatedState(link)
+    val justify = justifies(textSize, (textSize.percent * LocalDensity.current.fontScale).roundToInt())
+    // Kept for the page, so a picture scrolled away and back isn't decoded again and doesn't pop in.
+    val decoded = remember(page.article) { mutableMapOf<String, ImageBitmap?>() }
+    val goTo = { anchor: LinkTarget.Anchor ->
+        if (anchor.page != null && anchor.page != page.article) {
+            onArticle(anchor.page)
+        } else {
+            script.anchors[anchor.id]?.let { at -> scope.launch { list.scrollToItem(at) } }
+        }
+        Unit
+    }
+    SelectionContainer(
+        selection,
+        Modifier.appendTextContextMenuComponents {
+            item(ShareQuote, "Share") {
+                val quote = quoteOf(selection.selectedTexts.map { it.text })
+                close()
+                if (quote.isNotEmpty()) runCatching { context.startActivity(quoteIntent(quote, currentLink)) }
+            }
+        },
+    ) {
+        LazyColumn(modifier, state = list, contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)) {
+            itemsIndexed(script.blocks) { _, block ->
+                when (block) {
+                    is ListenScript.Block.Text -> TextBlock(
+                        block, current = null, textSize, onLayout = {}, onTap = null,
+                        onPage = { target -> target.index?.let(onArticle) },
+                        onAnchor = goTo,
+                        justify = justify,
+                    )
+                    is ListenScript.Block.Image -> PreviewImage(block, pages, textSize, decoded)
+                    is ListenScript.Block.Table -> if (block.tooBig()) {
+                        TextBlock(block.asText(), current = null, textSize, onLayout = {}, onTap = null)
+                    } else {
+                        TableBlock(block, current = null, textSize, remember { TableRows() }, onTap = {})
+                    }
+                    ListenScript.Block.Rule -> RuleBlock()
+                }
+            }
+        }
+    }
+}
+
+private object ShareQuote
+
+/**
+ * The words selected, from the page's texts as Compose gives them, one per text drawn: a list item's
+ * number is its own, and goes in front of its item rather than on a line of its own.
+ */
+internal fun quoteOf(texts: List<String>): String = buildString {
+    for (text in texts) {
+        if (isNotEmpty() && !MARKER.matches(lastLineOf(this))) append('\n')
+        append(if (MARKER.matches(text)) text.trimEnd() + " " else text)
+    }
+}.trim()
+
+private fun lastLineOf(text: CharSequence) = text.substring(text.lastIndexOf('\n') + 1)
+
+// A list item's number or bullet, as drawn in front of it: "3. ", "• ", "1. • ".
+private val MARKER = Regex("^(?:\\d+\\.|•)(?: (?:\\d+\\.|•))* ?$")
+
+/**
+ * A picture from the book, at its own size, or the width of the page for a large one standing
+ * alone (alone in its figure, or an article that's only the picture): a tall strip shrunk to the
+ * book's image size would otherwise sit narrow in the middle. Small ones (a headshot, a logo, a
+ * row of icons) keep their size, as in the book. Its caption under it.
+ */
+@Composable
+private fun PreviewImage(block: ListenScript.Block.Image, pages: EpubPages, textSize: PreviewTextSize, decoded: MutableMap<String, ImageBitmap?>) {
+    val bitmap by produceState(decoded[block.src], block.src) {
+        if (block.src in decoded) return@produceState
+        value = withContext(Dispatchers.IO) {
+            pages.entry("OEBPS/" + block.src)?.let { bytes -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }
+        }
+        decoded[block.src] = value
+    }
+    Column(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        bitmap?.let { image ->
+            // At the book's size, a pixel to a dp as a web page has it, and never wider than the page.
+            val sized = if (fillsWidth(block, image.width to image.height)) Modifier.fillMaxWidth() else Modifier.widthIn(max = image.width.dp)
+            Image(image, contentDescription = block.description, contentScale = ContentScale.FillWidth, modifier = sized)
+        }
+        block.caption?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall.sized(textSize), modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+        }
+    }
+}
+
+/** Whether a picture of [size] (width, height in pixels) fills the page's width: see [PreviewImage]. */
+internal fun fillsWidth(block: ListenScript.Block.Image, size: Pair<Int, Int>?): Boolean =
+    block.standalone && size != null && (size.first >= FILL_MIN_WIDTH || size.second >= FILL_MIN_HEIGHT)
+
+// Wide enough to be the picture rather than an icon, or a strip shrunk by the book's 1200px limit.
+private const val FILL_MIN_WIDTH = 240
+private const val FILL_MIN_HEIGHT = 800
 
 @Composable
 private fun TextSizeMenu(textSize: PreviewTextSize, onTextSize: (PreviewTextSize) -> Unit) {
@@ -343,201 +437,3 @@ private fun MoreMenu(onSendForALook: (() -> Unit)?, source: String?, onOpenSourc
  */
 internal fun justifies(textSize: PreviewTextSize, textZoom: Int): Boolean =
     textSize < PreviewTextSize.LARGER && textZoom < PreviewTextSize.LARGER.percent
-
-/**
- * What the preview's WebView gets for [url]: a file from the book, or nothing at all. Anything
- * outside the book, and anything missing from it, gets an empty body rather than being passed on,
- * so an article's HTML can never reach the network (no tracking pixels, fonts or stylesheets).
- */
-internal fun bookResponse(url: String, pages: EpubPages, background: Int, text: Int, justify: Boolean): Pair<String, ByteArray> {
-    if (!url.startsWith(BOOK_ORIGIN)) return "text/plain" to ByteArray(0)
-    val path = "OEBPS/" + url.removePrefix(BOOK_ORIGIN).substringBefore('#').substringBefore('?')
-    val bytes = pages.entry(path) ?: return "text/plain" to ByteArray(0)
-    val mime = EpubPages.mimeOf(path)
-    // A page reached by a link in the book ("Next") comes this way, not through loadData.
-    if (mime == "application/xhtml+xml") {
-        val page = withNextLine(bytes.toString(Charsets.UTF_8), path.removePrefix("OEBPS/"), pages)
-        return mime to forPreview(page, background, text, imageSizes(pages), justify).toByteArray()
-    }
-    return mime to bytes
-}
-
-@SuppressLint("SetJavaScriptEnabled")
-@Composable
-private fun BookView(
-    pages: EpubPages,
-    xhtml: String,
-    background: Int,
-    text: Int,
-    textZoom: Int,
-    justify: Boolean,
-    pageUrl: String,
-    onPage: (url: String) -> Unit,
-    /** The page on screen's original, added under shared selected text. */
-    source: () -> ArticleLink?,
-    place: Place,
-    modifier: Modifier,
-) {
-    // Read when a page is served, so pages reached by "Next" follow a change too.
-    val style = remember { PageStyle(justify) }
-    // The client below is built once, but onPage can change after: Scaffold lays its content out
-    // after the screen composes, so the WebView can be built just before the screen recomposes
-    // for the finished load; the onPage it was built with writes to a link the screen no longer reads.
-    val currentOnPage by rememberUpdatedState(onPage)
-    val currentSource by rememberUpdatedState(source)
-    AndroidView(
-        modifier = modifier,
-        // Applied in place, so a new size keeps the reader's place in the article. A new alignment
-        // is in the stylesheet, and scripts are off, so the page on screen is served again and
-        // scrolled back to where it was.
-        update = { view ->
-            view.settings.textZoom = textZoom
-            if (style.justify != justify) {
-                style.justify = justify
-                style.restoreAt = view.scrollY / (view.contentHeight * view.pageScale).coerceAtLeast(1f)
-                // The book's own record of the page, not view.url: the first page, loaded as data,
-                // reports about:blank there. Without its #footnote, so it's served again rather
-                // than scrolled to.
-                val onScreen = style.page?.substringBefore('#')
-                if (onScreen == null || onScreen == pageUrl) {
-                    view.loadDataWithBaseURL(pageUrl, forPreview(xhtml, background, text, imageSizes(pages), justify), "application/xhtml+xml", "utf-8", null)
-                } else {
-                    view.loadUrl(onScreen)
-                }
-            }
-        },
-        factory = { context ->
-            WebView(QuoteShareContext(context) { currentSource() }).apply {
-                // Before the page loads too, so a dark screen doesn't flash white.
-                setBackgroundColor(background)
-                // The book has no scripts; keep the preview inert.
-                settings.javaScriptEnabled = false
-                settings.allowFileAccess = false
-                settings.allowContentAccess = false
-                // Pinch to zoom, for a comic's small print; no on-screen buttons over the page.
-                settings.builtInZoomControls = true
-                settings.displayZoomControls = false
-                webViewClient = object : WebViewClient() {
-                    override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse {
-                        val (mime, bytes) = bookResponse(request.url.toString(), pages, background, text, style.justify)
-                        return WebResourceResponse(mime, "utf-8", ByteArrayInputStream(bytes))
-                    }
-
-                    override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
-                        if (url.startsWith(BOOK_ORIGIN)) {
-                            style.page = url
-                            if (url.substringBefore('#') != place.page?.substringBefore('#')) place.at = 0f
-                            place.page = url
-                        }
-                        currentOnPage(url)
-                    }
-
-                    override fun onPageFinished(view: WebView, url: String) {
-                        val at = style.restoreAt ?: return
-                        style.restoreAt = null
-                        // After layout, when the page has its new height.
-                        view.post { view.scrollTo(0, (at * view.contentHeight * view.pageScale).roundToInt()) }
-                    }
-
-                    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                        val url = request.url
-                        if (url.toString().startsWith(BOOK_ORIGIN)) return false
-                        // "Original:" links go to the phone's browser, not into the preview; only
-                        // web links someone actually tapped.
-                        if (request.hasGesture() && url.scheme in setOf("http", "https", "mailto")) {
-                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                        }
-                        return true
-                    }
-                }
-                // Not while a reloaded page is still on its way back to where it was: it's at the top meanwhile.
-                setOnScrollChangeListener { v, _, y, _, _ ->
-                    if (style.restoreAt == null) place.at = y / ((v as WebView).contentHeight * v.pageScale).coerceAtLeast(1f)
-                }
-                // Back where it was, after the WebView was rebuilt.
-                if (place.at > 0f) style.restoreAt = place.at
-                val wasOn = place.page?.substringBefore('#')
-                if (wasOn != null && wasOn != pageUrl) {
-                    loadUrl(wasOn)
-                } else {
-                    // The page's own address in the book, not the bare origin: its footnote links then
-                    // resolve to this page, and the Share link follows the page on screen.
-                    loadDataWithBaseURL(pageUrl, forPreview(xhtml, background, text, imageSizes(pages), justify), "application/xhtml+xml", "utf-8", null)
-                }
-            }
-        },
-    )
-}
-
-/**
- * The preview's stylesheet choice, the book page on screen (null until one reports itself), and
- * where to scroll back to once a restyled page has loaded.
- */
-private class PageStyle(var justify: Boolean) {
-    var page: String? = null
-    var restoreAt: Float? = null
-}
-
-/** The book page on screen and how far down it, saved across the WebView being rebuilt. */
-internal class Place(var page: String? = null, var at: Float = 0f)
-
-private val PLACE_SAVER = Saver<Place, List<Any?>>(save = { listOf(it.page, it.at) }, restore = { Place(it[0] as String?, it[1] as Float) })
-
-/** Screen pixels per CSS pixel: the density, times any pinch-zoom. */
-@Suppress("DEPRECATION")
-private val WebView.pageScale: Float get() = scale
-
-/**
- * The book leaves side margins and colours to the e-reader's own settings, so the preview supplies
- * them: a WebView has no margins, and would show the page black on white in the app's dark mode.
- * The book's links and rules take the text's colour, so they follow.
- *
- * A large picture that stands alone (alone in its figure, or an article that is just the image)
- * fills the width: a tall strip shrunk to the book's image size would otherwise sit narrow in the
- * middle. Small ones (a headshot, a logo, a row of icons) keep their size, as in the book.
- *
- * @param imageSize an image's width and height in pixels by its `src`, or null if unknown.
- * @param justify false to left-align the article's paragraphs (see [justifies]).
- */
-internal fun forPreview(xhtml: String, background: Int, text: Int, imageSize: (src: String) -> Pair<Int, Int>? = { null }, justify: Boolean = true): String {
-    // `start`, not `left`, so a right-to-left article lines up on its right; the book itself says
-    // `left` only because Kindle doesn't know `start`.
-    val align = if (justify) "" else " .article-body p { text-align: start; }"
-    // The Next line's whole width is the link, at least a finger tall at any text size; only the
-    // title is underlined.
-    val next = " p.article-nav a.next { display: block; box-sizing: border-box; min-height: 48px; padding: 0.7em 0; text-decoration: none; } p.article-nav a.next span.title { text-decoration: underline; }"
-    val style = "<style>body { margin: 0 5%; background: ${css(background)}; color: ${css(text)}; } img.$FILL { width: 100%; }$next$align</style></head>"
-    return markLargeImages(xhtml, imageSize).replaceFirst("</head>", style)
-}
-
-private const val FILL = "preview-fill"
-// Wide enough to be the picture rather than an icon, or a strip shrunk by the book's 1200px limit.
-private const val FILL_MIN_WIDTH = 240
-private const val FILL_MIN_HEIGHT = 800
-
-private fun markLargeImages(xhtml: String, imageSize: (String) -> Pair<Int, Int>?): String {
-    if (!xhtml.contains("<img")) return xhtml
-    val doc = Jsoup.parse(xhtml, "", Parser.xmlParser())
-    val large = doc.select("img").filter { img ->
-        val parent = img.parent() ?: return@filter false
-        val alone = (parent.tagName() == "figure" && parent.select("img").size == 1) ||
-            (parent.tagName() == "div" && parent.hasClass("article-body"))
-        val size = if (alone) imageSize(img.attr("src")) else null
-        size != null && (size.first >= FILL_MIN_WIDTH || size.second >= FILL_MIN_HEIGHT)
-    }
-    if (large.isEmpty()) return xhtml
-    large.forEach { it.addClass(FILL) }
-    doc.outputSettings().prettyPrint(false).syntax(Document.OutputSettings.Syntax.xml).escapeMode(Entities.EscapeMode.xhtml)
-    return doc.outerHtml()
-}
-
-/** Reads each image's size from its header in the book, without decoding the picture. */
-internal fun imageSizes(pages: EpubPages): (String) -> Pair<Int, Int>? = { src ->
-    pages.entry("OEBPS/$src")?.let { bytes ->
-        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
-        (options.outWidth to options.outHeight).takeIf { options.outWidth > 0 && options.outHeight > 0 }
-    }
-}
-
-private fun css(argb: Int) = "#%06X".format(Locale.ROOT, argb and 0xFFFFFF)

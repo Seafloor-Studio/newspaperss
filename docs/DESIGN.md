@@ -581,9 +581,12 @@ whose Kindle and KOReader answers ask for more on the same page).
   Listening, below). Its ⋮
   menu has the card's menu, then **Save a copy…** while the book is on the
   phone (Android's save dialog, to keep the EPUB itself where you pick; the
-  share sheet often has no Files), above **Delete edition**. Tap an article to preview it as the e-reader
-  will show it (read straight from the EPUB, with nothing fetched from the
-  network), on top of Android's own font size. **Aa** in the top bar sets
+  share sheet often has no Files), above **Delete edition**. Tap an article to preview it, read
+  straight from the EPUB with nothing fetched from the network, and drawn by
+  the app as the playing screen draws it: bold, links, numbered lists,
+  tables, code and pictures, close to the e-reader's page (each e-reader sets
+  its own fonts and margins; `tools/render-epub.sh` draws the book itself).
+  Text is at **Aa**'s size, on top of Android's own font size. **Aa** in the top bar sets
   its text size (Small to Largest), the same size as Settings › Article
   text size, so changing either changes both. At Larger and up (or as large
   through Android's font size), paragraphs are left-aligned rather than
@@ -597,8 +600,9 @@ whose Kindle and KOReader answers ask for more on the same page).
   article on screen, from its beginning, and open the playing screen.
   **Share** in the top bar sends the article's original link to Android's share sheet;
   it's hidden when an article has no web link. Selected text shared from the
-  page carries that link too, on its own line under the quote, with the
-  article's title as the subject.
+  page (long-press, then **Share** in the selection menu) carries that link
+  too, on its own line under the quote, with the article's title as the
+  subject. A footnote's marker goes to its note.
   **Go to *Quanta Magazine*** in the top bar's ⋮ opens the page of where the
   article came from — a tt-rss feed's own page, the reading list, or the
   source's — which is where its cap, its article text, leaving it out and
@@ -619,8 +623,7 @@ whose Kindle and KOReader answers ask for more on the same page).
   to pick from. A wrong label opens "Episode label: *title*" with the post's
   address, the label it got and the one picked, so the post can become a case in
   the episode corpus. Large pictures that stand
-  alone fill the width (small ones keep their size), and the page can be
-  pinched to zoom into a comic.
+  alone fill the width (small ones keep their size).
   **Delete edition** is in the ⋮ menu, and asks by name, saying what happens
   to the articles (an unsent edition's go back for the next one). An article that went in because it was starred says
   "You starred it". On delivered editions each article has a trailing **☆** to

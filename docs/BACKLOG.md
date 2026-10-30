@@ -301,7 +301,7 @@ madCode chose it on 2026-10-28 as the ideal. Each step its own PR:
   numbers, tables, furniture), each sentence knowing where it's shown. Spoken lines unchanged (#400).
 - [x] **The playing screen draws it** (`ui/listen/PageText.kt`): bold, links, numbered lists,
   tables, code, the byline's date and the page's furniture, at the Aa size (#401).
-- [ ] **The preview drawn from the page model,** no WebView. It keeps all it does now, with
+- [x] **The preview drawn from the page model,** no WebView. It keeps all it does now, with
   nothing of Listen's added yet:
   - Aa, Share, Go to source and Send for a look in the top bar; the episode label line; the
     "Next" line at the end; pictures at their size (as `imageSizes` sizes them now).

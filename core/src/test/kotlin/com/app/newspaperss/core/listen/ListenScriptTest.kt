@@ -281,4 +281,17 @@ class ListenScriptTest {
         assertEquals(60.0, script.lines.drop(3).sumOf { ListenTime.seconds(it.spoken) }, 2.0)
         assertTrue(script.seconds > 60.0)
     }
+
+    /** Where each id is, for a footnote's link: in a paragraph, a table's cell or a figure. */
+    @Test
+    fun anIdIsFoundWhereverItIsOnThePage() {
+        val script = ListenScript.parse(
+            "<html><body><div class=\"article-body\"><p>First <a id=\"ref1\" href=\"#fn1\">1</a>.</p>" +
+                "<table><tr><td id=\"cell\">x</td></tr></table><figure><a id=\"pic\"><img src=\"a.png\" alt=\"\"/></a></figure>" +
+                "<p id=\"fn1\">The note.</p></div></body></html>",
+        )
+        val at = script.anchors.mapValues { (_, block) -> script.blocks[block]::class.simpleName }
+        assertEquals(mapOf("ref1" to "Text", "cell" to "Table", "pic" to "Image", "fn1" to "Text"), at)
+        assertEquals("The note.", (script.blocks[script.anchors.getValue("fn1")] as Block.Text).shown)
+    }
 }

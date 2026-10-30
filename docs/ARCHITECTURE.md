@@ -655,8 +655,8 @@ On a PR that touches what they cover:
   every push to main), on an emulator:
   - `EditionReachesAnotherAppTest` hands an edition to `:epubsink` in
     another process.
-  - `ArticlePreviewRenderTest` renders the edition's own EPUB in a real
-    WebView, as the preview does.
+  - `ArticlePreviewRenderTest` draws the edition's own EPUB in the preview on
+    a real screen, with real fonts.
   - `AccessibilityChecksTest` runs Google's accessibility checks on every
     screen a new reader meets, then Today, Sources and Settings again at 200%
     text. Under Robolectric those checks check nothing, so they live here.

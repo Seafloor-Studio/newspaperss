@@ -34,22 +34,6 @@ class EpubPagesTest {
     }
 
     @Test
-    fun thePreviewServesOnlyTheBookAndNeverPassesARequestOn() {
-        val file = tmp.newFile("b.epub")
-        val article = EditionArticle(title = "A", sourceTitle = "S", url = "https://a.example/", bodyHtml = "<p>x</p>", minutes = 1.0)
-        file.writeEpub(listOf(article))
-        val pages = EpubPages(file)
-
-        val (cssType, css) = com.app.newspaperss.ui.edition.bookResponse(com.app.newspaperss.ui.edition.BOOK_ORIGIN + "style.css", pages, 0, 0, justify = true)
-        assertTrue(css.isNotEmpty())
-        assertTrue(cssType == "text/css")
-        val (_, pixel) = com.app.newspaperss.ui.edition.bookResponse("https://tracker.example/pixel.gif", pages, 0, 0, justify = true)
-        assertTrue("outside the book: empty, not fetched", pixel.isEmpty())
-        val (_, missing) = com.app.newspaperss.ui.edition.bookResponse(com.app.newspaperss.ui.edition.BOOK_ORIGIN + "images/none.jpg", pages, 0, 0, justify = true)
-        assertTrue(missing.isEmpty())
-    }
-
-    @Test
     fun aReadAfterTheScreenClosedTheBookIsNothingNotACrash() {
         val file = tmp.newFile("c.epub")
         val article = EditionArticle(title = "A", sourceTitle = "S", url = "https://a.example/", bodyHtml = "<p>x</p>", minutes = 1.0)
@@ -57,7 +41,7 @@ class EpubPagesTest {
         val pages = EpubPages(file)
         assertNotNull(pages.entry("OEBPS/style.css"))
 
-        // The WebView can still be asking for an image as its screen goes away.
+        // A picture can still be loading as its screen goes away.
         pages.close()
 
         assertNull(pages.entry("OEBPS/style.css"))

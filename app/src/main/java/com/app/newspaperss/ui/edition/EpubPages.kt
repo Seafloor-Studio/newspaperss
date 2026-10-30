@@ -12,10 +12,10 @@ import kotlin.concurrent.write
 /**
  * Reads pages and their resources back out of an edition's EPUB for the in-app preview.
  *
- * The zip is opened on first read and kept open until [close]: a page asks for its stylesheet
- * and every image, and reopening the zip for each is a central-directory read apiece. Reads are
- * safe from several threads (the WebView serves requests off the main thread), and a read after
- * [close] returns null, since the WebView can still be asking as its screen goes away.
+ * The zip is opened on first read and kept open until [close]: a page asks for every image, and
+ * reopening the zip for each is a central-directory read apiece. Reads are safe from several
+ * threads (pictures load off the main thread), and a read after [close] returns null, since a
+ * picture can still be loading as its screen goes away.
  */
 class EpubPages(private val file: File) : Closeable {
     // Reads share the lock; close() waits for them. ZipFile.close() ends the inflater a read may
@@ -33,6 +33,15 @@ class EpubPages(private val file: File) : Closeable {
             open()?.let { zip -> zip.getEntry(path)?.let { e -> zip.getInputStream(e).use { it.readBytes() } } }
         } catch (_: IOException) {
             null
+        }
+    }
+
+    /** Whether the book has a file at [path], without reading it. */
+    fun has(path: String): Boolean = lock.read {
+        try {
+            open()?.getEntry(path) != null
+        } catch (_: IOException) {
+            false
         }
     }
 

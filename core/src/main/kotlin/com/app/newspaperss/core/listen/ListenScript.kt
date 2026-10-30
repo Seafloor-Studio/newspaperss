@@ -15,7 +15,10 @@ import org.jsoup.parser.Parser
  * A block can show more than is said: the byline's date, a footnote's marker, the link to the
  * original. Each spoken sentence is a stretch of what its block shows (see [Block.Text.ranges]).
  */
-data class ListenScript(val blocks: List<Block>, val language: String? = null) {
+/**
+ * @param anchors each `id` on the page and the block it's in: where a footnote's link goes.
+ */
+data class ListenScript(val blocks: List<Block>, val language: String? = null, val anchors: Map<String, Int> = emptyMap()) {
     /** Everything spoken, in order. */
     val lines: List<Line> = blocks.flatMapIndexed { b, block -> block.said.mapIndexed { s, sentence -> Line(b, s, sentence) } }
 
@@ -62,8 +65,9 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
         /**
          * @param description its caption or alt text, or null if the article gives neither.
          * @param caption the figure's caption, drawn under it.
+         * @param standalone alone in its figure, or the article's whole body: a large one fills the width.
          */
-        data class Image(val src: String, val description: String?, val caption: String? = null) : Block {
+        data class Image(val src: String, val description: String?, val caption: String? = null, val standalone: Boolean = false) : Block {
             val spoken: String get() = description?.let { "Image: $it" } ?: "An image."
             override val said: List<String> get() = listOf(spoken)
         }
@@ -129,7 +133,7 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
                     else -> out.body(element, Kind.META, silent = true)
                 }
             }
-            return ListenScript(out.blocks, language)
+            return ListenScript(out.blocks, language, out.anchors)
         }
 
         /** Where each of [sentences] is once they're joined by spaces. */
@@ -140,6 +144,12 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
 
         private class Builder {
             val blocks = mutableListOf<Block>()
+            val anchors = mutableMapOf<String, Int>()
+
+            /** Notes where [element]'s id lands: in the block being built, or the next one. */
+            private fun anchor(element: Element) {
+                element.id().takeIf { it.isNotEmpty() }?.let { anchors.putIfAbsent(it, blocks.size) }
+            }
             private val text = Inline()
             private var marker: String? = null
             private val lists = ArrayDeque<ListState>()
@@ -178,7 +188,7 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
             private fun visit(node: Node, kind: Kind, silent: Boolean) {
                 when (node) {
                     is TextNode -> text.append(node.wholeText, spoken = !silent, keepSpacing = pre > 0)
-                    is Element -> when (val tag = node.normalName()) {
+                    is Element -> when (val tag = node.normalName().also { if (it !in BLOCKS && it !in OWN_BLOCKS) anchor(node) }) {
                         in SKIPPED -> {}
                         // A footnote's marker or its link back, which would be read as a stray
                         // number or arrow: a short link within the page, with no word in it. Shown, not said.
@@ -190,18 +200,22 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
                         "br" -> text.lineBreak(spoken = !silent)
                         "img" -> {
                             flush(kind)
-                            image(node, null)
+                            anchor(node)
+                            image(node, null, standalone = node.parent()?.hasClass("article-body") == true)
                         }
                         "figure" -> {
                             flush(kind)
+                            anchor(node)
                             figure(node, kind, silent)
                         }
                         "table" -> {
                             flush(kind)
+                            anchor(node)
                             table(node, kind)
                         }
                         "hr" -> {
                             flush(kind)
+                            anchor(node)
                             rule()
                         }
                         // Drawn with quotation marks, as a browser does; the voice says the words.
@@ -213,6 +227,7 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
                         in STYLES -> text.styled(STYLES.getValue(tag), null) { for (child in node.childNodes()) visit(child, kind, silent) }
                         in BLOCKS -> {
                             flush(kind)
+                            anchor(node)
                             val inner = when (tag) {
                                 "h1", "h2", "h3", "h4", "h5", "h6" -> Kind.HEADING
                                 "blockquote" -> Kind.QUOTE
@@ -248,9 +263,10 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
             }
 
             private fun figure(figure: Element, kind: Kind, silent: Boolean) {
+                figure.select("[id]").forEach { anchor(it) }
                 val caption = figure.selectFirst("figcaption")?.text()?.trim()?.ifEmpty { null }
                 val images = figure.select("img")
-                images.forEach { image(it, caption.takeIf { images.size == 1 }) }
+                images.forEach { image(it, caption.takeIf { images.size == 1 }, standalone = images.size == 1) }
                 if (images.size != 1 && caption != null) {
                     text.append(caption, spoken = !silent)
                     flush(kind)
@@ -263,12 +279,14 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
                 flush(kind)
             }
 
-            private fun image(img: Element, caption: String?) {
+            private fun image(img: Element, caption: String?, standalone: Boolean) {
                 val description = caption ?: img.attr("alt").trim().ifEmpty { null }
-                blocks += Block.Image(img.attr("src"), description, caption)
+                blocks += Block.Image(img.attr("src"), description, caption, standalone)
             }
 
             private fun table(table: Element, kind: Kind) {
+                // A footnote in a cell is read with its row: the table is where its link goes.
+                table.select("[id]").forEach { anchor(it) }
                 val rows = table.select("tr").map { row ->
                     val cells = row.select("th, td")
                     Block.Table.Row(
@@ -286,6 +304,8 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
             "p", "div", "section", "article", "header", "footer", "main", "blockquote", "ul", "ol", "li", "dl", "dt", "dd",
             "h1", "h2", "h3", "h4", "h5", "h6", "pre", "address", "details", "summary", "figcaption",
         )
+        // Elements that flush to a block of their own, other than [BLOCKS]: their id is noted after.
+        private val OWN_BLOCKS = setOf("img", "figure", "table", "hr")
         private val STYLES = mapOf(
             "b" to StyleKind.BOLD, "strong" to StyleKind.BOLD,
             "i" to StyleKind.ITALIC, "em" to StyleKind.ITALIC, "cite" to StyleKind.ITALIC, "var" to StyleKind.ITALIC,
