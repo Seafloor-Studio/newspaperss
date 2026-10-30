@@ -577,7 +577,9 @@ whose Kindle and KOReader answers ask for more on the same page).
   **Make an edition now** is the main button only before the first edition;
   after that it's a quiet **Make another edition**, since today's paper is
   done. A failed build or edition offers **Try again** after saying what
-  went wrong. Earlier editions are listed below.
+  went wrong. One released as not sent wasn't a failure: its card offers
+  **Mark as sent** while its book is here, as its page does, and **Make
+  another edition** below. Earlier editions are listed below.
 - **Edition:** the same button as Today's card, and its contents.
   Under them, **Listen · about 9 min** reads the edition aloud (see
   Listening, below). Its ⋮

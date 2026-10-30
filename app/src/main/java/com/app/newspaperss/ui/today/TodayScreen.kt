@@ -177,9 +177,10 @@ fun TodayScreen(
         val readyWaiting = latest?.status == EditionStatus.READY
         // A filled button only when there's no edition yet: once one is made, another is optional.
         // A failed edition's card has its own Try again, and a ready one's Send comes before a retry.
+        // One released as not sent wasn't a failure: making another is offered as after a sent one.
         val make = when {
             latest == null -> MakeButton.PRIMARY
-            latest.status == EditionStatus.FAILED -> MakeButton.NONE
+            latest.status == EditionStatus.FAILED && !EditionBuilder.released(latest) -> MakeButton.NONE
             readyWaiting -> MakeButton.ANOTHER
             state.build is BuildState.Failed -> MakeButton.RETRY
             else -> MakeButton.ANOTHER
@@ -419,9 +420,24 @@ private fun LatestEdition(
                 }
                 EditionStatus.FAILED -> {
                     val error = edition.error ?: "This edition couldn't be made."
-                    // Its own stop too, so it's read just before Try again.
+                    // Its own stop too, so it's read just before the button that answers it.
                     if (error != saidAbove) Text(error, color = failureColor(edition.error), modifier = Modifier.padding(top = 8.dp).semantics(mergeDescendants = true) {})
-                    OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("Try again") }
+                    // Released as not sent, it offers what its page does while its book is here. Not
+                    // greyed out while one is made: the card is then the edition being made.
+                    if (EditionBuilder.released(edition)) {
+                        if (hasFile) {
+                            MarkAsSentLine(preferOpen, onSent, Modifier.padding(top = 4.dp))
+                        } else {
+                            Text(
+                                "This edition's file has been deleted, so it can't be sent or opened.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(top = 8.dp).semantics(mergeDescendants = true) {},
+                            )
+                        }
+                    } else {
+                        OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("Try again") }
+                    }
                 }
                 EditionStatus.BUILDING, EditionStatus.DELETED -> {}
             }

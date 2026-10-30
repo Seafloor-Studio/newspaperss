@@ -239,6 +239,31 @@ class SentEditionActionsTest {
         compose.onNodeWithContentDescription(options).assertDoesNotExist()
     }
 
+    /**
+     * The newest edition left on Today can be one released as not sent (the one made after it was
+     * deleted). It wasn't a failure: its card offers Mark as sent, as its page does, and making
+     * another, not Try again; without its book, it says the book is gone.
+     */
+    @Test
+    fun aReleasedEditionsCardOffersMarkAsSentNotTryAgain() {
+        val id = edition(EditionStatus.FAILED, error = EditionBuilder.NOT_SENT)
+        today(Device.KINDLE)
+        compose.onNodeWithText("Try again").assertDoesNotExist()
+        compose.onNodeWithText("Make another edition").assertExists()
+        button("Mark as sent").performClick()
+        idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+    }
+
+    @Test
+    fun aReleasedEditionsCardWithoutItsBookSaysSo() {
+        edition(EditionStatus.FAILED, error = EditionBuilder.OLD_NOT_SENT)
+        editionsDir.resolve("e.epub").delete()
+        today(Device.KINDLE)
+        compose.onNodeWithText("has been deleted", substring = true).assertExists()
+        compose.onNodeWithText("Mark as sent").assertDoesNotExist()
+        compose.onNodeWithText("Try again").assertDoesNotExist()
+    }
+
     @Test
     fun aPocketBookReaderCanStillOpenAReadyEditionOnThePhoneWithoutItCountingAsSent() {
         val id = edition(EditionStatus.READY)

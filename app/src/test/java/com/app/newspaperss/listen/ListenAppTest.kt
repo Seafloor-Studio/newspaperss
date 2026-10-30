@@ -400,6 +400,32 @@ class ListenAppTest {
         compose.onNodeWithText("Save a copy…").assertExists()
     }
 
+    /**
+     * The morning's build releases the ready edition whose page is open and which is being
+     * listened to: the page keeps Listen (and with it the audio line, which shows on the same
+     * condition), gains Mark as sent, and the player carries on.
+     */
+    @Test
+    fun anEditionReleasedWhileItsPageIsOpenKeepsListenAndPlaysOn() {
+        val id = edition("Thursday Morning Edition")
+        runBlocking { db.editions().update(db.editions().byId(id)!!.copy(status = EditionStatus.READY)) }
+        val vm = viewModels.add(EditionDetailViewModel(repo, id) {})
+        compose.setContent { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = {}) }
+        idleUntil { compose.onAllNodesWithText("Listen", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Listen", substring = true).performClick()
+        idleUntil { player.state.value.editionId == id && player.state.value.playing }
+
+        // As EditionBuilder.releaseUndelivered does when the next edition is planned.
+        runBlocking { db.editions().update(db.editions().byId(id)!!.copy(status = EditionStatus.FAILED, error = EditionBuilder.NOT_SENT)) }
+        idleUntil { compose.onAllNodesWithText(EditionBuilder.NOT_SENT).fetchSemanticsNodes().isNotEmpty() }
+
+        assertTrue("Listen stays", compose.onAllNodesWithText("Listen", substring = true).fetchSemanticsNodes().isNotEmpty())
+        compose.onNodeWithText("Mark as sent").assertIsEnabled()
+        assertEquals(id, player.state.value.editionId)
+        assertTrue(player.state.value.playing)
+        player.stop()
+    }
+
     @Test
     fun yesterdaysPaperQuestionSurvivesTheScreenBeingRecreated() {
         val yesterday = edition("Wednesday Morning Edition", lagos)

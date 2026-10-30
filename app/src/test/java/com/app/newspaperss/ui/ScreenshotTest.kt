@@ -493,6 +493,21 @@ class ScreenshotTest {
         if (compose.onAllNodes(menu).fetchSemanticsNodes().isNotEmpty()) compose.onNode(menu).performClick()
     }
 
+    /** The newest edition left is one released as not sent: Mark as sent, and making another. */
+    @Test
+    fun todayNotSent() {
+        val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
+        runBlocking {
+            val now = Instant.parse("2026-09-29T06:30:00Z")
+            db.editions().insert(EditionEntity(title = "Monday Morning Edition", createdAt = now.minusSeconds(86_400), status = EditionStatus.DELIVERED, articleCount = 7, minutes = 31.0))
+            db.editions().insert(
+                EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.FAILED, error = com.app.newspaperss.edition.EditionBuilder.NOT_SENT, fileName = "x.epub", articleCount = 8, minutes = 33.4),
+            ).also { db.editions().insertArticles(sampleArticles(it)) }
+        }
+        val vm = viewModels.add(TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {})
+        shoot("05l-today-not-sent", ready = { vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm) }
+    }
+
     @Test
     fun todaySentKindle() = todaySent("05d-today-sent-kindle", Device.KINDLE, kindleNote = true)
 
