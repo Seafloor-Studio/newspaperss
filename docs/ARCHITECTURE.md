@@ -255,7 +255,7 @@ flowchart LR
     player -->|"a line, and the next"| speaker["Speaker: SystemSpeaker (TextToSpeech)"]
     speaker -->|"started, done"| player
     player --> state["state: StateFlow"]
-    state --> screen["ListenScreen, ListenButton"]
+    state --> screen["ArticlePreviewScreen, PlayerDock, ListenButton"]
     state --> session["SessionPlayer (Media3) in ListenService"]
     session -->|"lock screen, headphones"| player
     player --> progress["ListenProgress (SharedPreferences)"]
@@ -293,7 +293,7 @@ flowchart LR
   kept with each piece, so the player tints and saves sentences the same way. Line ids
   (`LineId`) carry the edition, page and line, and the page's line count:
   a podcast made from other lines isn't used. Its `voice` is the name the
-  playing screen shows, and `instead` why an article of an edition with a
+  player shows, and `instead` why an article of an edition with a
   podcast plays in the phone's voice.
 - **`Podcasts`** is how the rest of the app reaches podcasts. It shows
   the edition page which articles are made, followed through

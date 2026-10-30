@@ -587,7 +587,7 @@ whose Kindle and KOReader answers ask for more on the same page).
   phone (Android's save dialog, to keep the EPUB itself where you pick; the
   share sheet often has no Files), above **Delete edition**. Tap an article to preview it, read
   straight from the EPUB with nothing fetched from the network, and drawn by
-  the app as the playing screen draws it: bold, links, numbered lists,
+  the app: bold, links, numbered lists,
   tables, code and pictures, close to the e-reader's page (each e-reader sets
   its own fonts and margins; `tools/render-epub.sh` draws the book itself).
   Text is at **Aa**'s size, on top of Android's own font size. **Aa** in the top bar sets
@@ -602,7 +602,7 @@ whose Kindle and KOReader answers ask for more on the same page).
   article in place; the title and **Share** follow the page on screen.
   The headphones in the top bar (**Listen from here**) start Listen at the
   article on screen, from its beginning, in the same view: the player comes
-  up under the page, as on the playing screen. While Listen has this edition,
+  up under the page. While Listen has this edition,
   the sentence being read is tinted and underlined and the page follows it
   (scrolling away stops that, until **Back to where it's reading**); a tap on
   a sentence reads from it while it plays, and does nothing but links while
@@ -706,7 +706,7 @@ whose Kindle and KOReader answers ask for more on the same page).
       and a tapped mark plays from there. An episode's length comes from its feed, or from its file's
       first bytes when the edition is made; without one, a single line.
     - They aren't the edition's: the contents list them as "Episode", the
-      title reads "Listening · episode 1 of 2", and the edition's times
+      player says "Episode 1 of 2", and the edition's times
       leave them out. The edition's bar shows them after a gap, a short
       piece each whatever their length, so an hour's episode doesn't
       flatten the articles. In the edition, "Then 2 episodes ›" under the
@@ -728,16 +728,14 @@ whose Kindle and KOReader answers ask for more on the same page).
     ⏮ ⏭ move by article (⏮ restarts the article after its first few
     sentences). Speed steps through 1×, 1.2×, 1.5× and 0.8×, and is kept:
     it's the same speed as Settings › Listening.
-  - The playing screen is the article as written, at Settings › Article
-    text size: bold, italics and links, numbered lists, tables (read a
-    row at a time, the row being read tinted), code blocks that scroll
-    sideways, the byline's date, and the link to the original and the
-    "Next" line after it. The sentence being read is tinted, following
-    the voice. Scrolling away stops it following, and "Back to where
-    it's reading" returns. Tapping a sentence reads from there; a web
-    link opens in the browser, and the "Next" line goes on to that
-    article. The bar under it is the
-    edition, one piece per article.
+  - There is no separate playing screen: Listen plays in the article view
+    (see the article preview above), the player under the page. Tables are
+    read a row at a time, the row being read tinted. The page moves a
+    screen at a time: a sentence already on screen leaves it where it is,
+    and one that isn't turns the page to put it near the top, as each
+    move redraws an e-ink screen. Heard to the end, the page says "You've
+    heard the whole edition." The bar under it is the edition, one piece
+    per article.
   - It keeps playing with the screen off, with Android's media controls on
     the lock screen, headphones and in the car: there back and forward move
     by a sentence, as a podcast app's skip a few seconds, and the media
@@ -1030,7 +1028,7 @@ whose Kindle and KOReader answers ask for more on the same page).
     article reused in a later one keeps its audio there), and all of it
     with Kokoro. Listen plays an article in the natural voice once
     its audio is made, and in the phone's voice until then: from the next play or
-    jump once it's made, never mid-sentence. The playing screen shows the natural voice's name by
+    jump once it's made, never mid-sentence. The player shows the natural voice's name by
     the source, and a quiet line when an article of an edition with
     audio plays in the phone's voice (not made yet, or left out).
     Under Listen on the edition page, a bar of its articles fills as each
