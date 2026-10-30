@@ -34,6 +34,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.toUpperCase
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalUriHandler
@@ -50,6 +53,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.BaselineShift
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -91,20 +95,25 @@ internal fun styledText(block: Block.Text, current: IntRange?, colors: PageColor
     current?.let { addStyle(SpanStyle(background = colors.tint, textDecoration = TextDecoration.Underline), it.first, it.last + 1) }
 }
 
-/** Where a tap at [offset] in [block] leads: a web page, another page of the book, or nowhere. */
+/** Where a tap at [offset] in [block] leads: a web page, another page of the book, a place on one, or nowhere. */
 internal sealed interface LinkTarget {
     data class Web(val url: String) : LinkTarget
 
     /** The [index]th page of the book: the "Next" line's article, or the closing page if null. */
     data class Page(val index: Int?) : LinkTarget
+
+    /** The element with [id]: on this page, or the [page]th article's (a footnote and its way back). */
+    data class Anchor(val id: String, val page: Int? = null) : LinkTarget
 }
 
 internal fun linkAt(block: Block.Text, offset: Int): LinkTarget? {
     val href = block.styles.firstOrNull { it.kind == StyleKind.LINK && offset >= it.start && offset < it.end }?.href ?: return null
     if (href.startsWith("https://", ignoreCase = true) || href.startsWith("http://", ignoreCase = true)) return LinkTarget.Web(href)
-    // EpubWriter names the articles' pages by position; a footnote's link (with a #) stays on the page.
+    if (href.startsWith("#") && href.length > 1) return LinkTarget.Anchor(href.drop(1))
+    // EpubWriter names the articles' pages by position.
     if (href == "end.xhtml") return LinkTarget.Page(null)
-    return ARTICLE_PAGE.matchEntire(href)?.let { LinkTarget.Page(it.groupValues[1].toInt() - 1) }
+    val page = ARTICLE_PAGE.matchEntire(href.substringBefore('#'))?.let { it.groupValues[1].toInt() - 1 } ?: return null
+    return href.substringAfter('#', "").takeIf { it.isNotEmpty() }?.let { LinkTarget.Anchor(it, page) } ?: LinkTarget.Page(page)
 }
 
 private val ARTICLE_PAGE = Regex("article-(\\d{1,6})\\.xhtml")
@@ -119,30 +128,38 @@ internal fun TextBlock(
     current: Int?,
     textSize: PreviewTextSize,
     onLayout: (TextLayoutResult) -> Unit,
-    onTap: (Int) -> Unit,
+    /** Reads from the tapped sentence; null where nothing is read aloud, as in the preview. */
+    onTap: ((Int) -> Unit)?,
     onPage: (LinkTarget.Page) -> Unit = {},
+    /** Goes to a footnote or back; null leaves such a link as the text it's in. */
+    onAnchor: ((LinkTarget.Anchor) -> Unit)? = null,
+    /** Paragraphs justified, as the book has them; not at large sizes, where it opens wide gaps. */
+    justify: Boolean = false,
 ) {
     val typography = MaterialTheme.typography
+    // As the book's stylesheet has it: serif throughout, the source in spaced capitals, the byline in italics.
     val style = when {
         block.preformatted -> typography.bodyMedium.copy(fontFamily = FontFamily.Monospace)
         else -> when (block.kind) {
-            Kind.KICKER -> typography.labelLarge
+            Kind.KICKER -> typography.bodySmall.copy(letterSpacing = 0.12.em)
             Kind.TITLE -> typography.headlineSmall
-            Kind.BYLINE -> typography.bodySmall
-            Kind.HEADING -> typography.titleMedium
-            Kind.QUOTE -> typography.bodyLarge.copy(fontStyle = FontStyle.Italic)
-            Kind.META -> typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Kind.PARAGRAPH, Kind.ITEM -> typography.bodyLarge
-        }
+            Kind.BYLINE -> typography.bodyMedium.copy(fontStyle = FontStyle.Italic)
+            Kind.HEADING -> typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+            Kind.META -> typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Kind.QUOTE, Kind.PARAGRAPH, Kind.ITEM -> typography.bodyLarge
+        }.copy(fontFamily = FontFamily.Serif)
     }.sized(textSize)
     val colors = pageColors()
     val ranges = block.ranges
     // Rebuilt only when this block's sentence changes, not for every sentence read elsewhere.
-    val text = remember(block, current, colors.tint) { styledText(block, ranges.getOrNull(current ?: -1), colors) }
+    val text = remember(block, current, colors.tint) {
+        styledText(block, ranges.getOrNull(current ?: -1), colors).let { if (block.kind == Kind.KICKER) it.toUpperCase() else it }
+    }
     val uri = LocalUriHandler.current
     // The gesture below lives as long as the block; the next article's equal block needs this one's tap.
     val tap by rememberUpdatedState(onTap)
     val page by rememberUpdatedState(onPage)
+    val anchor by rememberUpdatedState(onAnchor)
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val said = block.sentences.isNotEmpty()
     val indent = when {
@@ -150,7 +167,11 @@ internal fun TextBlock(
         block.depth > 0 -> 16.dp * block.depth
         else -> 0.dp
     }
-    val outer = Modifier.fillMaxWidth().padding(start = indent, bottom = if (block.kind == Kind.KICKER || block.kind == Kind.TITLE) 4.dp else 12.dp)
+    val bar = MaterialTheme.colorScheme.onBackground
+    val outer = Modifier.fillMaxWidth()
+        .padding(start = indent, bottom = if (block.kind in setOf(Kind.KICKER, Kind.TITLE, Kind.ITEM)) 4.dp else 12.dp)
+        // A quote has a rule down its side, as the book's does.
+        .then(if (block.kind == Kind.QUOTE) Modifier.drawBehind { drawRect(bar, size = Size(2.dp.toPx(), size.height)) }.padding(start = 14.dp) else Modifier)
     // On the text itself, so a tap's offset is the text's own, not shifted by a list item's number.
     val modifier = Modifier
         .pointerInput(block) {
@@ -159,27 +180,37 @@ internal fun TextBlock(
                 when (val link = linkAt(block, at)) {
                     is LinkTarget.Web -> runCatching { uri.openUri(link.url) }.also { return@detectTapGestures }
                     is LinkTarget.Page -> page(link).also { return@detectTapGestures }
+                    is LinkTarget.Anchor -> anchor?.let { it(link); return@detectTapGestures }
                     null -> {}
                 }
                 val sentence = ranges.indexOfFirst { at <= it.last + 1 }
-                if (sentence >= 0) tap(sentence)
+                if (sentence >= 0) tap?.invoke(sentence)
             }
         }
         // For TalkBack, the paragraph is one stop that reads from its start, with an action for each link in it.
         .semantics {
-            if (said) onClick(label = "Read from here") { tap(0); true }
+            tap?.let { read -> if (said) onClick(label = "Read from here") { read(0); true } }
             if (block.kind == Kind.TITLE || block.kind == Kind.HEADING) heading()
+            // Drawn in capitals, read as written: all capitals can be spelled out a letter at a time.
+            if (block.kind == Kind.KICKER) contentDescription = block.shown
             val links = block.styles.filter { it.kind == StyleKind.LINK }.mapNotNull { style ->
                 val words = block.shown.substring(style.start, style.end)
                 when (val target = linkAt(block, style.start)) {
                     is LinkTarget.Web -> CustomAccessibilityAction("Open $words") { runCatching { uri.openUri(target.url) }; true }
                     is LinkTarget.Page -> CustomAccessibilityAction("Go to $words") { page(target); true }
+                    is LinkTarget.Anchor -> anchor?.let { go -> CustomAccessibilityAction("Go to note $words") { go(target); true } }
                     null -> null
                 }
             }
             if (links.isNotEmpty()) customActions = links
         }
-    val drawn = @Composable { m: Modifier -> Text(text, m, style = style, softWrap = !block.preformatted, onTextLayout = { layout = it; onLayout(it) }) }
+    val align = when {
+        justify && block.kind == Kind.PARAGRAPH && !block.preformatted -> TextAlign.Justify
+        // The book's end mark, under the article's last line.
+        block.kind == Kind.META && block.shown == END_MARK -> TextAlign.Center
+        else -> TextAlign.Unspecified
+    }
+    val drawn = @Composable { m: Modifier -> Text(text, m, style = style, textAlign = align, softWrap = !block.preformatted, onTextLayout = { layout = it; onLayout(it) }) }
     Row(outer) {
         // A number is read out with its item; a bullet would be read as the word "bullet".
         block.marker?.let { marker ->
@@ -194,6 +225,8 @@ internal fun TextBlock(
         }
     }
 }
+
+private const val END_MARK = "■"
 
 /** Where a table's rows are drawn, from its top: what the page scrolls by to follow the voice down a long table. */
 internal class TableRows {
@@ -267,7 +300,7 @@ private const val MOST_COLUMNS = 50
  */
 @Composable
 internal fun TableBlock(block: Block.Table, current: Int?, textSize: PreviewTextSize, positions: TableRows, onTap: (Int) -> Unit) {
-    val style = MaterialTheme.typography.bodyMedium.sized(textSize)
+    val style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Serif).sized(textSize)
     val line = MaterialTheme.colorScheme.outlineVariant
     val tint = MaterialTheme.colorScheme.secondaryContainer
     val grid = remember(block) { block.grid() }

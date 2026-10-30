@@ -633,15 +633,7 @@ class ScreenshotTest {
     @Test
     fun listenPlayingAFormattedArticle() {
         val files = tmp.newFolder()
-        val article = EditionArticle(
-            title = "How a Retired Teacher Counted the Knots", sourceTitle = "Quanta Magazine", url = "https://example.com/count",
-            bodyHtml = "<p>The count took <b>a week</b> of computer time, and the <a href=\"https://example.com/paper\">paper</a> ran to <em>forty pages</em>.</p>" +
-                "<blockquote><p>We thought it would take a century.</p></blockquote>" +
-                "<p>The method came in three steps:</p><ol><li>Draw every knot with few crossings.</li><li>Throw out the ones that are the same.</li><li>Check what's left by hand.</li></ol>" +
-                "<table><tr><th>Crossings</th><th>Knots</th></tr><tr><td>3</td><td>1</td></tr><tr><td>4</td><td>1</td></tr><tr><td>5</td><td>2</td></tr></table>" +
-                "<pre>for knot in knots:\n    if new(knot):\n        keep(knot)</pre>",
-            minutes = 3.0, author = "Erica Klarreich", published = LocalDate.of(2026, 9, 30),
-        )
+        val article = FORMATTED
         File(files, "f.epub").outputStream().use {
             EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000012", listOf(EditionSection(null, listOf(article)))), it)
         }
@@ -813,9 +805,18 @@ class ScreenshotTest {
         val file = tmp.newFile("p.epub")
         val article = EditionArticle(title = "The quiet return of the night train", sourceTitle = "The Example Review", url = "https://example.com/night-train", bodyHtml = "<p>Sleeper services are coming back.</p>", minutes = 4.0)
         file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
-        // The page itself is a WebView, which Robolectric doesn't draw; this shoots the top bar.
         shoot("05c-article-preview", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
             ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {})
+        }
+    }
+
+    /** An article with its formatting: bold, a link, a quote, a numbered list, a table and code. */
+    @Test
+    fun articlePreviewFormatted() {
+        val file = tmp.newFile("pf.epub")
+        file.writeEpub(listOf(FORMATTED), title = "Tuesday Morning Edition")
+        shoot("05c2-article-preview-formatted", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = FORMATTED.title, onBack = {}, onListen = {})
         }
     }
 
@@ -1774,5 +1775,18 @@ class ScreenshotTest {
         ) {
             SettingsPageScreen(settingsVm, SettingsPage.FEEDS, onBack = {}, feedsFrom = feeds)
         }
+    }
+
+    private companion object {
+        /** An article with bold, a link, a quote, a numbered list, a table and code: for the playing screen and the preview. */
+        val FORMATTED = EditionArticle(
+            title = "How a Retired Teacher Counted the Knots", sourceTitle = "Quanta Magazine", url = "https://example.com/count",
+            bodyHtml = "<p>The count took <b>a week</b> of computer time, and the <a href=\"https://example.com/paper\">paper</a> ran to <em>forty pages</em>.</p>" +
+                "<blockquote><p>We thought it would take a century.</p></blockquote>" +
+                "<p>The method came in three steps:</p><ol><li>Draw every knot with few crossings.</li><li>Throw out the ones that are the same.</li><li>Check what's left by hand.</li></ol>" +
+                "<table><tr><th>Crossings</th><th>Knots</th></tr><tr><td>3</td><td>1</td></tr><tr><td>4</td><td>1</td></tr><tr><td>5</td><td>2</td></tr></table>" +
+                "<pre>for knot in knots:\n    if new(knot):\n        keep(knot)</pre>",
+            minutes = 3.0, author = "Erica Klarreich", published = LocalDate.of(2026, 9, 30),
+        )
     }
 }
