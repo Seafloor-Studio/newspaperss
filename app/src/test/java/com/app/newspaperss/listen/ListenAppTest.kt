@@ -33,6 +33,7 @@ import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.media3.common.Player
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -894,6 +895,30 @@ class ListenAppTest {
         player.seek(ListenPosition(0, 4 + 70))
         idleUntil { player.state.value.at.line == 74 }
         compose.waitUntil(5_000) { runCatching { compose.onNodeWithText("Row 70").assertIsDisplayed() }.isSuccess }
+    }
+
+    /** The page moves a screen at a time: each move redraws an e-ink screen, so not at every sentence. */
+    @Test
+    fun aLineAlreadyOnScreenLeavesThePageWhereItIs() {
+        val paras = (1..40).joinToString("") { "<p>Paragraph $it.</p>" }
+        val id = edition("Many paragraphs", knots.copy(bodyHtml = paras, images = emptyList()), lagos)
+        startAndWait(id)
+        player.pause()
+        compose.setContent(playing(id))
+        idleUntil { compose.onAllNodesWithText("Paragraph 1.").fetchSemanticsNodes().isNotEmpty() }
+        fun displayed(text: String) = runCatching { compose.onAllNodesWithText(text).onFirst().assertIsDisplayed() }.isSuccess
+        // Source, title and byline, then a line a paragraph.
+        player.seek(ListenPosition(0, 3 + 1))
+        idleUntil { player.state.value.at.line == 4 }
+        compose.waitForIdle()
+        assertTrue("the title stays while the voice is on the screen below it", displayed(knots.title))
+        // Off the screen, a screen turns: the line comes into view near the top.
+        player.seek(ListenPosition(0, 3 + 29))
+        idleUntil { player.state.value.at.line == 32 && displayed("Paragraph 30.") }
+        player.seek(ListenPosition(0, 3 + 30))
+        idleUntil { player.state.value.at.line == 33 }
+        compose.waitForIdle()
+        assertTrue("the line before stays: the page didn't move for the next", displayed("Paragraph 30."))
     }
 
     @Test
