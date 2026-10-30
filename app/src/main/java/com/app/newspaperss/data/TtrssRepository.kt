@@ -188,12 +188,7 @@ class TtrssRepository(
                     else -> {
                         val id = sources.addFeed(url, feed.title)
                         db.sources().savePublication(
-                            PublicationEntity(
-                                sourceId = id, key = PublicationEntity.OWN, contentMode = feed.contentMode,
-                                fullTextEvidence = feed.fullTextEvidence, fullTextStreak = feed.fullTextStreak, fullTextDay = feed.fullTextDay,
-                                checkedDay = feed.checkedDay, chosenMode = feed.chosenMode, maxArticles = feed.maxArticles,
-                                skipPaidPosts = feed.skipPaidPosts,
-                            ),
+                            PublicationEntity(sourceId = id, key = PublicationEntity.OWN).withSettingsOf(feed),
                         )
                         db.sources().setPaused(id, true)
                         // Left out of the paper is what pausing is for a phone feed: that one stays paused.

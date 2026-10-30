@@ -263,7 +263,7 @@ class FeedSync(
      */
     private suspend fun watchPosts(client: TtrssClient, source: SourceEntity, now: Instant) {
         val posted = try {
-            client.postedSince(source.ttrssSeenId, if (source.ttrssSeenId == null) FIRST_LOOK_PAGES else WATCH_PAGES)
+            client.postedSince(source.ttrssSeenId, WATCH_PAGES)
         } catch (e: TtrssException) {
             return
         } catch (e: IOException) {
@@ -492,7 +492,6 @@ class FeedSync(
 
         /** Pages of 200 articles looked at per sync; more wait for the next. */
         private const val WATCH_PAGES = 5
-        private const val FIRST_LOOK_PAGES = 5
 
         /** Pages of 200 starred articles listed per sync: 10,000 stars, past which none are taken. */
         private const val STAR_PAGES = 50

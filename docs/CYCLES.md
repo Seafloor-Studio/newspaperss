@@ -3,6 +3,13 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle N12 (30 Oct) — audit: sync and the data layer
+
+See [DEVLOG.md](DEVLOG.md). The last of three architecture audits, and the run's stopping cycle.
+- **Prove a refactor's guard before trusting it.** No new tests for moving the settings copy into one function; taking two fields out of it turned four existing tests red, which is what showed they guard it.
+- **Weigh a gap's fix against what it prevents.** The over-long saved link breaks nothing, and its fix needed a new outcome through every caller; it went to the backlog with that reasoning rather than into the PR.
+- **Run the next audit's reading while the last PR's CI runs:** it only reads, so it needs no branch, and three audits fitted in about an hour.
+
 ### Cycle N11 (30 Oct) — audit: making an edition
 
 See [DEVLOG.md](DEVLOG.md). The second of three architecture audits; N12 takes sync and the data layer.
