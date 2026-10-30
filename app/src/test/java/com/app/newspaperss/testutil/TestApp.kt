@@ -38,6 +38,8 @@ class TestApp : NewspaperssApp() {
      * starts, so a test can set it after the container is built.
      */
     var kokoroFiles: List<KokoroFile> = emptyList()
+    /** How many times Listen asked to bind its service. */
+    var listenConnects = 0
     var kokoroBaseUrl: String = "http://127.0.0.1:1"
     val kokoroDir: File by lazy { File(cacheDir, "kokoro-test").apply { mkdirs() } }
     val kokoroInstall by lazy { KokoroInstall(kokoroDir) { kokoroFiles } }
@@ -54,7 +56,7 @@ class TestApp : NewspaperssApp() {
         fetchReadingListTitles = { titlesRequested += it },
         moveFeeds = { movesRequested++ },
         speaker = { speaker },
-        connectListening = {},
+        connectListening = { listenConnects++ },
         kokoroInstall = kokoroInstall,
         newKokoroDownload = { install -> KokoroDownload(OkHttpClient(), install, kokoroBaseUrl) },
         // CI's own builds carry a build number: tests shouldn't depend on whether they run there.
