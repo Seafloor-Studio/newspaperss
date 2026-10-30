@@ -365,7 +365,8 @@ fun ArticlePreviewScreen(
                     hint?.let {
                         Text(
                             it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                            // Said when the edition ends, not each time an episode's hint comes back with Play.
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp).semantics { if (state.finished) liveRegion = LiveRegionMode.Polite },
                         )
                     }
                 }
