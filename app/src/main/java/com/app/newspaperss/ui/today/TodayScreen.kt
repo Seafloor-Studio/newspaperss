@@ -129,6 +129,7 @@ fun TodayScreen(
     onOpenEdition: (Long) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val building by viewModel.building.collectAsStateWithLifecycle()
     val context = LocalContext.current
     fun launch(intent: android.content.Intent): Boolean = try {
         context.startActivity(intent)
@@ -177,9 +178,10 @@ fun TodayScreen(
         val readyWaiting = latest?.status == EditionStatus.READY
         // A filled button only when there's no edition yet: once one is made, another is optional.
         // A failed edition's card has its own Try again, and a ready one's Send comes before a retry.
+        // One released as not sent wasn't a failure: making another is offered as after a sent one.
         val make = when {
             latest == null -> MakeButton.PRIMARY
-            latest.status == EditionStatus.FAILED -> MakeButton.NONE
+            latest.status == EditionStatus.FAILED && !EditionBuilder.released(latest) -> MakeButton.NONE
             readyWaiting -> MakeButton.ANOTHER
             state.build is BuildState.Failed -> MakeButton.RETRY
             else -> MakeButton.ANOTHER
@@ -204,6 +206,7 @@ fun TodayScreen(
                     offerOpen = state.offerOpen,
                     kindleReader = state.kindleReader,
                     hasFile = hasFile,
+                    building = building,
                     sentToKindle = state.sentToKindle[latest.id],
                     // Only when Send opens the mail app itself; otherwise it's the share sheet, as usual.
                     emailsKindle = state.kindleEmail?.let { remember(it) { EditionIntents.mailAppFor(context, it) } } != null,
@@ -340,6 +343,7 @@ private fun LatestEdition(
     offerOpen: Boolean,
     kindleReader: Boolean,
     hasFile: Boolean,
+    building: Boolean,
     sentToKindle: KindleSend?,
     emailsKindle: Boolean,
     onRetry: () -> Unit,
@@ -421,7 +425,12 @@ private fun LatestEdition(
                     val error = edition.error ?: "This edition couldn't be made."
                     // Its own stop too, so it's read just before Try again.
                     if (error != saidAbove) Text(error, color = failureColor(edition.error), modifier = Modifier.padding(top = 8.dp).semantics(mergeDescendants = true) {})
-                    OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("Try again") }
+                    // Released as not sent, it offers what its page does while its book is here.
+                    if (EditionBuilder.released(edition)) {
+                        if (hasFile) MarkAsSentLine(preferOpen, onSent, Modifier.padding(top = 4.dp), waiting = building)
+                    } else {
+                        OutlinedButton(onClick = onRetry, modifier = Modifier.padding(top = 8.dp)) { Text("Try again") }
+                    }
                 }
                 EditionStatus.BUILDING, EditionStatus.DELETED -> {}
             }

@@ -8,6 +8,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -37,6 +38,7 @@ import com.app.newspaperss.testutil.closeAfter
 import com.app.newspaperss.testutil.idleUntil
 import com.app.newspaperss.testutil.installApp
 import com.app.newspaperss.ui.edition.EditionDetailScreen
+import com.app.newspaperss.ui.edition.MARK_SENT_WAITING
 import com.app.newspaperss.ui.edition.EditionDetailViewModel
 import com.app.newspaperss.ui.edition.KINDLE_NOTE
 import com.app.newspaperss.ui.edition.MARK_NOT_SENT
@@ -237,6 +239,28 @@ class SentEditionActionsTest {
         today(Device.KINDLE)
         compose.onNodeWithText("Try again").assertExists()
         compose.onNodeWithContentDescription(options).assertDoesNotExist()
+    }
+
+    /**
+     * The newest edition left on Today can be one released as not sent (the one made after it was
+     * deleted). It wasn't a failure: its card offers Mark as sent, as its page does, and making
+     * another, not Try again. While an edition is being made, Mark as sent waits.
+     */
+    @Test
+    fun aReleasedEditionsCardOffersMarkAsSentNotTryAgain() {
+        // Started a minute before, so the released one stays the newest on Today.
+        val building = runBlocking { db.editions().insert(EditionEntity(title = "Wednesday Morning Edition", createdAt = java.time.Instant.now().minusSeconds(60), status = EditionStatus.BUILDING)) }
+        val id = edition(EditionStatus.FAILED, error = EditionBuilder.NOT_SENT)
+        today(Device.KINDLE)
+        compose.onNodeWithText("Try again").assertDoesNotExist()
+        compose.onNodeWithText(MARK_SENT_WAITING).assertExists()
+        button("Mark as sent").assertIsNotEnabled()
+
+        runBlocking { db.editions().update(db.editions().byId(building)!!.copy(status = EditionStatus.DELETED)) }
+        idleUntil { compose.onAllNodes(hasText(MARK_SENT_WAITING)).fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithText("Make another edition").assertExists()
+        button("Mark as sent").performClick()
+        idleUntil { statusOf(id) == EditionStatus.DELIVERED }
     }
 
     @Test

@@ -116,6 +116,9 @@ class TodayViewModel(
 
     fun emailBody(editionId: Long): Flow<String?> = editions.observeEmailBody(editionId)
 
+    /** An edition is being made: a released edition's Mark as sent waits, as on its page. */
+    val building: StateFlow<Boolean> = editions.observeBuilding().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     fun markSent(edition: EditionEntity) = markSent(edition.id)
 
     fun markSent(editionId: Long) {
