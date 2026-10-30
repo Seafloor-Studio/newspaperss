@@ -52,6 +52,12 @@ import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionRepository
 import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.edition.EditionBuilder
+import com.app.newspaperss.data.SourceRepository
+import com.app.newspaperss.edition.ArticleContent
+import com.app.newspaperss.edition.ArticleContentProvider
+import com.app.newspaperss.edition.BuildResult
+import com.app.newspaperss.edition.EditionSettings
+import androidx.compose.ui.test.assertIsEnabled
 import com.app.newspaperss.settings.Recordings
 import com.app.newspaperss.testutil.FakeSpeaker
 import com.app.newspaperss.testutil.TestApp
@@ -349,6 +355,46 @@ class ListenAppTest {
         show(gone)
         compose.onNodeWithText("This edition's file has been deleted, so it can't be sent or opened.").assertExists()
         assertEquals(0, compose.onAllNodesWithText("Listen", substring = true).fetchSemanticsNodes().size)
+    }
+
+    /**
+     * An edition released by a real second build, not one given "not sent" by hand: its page
+     * still offers Listen where it was left, Mark as sent, Save a copy, and its articles to read.
+     */
+    @Test
+    fun anEditionReleasedByTheNextBuildStillOffersItsBook() {
+        val sources = SourceRepository(db)
+        val content = ArticleContentProvider { a, _, _, _ -> ArticleContent(a.title, null, "<p>${a.title} first. ${a.title} second.</p>", wordCount = 600) }
+        val builder = EditionBuilder(db, content, editionsDir)
+        suspend fun article(feed: String, guid: String) {
+            val source = sources.addFeed("https://$feed.example/feed", feed)
+            db.articles().insertNew(listOf(ArticleEntity(sourceId = source, guid = guid, url = "https://$feed.example/$guid", title = "$feed $guid")))
+        }
+        val first = runBlocking {
+            article("a", "a1")
+            article("b", "b1")
+            builder.build(EditionSettings()) as BuildResult.Built
+        }.editionId
+        progress.set(first, ListenPosition(1, 0))
+        runBlocking {
+            article("c", "c1")
+            builder.build(EditionSettings()) as BuildResult.Built
+        }
+        assertEquals(EditionStatus.FAILED, runBlocking { db.editions().byId(first) }!!.status)
+
+        var read: Int? = null
+        val vm = viewModels.add(EditionDetailViewModel(repo, first) {})
+        compose.setContent { EditionDetailScreen(vm, onBack = {}, onReadArticle = { read = it }, listening = listening, onOpenPlayer = {}) }
+        idleUntil { compose.onAllNodesWithText("Contents").fetchSemanticsNodes().isNotEmpty() }
+
+        compose.onNodeWithText("Mark as sent").assertIsEnabled()
+        compose.onNodeWithText("b b1").performClick()
+        assertEquals(1, read)
+        compose.onNodeWithText("Resume", substring = true).performClick()
+        idleUntil { player.state.value.editionId == first && player.state.value.at.page == 1 }
+        player.stop()
+        compose.onNodeWithContentDescription("More options").performClick()
+        compose.onNodeWithText("Save a copy…").assertExists()
     }
 
     @Test
