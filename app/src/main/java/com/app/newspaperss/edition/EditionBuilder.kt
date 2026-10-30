@@ -367,6 +367,15 @@ class EditionBuilder(
         const val NOT_SENT = "This one wasn't marked as sent, so its articles went back for your next edition."
         /** NOT_SENT as editions released before its wording changed still have it. */
         const val OLD_NOT_SENT = "Not sent; its articles went back for the next edition."
+
+        /** The note of an edition released as not sent, in either wording. */
+        fun releasedNote(error: String?) = error == NOT_SENT || error == OLD_NOT_SENT
+
+        /**
+         * Released as not sent when a newer edition was made: its articles went back, but its
+         * book stays while it's among the newest, to listen to, keep or say it went out another way.
+         */
+        fun released(edition: EditionEntity) = edition.status == EditionStatus.FAILED && releasedNote(edition.error)
         const val INTERRUPTED = "Interrupted; its articles will be in the next edition."
         const val STOPPED = "Stopped before it was finished; its articles will be in the next edition."
         const val UNEXPECTED = "Something went wrong making this edition. Your articles are safe and will be in the next one."

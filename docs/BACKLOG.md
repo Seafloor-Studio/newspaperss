@@ -48,12 +48,25 @@ Cycle G6. Fixed in #363 (CI) and #364 (nested JSON). Measured unless it says "re
   - **Feed images can point at local-network addresses.** As in any feed reader.
   - **tt-rss in Docker uses `:latest` on purpose,** and the emulator's KOReader is F-Droid's latest.
 
+### From the 30 Oct test audit *(audit)*
+
+What each screen offers by the edition's state wasn't tested past ready and sent editions, so a not-sent edition lost Listen (#401, #410). Robolectric unless it says otherwise.
+
+- [ ] **A not-sent edition made the real way:** build edition A, then B, and check A's page offers Listen, Resume, the audio line, Mark as sent and Save a copy, and opens an article. Every test now sets "not sent" by hand with the same constant the code reads.
+- [ ] **The natural-voice audio line on the edition page, by status:** ready, sent and not sent, against audio asked for, part made and made. `PodcastLineTest` checks the line alone; only a screenshot shows it inside the page.
+- [ ] **Deleting the edition you're listening to, or one that has audio:** through the real wiring in `AppContainer` (`listen.forget`, `podcastStore.delete`), and the clean-up after each run (`pruneFiles`). The bar should let go and the audio's space come back. The tests now check that a stand-in was called.
+- [ ] **Today's card when the newest edition is a not-sent one** (after making another and deleting it): it offers only "Try again", while its page offers Mark as sent and Listen. Make the card match the page (EditionActions says they offer the same), with a test.
+- [ ] **The status changing while the page is open or playing:** a ready edition released by the morning build keeps Listen and its audio line.
+- [ ] **Emulator:** `journeys.sh two-editions` stops at Today's list; go on to open the not-sent edition and wait for "Listen ·" and "Mark as sent". *(device)*
+- [ ] **Your call: on a Boox, a not-sent edition asks "Read it another way?"** with no first way offered (no Read or Open). Offer Read there, or word it as "Read it on your Boox?" Recommended: offer Read, since its book is still here.
+
 ### Onboarding and setup
 
 ### Sources and fetching
 - [ ] **Platform pass** *(you asked)*: a test corpus of real posts from the big blog and newsletter platforms, from their own feeds and through tt-rss, checked for footnotes, embeds, captions, paywall teasers and link posts; what breaks gets fixed and the corpus keeps it fixed (`PlatformCorpusTest`). Round 1 covered Substack, Ghost, WordPress, Medium, Blogger, Buttondown and Micro.blog; round 2 added a magazine with its own site (New Left Review), Stratechery and a MemberPress site, found by running `extractionSweep` over a real reading list and over `tools/sweep-feeds.opml`, public feeds picked for variety (news, other languages and scripts, static sites, microblogs). Run that list again before a change to extraction. Still to add: Tumblr (it answers 429 to the collector), beehiiv, posts with galleries, tweets and Bluesky embeds, and more footnote styles
 - [x] **Show tt-rss's own feed errors** *(you asked)*: tt-rss's `last_error` for each feed, on the feed's row and page and named in a banner on Sources
 - [ ] Paywalled and summary-only sites: warn when a site is added; keep stubs from eating the budget; drop metered sites from starter packs *(personas)*
+- [ ] **Skip paid posts' previews too** *(you asked)*: a source can already skip paid posts with nothing free (a title and a picture). Let it also skip the ones that come as a preview, only the free part before "Subscribe to read", so an edition carries whole articles only. Per source, beside the existing choice, with the count on its page.
 - [x] A feed over 10 MB was refused as too large: some static sites (a Hugo `index.xml`) put every post they ever wrote in one feed. Now it's read up to 10 MB, keeping the whole items before the cut *(sweep)*
 - [ ] Webtoons: episodes are one long strip of 84–140 lazily loaded panels (a phone is sent to m.webtoons.com, which lists them in a script; the desktop viewer has them in `data-url`), beyond the 20-image cap. Built and measured on `claude/today-d-c7` (D7), not shipped. Before it can ship: the image budget must take a strip whole or not at all (today it is shared and greedy, so a strip gets gaps mid-episode and starves later articles); no cap that cuts an ending silently; ask for `?type=opti` (PNG panels ignore `q90`: 800 KB vs 300 KB); drop the feed's two thumbnail panels, which otherwise repeat after the strip; panels contiguous in the book (no figure margins), with alt text. Re-encoded, an episode is about 6–9 MB *(device)*
 - [ ] Webtoons: episodes are one long strip of dozens of lazy images (`data-url`), beyond the 20-image cap, and its mobile site hides the feed. Support strips properly *(device)*
@@ -288,6 +301,16 @@ The phone's voice reading an edition, and Settings › Listening for it, are bui
 - **🔊 in the article preview**, starting the same player at that article.
 - **A sleep timer**, and a way in from Today's card.
 - **Save as audio:** the edition as a file with a chapter per article, for a podcast or audiobook app. With the audio made, it's already most of the way there.
+
+### Naming the recording chips *(you asked)*
+
+- [ ] **Your call: the chip names in Settings › Listening › Recordings,** one for each way a recording takes the voice's place:
+  1. a transcript's episode in its place;
+  2. an author's reading in its place;
+  3. a notes post's episode at the end of the edition;
+  4. maybe a notes post's episode in place of its show notes (not built).
+
+  Suggested: **Episode instead of its transcript**, **Author's reading**, **Episode after the paper**, **Episode instead of its show notes**. For 3 and 4, one three-way choice (notes read / episode at the end / episode in their place) might be clearer than two chips. Waiting on madCode's pick; then rename the chips, the note above the page and DESIGN.md.
 
 ### Listening in the reading view *(you asked)*
 The article preview (the book's page in a WebView) and the playing screen (the article redrawn

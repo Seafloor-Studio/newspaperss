@@ -75,7 +75,7 @@ class EditionRepository(
 
     /** Released as not sent when a newer edition was made, and still here to have been sent another way. */
     fun notSent(edition: EditionEntity): Boolean =
-        edition.status == EditionStatus.FAILED && edition.error == EditionBuilder.NOT_SENT && fileOf(edition) != null
+        EditionBuilder.released(edition) && fileOf(edition) != null
 
     /**
      * The reader's mail app was opened, or picked, to email an edition to their Kindle's own
@@ -198,8 +198,7 @@ class EditionRepository(
             db.editions().deleteArticles(id)
             // A released one keeps its note, which keeps its title taken: it could be sent while
             // its file was here and the app might not record it (a share while a build runs).
-            val released = edition.status == EditionStatus.FAILED &&
-                (edition.error == EditionBuilder.NOT_SENT || edition.error == EditionBuilder.OLD_NOT_SENT)
+            val released = EditionBuilder.released(edition)
             db.editions().update(
                 edition.copy(
                     status = EditionStatus.DELETED, fileName = null, articleCount = 0, minutes = 0.0,

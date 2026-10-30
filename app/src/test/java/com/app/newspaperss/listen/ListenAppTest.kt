@@ -321,6 +321,7 @@ class ListenAppTest {
             Triple(EditionStatus.READY, null, true),
             Triple(EditionStatus.DELIVERED, null, true),
             Triple(EditionStatus.FAILED, EditionBuilder.NOT_SENT, true),
+            Triple(EditionStatus.FAILED, EditionBuilder.OLD_NOT_SENT, true),
             Triple(EditionStatus.FAILED, "Couldn't reach any of your sources.", false),
             Triple(EditionStatus.BUILDING, null, false),
         )

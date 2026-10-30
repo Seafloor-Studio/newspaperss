@@ -16,7 +16,12 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
@@ -49,6 +54,7 @@ import com.app.newspaperss.testutil.idleUntil
 import com.app.newspaperss.ui.edition.EditionDetailScreen
 import com.app.newspaperss.ui.edition.KINDLE_NOTE
 import com.app.newspaperss.ui.edition.MARK_NOT_SENT
+import com.app.newspaperss.ui.edition.MARK_SENT_WAITING
 import com.app.newspaperss.ui.edition.EditionDetailViewModel
 import com.app.newspaperss.ui.today.TodayScreen
 import com.app.newspaperss.ui.today.TodayViewModel
@@ -99,13 +105,15 @@ class EditionDetailScreenTest {
         titles: List<String>,
         articleState: ArticleState = if (status == EditionStatus.DELIVERED) ArticleState.DELIVERED else ArticleState.IN_EDITION,
         withFile: Boolean = true,
+        error: String? = null,
+        name: String = "e",
         minutes: (Int) -> Double = { 4.0 },
     ): Pair<Long, List<Long>> = runBlocking {
-        val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "Example News"))
+        val source = db.sources().insert(SourceEntity(url = "https://example.com/$name/feed", title = "Example News"))
         val ids = titles.map { db.articles().insertIgnoring(ArticleEntity(sourceId = source, guid = it, url = "https://example.com/$it", title = it, state = articleState)) }
-        if (withFile) editionsDir.resolve("e.epub").writeText("epub")
+        if (withFile) editionsDir.resolve("$name.epub").writeText("epub")
         val editionId = db.editions().insert(
-            EditionEntity(title = "Tuesday Morning Edition", status = status, fileName = "e.epub", articleCount = titles.size, minutes = 12.0),
+            EditionEntity(title = "Tuesday Morning Edition", status = status, fileName = "$name.epub", articleCount = titles.size, minutes = 12.0, error = error),
         )
         db.editions().insertArticles(
             titles.mapIndexed { i, title ->
@@ -288,6 +296,84 @@ class EditionDetailScreenTest {
 
         idleUntil { statusOf(id) == EditionStatus.DELIVERED }
         assertEquals(ArticleState.DELIVERED, runBlocking { db.articles().byId(articles[0]) }?.state)
+    }
+
+    /**
+     * What a page offers by its edition's status, its note and whether its book is still here. A
+     * released edition, in either wording of its note, offers what a ready one does while its book
+     * is here, and says so when it's gone; a build that failed has no book to offer.
+     */
+    @Test
+    fun eachKindOfEditionOffersWhatItsBookAllows() {
+        data class Case(val status: EditionStatus, val error: String?, val withFile: Boolean, val markAsSent: Boolean, val fileGone: Boolean)
+        val cases = listOf(
+            Case(EditionStatus.READY, null, withFile = true, markAsSent = true, fileGone = false),
+            Case(EditionStatus.READY, null, withFile = false, markAsSent = true, fileGone = true),
+            Case(EditionStatus.DELIVERED, null, withFile = true, markAsSent = false, fileGone = false),
+            Case(EditionStatus.DELIVERED, null, withFile = false, markAsSent = false, fileGone = true),
+            Case(EditionStatus.FAILED, EditionBuilder.NOT_SENT, withFile = true, markAsSent = true, fileGone = false),
+            Case(EditionStatus.FAILED, EditionBuilder.OLD_NOT_SENT, withFile = true, markAsSent = true, fileGone = false),
+            Case(EditionStatus.FAILED, EditionBuilder.NOT_SENT, withFile = false, markAsSent = false, fileGone = true),
+            Case(EditionStatus.FAILED, EditionBuilder.OLD_NOT_SENT, withFile = false, markAsSent = false, fileGone = true),
+            Case(EditionStatus.FAILED, EditionBuilder.INTERRUPTED, withFile = false, markAsSent = false, fileGone = false),
+            Case(EditionStatus.FAILED, EditionBuilder.STOPPED, withFile = false, markAsSent = false, fileGone = false),
+            Case(EditionStatus.FAILED, EditionBuilder.UNEXPECTED, withFile = false, markAsSent = false, fileGone = false),
+        )
+        // One screen, shown each edition in turn: a test can set its content only once.
+        var shown by mutableStateOf<EditionDetailViewModel?>(null)
+        compose.setContent { shown?.let { vm -> key(vm) { EditionDetailScreen(vm, onBack = {}) } } }
+        cases.forEachIndexed { i, case ->
+            val state = if (case.status == EditionStatus.FAILED) ArticleState.NEW else ArticleState.IN_EDITION
+            val (id, _) = edition(case.status, listOf("Story $i"), articleState = state, withFile = case.withFile, error = case.error, name = "e$i")
+            val vm = viewModels.add(EditionDetailViewModel(repo, id) {})
+            shown = vm
+            val label = case.toString()
+            // Through the compose rule, which applies the change of screen; the looper alone doesn't.
+            idleUntil { compose.waitForIdle(); vm.detail.value?.edition?.id == id }
+            compose.waitForIdle()
+            assertEquals(label, case.markAsSent, compose.onAllNodesWithText("Mark as sent").fetchSemanticsNodes().isNotEmpty())
+            assertEquals(label, case.fileGone, compose.onAllNodesWithText("has been deleted", substring = true).fetchSemanticsNodes().isNotEmpty())
+            if (case.markAsSent) compose.onNodeWithText("Mark as sent").assertIsEnabled()
+        }
+    }
+
+    /**
+     * A released edition can't be marked as sent while another is being made, which may be taking
+     * its articles: its button is greyed out and says why, and comes back once the build is over.
+     * A ready edition's isn't held back.
+     */
+    @Test
+    fun aReleasedEditionsMarkAsSentWaitsForAnEditionBeingMade() {
+        val (id, articles) = edition(EditionStatus.FAILED, listOf("A story"), articleState = ArticleState.NEW, error = EditionBuilder.NOT_SENT)
+        val building = runBlocking { db.editions().insert(EditionEntity(title = "Wednesday Morning Edition", status = EditionStatus.BUILDING)) }
+        show(id)
+        waitFor(MARK_SENT_WAITING)
+        compose.onNodeWithText("Mark as sent").assertIsNotEnabled()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, MARK_SENT_WAITING))
+
+        runBlocking { db.editions().update(db.editions().byId(building)!!.copy(status = EditionStatus.READY)) }
+        idleUntil { compose.onAllNodesWithText(MARK_SENT_WAITING).fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithText("Mark as sent").assertIsEnabled().performClick()
+        idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+        assertEquals(ArticleState.DELIVERED, runBlocking { db.articles().byId(articles[0]) }?.state)
+    }
+
+    @Test
+    fun anEditionReleasedUnderTheOlderWordingCanBeMarkedAsSent() {
+        val (id, articles) = edition(EditionStatus.FAILED, listOf("A story"), articleState = ArticleState.NEW, error = EditionBuilder.OLD_NOT_SENT)
+        show(id)
+        compose.onNodeWithText("Mark as sent").performClick()
+        idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+        assertEquals(ArticleState.DELIVERED, runBlocking { db.articles().byId(articles[0]) }?.state)
+    }
+
+    @Test
+    fun aReadyEditionCanBeMarkedAsSentWhileAnotherIsBeingMade() {
+        val (id, _) = edition(EditionStatus.READY, listOf("A story"))
+        runBlocking { db.editions().insert(EditionEntity(title = "Wednesday Morning Edition", status = EditionStatus.BUILDING)) }
+        show(id)
+        compose.onNodeWithText("Mark as sent").assertIsEnabled()
+        compose.onNodeWithText(MARK_SENT_WAITING).assertDoesNotExist()
     }
 
     @Test

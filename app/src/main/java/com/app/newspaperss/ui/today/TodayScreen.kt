@@ -514,7 +514,7 @@ internal fun summary(edition: EditionEntity): String {
 /** Red for a failure; an edition that simply wasn't sent in time isn't one. */
 @Composable
 internal fun failureColor(error: String?) =
-    if (error == EditionBuilder.NOT_SENT || error == EditionBuilder.OLD_NOT_SENT) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
+    if (EditionBuilder.releasedNote(error)) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
 
 private fun timeOf(epochMillis: Long, zone: java.time.ZoneId): String =
     java.time.Instant.ofEpochMilli(epochMillis).atZone(zone).toLocalTime()
