@@ -119,8 +119,9 @@ class MainActivityTest {
         compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
         shows("About 30 minutes")
         compose.onNodeWithText("The ferry planner").performClick()
-        // The article's page, its byline at the top.
+        // The article's page, its byline at the top, with the preview's own Aa: not the old playing screen.
         shows("1 min read")
+        compose.onNodeWithContentDescription("Text size").assertExists()
         compose.onNodeWithContentDescription("Next article").assertExists()
         compose.onAllNodes(hasText("Listening · Rail Talk")).fetchSemanticsNodes().let { assertEquals("not over the article being played", 0, it.size) }
         // Opened from Settings, it's on Settings' stack: that tab stays lit.

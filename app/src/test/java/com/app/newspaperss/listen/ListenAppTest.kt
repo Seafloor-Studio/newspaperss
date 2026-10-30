@@ -630,8 +630,12 @@ class ListenAppTest {
         compose.onNodeWithContentDescription("Listen from here").performClick()
         idleUntil { player.state.value.at.page == 1 && player.state.value.script != null }
 
+        // Not the last article's own "Next" line, which says the same: its text is gone.
         compose.onNodeWithContentDescription("Next article").performClick()
-        idleUntil { player.state.value.at.page == 2 && compose.onAllNodesWithText(EpubWriter.END_TITLE, substring = true).fetchSemanticsNodes().isNotEmpty() }
+        idleUntil {
+            player.state.value.at.page == 2 && compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isEmpty() &&
+                compose.onAllNodesWithText(EpubWriter.END_TITLE, substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
 
         compose.onNodeWithContentDescription("Contents").performClick()
         compose.onNode(hasText("The Mathematician Who Counted Knots") and hasAnyAncestor(isDialog())).performClick()
