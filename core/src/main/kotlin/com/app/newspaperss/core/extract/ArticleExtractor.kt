@@ -1,6 +1,5 @@
 package com.app.newspaperss.core.extract
 
-import com.app.newspaperss.core.ReadingTime
 import com.app.newspaperss.core.feed.LinkPosts
 import com.app.newspaperss.core.net.ErrorAnswers
 import com.app.newspaperss.core.net.TooLargeException
@@ -44,7 +43,6 @@ data class ExtractedArticle(
     /** Cleaned XHTML fragment, ready for an EPUB chapter. */
     val html: String,
     val wordCount: Int,
-    val minutes: Double,
     val usedFeedContent: Boolean,
     /** Shown to the reader above the article, e.g. when the page couldn't be fetched. */
     val note: String?,
@@ -307,7 +305,6 @@ class ArticleExtractor(private val http: HttpClient) {
             author = PageExtractor.cleanAuthor(input.feedAuthor),
             html = html,
             wordCount = 0,
-            minutes = 0.0,
             usedFeedContent = false,
             note = "Couldn't fetch this article.",
             imageUrls = emptyList(),
@@ -388,7 +385,6 @@ class ArticleExtractor(private val http: HttpClient) {
         author = author,
         html = clean.html,
         wordCount = clean.wordCount,
-        minutes = ReadingTime.minutes(clean.wordCount),
         usedFeedContent = usedFeed,
         note = note,
         imageUrls = clean.imageUrls,

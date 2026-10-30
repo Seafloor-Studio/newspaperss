@@ -36,7 +36,6 @@ data class PlanRules(
      * still has room.
      */
     val maxPerSource: Int? = 1,
-    val ordering: Ordering = Ordering.TAKE_TURNS,
     /** Caps for particular sources, by [Candidate.sourceId], in place of [maxPerSource]. */
     val sourceCaps: Map<String, Int> = emptyMap(),
 )

@@ -214,7 +214,6 @@ class EditionBuilder(
         val totalMinutes = arranged.sumOf { minutesOf(it.second) }
         val coverImage = coverFor(
             CoverInfo(
-                title = title,
                 date = now.toLocalDate(),
                 headlines = arranged.map { (a, c) -> CoverHeadline(c.title, bylineOf(a, c, sourcesById.getValue(a.sourceId))) },
                 articleCount = arranged.size,
@@ -357,7 +356,7 @@ class EditionBuilder(
 
     companion object {
         /**
-         * The edition's title: Send to Kindle takes the shared file's name as the book's title, and
+         * The book's file name, from the edition's title: Send to Kindle takes the shared file's name as the book's title, and
          * the Kindle library would list "edition-3". Titles are unique among recent editions,
          * and a dated title ("Wednesday … Sep 30") only comes round again years later.
          */

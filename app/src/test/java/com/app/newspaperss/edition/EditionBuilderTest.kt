@@ -694,7 +694,6 @@ class EditionBuilderTest {
 
         val edition = db.editions().byId(built.editionId)!!
         val info = drawn!!
-        assertEquals(edition.title, info.title)
         assertEquals(java.time.LocalDate.of(2026, 9, 29), info.date)
         assertEquals(listOf(CoverHeadline("a a1", "a"), CoverHeadline("b b1", "b"), CoverHeadline("c c1", "c")), info.headlines)
         assertEquals(3, info.articleCount)

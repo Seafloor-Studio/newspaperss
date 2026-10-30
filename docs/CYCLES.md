@@ -3,6 +3,13 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle N11 (30 Oct) — audit: making an edition
+
+See [DEVLOG.md](DEVLOG.md). The second of three architecture audits; N12 takes sync and the data layer.
+- **Grep for the wording, not only the function.** The audit found three formatters for an edition's length; a grep for "about \${" found a fourth (Today's next-edition line) that formatted a raw number.
+- **A removed field breaks every constructor, tests included:** compile the tests (`:core:test`) before believing a removal is done; two failed builds found two more.
+- **Branch the next cycle after the last one merges, or merge main in before the records:** N11 branched from a main without N10's records, and its records edit had nothing to anchor to.
+
 ### Cycle N10 (30 Oct) — audit: the article view and Listen, after the merge
 
 See [DEVLOG.md](DEVLOG.md). The first of three architecture audits; the next two take other areas (the edition pipeline, then sync and the data layer).
