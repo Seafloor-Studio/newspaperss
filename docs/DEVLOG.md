@@ -16,6 +16,14 @@ caught, and what got in the way. Newest first. Times are Pacific.
   3. Once it's published, tell people where readers are (r/rss, r/androidapps): F-Droid's only early exception is "proven to have some users".
 - **Also waiting on you:** on a phone, ⋮ › Save a copy… on a sent edition, saved to Downloads, then opened from Files in an e-reader app (#338). The F-Droid merge request now has a date on it: **not before late December 2026**, three months of active development from this repository's first commit (29 Sep) — the one exception in reach is "proven to have some users", so readers on the GitHub APK are what moves it earlier. `docs/RELEASING.md` has the template's requirements. Also: two weeks of episode labels in real use (report a wrong one with Send for a look), and how the recordings sound in Listen; an `episodes` label on the repo; whether the `handle-issues` skill learns about "Episode label:" issues (claude-playground). [#18](https://github.com/Seafloor-Studio/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
 
+## Fri 30 Oct
+
+The 30 Oct cycle run (N1–N12, every two hours): the test audit's gaps, then one view for reading and listening, then three architecture and simplification audits. Earlier today, outside the run: a paused episode or reading plays on from where it got (#408), and older not-sent editions get Listen and Mark as sent back, greyed out while an edition is made (#410).
+
+### N1: a not-sent edition made the real way
+- **Why:** every test gave an edition "not sent" by hand, with the same constant the screens read, so a reworded note would pass every test and lose Listen again, as it did before #410.
+- **Built:** a test that builds two editions with the real builder and checks the first one's page: Resume where it was left, Mark as sent, its articles open, Save a copy. Falsified by having the builder write a reworded note.
+
 ## Sat 24 Oct
 
 ### No build for a merge that changes nothing in the app
