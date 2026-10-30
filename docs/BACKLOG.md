@@ -52,7 +52,6 @@ Cycle G6. Fixed in #363 (CI) and #364 (nested JSON). Measured unless it says "re
 
 What each screen offers by the edition's state wasn't tested past ready and sent editions, so a not-sent edition lost Listen (#401, #410). Robolectric unless it says otherwise.
 
-- [ ] **A not-sent edition made the real way:** build edition A, then B, and check A's page offers Listen, Resume, the audio line, Mark as sent and Save a copy, and opens an article. Every test now sets "not sent" by hand with the same constant the code reads.
 - [ ] **The natural-voice audio line on the edition page, by status:** ready, sent and not sent, against audio asked for, part made and made. `PodcastLineTest` checks the line alone; only a screenshot shows it inside the page.
 - [ ] **Deleting the edition you're listening to, or one that has audio:** through the real wiring in `AppContainer` (`listen.forget`, `podcastStore.delete`), and the clean-up after each run (`pruneFiles`). The bar should let go and the audio's space come back. The tests now check that a stand-in was called.
 - [ ] **Today's card when the newest edition is a not-sent one** (after making another and deleting it): it offers only "Try again", while its page offers Mark as sent and Listen. Make the card match the page (EditionActions says they offer the same), with a test.
@@ -476,6 +475,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] **A not-sent edition made the real way** *(N1)*: `ListenAppTest.anEditionReleasedByTheNextBuildStillOffersItsBook` builds two editions with the real builder and checks the first's page offers Resume where it was left, Mark as sent, its articles and Save a copy. A note the builder writes that the screens don't know turns it red. The audio line on the page is the next item's
 - [x] **Feeds: a linear entity check, and at most 1,000 items** *(H3, #376)*: the check reads the prolog once, past comments, and Android's parser is held to not expanding declared entities (`FeedParserEntityTest`); a feed keeps its 1,000 newest items by date
 - [x] **`AccessibilityChecksTest` no longer hangs the device job** *(H1, #374)*: the tap after switching to 200% text landed on the activity Android was about to recreate, and the new one's splash waited on a frame from the test's clock. It now waits for the new activity. 4 failures in 10 runs before, under the same 10-emulator matrix; 0 in 20 after
 - [x] **Accessibility tooling** *(a11y)*: Google's accessibility checks (the engine Accessibility Scanner uses) run on every screen a new reader meets, on the emulator in CI (#347). Not in the Robolectric tests: there the checks run on nothing and pass
