@@ -299,8 +299,10 @@ and its Ready notification comes down. Its page still offers **Mark as
 sent** while its file is here, for one sent some other way, and a send
 from a share sheet or Send left open counts too: its articles are used
 up, even any taken into the newer edition since. Neither counts while an
-edition is being made, which may be taking those articles; Mark as sent,
-hidden meanwhile, records it afterwards.
+edition is being made, which may be taking those articles: Mark as sent is
+greyed out meanwhile, saying "Unavailable while a new edition is being
+made", and records it afterwards. Editions released under the note's
+older wording are treated the same.
 
 **Send to Kindle is slow.** A book can take a few minutes to reach a
 Kindle, so for half an hour after a send the edition (on Today and its own

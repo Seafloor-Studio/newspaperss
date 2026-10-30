@@ -542,7 +542,19 @@ class ScreenshotTest {
     @Test
     fun editionDetailNotSent() {
         val vm = sentEdition(notSent = true)
-        shoot("05j-edition-detail-not-sent", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}) }
+        val listening = listening()
+        shoot("05j-edition-detail-not-sent", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}, listening = listening) }
+    }
+
+    /** Released as not sent while a newer edition is being made: Mark as sent waits, and says why. */
+    @Test
+    fun editionDetailNotSentWhileOneIsMade() {
+        val vm = sentEdition(notSent = true)
+        runBlocking { db.editions().insert(EditionEntity(title = "Wednesday Morning Edition", createdAt = clock.instant(), status = EditionStatus.BUILDING)) }
+        val listening = listening()
+        shoot("05j2-edition-detail-not-sent-while-one-is-made", ready = { vm.detail.value?.contents?.isNotEmpty() == true && vm.building.value }) {
+            EditionDetailScreen(vm, onBack = {}, listening = listening)
+        }
     }
 
     /** Kokoro in use, the first two of four articles made: the bar under Listen. */
