@@ -20,6 +20,11 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 The 30 Oct cycle run (N1–N12, about every half hour): the test audit's gaps, then one view for reading and listening, then three architecture and simplification audits. Earlier today, outside the run: a paused episode or reading plays on from where it got (#408), and older not-sent editions get Listen and Mark as sent back, greyed out while an edition is made (#410).
 
+### N11: audit — making an edition
+- **Why:** the second architecture audit, on the path from picking articles to the finished EPUB.
+- **Fixed:** an edition of an hour or more now reads the same everywhere: "about 1 hr 15 min" on Today's cards, the edition page and the next-edition line, as the cover and the notification already said, not "about 75 min". Dead code gone: the cover's title (never drawn), the extractor's reading time at the default pace (the builder uses the reader's), an ordering rule the planner never read, and a page class no page used.
+- **Left:** titled sections and non-JPEG pictures in the book writer, which no edition uses; in BACKLOG's Tech debt.
+
 ### N10: audit — the article view and Listen
 - **Why:** three PRs merged the preview and the playing screen into one view; merges leave things behind.
 - **Fixed:** Play, Next or a seek from the article view's own player now binds Listen's service, as the bar always did, so after the service went while paused, playing again keeps its notification and audio focus. A table row is a "Read from here" button only while Listen plays (TalkBack offered one that did nothing). About 40 lines of dead or doubled code gone: a picture reader only a test used, a text size passed and never read, a scroll offset always 0, a link to the closing page no page has, the episode count worked out three times, each page parsed twice for its title.
