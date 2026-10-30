@@ -45,6 +45,11 @@ import com.app.newspaperss.ui.edition.ArticlePreviewScreen
 import com.app.newspaperss.ui.edition.EpubPages
 import com.app.newspaperss.ui.edition.fillsWidth
 import com.app.newspaperss.ui.edition.lookIssueUrl
+import com.app.newspaperss.ui.edition.quoteOf
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
+import androidx.compose.ui.unit.dp
 import com.app.newspaperss.ui.edition.withNextLine
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
@@ -236,6 +241,25 @@ class ArticlePreviewScreenTest {
         compose.onNodeWithText(note, substring = true).assertDoesNotExist()
         // The last says the paper ends, with nowhere further to go.
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("That's all for today.", substring = true))
+    }
+
+    /** The whole "Next" line is the link, a finger tall, not only its words: a tap at its far end turns too. */
+    @Test
+    fun theWholeNextLineTurnsThePage() {
+        val file = twoArticleEdition()
+        compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "One", onBack = {}) }
+        pageShown()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Next:", substring = true))
+        val line = compose.onNode(hasText("Next:", substring = true) and hasClickAction())
+        assertTrue(line.fetchSemanticsNode().size.height >= with(compose.density) { 48.dp.roundToPx() })
+        line.performTouchInput { click(centerRight.copy(x = right - 2f)) }
+        onArticle("Two")
+    }
+
+    @Test
+    fun aQuoteKeepsAListItemsNumberWithItsWords() {
+        assertEquals("Before.\n1. First item\n2. Second item", quoteOf(listOf("Before.", "1. ", "First item", "2. ", "Second item")))
+        assertEquals("Crossings\nKnots", quoteOf(listOf("Crossings", "Knots")))
     }
 
     @Test

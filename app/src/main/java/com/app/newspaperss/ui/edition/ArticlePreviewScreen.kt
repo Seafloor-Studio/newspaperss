@@ -37,6 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -186,32 +187,41 @@ fun ArticlePreviewScreen(
     // The article on screen: the "Next" line turns to the next. Kept across rotation.
     var article by rememberSaveable(position) { mutableIntStateOf(position) }
     val open = book as? Book.Open
-    val page by produceState<PreviewPage?>(null, open, article) {
-        val pages = open?.pages ?: return@produceState
-        value = withContext(Dispatchers.IO) {
-            val href = EpubPages.articleHref(article)
-            pages.article(article)?.let { withNextLine(it, href, pages) }?.let { xhtml ->
+    // The page on screen stays, title, note and buttons with it, until the next is read: on e-ink a
+    // page turn then redraws once, not blank and again.
+    var shown by remember(open) { mutableStateOf<PreviewPage?>(null) }
+    var unreadable by remember(open) { mutableStateOf(false) }
+    LaunchedEffect(open, article) {
+        val opened = open ?: return@LaunchedEffect
+        // A saved article the file no longer has, after it was made again, say.
+        if (article !in 0 until opened.articles) {
+            article = position
+            return@LaunchedEffect
+        }
+        val read = withContext(Dispatchers.IO) {
+            opened.pages.article(article)?.let { withNextLine(it, EpubPages.articleHref(article), opened.pages) }?.let { xhtml ->
                 val heading = Jsoup.parse(xhtml, "", Parser.xmlParser()).selectFirst("h1.article-title")?.text()?.ifEmpty { null }
                 PreviewPage(article, parsed(xhtml), articleLink(xhtml), heading)
             }
         }
+        unreadable = read == null
+        if (read != null) shown = read
     }
-    val shown = page?.takeIf { it.article == article }
     val link = shown?.link
     val shownTitle = shown?.title ?: title
     val context = LocalContext.current
     // The address asked about, so the question stays up across rotation; asked only about the
     // page it was asked on.
     var lookAt by rememberSaveable(position) { mutableStateOf<String?>(null) }
-    link?.takeIf { it.url == lookAt }?.let { SendForALookDialog(it, episodeFor(article), onDismiss = { lookAt = null }) }
+    link?.takeIf { it.url == lookAt }?.let { SendForALookDialog(it, shown?.article?.let(episodeFor), onDismiss = { lookAt = null }) }
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(shownTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
                 actions = {
-                    if (onListen != null && shown != null) {
-                        IconButton(onClick = { onListen(article) }) { Icon(Icons.Default.Headphones, contentDescription = "Listen from here") }
+                    shown?.takeIf { onListen != null }?.let { onScreen ->
+                        IconButton(onClick = { onListen?.invoke(onScreen.article) }) { Icon(Icons.Default.Headphones, contentDescription = "Listen from here") }
                     }
                     link?.let { l ->
                         IconButton(onClick = { runCatching { context.startActivity(shareIntent(l, shownTitle)) } }) {
@@ -221,12 +231,13 @@ fun ArticlePreviewScreen(
                     textSize?.let { TextSizeMenu(it, onTextSize) }
                     // The page on screen's own source, which following "Next" changes, as Share and
                     // Listen do. The menu itself is there for whichever of the two it has.
-                    val goTo = shown?.let { onOpenSource?.let { sourceAt(article) } }
+                    val onScreen = shown?.article
+                    val goTo = onScreen?.let { at -> onOpenSource?.let { sourceAt(at) } }
                     if (link != null || goTo != null) {
                         MoreMenu(
                             onSendForALook = link?.let { { lookAt = it.url } },
                             source = goTo,
-                            onOpenSource = goTo?.let { { onOpenSource?.invoke(article) } },
+                            onOpenSource = goTo?.let { { onScreen?.let { onOpenSource?.invoke(it) } } },
                         )
                     }
                 },
@@ -237,17 +248,21 @@ fun ArticlePreviewScreen(
             book == Book.Missing -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Text("This edition's file is gone, so the article can't be shown.")
             }
+            unreadable && shown == null -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Text("This article can't be read from the edition's file.")
+            }
             // Words, not an animated bar, which smears on e-ink.
             open == null || shown == null || textSize == null -> Text("Opening…", Modifier.padding(padding).padding(24.dp))
             else -> Column(Modifier.fillMaxSize().padding(padding)) {
-                episodeFor(article)?.let(::episodeNote)?.let { note ->
+                val onScreen = shown!!
+                episodeFor(onScreen.article)?.let(::episodeNote)?.let { note ->
                     // Held to four lines: it stays above the article for the whole read.
                     Text(note, style = MaterialTheme.typography.bodySmall, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                     HorizontalDivider()
                 }
-                key(article) {
+                key(onScreen.article) {
                     PreviewPageView(
-                        shown, open.pages, textSize, link,
+                        onScreen, open.pages, textSize, link,
                         onArticle = { at -> if (at in 0 until open.articles) article = at },
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
@@ -257,11 +272,15 @@ fun ArticlePreviewScreen(
     }
 }
 
-/** A page read into blocks; null-safe for a page the parser can't take (nested too deep). */
+/**
+ * A page read into blocks. One nested too deep for the parser says so, and keeps its "Next" line,
+ * so the way on through the paper isn't lost with it.
+ */
 private fun parsed(xhtml: String): ListenScript = try {
     ListenScript.parse(xhtml)
 } catch (_: StackOverflowError) {
-    ListenScript(emptyList())
+    val next = BOOK_NEXT_LINE.find(xhtml)?.value.orEmpty()
+    ListenScript.parse("<html><body><p class=\"note\">This article is built too deeply to show here; it's whole in the book.</p>$next</body></html>")
 }
 
 /**
@@ -279,6 +298,8 @@ private fun PreviewPageView(page: PreviewPage, pages: EpubPages, textSize: Previ
     val selection = rememberSelectionState()
     val currentLink by rememberUpdatedState(link)
     val justify = justifies(textSize, (textSize.percent * LocalDensity.current.fontScale).roundToInt())
+    // Kept for the page, so a picture scrolled away and back isn't decoded again and doesn't pop in.
+    val decoded = remember(page.article) { mutableMapOf<String, ImageBitmap?>() }
     val goTo = { anchor: LinkTarget.Anchor ->
         if (anchor.page != null && anchor.page != page.article) {
             onArticle(anchor.page)
@@ -291,7 +312,7 @@ private fun PreviewPageView(page: PreviewPage, pages: EpubPages, textSize: Previ
         selection,
         Modifier.appendTextContextMenuComponents {
             item(ShareQuote, "Share") {
-                val quote = selection.selectedTexts.joinToString("\n\n") { it.text }.trim()
+                val quote = quoteOf(selection.selectedTexts.map { it.text })
                 close()
                 if (quote.isNotEmpty()) runCatching { context.startActivity(quoteIntent(quote, currentLink)) }
             }
@@ -306,7 +327,7 @@ private fun PreviewPageView(page: PreviewPage, pages: EpubPages, textSize: Previ
                         onAnchor = goTo,
                         justify = justify,
                     )
-                    is ListenScript.Block.Image -> PreviewImage(block, pages, textSize)
+                    is ListenScript.Block.Image -> PreviewImage(block, pages, textSize, decoded)
                     is ListenScript.Block.Table -> if (block.tooBig()) {
                         TextBlock(block.asText(), current = null, textSize, onLayout = {}, onTap = null)
                     } else {
@@ -322,17 +343,35 @@ private fun PreviewPageView(page: PreviewPage, pages: EpubPages, textSize: Previ
 private object ShareQuote
 
 /**
+ * The words selected, from the page's texts as Compose gives them, one per text drawn: a list item's
+ * number is its own, and goes in front of its item rather than on a line of its own.
+ */
+internal fun quoteOf(texts: List<String>): String = buildString {
+    for (text in texts) {
+        if (isNotEmpty() && !MARKER.matches(lastLineOf(this))) append('\n')
+        append(if (MARKER.matches(text)) text.trimEnd() + " " else text)
+    }
+}.trim()
+
+private fun lastLineOf(text: CharSequence) = text.substring(text.lastIndexOf('\n') + 1)
+
+// A list item's number or bullet, as drawn in front of it: "3. ", "• ", "1. • ".
+private val MARKER = Regex("^(?:\\d+\\.|•)(?: (?:\\d+\\.|•))* ?$")
+
+/**
  * A picture from the book, at its own size, or the width of the page for a large one standing
  * alone (alone in its figure, or an article that's only the picture): a tall strip shrunk to the
  * book's image size would otherwise sit narrow in the middle. Small ones (a headshot, a logo, a
  * row of icons) keep their size, as in the book. Its caption under it.
  */
 @Composable
-private fun PreviewImage(block: ListenScript.Block.Image, pages: EpubPages, textSize: PreviewTextSize) {
-    val bitmap by produceState<ImageBitmap?>(null, block.src) {
+private fun PreviewImage(block: ListenScript.Block.Image, pages: EpubPages, textSize: PreviewTextSize, decoded: MutableMap<String, ImageBitmap?>) {
+    val bitmap by produceState(decoded[block.src], block.src) {
+        if (block.src in decoded) return@produceState
         value = withContext(Dispatchers.IO) {
             pages.entry("OEBPS/" + block.src)?.let { bytes -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }
         }
+        decoded[block.src] = value
     }
     Column(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         bitmap?.let { image ->

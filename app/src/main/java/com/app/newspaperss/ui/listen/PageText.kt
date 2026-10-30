@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.HorizontalDivider
@@ -168,7 +169,11 @@ internal fun TextBlock(
         else -> 0.dp
     }
     val bar = MaterialTheme.colorScheme.onBackground
+    // A line of furniture that's one link to a page, as the "Next" line is: the whole line is the
+    // link, at least a finger tall, not only its words.
+    val wholeLine = if (block.kind == Kind.META) block.styles.filter { it.kind == StyleKind.LINK }.singleOrNull()?.let { linkAt(block, it.start) as? LinkTarget.Page } else null
     val outer = Modifier.fillMaxWidth()
+        .then(if (wholeLine != null) Modifier.heightIn(min = 48.dp).clickable(onClickLabel = linkLabel(block, wholeLine)) { page(wholeLine) } else Modifier)
         .padding(start = indent, bottom = if (block.kind in setOf(Kind.KICKER, Kind.TITLE, Kind.ITEM)) 4.dp else 12.dp)
         // A quote has a rule down its side, as the book's does.
         .then(if (block.kind == Kind.QUOTE) Modifier.drawBehind { drawRect(bar, size = Size(2.dp.toPx(), size.height)) }.padding(start = 14.dp) else Modifier)
@@ -181,7 +186,7 @@ internal fun TextBlock(
                     is LinkTarget.Web -> runCatching { uri.openUri(link.url) }.also { return@detectTapGestures }
                     is LinkTarget.Page -> page(link).also { return@detectTapGestures }
                     is LinkTarget.Anchor -> anchor?.let { it(link); return@detectTapGestures }
-                    null -> {}
+                    null -> wholeLine?.let { page(it); return@detectTapGestures }
                 }
                 val sentence = ranges.indexOfFirst { at <= it.last + 1 }
                 if (sentence >= 0) tap?.invoke(sentence)
@@ -194,11 +199,10 @@ internal fun TextBlock(
             // Drawn in capitals, read as written: all capitals can be spelled out a letter at a time.
             if (block.kind == Kind.KICKER) contentDescription = block.shown
             val links = block.styles.filter { it.kind == StyleKind.LINK }.mapNotNull { style ->
-                val words = block.shown.substring(style.start, style.end)
                 when (val target = linkAt(block, style.start)) {
-                    is LinkTarget.Web -> CustomAccessibilityAction("Open $words") { runCatching { uri.openUri(target.url) }; true }
-                    is LinkTarget.Page -> CustomAccessibilityAction("Go to $words") { page(target); true }
-                    is LinkTarget.Anchor -> anchor?.let { go -> CustomAccessibilityAction("Go to note $words") { go(target); true } }
+                    is LinkTarget.Web -> CustomAccessibilityAction(linkLabel(block, target, style)) { runCatching { uri.openUri(target.url) }; true }
+                    is LinkTarget.Page -> CustomAccessibilityAction(linkLabel(block, target, style)) { page(target); true }
+                    is LinkTarget.Anchor -> anchor?.let { go -> CustomAccessibilityAction(linkLabel(block, target, style)) { go(target); true } }
                     null -> null
                 }
             }
@@ -223,6 +227,20 @@ internal fun TextBlock(
         } else {
             drawn(modifier.weight(1f))
         }
+    }
+}
+
+/**
+ * What TalkBack calls a link: "Open *its words*", "Go to *the next article*" without the arrow drawn
+ * after it, "Go to note 3" for a footnote's marker, and "Back to the text" for its way back (an
+ * arrow or the like, with nothing to read).
+ */
+internal fun linkLabel(block: Block.Text, target: LinkTarget, style: ListenScript.Style = block.styles.first { it.kind == StyleKind.LINK }): String {
+    val words = block.shown.substring(style.start, style.end).replace("→", "").replace('\u00A0', ' ').trim()
+    return when (target) {
+        is LinkTarget.Web -> "Open $words"
+        is LinkTarget.Page -> "Go to $words"
+        is LinkTarget.Anchor -> if (words.any(Char::isLetterOrDigit)) "Go to note $words" else "Back to the text"
     }
 }
 

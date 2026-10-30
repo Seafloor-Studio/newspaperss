@@ -263,6 +263,7 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null, v
             }
 
             private fun figure(figure: Element, kind: Kind, silent: Boolean) {
+                figure.select("[id]").forEach { anchor(it) }
                 val caption = figure.selectFirst("figcaption")?.text()?.trim()?.ifEmpty { null }
                 val images = figure.select("img")
                 images.forEach { image(it, caption.takeIf { images.size == 1 }, standalone = images.size == 1) }
@@ -284,6 +285,8 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null, v
             }
 
             private fun table(table: Element, kind: Kind) {
+                // A footnote in a cell is read with its row: the table is where its link goes.
+                table.select("[id]").forEach { anchor(it) }
                 val rows = table.select("tr").map { row ->
                     val cells = row.select("th, td")
                     Block.Table.Row(
