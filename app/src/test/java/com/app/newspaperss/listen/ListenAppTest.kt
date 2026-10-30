@@ -900,7 +900,7 @@ class ListenAppTest {
         }
         idleUntil { compose.onAllNodesWithText("You've heard the whole edition.").fetchSemanticsNodes().isNotEmpty() }
         // TalkBack says it as it appears.
-        compose.onNodeWithText("You've heard the whole edition.").assert(androidx.compose.ui.test.SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsProperties.LiveRegion))
+        assertTrue(androidx.compose.ui.semantics.SemanticsProperties.LiveRegion in compose.onNodeWithText("You've heard the whole edition.").fetchSemanticsNode().config)
     }
 
     @Test
