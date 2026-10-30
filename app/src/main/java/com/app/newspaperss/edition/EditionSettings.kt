@@ -11,5 +11,5 @@ data class EditionSettings(
     val ordering: Ordering = Ordering.TAKE_TURNS,
     val wordsPerMinute: Int = ReadingTime.DEFAULT_WPM,
 ) {
-    val rules get() = PlanRules(Budget.Minutes(minutes.toDouble()), maxPerSource, ordering)
+    val rules get() = PlanRules(Budget.Minutes(minutes.toDouble()), maxPerSource)
 }

@@ -7,7 +7,7 @@ import org.junit.Test
 class FullTextCheckTest {
     private fun extracted(feedWords: Int, pageWords: Int?, usedFeed: Boolean, blocked: Boolean = false, note: String? = null) =
         ExtractedArticle(
-            title = "t", author = null, html = "<p>t</p>", wordCount = if (usedFeed) feedWords else pageWords ?: 0, minutes = 1.0,
+            title = "t", author = null, html = "<p>t</p>", wordCount = if (usedFeed) feedWords else pageWords ?: 0,
             usedFeedContent = usedFeed, note = note, imageUrls = emptyList(),
             feedWordCount = feedWords, pageWordCount = pageWords, pageBlocked = blocked,
         )

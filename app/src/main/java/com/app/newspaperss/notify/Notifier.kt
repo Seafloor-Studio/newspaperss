@@ -17,7 +17,6 @@ import com.app.newspaperss.OpenEditionActivity
 import com.app.newspaperss.R
 import com.app.newspaperss.SendEditionActivity
 import com.app.newspaperss.core.ReadingTime
-import com.app.newspaperss.core.plural
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.delivery.EditionIntents
 import com.app.newspaperss.work.StopPodcastReceiver
@@ -154,8 +153,7 @@ class Notifier(private val context: Context) : EditionNotifier {
         PendingIntent.FLAG_IMMUTABLE,
     )
 
-    private fun summary(edition: EditionEntity) =
-        "${plural(edition.articleCount, "article")} · about ${ReadingTime.format(edition.minutes)}"
+    private fun summary(edition: EditionEntity) = ReadingTime.summary(edition.articleCount, edition.minutes)
 
     companion object {
         // A new id, not EDITIONS made louder: Android keeps a channel's importance once created.
