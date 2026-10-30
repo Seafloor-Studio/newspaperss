@@ -56,7 +56,7 @@ class PageTextTest {
         }
         assertEquals(LinkTarget.Web("https://example.com/a"), at("https://example.com/a"))
         assertEquals(LinkTarget.Page(1), at("article-002.xhtml"))
-        assertEquals(LinkTarget.Page(null), at("end.xhtml"))
+        assertNull("the book's own way to its end, which the app never draws", at("end.xhtml"))
         // A footnote, on this page or the second article's; anything but the web opens nothing.
         assertEquals(LinkTarget.Anchor("fn1"), at("#fn1"))
         assertEquals(LinkTarget.Anchor("fn1", 1), at("article-002.xhtml#fn1"))

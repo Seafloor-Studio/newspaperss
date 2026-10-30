@@ -23,10 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import com.app.newspaperss.listen.PodcastSpeaker
-import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.min
 import com.app.newspaperss.core.ReadingTime
 import com.app.newspaperss.listen.ListenState
 import java.util.Locale

@@ -248,6 +248,9 @@ class AppContainer(
             // Only from the page it's about: a skip asked for there mustn't skip the next one.
             if (EPISODES) readingSpeaker.skip = { line -> player.state.value.takeIf { it.editionId == line.editionId && it.at.page == line.page }?.let { player.next() } }
             appScope.launch { player.state.collect { _listenNow.value = it } }
+            // Whatever starts it (the bar, the article view's player, a seek), playing needs the
+            // service for its notification and focus, and the service may have gone while paused.
+            appScope.launch { player.state.map { it.playing }.distinctUntilChanged().collect { if (it) connectListening() } }
         }
     }
     val listen: ListenPlayer by listenMade

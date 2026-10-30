@@ -77,8 +77,9 @@ fun PlayerDock(state: ListenState, player: ListenPlayer, voice: PodcastVoice?) {
                 // An episode's time left is in the row under the controls, with which episode it is.
                 if (page?.end != true && page?.episode != true) Text("${minutes(pageLeft)} left", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
             }
-            Chapters(state, Modifier.padding(vertical = 8.dp))
+            // The pages of the episodes after the edition, which always come last.
             val episodes = state.pages.indices.filter { state.pages[it].episode }
+            Chapters(state, episodes, Modifier.padding(vertical = 8.dp))
             // In the edition, the way to the episodes after it, which only Contents showed.
             if (episodes.isNotEmpty() && page?.episode != true) {
                 TextButton(
@@ -110,10 +111,8 @@ fun PlayerDock(state: ListenState, player: ListenPlayer, voice: PodcastVoice?) {
                 val total = state.secondsTotal
                 // On an episode the edition is all behind: its own times, if its length is known.
                 val times = if (page?.episode == true) {
-                    val episodes = state.pages.count { it.episode }
-                    val which = state.pages.take(state.at.page + 1).count { it.episode }
                     listOfNotNull(
-                        "Episode $which of $episodes",
+                        episodeOf(state, episodes),
                         if (page.minutes > 0.0) "${minutes(inPage)} in · ${minutes(pageLeft)} left" else null,
                     ).joinToString(" · ")
                 } else {
@@ -125,21 +124,22 @@ fun PlayerDock(state: ListenState, player: ListenPlayer, voice: PodcastVoice?) {
     }
 }
 
+private fun episodeOf(state: ListenState, episodes: List<Int>) = "Episode ${episodes.indexOf(state.at.page) + 1} of ${episodes.size}"
+
 /**
  * The edition as one bar, a piece per article sized by its length: its shape, and where you are in
  * it. The episodes after its end follow a gap, a short piece each whatever their length: an hour's
  * episode to scale would flatten the rest.
  */
 @Composable
-private fun Chapters(state: ListenState, modifier: Modifier) {
+private fun Chapters(state: ListenState, episodes: List<Int>, modifier: Modifier) {
     val done = MaterialTheme.colorScheme.primary
     val todo = MaterialTheme.colorScheme.outlineVariant
     // The articles come first, so a piece's index is its page's; the episodes come last.
     val pages = state.pages.filter { !it.end && !it.episode }
-    val episodes = state.pages.indices.filter { state.pages[it].episode }
     val description = when {
         state.at.page < pages.size -> "Article ${state.at.page + 1} of ${pages.size}"
-        state.at.page in episodes -> "Episode ${episodes.indexOf(state.at.page) + 1} of ${episodes.size}"
+        state.at.page in episodes -> episodeOf(state, episodes)
         else -> "Past the edition's end"
     }
     @Composable
@@ -169,12 +169,12 @@ private fun Chapters(state: ListenState, modifier: Modifier) {
 }
 
 /**
- * Brings the voice's [line] on a page of [script]'s blocks into view in [list], whose blocks start
- * [before] rows in. A line already on screen leaves it be; one that isn't turns a screen, putting
- * the line a little below the top. On e-ink each scroll redraws the screen, so it moves by whole
- * screens, and jumps rather than animates, which smears there.
+ * Brings the voice's [line] on a page of [script]'s blocks, a row each in [list], into view. A
+ * line already on screen leaves it be; one that isn't turns a screen, putting the line a little
+ * below the top. On e-ink each scroll redraws the screen, so it moves by whole screens, and jumps
+ * rather than animates, which smears there.
  */
-internal suspend fun follow(list: LazyListState, script: ListenScript, line: ListenScript.Line, layouts: Map<Int, TextLayoutResult>, tables: Map<Int, TableRows>, before: Int = 0) {
+internal suspend fun follow(list: LazyListState, script: ListenScript, line: ListenScript.Line, layouts: Map<Int, TextLayoutResult>, tables: Map<Int, TableRows>) {
     val block = script.blocks[line.block]
     val text = drawnAsText(block)
     // The line's top and bottom within its block, when its block has been drawn.
@@ -192,9 +192,9 @@ internal suspend fun follow(list: LazyListState, script: ListenScript, line: Lis
     // Items' offsets count from inside the content padding, as do the viewport's bounds here.
     val info = list.layoutInfo
     val viewport = info.viewportSize.height
-    val shown = info.visibleItemsInfo.firstOrNull { it.index == before + line.block }
+    val shown = info.visibleItemsInfo.firstOrNull { it.index == line.block }
     if (shown != null && span != null && shown.offset + span.first >= info.viewportStartOffset && shown.offset + span.second <= info.viewportEndOffset) return
-    list.scrollToItem(before + line.block)
+    list.scrollToItem(line.block)
     val top = span?.first ?: return
     if (top > viewport / 3) list.scrollBy(top - viewport / 4f)
 }

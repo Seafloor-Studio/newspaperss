@@ -90,6 +90,21 @@ class MainActivityTest {
         compose.onAllNodes(hasText("Listening · Rail Talk")).fetchSemanticsNodes().let { assertEquals(0, it.size) }
     }
 
+    /** Play pressed anywhere binds Listen's service, not only the bar's: it may have gone while paused. */
+    @Test
+    fun playingFromThePlayerItselfBindsTheService() {
+        launchWith(onboarded = true)
+        val id = listenedEdition()
+        app.container.listen.start(id)
+        idleUntil { app.container.listen.state.value.pages.isNotEmpty() }
+        app.container.listen.pause()
+        // Paused for a while, as the service goes only some time after: the app has seen it.
+        idleUntil { app.container.listenNow.value?.playing == false }
+        app.listenConnects = 0
+        app.container.listen.play()
+        idleUntil { app.listenConnects > 0 }
+    }
+
     /** An edition of one article, "The ferry planner" from Rail Talk, with its book; returns its id. */
     private fun listenedEdition(): Long = runBlocking {
         val dir = File(app.filesDir, "editions").apply { mkdirs() }
