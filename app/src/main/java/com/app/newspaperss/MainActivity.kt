@@ -216,13 +216,16 @@ private fun App(
     val nav = rememberNavController()
     // Listening is reading: the bar, the notification and the edition's Listen open the article the
     // voice is on, with the player under it. Its page follows once the edition's open.
-    val openPlayer = { editionId: Long? ->
+    // The edition playing, else [fallback]: the edition page's Listen may have started an older one.
+    val openPlayer = { fallback: Long? ->
         val now = container.listen.state.value
-        val id = editionId ?: now.editionId
+        val id = now.editionId ?: fallback
         if (id == null) {
             nav.navigate(LISTEN) { launchSingleTop = true }
         } else {
-            nav.navigate("edition/$id/article/${now.takeIf { it.editionId == id }?.at?.page ?: 0}") { launchSingleTop = true }
+            // While it opens, its place isn't known to the player yet: where it was left.
+            val page = if (now.editionId == id && !now.loading && now.pages.isNotEmpty()) now.at.page else container.listening.saved(id)?.page ?: 0
+            nav.navigate("edition/$id/article/$page") { launchSingleTop = true }
         }
     }
     LaunchedEffect(opening) {

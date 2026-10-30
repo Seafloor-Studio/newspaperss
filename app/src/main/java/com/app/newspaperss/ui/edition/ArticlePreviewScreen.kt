@@ -224,7 +224,8 @@ fun ArticlePreviewScreen(
     // Listen has this edition's page open: not before its script is read, when its place is still
     // the edition's start.
     val listening = listenState?.takeIf { editionId != null && it.editionId == editionId && it.pages.isNotEmpty() && it.script != null }
-    val listenOpening = editionId != null && listenState?.editionId == editionId && listening == null
+    // Opening: not after an error, which the page then says (below), offering Listen again.
+    val listenOpening = editionId != null && listenState?.editionId == editionId && listening == null && listenState.error == null
     // The page turns with the voice when the voice moves on, not to wherever it was left: an
     // article opened, or the screen recreated, while Listen is paused elsewhere stays.
     var voiceWasOn by rememberSaveable(position) { mutableStateOf(listening?.at?.page) }
@@ -242,13 +243,24 @@ fun ArticlePreviewScreen(
     var unreadable by remember(open) { mutableStateOf(false) }
     // The closing page and the episodes after the edition aren't in the book's articles: drawn
     // from the voice's own script while it's on one.
-    val voicePage = listening?.takeIf { it.at.page == article && article >= (open?.articles ?: Int.MAX_VALUE) }
-    LaunchedEffect(open, article, voicePage?.script) {
+    // Read when the effect runs, not when it was keyed: the voice and the page move in the same frame.
+    val voiceNow by rememberUpdatedState(listening)
+    val openingNow by rememberUpdatedState(listenOpening)
+    val voicePageScript = listening?.takeIf { it.at.page >= (open?.articles ?: Int.MAX_VALUE) }?.script
+    LaunchedEffect(open, article, voicePageScript) {
         val opened = open ?: return@LaunchedEffect
         if (article >= opened.articles) {
-            voicePage?.script?.let { script -> shown = PreviewPage(article, script, null, voicePage.pages.getOrNull(article)?.title) }
-            // Not Listen's (any more): back to the last article. Still opening, it waits.
-            if (voicePage == null && !listenOpening) article = opened.articles - 1
+            val voice = voiceNow
+            when {
+                voice != null && voice.at.page == article ->
+                    voice.script?.let { script -> shown = PreviewPage(article, script, null, voice.pages.getOrNull(article)?.title) }
+                // On its way to another page past the articles: the page follows it there.
+                voice != null && voice.at.page >= opened.articles -> {}
+                // Still opening, it waits.
+                openingNow -> {}
+                // Not Listen's (any more): back to the last article.
+                else -> article = opened.articles - 1
+            }
             return@LaunchedEffect
         }
         // A saved article the file no longer has, after it was made again, say.
@@ -274,8 +286,11 @@ fun ArticlePreviewScreen(
     // Saved open, it can come back after Android ended the app: not over a player with nothing in it.
     var contents by rememberSaveable { mutableStateOf(false) }
     if (contents && listening != null && player != null) {
-        Contents(listening, onPick = { contents = false; player.seek(ListenPosition(it, 0)) }, onDismiss = { contents = false })
+        // The page goes with the pick even when it's the voice's own article, which wouldn't turn it.
+        Contents(listening, onPick = { contents = false; article = it; player.seek(ListenPosition(it, 0)) }, onDismiss = { contents = false })
     }
+    // Closed with Listen: left saved, it would open by itself the next time Listen starts.
+    LaunchedEffect(listening == null) { if (listening == null) contents = false }
     link?.takeIf { it.url == lookAt }?.let { SendForALookDialog(it, shown?.article?.let(episodeFor), onDismiss = { lookAt = null }) }
     Scaffold(
         topBar = {
@@ -322,6 +337,10 @@ fun ArticlePreviewScreen(
             open == null || shown == null || textSize == null -> Text("Opening…", Modifier.padding(padding).padding(24.dp))
             else -> Column(Modifier.fillMaxSize().padding(padding)) {
                 val onScreen = shown!!
+                // An error before the page was read, as when the book can't be opened: said here.
+                listenState?.takeIf { listening == null && editionId != null && it.editionId == editionId }?.error?.let { error ->
+                    Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp))
+                }
                 listening?.let { state ->
                     val here = state.at.page == onScreen.article
                     val recording by reading.collectAsStateWithLifecycle()
