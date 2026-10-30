@@ -272,7 +272,6 @@ class ListenAppTest {
         assertEquals("That's all for today.", heard[10])
         assertTrue(progress.finished(id))
         assertEquals(1, connected)
-        runBlocking { assertNotNull(player.image("images/table.png")) }
     }
 
     @Test
@@ -854,7 +853,10 @@ class ListenAppTest {
         compose.onNodeWithContentDescription("3.", useUnmergedTree = true).assertIsDisplayed()
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("x = 1\n  y = 2"))
 
-        // Playing, a table row tapped is read from, a row at a time.
+        // Paused, a table row is no button, for TalkBack either; playing, one tapped is read from, a row at a time.
+        assertFalse(player.state.value.playing)
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Crossings"))
+        compose.onAllNodes(hasText("3") and hasClickAction()).fetchSemanticsNodes().let { assertEquals(0, it.size) }
         player.play()
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Crossings"))
         compose.onNode(hasText("3") and hasClickAction()).performClick()

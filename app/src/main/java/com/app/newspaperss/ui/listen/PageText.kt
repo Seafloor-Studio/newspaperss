@@ -100,8 +100,8 @@ internal fun styledText(block: Block.Text, current: IntRange?, colors: PageColor
 internal sealed interface LinkTarget {
     data class Web(val url: String) : LinkTarget
 
-    /** The [index]th page of the book: the "Next" line's article, or the closing page if null. */
-    data class Page(val index: Int?) : LinkTarget
+    /** The [index]th article of the book: the "Next" line's. */
+    data class Page(val index: Int) : LinkTarget
 
     /** The element with [id]: on this page, or the [page]th article's (a footnote and its way back). */
     data class Anchor(val id: String, val page: Int? = null) : LinkTarget
@@ -112,7 +112,6 @@ internal fun linkAt(block: Block.Text, offset: Int): LinkTarget? {
     if (href.startsWith("https://", ignoreCase = true) || href.startsWith("http://", ignoreCase = true)) return LinkTarget.Web(href)
     if (href.startsWith("#") && href.length > 1) return LinkTarget.Anchor(href.drop(1))
     // EpubWriter names the articles' pages by position.
-    if (href == "end.xhtml") return LinkTarget.Page(null)
     val page = ARTICLE_PAGE.matchEntire(href.substringBefore('#'))?.let { it.groupValues[1].toInt() - 1 } ?: return null
     return href.substringAfter('#', "").takeIf { it.isNotEmpty() }?.let { LinkTarget.Anchor(it, page) } ?: LinkTarget.Page(page)
 }
@@ -129,7 +128,7 @@ internal fun TextBlock(
     current: Int?,
     textSize: PreviewTextSize,
     onLayout: (TextLayoutResult) -> Unit,
-    /** Reads from the tapped sentence; null where nothing is read aloud, as in the preview. */
+    /** Reads from the tapped sentence; null while Listen isn't playing this page. */
     onTap: ((Int) -> Unit)?,
     onPage: (LinkTarget.Page) -> Unit = {},
     /** Goes to a footnote or back; null leaves such a link as the text it's in. */
@@ -317,7 +316,7 @@ private const val MOST_COLUMNS = 50
  * sideways rather than wrapping words a letter to a line.
  */
 @Composable
-internal fun TableBlock(block: Block.Table, current: Int?, textSize: PreviewTextSize, positions: TableRows, onTap: (Int) -> Unit) {
+internal fun TableBlock(block: Block.Table, current: Int?, textSize: PreviewTextSize, positions: TableRows, onTap: ((Int) -> Unit)?) {
     val style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Serif).sized(textSize)
     val line = MaterialTheme.colorScheme.outlineVariant
     val tint = MaterialTheme.colorScheme.secondaryContainer
@@ -336,7 +335,7 @@ internal fun TableBlock(block: Block.Table, current: Int?, textSize: PreviewText
                     val rowModifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)
                         .onGloballyPositioned { positions.rows[r] = it.positionInRoot().y }
                         .then(if (reading) Modifier.background(tint) else Modifier)
-                        .then(if (row.sentences.isNotEmpty()) Modifier.clickable(onClickLabel = "Read from here") { onTap(firsts[r]) } else Modifier)
+                        .then(if (onTap != null && row.sentences.isNotEmpty()) Modifier.clickable(onClickLabel = "Read from here") { onTap(firsts[r]) } else Modifier)
                     if (r > 0) HorizontalDivider(color = line)
                     Row(rowModifier) {
                         grid[r].forEachIndexed { c, slot ->

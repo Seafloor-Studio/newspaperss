@@ -23,16 +23,10 @@ class ListenBook(
     val title: String,
     val pages: List<ListenPage>,
     private val read: suspend (index: Int) -> ListenScript?,
-    private val readImage: suspend (src: String) -> ByteArray? = { null },
     private val onClose: () -> Unit = {},
 ) : Closeable {
     suspend fun script(index: Int): ListenScript? = read(index)
 
-    /** A picture in the book, by its `src` on the page. */
-    suspend fun image(src: String): ByteArray? = readImage(src)
-
-    /** Minutes left from the start of [page], the closing page aside. */
-    fun minutesFrom(page: Int): Double = pages.drop(page).sumOf { it.minutes }
 
     override fun close() = onClose()
 
@@ -68,7 +62,7 @@ class ListenBook(
                 ListenPage(it.entry.title, it.entry.sourceTitle, recording ?: ListenTime.fromReading(it.entry.minutes))
             } + ListenPage(EpubWriter.END_TITLE, null, 0.0, end = true) +
                 ending.map { ListenPage(it.title, it.source, (it.reading.seconds ?: 0) / 60.0, episode = true) }
-            return ListenBook(editionId, edition.title, pages, read = read, readImage = { src -> withContext(Dispatchers.IO) { book.entry("OEBPS/$src") } }, onClose = book::close)
+            return ListenBook(editionId, edition.title, pages, read = read, onClose = book::close)
         }
     }
 }

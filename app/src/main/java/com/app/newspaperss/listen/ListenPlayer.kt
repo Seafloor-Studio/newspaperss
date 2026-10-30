@@ -226,9 +226,6 @@ class ListenPlayer(
         speaker.speak(SAMPLE_ID, text, null, speed, flush = true)
     }
 
-    /** A picture on the page being read, for the screen. */
-    suspend fun image(src: String): ByteArray? = book?.image(src)
-
     /** Lets [editionId] go if it's the one loaded: its book was deleted. */
     fun forget(editionId: Long) {
         if (_state.value.editionId == editionId) stop()
