@@ -214,8 +214,22 @@ private fun App(
     onOpened: () -> Unit = {},
 ) {
     val nav = rememberNavController()
+    // Listening is reading: the bar, the notification and the edition's Listen open the article the
+    // voice is on, with the player under it. Its page follows once the edition's open.
+    // The edition playing, else [fallback]: the edition page's Listen may have started an older one.
+    val openPlayer = { fallback: Long? ->
+        val now = container.listen.state.value
+        val id = now.editionId ?: fallback
+        if (id == null) {
+            nav.navigate(LISTEN) { launchSingleTop = true }
+        } else {
+            // While it opens, its place isn't known to the player yet: where it was left.
+            val page = if (now.editionId == id && !now.loading && now.pages.isNotEmpty()) now.at.page else container.listening.saved(id)?.page ?: 0
+            nav.navigate("edition/$id/article/$page") { launchSingleTop = true }
+        }
+    }
     LaunchedEffect(opening) {
-        if (opening == MainActivity.OPEN_LISTENING) nav.navigate(LISTEN) { launchSingleTop = true }
+        if (opening == MainActivity.OPEN_LISTENING) openPlayer(null)
         if (opening != null) onOpened()
     }
     val current by nav.currentBackStackEntryAsState()
@@ -227,7 +241,7 @@ private fun App(
                 // it's playing, which has the player under the page.
                 val onItsArticle = current?.destination?.route == ARTICLE && current?.arguments?.getLong("id") == listenNow?.editionId
                 listenNow?.takeIf { showsListenBar(it) && current?.destination?.route != LISTEN && !onItsArticle }?.let { state ->
-                    ListenBar(state, onOpen = { nav.navigate(LISTEN) { launchSingleTop = true } }, onToggle = container.listening::toggle, onClose = container.listen::stop)
+                    ListenBar(state, onOpen = { openPlayer(null) }, onToggle = container.listening::toggle, onClose = container.listen::stop)
                 }
                 // The tab whose stack the screen is on: switching tabs pops back to Today, the start,
                 // and pushes the other tab's top, so at most one other tab's root is on the stack. Not
@@ -287,7 +301,7 @@ private fun App(
                     kindleReader = kindleReader,
                     kindleEmail = kindleEmail,
                     listening = container.listening,
-                    onOpenPlayer = { nav.navigate(LISTEN) { launchSingleTop = true } },
+                    onOpenPlayer = { openPlayer(id) },
                     onBack = { nav.navigateUp() },
                     onReadArticle = { position -> nav.navigate("edition/$id/article/$position") { launchSingleTop = true } },
                 )

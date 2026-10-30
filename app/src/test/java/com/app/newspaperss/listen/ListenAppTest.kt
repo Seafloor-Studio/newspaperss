@@ -644,6 +644,110 @@ class ListenAppTest {
         player.stop()
     }
 
+    /**
+     * In the one view, the voice going past the last article draws the closing page there, from
+     * Listen's own script, and Listen's contents move the page and the voice together.
+     */
+    @Test
+    fun theClosingPageAndTheContentsAreInTheArticleView() {
+        val id = edition()
+        compose.setContent { preview(id, position = 1)() }
+        idleUntil { compose.onAllNodes(hasContentDescription("Listen from here")).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Listen from here").performClick()
+        idleUntil { player.state.value.at.page == 1 && player.state.value.script != null }
+
+        // Not the last article's own "Next" line, which says the same: its text is gone.
+        compose.onNodeWithContentDescription("Next article").performClick()
+        idleUntil {
+            player.state.value.at.page == 2 && compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isEmpty() &&
+                compose.onAllNodesWithText(EpubWriter.END_TITLE, substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        compose.onNodeWithContentDescription("Contents").performClick()
+        compose.onNode(hasText("The Mathematician Who Counted Knots") and hasAnyAncestor(isDialog())).performClick()
+        idleUntil { player.state.value.at.page == 0 && compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        player.stop()
+    }
+
+    /** An edition whose notes post's episode plays after its closing page: page 2 the closing page, page 3 the episode. */
+    private fun editionWithAnEpisodeAfterIt(): Long = runBlocking {
+        val notes = EditionArticle(
+            title = "Episode 12: The ferry planner", sourceTitle = "The Example Show", url = "https://example.com/12",
+            bodyHtml = "<p>This week we talk to a ferry planner.</p>", minutes = 1.0,
+        )
+        FileOutputStream(File(editionsDir, "n.epub")).use {
+            EpubWriter.write(EditionDoc("Saturday Morning Edition", LocalDate.of(2026, 10, 3), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000030", listOf(EditionSection(null, listOf(notes, lagos)))), it)
+        }
+        val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Show"))
+        val article = db.articles().insertIgnoring(
+            ArticleEntity(sourceId = source, guid = "12", url = notes.url, title = notes.title, episodeKind = EpisodeKind.NOTES, audioUrl = "https://cdn.example/12.mp3", audioSeconds = 2_280),
+        )
+        db.editions().insert(EditionEntity(title = "Saturday Morning Edition", status = EditionStatus.DELIVERED, fileName = "n.epub", articleCount = 2, minutes = 3.0)).also { id ->
+            db.editions().insertArticles(
+                listOf(
+                    EditionArticleEntity(editionId = id, articleId = article, position = 0, title = notes.title, sourceTitle = notes.sourceTitle, minutes = notes.minutes),
+                    EditionArticleEntity(editionId = id, articleId = null, position = 1, title = lagos.title, sourceTitle = lagos.sourceTitle, minutes = lagos.minutes),
+                ),
+            )
+        }
+    }
+
+    /** From the closing page to the episode after it and back, the view goes with the voice, never back to the last article. */
+    @Test
+    fun theClosingPageAndTheEpisodeAfterItFollowTheVoiceBetweenThem() {
+        val id = editionWithAnEpisodeAfterIt()
+        val player = ListenPlayer(speaker, progress, open = { ListenBook.open(repo, it, Readings(db, { Recordings() })) }, CoroutineScope(SupervisorJob() + Dispatchers.Main))
+        player.start(id, ListenPosition(2, 0))
+        idleUntil { player.state.value.script != null && player.state.value.at.page == 2 }
+        compose.setContent {
+            ArticlePreviewScreen(loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = 2, title = "Saturday Morning Edition", onBack = {}, onListen = {}, player = player, editionId = id)
+        }
+        idleUntil { compose.onAllNodesWithText(EpubWriter.END_TITLE, substring = true).fetchSemanticsNodes().isNotEmpty() }
+        val lagosShown = { compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
+
+        player.seek(ListenPosition(3, 0))
+        idleUntil { player.state.value.at.page == 3 && compose.onAllNodesWithText("0:30", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        assertFalse(lagosShown())
+        player.seek(ListenPosition(2, 0))
+        idleUntil { player.state.value.at.page == 2 && compose.onAllNodesWithText("0:30", substring = true).fetchSemanticsNodes().isEmpty() }
+        assertFalse(lagosShown())
+        assertTrue(compose.onAllNodesWithText(EpubWriter.END_TITLE, substring = true).fetchSemanticsNodes().isNotEmpty())
+        player.stop()
+    }
+
+    /** Picked from the contents while another article's on screen, the voice's own article comes to the page too. */
+    @Test
+    fun pickingTheVoicesOwnArticleFromTheContentsTurnsThePage() {
+        val id = edition()
+        startAndWait(id)
+        player.pause()
+        compose.setContent { preview(id, position = 1)() }
+        idleUntil { compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Contents").performClick()
+        compose.onNode(hasText("The Mathematician Who Counted Knots", substring = true) and hasAnyAncestor(isDialog())).performClick()
+        idleUntil { player.state.value.at.page == 0 && compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        player.stop()
+    }
+
+    /** Contents left open when Listen stops don't open by themselves when Listen starts again. */
+    @Test
+    fun contentsLeftOpenWhenListenStopsDontComeBackByThemselves() {
+        val id = edition()
+        compose.setContent { preview(id, position = 0)() }
+        idleUntil { compose.onAllNodes(hasContentDescription("Listen from here")).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Listen from here").performClick()
+        idleUntil { player.state.value.script != null }
+        compose.onNodeWithContentDescription("Contents").performClick()
+        compose.onNode(isDialog()).assertExists()
+        player.stop()
+        idleUntil { compose.onAllNodes(hasContentDescription("Listen from here")).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Listen from here").performClick()
+        idleUntil { player.state.value.script != null }
+        compose.waitForIdle()
+        assertEquals(0, compose.onAllNodes(isDialog()).fetchSemanticsNodes().size)
+        player.stop()
+    }
+
     /** What Listen says about the page it's reading shows above the article in the preview too. */
     @Test
     fun theNoteForAMissingVoiceShowsInThePreview() {

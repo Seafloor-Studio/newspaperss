@@ -1,6 +1,8 @@
 package com.app.newspaperss.ui.edition
 
 import android.content.Intent
+import androidx.compose.material.icons.automirrored.filled.List
+import com.app.newspaperss.ui.listen.Contents
 import androidx.compose.foundation.clickable
 import com.app.newspaperss.listen.PodcastSpeaker
 import com.app.newspaperss.listen.ReadingSpeaker
@@ -207,7 +209,9 @@ fun ArticlePreviewScreen(
         val pages = withContext(Dispatchers.IO) { loadFile()?.let(::EpubPages) }
         try {
             val articles = pages?.let { withContext(Dispatchers.IO) { generateSequence(0) { it + 1 }.takeWhile { at -> it.has("OEBPS/" + EpubPages.articleHref(at)) }.count() } } ?: 0
-            value = if (pages != null && articles > position) Book.Open(pages, articles) else Book.Missing
+            // Past the articles is the closing page or an episode after the edition, which only
+            // Listen draws: see the page's reading below.
+            value = if (pages != null && articles > 0) Book.Open(pages, articles) else Book.Missing
             awaitCancellation()
         } finally {
             pages?.close()
@@ -220,14 +224,14 @@ fun ArticlePreviewScreen(
     // Listen has this edition's page open: not before its script is read, when its place is still
     // the edition's start.
     val listening = listenState?.takeIf { editionId != null && it.editionId == editionId && it.pages.isNotEmpty() && it.script != null }
-    val listenOpening = editionId != null && listenState?.editionId == editionId && listening == null
+    // Opening: not after an error, which the page then says (below), offering Listen again.
+    val listenOpening = editionId != null && listenState?.editionId == editionId && listening == null && listenState.error == null
     // The page turns with the voice when the voice moves on, not to wherever it was left: an
     // article opened, or the screen recreated, while Listen is paused elsewhere stays.
     var voiceWasOn by rememberSaveable(position) { mutableStateOf(listening?.at?.page) }
     LaunchedEffect(listening?.at?.page) {
         val page = listening?.at?.page
-        // The closing page and the episodes after the edition aren't articles: the last stays.
-        if (page != null && page != voiceWasOn && page < (open?.articles ?: Int.MAX_VALUE)) article = page
+        if (page != null && page != voiceWasOn) article = page
         voiceWasOn = page
     }
     // While it plays, going to another article takes the voice there, which turns the page; paused,
@@ -237,11 +241,31 @@ fun ArticlePreviewScreen(
     // page turn then redraws once, not blank and again.
     var shown by remember(open) { mutableStateOf<PreviewPage?>(null) }
     var unreadable by remember(open) { mutableStateOf(false) }
-    LaunchedEffect(open, article) {
+    // The closing page and the episodes after the edition aren't in the book's articles: drawn
+    // from the voice's own script while it's on one.
+    // Read when the effect runs, not when it was keyed: the voice and the page move in the same frame.
+    val voiceNow by rememberUpdatedState(listening)
+    val openingNow by rememberUpdatedState(listenOpening)
+    val voicePageScript = listening?.takeIf { it.at.page >= (open?.articles ?: Int.MAX_VALUE) }?.script
+    LaunchedEffect(open, article, voicePageScript) {
         val opened = open ?: return@LaunchedEffect
+        if (article >= opened.articles) {
+            val voice = voiceNow
+            when {
+                voice != null && voice.at.page == article ->
+                    voice.script?.let { script -> shown = PreviewPage(article, script, null, voice.pages.getOrNull(article)?.title) }
+                // On its way to another page past the articles: the page follows it there.
+                voice != null && voice.at.page >= opened.articles -> {}
+                // Still opening, it waits.
+                openingNow -> {}
+                // Not Listen's (any more): back to the last article.
+                else -> article = opened.articles - 1
+            }
+            return@LaunchedEffect
+        }
         // A saved article the file no longer has, after it was made again, say.
-        if (article !in 0 until opened.articles) {
-            article = position
+        if (article < 0) {
+            article = 0
             return@LaunchedEffect
         }
         val read = withContext(Dispatchers.IO) {
@@ -259,6 +283,14 @@ fun ArticlePreviewScreen(
     // The address asked about, so the question stays up across rotation; asked only about the
     // page it was asked on.
     var lookAt by rememberSaveable(position) { mutableStateOf<String?>(null) }
+    // Saved open, it can come back after Android ended the app: not over a player with nothing in it.
+    var contents by rememberSaveable { mutableStateOf(false) }
+    if (contents && listening != null && player != null) {
+        // The page goes with the pick even when it's the voice's own article, which wouldn't turn it.
+        Contents(listening, onPick = { contents = false; article = it; player.seek(ListenPosition(it, 0)) }, onDismiss = { contents = false })
+    }
+    // Closed with Listen: left saved, it would open by itself the next time Listen starts.
+    LaunchedEffect(listening == null) { if (listening == null) contents = false }
     link?.takeIf { it.url == lookAt }?.let { SendForALookDialog(it, shown?.article?.let(episodeFor), onDismiss = { lookAt = null }) }
     Scaffold(
         topBar = {
@@ -275,6 +307,8 @@ fun ArticlePreviewScreen(
                             Icon(Icons.Default.Share, contentDescription = "Share link")
                         }
                     }
+                    // Listen's contents: the voice plays on while it's open, and a pick moves both.
+                    if (listening != null) IconButton(onClick = { contents = true }) { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Contents") }
                     textSize?.let { TextSizeMenu(it, onTextSize) }
                     // The page on screen's own source, which following "Next" changes, as Share and
                     // Listen do. The menu itself is there for whichever of the two it has.
@@ -303,6 +337,10 @@ fun ArticlePreviewScreen(
             open == null || shown == null || textSize == null -> Text("Opening…", Modifier.padding(padding).padding(24.dp))
             else -> Column(Modifier.fillMaxSize().padding(padding)) {
                 val onScreen = shown!!
+                // An error before the page was read, as when the book can't be opened: said here.
+                listenState?.takeIf { listening == null && editionId != null && it.editionId == editionId }?.error?.let { error ->
+                    Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp))
+                }
                 listening?.let { state ->
                     val here = state.at.page == onScreen.article
                     val recording by reading.collectAsStateWithLifecycle()
