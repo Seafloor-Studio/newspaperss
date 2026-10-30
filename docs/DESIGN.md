@@ -746,9 +746,13 @@ whose Kindle and KOReader answers ask for more on the same page).
     heard to its end, a bar along the bottom of every screen, over the
     tabs, says what it's reading ("Listening · Quanta Magazine" and the
     title) with play and pause, and ✕ to stop listening, which puts it
-    away and keeps the place. A tap opens the playing screen, on the tab
-    it was tapped from, where the bar isn't shown. After an error it goes:
-    the playing screen says what's wrong. While an edition opens, as when
+    away and keeps the place. A tap opens the article the voice is on, the
+    player under it (see the article preview above), on the tab it was
+    tapped from; the bar isn't shown over that edition's articles. So do
+    the media notification and the edition's Listen. There the closing page
+    and the episodes after the edition are drawn too, and **Contents** in
+    the top bar lists the edition: picking one moves the page and the
+    voice. After an error the bar goes: the article view says what's wrong. While an edition opens, as when
     switching to another, it stays and says "Opening the edition…" with a
     still hourglass. No progress bar or spinner, as each redraw
     flashes on e-ink. It appears once Listen has been used since the app
