@@ -351,7 +351,7 @@ internal fun MissingVoice(tag: String) {
 }
 
 @Composable
-private fun Contents(state: ListenState, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+internal fun Contents(state: ListenState, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(state.editionTitle) },

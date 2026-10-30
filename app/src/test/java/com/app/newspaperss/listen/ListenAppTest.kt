@@ -618,6 +618,27 @@ class ListenAppTest {
         player.stop()
     }
 
+    /**
+     * In the one view, the voice going past the last article draws the closing page there, from
+     * Listen's own script, and Listen's contents move the page and the voice together.
+     */
+    @Test
+    fun theClosingPageAndTheContentsAreInTheArticleView() {
+        val id = edition()
+        compose.setContent { preview(id, position = 1)() }
+        idleUntil { compose.onAllNodes(hasContentDescription("Listen from here")).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Listen from here").performClick()
+        idleUntil { player.state.value.at.page == 1 && player.state.value.script != null }
+
+        compose.onNodeWithContentDescription("Next article").performClick()
+        idleUntil { player.state.value.at.page == 2 && compose.onAllNodesWithText(EpubWriter.END_TITLE, substring = true).fetchSemanticsNodes().isNotEmpty() }
+
+        compose.onNodeWithContentDescription("Contents").performClick()
+        compose.onNode(hasText("The Mathematician Who Counted Knots") and hasAnyAncestor(isDialog())).performClick()
+        idleUntil { player.state.value.at.page == 0 && compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        player.stop()
+    }
+
     /** What Listen says about the page it's reading shows above the article in the preview too. */
     @Test
     fun theNoteForAMissingVoiceShowsInThePreview() {

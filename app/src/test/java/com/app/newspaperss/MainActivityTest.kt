@@ -114,28 +114,23 @@ class MainActivityTest {
         compose.onNodeWithContentDescription("Play").performClick()
         idleUntil { app.container.listen.state.value.playing }
 
-        // On every tab, and it opens the player, where it isn't shown: the player is the same and more.
+        // On every tab, and it opens the article the voice is on, the player under it, where the bar
+        // isn't shown: the player is the same and more.
         compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
         shows("About 30 minutes")
         compose.onNodeWithText("The ferry planner").performClick()
-        shows("Listening · 1 of 1")
-        compose.onAllNodes(hasText("Listening · Rail Talk")).fetchSemanticsNodes().let { assertEquals("not on the player", 0, it.size) }
-        // Opened from Settings, it's on Settings' stack: that tab stays lit. Left for another tab, the
-        // player isn't kept there; tapped again, the tab goes back to its top.
+        // The article's page, its byline at the top.
+        shows("1 min read")
+        compose.onNodeWithContentDescription("Next article").assertExists()
+        compose.onAllNodes(hasText("Listening · Rail Talk")).fetchSemanticsNodes().let { assertEquals("not over the article being played", 0, it.size) }
+        // Opened from Settings, it's on Settings' stack: that tab stays lit.
         compose.onAllNodes(hasText("Settings") and isSelected()).onFirst().assertExists()
         compose.onAllNodes(hasText("Today") and hasClickAction()).onFirst().performClick()
-        compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
-        shows("About 30 minutes")
-        compose.onAllNodes(hasText("Listening · 1 of 1")).fetchSemanticsNodes().let { assertEquals("the player isn't kept in Settings", 0, it.size) }
-        compose.onNodeWithText("The ferry planner").performClick()
-        shows("Listening · 1 of 1")
-        compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
-        shows("About 30 minutes")
-        compose.onAllNodes(hasText("Listening · 1 of 1")).fetchSemanticsNodes().let { assertEquals(0, it.size) }
+        shows("Listening · Rail Talk")
 
         // Stopped from the bar: it goes, and the place is kept.
         compose.onNodeWithContentDescription("Stop listening").performClick()
-        idleUntil { compose.onAllNodes(hasText("The ferry planner")).fetchSemanticsNodes().isEmpty() }
+        idleUntil { compose.onAllNodes(hasText("Listening · Rail Talk")).fetchSemanticsNodes().isEmpty() }
         assertNull(app.container.listen.state.value.editionId)
     }
 
