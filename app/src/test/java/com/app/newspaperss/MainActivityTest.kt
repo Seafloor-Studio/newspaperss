@@ -110,6 +110,41 @@ class MainActivityTest {
         compose.onAllNodes(hasText("The ferry planner")).fetchSemanticsNodes().let { assertEquals("the other edition's page has gone", 0, it.size) }
     }
 
+    /** Paused with the page turned on, the notification turns back to the article the voice is on. */
+    @Test
+    fun theNotificationTurnsBackToTheArticleTheVoiceIsOn() {
+        runBlocking { app.container.settings.update { it.copy(onboarded = true) } }
+        val id = runBlocking {
+            val ferry = EditionArticle("The ferry planner", "Rail Talk", "https://example.com/f", "<p>One. Two. Three.</p>", 1.0)
+            val bus = EditionArticle("The night bus", "Rail Talk", "https://example.com/b", "<p>Four. Five.</p>", 1.0)
+            File(File(app.filesDir, "editions").apply { mkdirs() }, "t.epub").outputStream().use {
+                com.app.newspaperss.core.epub.EpubWriter.write(
+                    com.app.newspaperss.core.epub.EditionDoc("Edition", java.time.LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000033", listOf(com.app.newspaperss.core.epub.EditionSection(null, listOf(ferry, bus)))), it,
+                )
+            }
+            app.container.db.editions().insert(EditionEntity(title = "Edition", status = EditionStatus.DELIVERED, fileName = "t.epub", articleCount = 2, minutes = 2.0)).also { id ->
+                app.container.db.editions().insertArticles(
+                    listOf(ferry, bus).mapIndexed { at, a -> EditionArticleEntity(editionId = id, articleId = null, position = at, title = a.title, sourceTitle = a.sourceTitle, minutes = 1.0) },
+                )
+            }
+        }
+        app.container.listen.start(id)
+        idleUntil { app.container.listen.state.value.pages.isNotEmpty() }
+        app.container.listen.pause()
+        val open = android.content.Intent(app, MainActivity::class.java).putExtra(MainActivity.EXTRA_OPEN, MainActivity.OPEN_LISTENING)
+        val scenario = ActivityScenario.launch<MainActivity>(open)
+        shows("The ferry planner")
+        // Paused, "Next" turns only the page.
+        compose.onNode(androidx.compose.ui.test.hasScrollToIndexAction()).performScrollToNode(hasText("Next:", substring = true))
+        compose.onNodeWithText("Next:", substring = true).fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsActions.CustomActions]
+            .single { it.label.startsWith("Go to Next") }.let { next -> compose.runOnIdle { next.action() } }
+        idleUntil { compose.onAllNodes(hasText("The ferry planner")).fetchSemanticsNodes().isEmpty() }
+        shows("The night bus")
+        assertEquals(0, app.container.listen.state.value.at.page)
+        scenario.onActivity { it.onNewIntent(open) }
+        shows("The ferry planner")
+    }
+
     /** An edition of one article, "The ferry planner" from Rail Talk unless named, with its book; returns its id. */
     private fun listenedEdition(title: String = "The ferry planner", source: String = "Rail Talk", file: String = "l.epub", uuid: String = "31"): Long = runBlocking {
         val dir = File(app.filesDir, "editions").apply { mkdirs() }
