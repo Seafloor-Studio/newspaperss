@@ -100,6 +100,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.jsoup.parser.Parser
 import java.io.File
 import kotlin.math.roundToInt
@@ -111,10 +112,9 @@ internal data class ArticleLink(val title: String, val url: String)
  * The original's address from a page's "Read the original at …" link, or null when the page has
  * none: the book only makes that a link for a web address, so whatever it holds can be shared.
  */
-internal fun articleLink(xhtml: String): ArticleLink? {
-    val doc = Jsoup.parse(xhtml, "", Parser.xmlParser())
+private fun articleLink(doc: Document, title: String?): ArticleLink? {
     val url = doc.selectFirst("p.source-link a[href]")?.attr("href")?.takeIf { it.isNotBlank() } ?: return null
-    return ArticleLink(doc.selectFirst("h1.article-title")?.text().orEmpty(), url)
+    return ArticleLink(title.orEmpty(), url)
 }
 
 // The book's own line, as EpubWriter writes it after a long article.
@@ -272,8 +272,9 @@ fun ArticlePreviewScreen(
         }
         val read = withContext(Dispatchers.IO) {
             opened.pages.article(article)?.let { withNextLine(it, EpubPages.articleHref(article), opened.pages) }?.let { xhtml ->
-                val heading = Jsoup.parse(xhtml, "", Parser.xmlParser()).selectFirst("h1.article-title")?.text()?.ifEmpty { null }
-                PreviewPage(article, parsed(xhtml), articleLink(xhtml), heading)
+                val doc = Jsoup.parse(xhtml, "", Parser.xmlParser())
+                val heading = doc.selectFirst("h1.article-title")?.text()?.ifEmpty { null }
+                PreviewPage(article, parsed(xhtml), articleLink(doc, heading), heading)
             }
         }
         unreadable = read == null
@@ -470,7 +471,7 @@ private fun PreviewPageView(
                 when (block) {
                     is ListenScript.Block.Text -> TextBlock(
                         block, current, textSize, onLayout = { layouts[index] = it }, onTap = onTap,
-                        onPage = { target -> target.index?.let(onArticle) },
+                        onPage = { onArticle(it.index) },
                         onAnchor = goTo,
                         justify = justify,
                     )
@@ -478,7 +479,7 @@ private fun PreviewPageView(
                     is ListenScript.Block.Table -> if (block.tooBig()) {
                         TextBlock(block.asText(), current, textSize, onLayout = { layouts[index] = it }, onTap = onTap)
                     } else {
-                        TableBlock(block, current, textSize, tables.getOrPut(index) { TableRows() }, onTap = onTap ?: {})
+                        TableBlock(block, current, textSize, tables.getOrPut(index) { TableRows() }, onTap)
                     }
                     ListenScript.Block.Rule -> RuleBlock()
                 }
