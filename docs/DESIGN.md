@@ -599,7 +599,13 @@ whose Kindle and KOReader answers ask for more on the same page).
   and the last in "That's all for today." The whole line is the link. It opens the next
   article in place; the title and **Share** follow the page on screen.
   The headphones in the top bar (**Listen from here**) start Listen at the
-  article on screen, from its beginning, and open the playing screen.
+  article on screen, from its beginning, in the same view: the player comes
+  up under the page, as on the playing screen. While Listen has this edition,
+  the sentence being read is tinted and underlined and the page follows it
+  (scrolling away stops that, until **Back to where it's reading**); a tap on
+  a sentence reads from it while it plays, and does nothing but links while
+  paused. The page and the voice stay on one article: the voice going on
+  turns the page, and "Next" or a link to another article moves the voice.
   **Share** in the top bar sends the article's original link to Android's share sheet;
   it's hidden when an article has no web link. Selected text shared from the
   page (long-press, then **Share** in the selection menu) carries that link
