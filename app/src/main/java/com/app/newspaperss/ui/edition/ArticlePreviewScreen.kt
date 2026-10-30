@@ -353,6 +353,15 @@ fun ArticlePreviewScreen(
                         now, onVoiceInstead,
                         Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
                     )
+                    val hint = when {
+                        state.finished -> "You've heard the whole edition."
+                        // An episode's lines are its time marks, each a tap away.
+                        here && state.pages.getOrNull(state.at.page)?.episode == true && (state.script?.lines?.size ?: 0) > 2 -> "Tap a time to play from there."
+                        else -> null
+                    }
+                    hint?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp))
+                    }
                 }
                 episodeFor(onScreen.article)?.let(::episodeNote)?.let { note ->
                     // Held to four lines: it stays above the article for the whole read.
