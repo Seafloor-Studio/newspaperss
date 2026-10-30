@@ -1,6 +1,26 @@
 package com.app.newspaperss.ui.edition
 
 import android.content.Intent
+import androidx.compose.foundation.clickable
+import com.app.newspaperss.listen.PodcastSpeaker
+import com.app.newspaperss.listen.ReadingSpeaker
+import com.app.newspaperss.ui.listen.ListenNotes
+import com.app.newspaperss.ui.listen.voiceNote
+import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.app.newspaperss.listen.ListenPlayer
+import com.app.newspaperss.listen.ListenPosition
+import com.app.newspaperss.listen.ListenState
+import com.app.newspaperss.settings.PodcastVoice
+import com.app.newspaperss.ui.listen.PlayerDock
+import com.app.newspaperss.ui.listen.follow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -171,6 +191,15 @@ fun ArticlePreviewScreen(
      * it: said in a line above the page, and a wrong label can be sent for a look.
      */
     episodeFor: (Int) -> EpisodeJudgement? = { null },
+    /** Listen's player; while it has [editionId] open, its controls sit under the page and the page follows the voice. */
+    player: ListenPlayer? = null,
+    editionId: Long? = null,
+    podcastVoice: StateFlow<PodcastVoice?> = MutableStateFlow(null),
+    instead: StateFlow<PodcastSpeaker.Instead?> = MutableStateFlow(null),
+    /** The article with a recording, while it's the one playing; null when there's none. */
+    reading: StateFlow<ReadingSpeaker.Now?> = MutableStateFlow(null),
+    /** Turns the article back to the voice (true), or to its recording again. */
+    onVoiceInstead: (Boolean) -> Unit = {},
 ) {
     // Read in the background so the screen shows at once: reading a large edition during
     // composition holds up the frame, and the tap that opened it seems not to have registered.
@@ -187,6 +216,23 @@ fun ArticlePreviewScreen(
     // The article on screen: the "Next" line turns to the next. Kept across rotation.
     var article by rememberSaveable(position) { mutableIntStateOf(position) }
     val open = book as? Book.Open
+    val listenState = player?.state?.collectAsStateWithLifecycle()?.value
+    // Listen has this edition's page open: not before its script is read, when its place is still
+    // the edition's start.
+    val listening = listenState?.takeIf { editionId != null && it.editionId == editionId && it.pages.isNotEmpty() && it.script != null }
+    val listenOpening = editionId != null && listenState?.editionId == editionId && listening == null
+    // The page turns with the voice when the voice moves on, not to wherever it was left: an
+    // article opened, or the screen recreated, while Listen is paused elsewhere stays.
+    var voiceWasOn by rememberSaveable(position) { mutableStateOf(listening?.at?.page) }
+    LaunchedEffect(listening?.at?.page) {
+        val page = listening?.at?.page
+        // The closing page and the episodes after the edition aren't articles: the last stays.
+        if (page != null && page != voiceWasOn && page < (open?.articles ?: Int.MAX_VALUE)) article = page
+        voiceWasOn = page
+    }
+    // While it plays, going to another article takes the voice there, which turns the page; paused,
+    // only the page turns.
+    val toArticle = { at: Int -> if (listening?.playing == true) player.seek(ListenPosition(at, 0)) else article = at }
     // The page on screen stays, title, note and buttons with it, until the next is read: on e-ink a
     // page turn then redraws once, not blank and again.
     var shown by remember(open) { mutableStateOf<PreviewPage?>(null) }
@@ -220,7 +266,8 @@ fun ArticlePreviewScreen(
                 title = { Text(shownTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
                 actions = {
-                    shown?.takeIf { onListen != null }?.let { onScreen ->
+                    // Not while this article is the one Listen has, or Listen is opening it.
+                    shown?.takeIf { onListen != null && !listenOpening && listening?.at?.page != it.article }?.let { onScreen ->
                         IconButton(onClick = { onListen?.invoke(onScreen.article) }) { Icon(Icons.Default.Headphones, contentDescription = "Listen from here") }
                     }
                     link?.let { l ->
@@ -243,6 +290,7 @@ fun ArticlePreviewScreen(
                 },
             )
         },
+        bottomBar = { if (listening != null && player != null) PlayerDock(listening, player, podcastVoice.collectAsStateWithLifecycle().value) },
     ) { padding ->
         when {
             book == Book.Missing -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -255,6 +303,19 @@ fun ArticlePreviewScreen(
             open == null || shown == null || textSize == null -> Text("Opening…", Modifier.padding(padding).padding(24.dp))
             else -> Column(Modifier.fillMaxSize().padding(padding)) {
                 val onScreen = shown!!
+                listening?.let { state ->
+                    val here = state.at.page == onScreen.article
+                    val recording by reading.collectAsStateWithLifecycle()
+                    val why by instead.collectAsStateWithLifecycle()
+                    val playing = state.playing && !state.between
+                    val now = recording?.takeIf { here && playing && it.editionId == state.editionId && it.page == state.at.page }
+                    ListenNotes(
+                        state,
+                        voiceNote(why).takeIf { here && playing && (now == null || now.voiceInstead) },
+                        now, onVoiceInstead,
+                        Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                    )
+                }
                 episodeFor(onScreen.article)?.let(::episodeNote)?.let { note ->
                     // Held to four lines: it stays above the article for the whole read.
                     Text(note, style = MaterialTheme.typography.bodySmall, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
@@ -263,8 +324,10 @@ fun ArticlePreviewScreen(
                 key(onScreen.article) {
                     PreviewPageView(
                         onScreen, open.pages, textSize, link,
-                        onArticle = { at -> if (at in 0 until open.articles) article = at },
+                        onArticle = { at -> if (at in 0 until open.articles) toArticle(at) },
                         modifier = Modifier.fillMaxWidth().weight(1f),
+                        voice = listening?.takeIf { it.at.page == onScreen.article && it.script != null },
+                        onReadFrom = { line -> player?.seek(ListenPosition(onScreen.article, line)) },
                     )
                 }
             }
@@ -289,7 +352,17 @@ private fun parsed(xhtml: String): ListenScript = try {
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PreviewPageView(page: PreviewPage, pages: EpubPages, textSize: PreviewTextSize, link: ArticleLink?, onArticle: (Int) -> Unit, modifier: Modifier) {
+private fun PreviewPageView(
+    page: PreviewPage,
+    pages: EpubPages,
+    textSize: PreviewTextSize,
+    link: ArticleLink?,
+    onArticle: (Int) -> Unit,
+    modifier: Modifier,
+    /** Listen on this article: its sentence is tinted and followed, and while it plays a tap reads from a sentence. */
+    voice: ListenState? = null,
+    onReadFrom: (line: Int) -> Unit = {},
+) {
     val script = page.script
     // Where the reader was in this article, across rotation and coming back to it.
     val list = rememberSaveable(page.article, saver = LazyListState.Saver) { LazyListState() }
@@ -300,14 +373,32 @@ private fun PreviewPageView(page: PreviewPage, pages: EpubPages, textSize: Previ
     val justify = justifies(textSize, (textSize.percent * LocalDensity.current.fontScale).roundToInt())
     // Kept for the page, so a picture scrolled away and back isn't decoded again and doesn't pop in.
     val decoded = remember(page.article) { mutableMapOf<String, ImageBitmap?>() }
+    // Following the voice until the reader moves the page; the chip brings them back.
+    var following by rememberSaveable(page.article) { mutableStateOf(true) }
     val goTo = { anchor: LinkTarget.Anchor ->
         if (anchor.page != null && anchor.page != page.article) {
             onArticle(anchor.page)
         } else {
-            script.anchors[anchor.id]?.let { at -> scope.launch { list.scrollToItem(at) } }
+            script.anchors[anchor.id]?.let { at -> following = false; scope.launch { list.scrollToItem(at) } }
         }
         Unit
     }
+    // The voice's lines, from the player's own reading of the page. The page drawn here adds a "Next"
+    // line at its end, so the blocks before it are the same.
+    val spoken = voice?.script
+    val line = spoken?.lines?.getOrNull(voice.at.line)?.takeIf { it.block < script.blocks.size }
+    val layouts = remember(page.article) { mutableStateMapOf<Int, TextLayoutResult>() }
+    val tables = remember(page.article) { mutableMapOf<Int, TableRows>() }
+    val dragged by list.interactionSource.collectIsDraggedAsState()
+    LaunchedEffect(dragged) { if (dragged) following = false }
+    LaunchedEffect(line, following, textSize) {
+        if (!following || line == null) return@LaunchedEffect
+        follow(list, script, line, layouts, tables)
+    }
+    val readFrom: ((Int, Int) -> Unit)? = spoken?.takeIf { voice.playing }?.let { lines ->
+        { block, sentence -> lines.lines.indexOfFirst { it.block == block && it.index == sentence }.takeIf { it >= 0 }?.let(onReadFrom) }
+    }
+    Box(modifier) {
     SelectionContainer(
         selection,
         Modifier.appendTextContextMenuComponents {
@@ -318,24 +409,34 @@ private fun PreviewPageView(page: PreviewPage, pages: EpubPages, textSize: Previ
             }
         },
     ) {
-        LazyColumn(modifier, state = list, contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)) {
-            itemsIndexed(script.blocks) { _, block ->
+        LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)) {
+            itemsIndexed(script.blocks) { index, block ->
+                val current = line?.takeIf { it.block == index }?.index
+                val onTap = readFrom?.let { read -> { sentence: Int -> read(index, sentence) } }
                 when (block) {
                     is ListenScript.Block.Text -> TextBlock(
-                        block, current = null, textSize, onLayout = {}, onTap = null,
+                        block, current, textSize, onLayout = { layouts[index] = it }, onTap = onTap,
                         onPage = { target -> target.index?.let(onArticle) },
                         onAnchor = goTo,
                         justify = justify,
                     )
-                    is ListenScript.Block.Image -> PreviewImage(block, pages, textSize, decoded)
+                    is ListenScript.Block.Image -> PreviewImage(block, pages, textSize, decoded, current = current != null, onTap = onTap?.let { { it(0) } })
                     is ListenScript.Block.Table -> if (block.tooBig()) {
-                        TextBlock(block.asText(), current = null, textSize, onLayout = {}, onTap = null)
+                        TextBlock(block.asText(), current, textSize, onLayout = { layouts[index] = it }, onTap = onTap)
                     } else {
-                        TableBlock(block, current = null, textSize, remember { TableRows() }, onTap = {})
+                        TableBlock(block, current, textSize, tables.getOrPut(index) { TableRows() }, onTap = onTap ?: {})
                     }
                     ListenScript.Block.Rule -> RuleBlock()
                 }
             }
+        }
+    }
+        if (voice != null && !following) {
+            TextButton(
+                onClick = { following = true; scope.launch { list.scrollToItem(line?.block ?: 0) } },
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)
+                    .background(MaterialTheme.colorScheme.inverseSurface, CircleShape),
+            ) { Text("Back to where it's reading", color = MaterialTheme.colorScheme.inverseOnSurface) }
         }
     }
 }
@@ -365,7 +466,15 @@ private val MARKER = Regex("^(?:\\d+\\.|•)(?: (?:\\d+\\.|•))* ?$")
  * row of icons) keep their size, as in the book. Its caption under it.
  */
 @Composable
-private fun PreviewImage(block: ListenScript.Block.Image, pages: EpubPages, textSize: PreviewTextSize, decoded: MutableMap<String, ImageBitmap?>) {
+private fun PreviewImage(
+    block: ListenScript.Block.Image,
+    pages: EpubPages,
+    textSize: PreviewTextSize,
+    decoded: MutableMap<String, ImageBitmap?>,
+    current: Boolean = false,
+    /** While Listen plays, a tap reads from the picture's description. */
+    onTap: (() -> Unit)? = null,
+) {
     val bitmap by produceState(decoded[block.src], block.src) {
         if (block.src in decoded) return@produceState
         value = withContext(Dispatchers.IO) {
@@ -373,14 +482,21 @@ private fun PreviewImage(block: ListenScript.Block.Image, pages: EpubPages, text
         }
         decoded[block.src] = value
     }
-    Column(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    val tap = onTap?.let { Modifier.clickable(onClickLabel = "Read from here", onClick = it) } ?: Modifier
+    Column(Modifier.fillMaxWidth().padding(bottom = 12.dp).then(tap), horizontalAlignment = Alignment.CenterHorizontally) {
         bitmap?.let { image ->
             // At the book's size, a pixel to a dp as a web page has it, and never wider than the page.
             val sized = if (fillsWidth(block, image.width to image.height)) Modifier.fillMaxWidth() else Modifier.widthIn(max = image.width.dp)
             Image(image, contentDescription = block.description, contentScale = ContentScale.FillWidth, modifier = sized)
         }
         block.caption?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall.sized(textSize), modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+            // Tinted and underlined while the voice describes it, as a sentence is.
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall.sized(textSize),
+                textDecoration = if (current) TextDecoration.Underline else null,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp).then(if (current) Modifier.background(MaterialTheme.colorScheme.secondaryContainer) else Modifier),
+            )
         }
     }
 }

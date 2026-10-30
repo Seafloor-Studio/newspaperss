@@ -677,6 +677,28 @@ class ScreenshotTest {
         shoot("11i-listen-formatted", ready = { player.state.value.at.line == 4 }) { ListenScreen(player, onBack = {}) }
     }
 
+    /** One view: the article preview while Listen plays it, the quote being read and the player under the page. */
+    @Test
+    fun articlePreviewListening() {
+        val files = tmp.newFolder()
+        val article = FORMATTED
+        File(files, "f.epub").outputStream().use {
+            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000013", listOf(EditionSection(null, listOf(article)))), it)
+        }
+        val id = runBlocking {
+            val id = db.editions().insert(EditionEntity(title = "Thursday Morning Edition", status = EditionStatus.DELIVERED, fileName = "f.epub", articleCount = 1, minutes = 3.0))
+            db.editions().insertArticles(listOf(EditionArticleEntity(editionId = id, articleId = null, position = 0, title = article.title, sourceTitle = article.sourceTitle, minutes = 3.0)))
+            id
+        }
+        val (player, speaker) = listenPlayer(files)
+        player.start(id, ListenPosition(0, 4))
+        idleUntil { player.state.value.script != null }
+        speaker.startNext()
+        shoot("05c3-article-preview-listening", ready = { player.state.value.at.line == 4 && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(loadFile = { File(files, "f.epub") }, position = 0, title = article.title, onBack = {}, onListen = {}, player = player, editionId = id)
+        }
+    }
+
     /** Listening to an article, two sentences in, its picture just ahead. */
     @Test
     fun listenPlaying() = shootListening("11a-listen-playing", voice = null)

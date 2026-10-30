@@ -223,8 +223,10 @@ private fun App(
     Scaffold(
         bottomBar = {
             Column {
-                // Not over the playing screen, which is the same and more.
-                listenNow?.takeIf { showsListenBar(it) && current?.destination?.route != LISTEN }?.let { state ->
+                // Not over the playing screen, which is the same and more, nor an article of the edition
+                // it's playing, which has the player under the page.
+                val onItsArticle = current?.destination?.route == ARTICLE && current?.arguments?.getLong("id") == listenNow?.editionId
+                listenNow?.takeIf { showsListenBar(it) && current?.destination?.route != LISTEN && !onItsArticle }?.let { state ->
                     ListenBar(state, onOpen = { nav.navigate(LISTEN) { launchSingleTop = true } }, onToggle = container.listening::toggle, onClose = container.listen::stop)
                 }
                 // The tab whose stack the screen is on: switching tabs pops back to Today, the start,
@@ -311,15 +313,19 @@ private fun App(
                     onBack = { nav.navigateUp() },
                     textSize = textSize,
                     onTextSize = { size -> container.appScope.launch { container.settings.update { it.copy(previewTextSize = size) } } },
-                    onListen = { article ->
-                        container.listening.start(id, ListenPosition(article, 0))
-                        nav.navigate(LISTEN) { launchSingleTop = true }
-                    },
+                    // The player comes up under the page: reading and listening are one view.
+                    onListen = { article -> container.listening.start(id, ListenPosition(article, 0)) },
                     sourceAt = { position -> goTo(contents, moving, position)?.title },
                     onOpenSource = { position ->
                         goTo(contents, moving, position)?.let { nav.navigate(sourceRoute(it)) { launchSingleTop = true } }
                     },
                     episodeFor = { article -> contents.getOrNull(article)?.let { episodeJudgement(it, recordings) } },
+                    player = container.listen,
+                    editionId = id,
+                    podcastVoice = container.podcastPlaying,
+                    instead = container.podcastInstead,
+                    reading = container.readingNow,
+                    onVoiceInstead = container::useVoiceInstead,
                 )
             }
             composable(LISTEN) {

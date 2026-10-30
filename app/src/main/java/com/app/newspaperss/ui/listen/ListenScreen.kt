@@ -133,12 +133,7 @@ fun ListenScreen(
     val recording by reading.collectAsStateWithLifecycle()
     val voice by podcastVoice.collectAsStateWithLifecycle()
     val why by instead.collectAsStateWithLifecycle()
-    // One quiet line where the voice changes; nothing is said aloud about it.
-    val voiceNote = when (why) {
-        PodcastSpeaker.Instead.NOT_MADE_YET -> "From here, your phone's voice: the audio hasn't reached this article yet."
-        PodcastSpeaker.Instead.LEFT_OUT -> "This article plays in your phone's voice: it was left out of the audio, as it's not in English or couldn't be made."
-        null -> null
-    }
+    val voiceNote = voiceNote(why)
     var contents by rememberSaveable { mutableStateOf(false) }
     val onPage = state.pages.getOrNull(state.at.page)
     val title = when {
@@ -181,6 +176,38 @@ fun ListenScreen(
     if (contents && state.pages.isNotEmpty()) Contents(state, onPick = { contents = false; player.seek(ListenPosition(it, 0)) }, onDismiss = { contents = false })
 }
 
+/** One quiet line where the voice changes; nothing is said aloud about it. */
+internal fun voiceNote(why: PodcastSpeaker.Instead?): String? = when (why) {
+    PodcastSpeaker.Instead.NOT_MADE_YET -> "From here, your phone's voice: the audio hasn't reached this article yet."
+    PodcastSpeaker.Instead.LEFT_OUT -> "This article plays in your phone's voice: it was left out of the audio, as it's not in English or couldn't be made."
+    null -> null
+}
+
+/**
+ * What Listen has to say above the page it's reading: the recording playing in the article's
+ * place and the switch to the voice, the natural voice's note, a missing voice for the page's
+ * language, and an error. Shown by the playing screen and the article preview alike.
+ */
+@Composable
+internal fun ListenNotes(state: ListenState, voiceNote: String?, recording: ReadingSpeaker.Now?, onVoiceInstead: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    if (recording == null && voiceNote == null && state.missingLanguage == null && state.error == null) return
+    Column(modifier) {
+        recording?.let { RecordingNote(it, onVoiceInstead) }
+        voiceNote?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
+        state.missingLanguage?.let { MissingVoice(it) }
+        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 12.dp)) }
+    }
+}
+
 @Composable
 private fun Message(text: String) {
     Text(text, Modifier.padding(24.dp), style = MaterialTheme.typography.bodyLarge)
@@ -213,21 +240,7 @@ private fun Page(
     // And on the size: one that changes reflows every block and moves the sentence.
     LaunchedEffect(line, following, script, voiceNote != null, recording != null, textSize) {
         if (!following || line == null) return@LaunchedEffect
-        list.scrollToItem(notes + line.block)
-        // A long paragraph: down to the sentence, a little below the top.
-        val block = script.blocks[line.block]
-        val text = drawnAsText(block)
-        val top = if (text != null) {
-            val layout = layouts[line.block] ?: return@LaunchedEffect
-            layout.getLineTop(layout.getLineForOffset(text.ranges[line.index].first))
-        } else {
-            // A table drawn cell by cell: down to the row being read.
-            val table = block as? Block.Table ?: return@LaunchedEffect
-            val row = table.rows.runningFold(0) { at, r -> at + r.sentences.size }.indexOfLast { it <= line.index }.coerceAtLeast(0)
-            tables[line.block]?.offset(row) ?: return@LaunchedEffect
-        }
-        val viewport = list.layoutInfo.viewportSize.height
-        if (top > viewport / 3) list.scrollBy(top - viewport / 4f)
+        follow(list, script, line, layouts, tables, before = notes)
     }
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)) {
@@ -320,7 +333,7 @@ private fun ImageBlock(block: Block.Image, current: Boolean, player: ListenPlaye
 
 /** The page's language has no voice on this phone: Android can download one. */
 @Composable
-private fun MissingVoice(tag: String) {
+internal fun MissingVoice(tag: String) {
     val context = LocalContext.current
     val language = Locale.forLanguageTag(tag).getDisplayLanguage(LocalConfiguration.current.locales[0]).ifEmpty { tag }
     Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
@@ -333,122 +346,6 @@ private fun MissingVoice(tag: String) {
                     context.startActivity(Intent("com.android.settings.TTS_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 }
             }) { Text("Get a $language voice") }
-        }
-    }
-}
-
-@Composable
-private fun PlayerDock(state: ListenState, player: ListenPlayer, voice: PodcastVoice?) {
-    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
-            val page = state.pages.getOrNull(state.at.page)
-            val inPage = state.secondsInPage
-            val pageLeft = ((page?.minutes ?: 0.0) * 60 - inPage).coerceAtLeast(0.0)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(page?.source ?: state.editionTitle, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                // The only sign this article plays from the podcast: its voice's name.
-                // Only while it plays: paused, the next article's voice isn't chosen until it starts.
-                if (voice != null && state.playing) {
-                    Text(
-                        voice.label,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 8.dp)
-                            .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small)
-                            .padding(horizontal = 6.dp, vertical = 1.dp)
-                            .semantics { contentDescription = "Audio, in ${voice.label}'s voice" },
-                    )
-                }
-                // An episode's time left is in the row under the controls, with which episode it is.
-                if (page?.end != true && page?.episode != true) Text("${minutes(pageLeft)} left", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
-            }
-            Chapters(state, Modifier.padding(vertical = 8.dp))
-            val episodes = state.pages.indices.filter { state.pages[it].episode }
-            // In the edition, the way to the episodes after it, which only Contents showed.
-            if (episodes.isNotEmpty() && page?.episode != true) {
-                TextButton(
-                    onClick = { player.seek(ListenPosition(episodes.first(), 0)) },
-                    modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp)
-                        .semantics { contentDescription = "Go to the ${plural(episodes.size, "episode")} after the edition" },
-                    contentPadding = PaddingValues(horizontal = 8.dp),
-                ) { Text("Then ${plural(episodes.size, "episode")} ›", style = MaterialTheme.typography.labelLarge) }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = player::previous) { Icon(Icons.Default.SkipPrevious, contentDescription = "Previous article") }
-                IconButton(onClick = player::back) { Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Back a sentence") }
-                FilledIconButton(onClick = player::toggle, modifier = Modifier.size(56.dp)) {
-                    when {
-                        state.playing -> Icon(Icons.Default.Pause, contentDescription = "Pause")
-                        state.finished -> Icon(Icons.Default.PlayArrow, contentDescription = "Play from the start")
-                        else -> Icon(Icons.Default.PlayArrow, contentDescription = "Play")
-                    }
-                }
-                IconButton(onClick = player::forward) { Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Next sentence") }
-                IconButton(onClick = player::next) { Icon(Icons.Default.SkipNext, contentDescription = "Next article") }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                val speed = speedLabel(state.speed)
-                TextButton(
-                    onClick = { player.setSpeed(LISTEN_SPEEDS[(LISTEN_SPEEDS.indexOf(state.speed) + 1).mod(LISTEN_SPEEDS.size)]) },
-                    modifier = Modifier.semantics { contentDescription = "Speed $speed. Change speed" },
-                ) { Text(speed) }
-                val total = state.secondsTotal
-                // On an episode the edition is all behind: its own times, if its length is known.
-                val times = if (page?.episode == true) {
-                    val episodes = state.pages.count { it.episode }
-                    val which = state.pages.take(state.at.page + 1).count { it.episode }
-                    listOfNotNull(
-                        "Episode $which of $episodes",
-                        if (page.minutes > 0.0) "${minutes(inPage)} in · ${minutes(pageLeft)} left" else null,
-                    ).joinToString(" · ")
-                } else {
-                    "${minutes(state.secondsIn)} in · ${minutes((total - state.secondsIn).coerceAtLeast(0.0))} left"
-                }
-                Text(times, Modifier.weight(1f, fill = false).padding(start = 8.dp), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.End)
-            }
-        }
-    }
-}
-
-/**
- * The edition as one bar, a piece per article sized by its length: its shape, and where you are in
- * it. The episodes after its end follow a gap, a short piece each whatever their length: an hour's
- * episode to scale would flatten the rest.
- */
-@Composable
-private fun Chapters(state: ListenState, modifier: Modifier) {
-    val done = MaterialTheme.colorScheme.primary
-    val todo = MaterialTheme.colorScheme.outlineVariant
-    // The articles come first, so a piece's index is its page's; the episodes come last.
-    val pages = state.pages.filter { !it.end && !it.episode }
-    val episodes = state.pages.indices.filter { state.pages[it].episode }
-    val description = when {
-        state.at.page < pages.size -> "Article ${state.at.page + 1} of ${pages.size}"
-        state.at.page in episodes -> "Episode ${episodes.indexOf(state.at.page) + 1} of ${episodes.size}"
-        else -> "Past the edition's end"
-    }
-    @Composable
-    fun Piece(index: Int, minutes: Double, modifier: Modifier) {
-        // One of unknown length can't fill as it plays: it's shown heard from the start, so the bar still says which is on.
-        val heard = index < state.at.page || state.finished || (index == state.at.page && minutes <= 0.0)
-        Box(modifier.fillMaxHeight().background(if (heard) done else todo)) {
-            if (index == state.at.page && !state.finished && minutes > 0.0) {
-                val fraction = (state.secondsInPage / (minutes * 60)).toFloat().coerceIn(0f, 1f)
-                if (fraction > 0f) Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(done))
-            }
-        }
-    }
-    BoxWithConstraints(modifier.fillMaxWidth().height(4.dp).semantics { contentDescription = description }) {
-        // At most a quarter of the bar, however many there are, so the articles always have room.
-        val episodesWidth = min(20.dp * episodes.size + 3.dp * (episodes.size - 1).coerceAtLeast(0), maxWidth / 4)
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            pages.forEachIndexed { i, page -> Piece(i, page.minutes, Modifier.weight(page.minutes.toFloat().coerceAtLeast(0.2f))) }
-            if (episodes.isNotEmpty()) {
-                Spacer(Modifier.width(6.dp))
-                Row(Modifier.width(episodesWidth).fillMaxHeight(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    episodes.forEach { i -> Piece(i, state.pages[i].minutes, Modifier.weight(1f)) }
-                }
-            }
         }
     }
 }
@@ -486,14 +383,14 @@ private fun Contents(state: ListenState, onPick: (Int) -> Unit, onDismiss: () ->
 
 internal fun speedLabel(speed: Float): String = (if (speed == speed.roundToInt().toFloat()) speed.roundToInt().toString() else speed.toString()) + "×"
 
-private fun minutes(seconds: Double): String = ReadingTime.format(seconds / 60)
+internal fun minutes(seconds: Double): String = ReadingTime.format(seconds / 60)
 
 /**
  * The article plays its recording, or the reader turned it back to the voice: which, and the
  * switch to the other. Where the voice's note goes, and like it, quiet.
  */
 @Composable
-private fun RecordingNote(now: ReadingSpeaker.Now, onVoiceInstead: (Boolean) -> Unit) {
+internal fun RecordingNote(now: ReadingSpeaker.Now, onVoiceInstead: (Boolean) -> Unit) {
     val minutes = now.reading.seconds?.let { " · ${ReadingTime.format(it / 60.0)}" }.orEmpty()
     val what = if (now.reading.episode) "its episode" else "its recorded reading"
     val has = if (now.reading.episode) "it has its episode" else "it has a recorded reading"
