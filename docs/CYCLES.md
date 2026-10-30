@@ -3,6 +3,12 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle N1 (30 Oct) — build: a not-sent edition made the real way
+
+See [DEVLOG.md](DEVLOG.md).
+- **Run in the orchestrating session, not a fresh one.** A scheduled task that starts a fresh session gives it no repositories and no GitHub tools, so its first cycle could do nothing; this run's cycles fire into the session that has them.
+- **A fixture made by the real producer finds what hand-set state can't.** Setting the status and note by hand tested the screens against the constant they already read.
+
 ### Cycle H10 (22 Oct) — build: transcripts play their episode
 
 See [DEVLOG.md](DEVLOG.md).
