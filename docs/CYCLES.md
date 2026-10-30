@@ -3,6 +3,12 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle N10 (30 Oct) — audit: the article view and Listen, after the merge
+
+See [DEVLOG.md](DEVLOG.md). The first of three architecture audits; the next two take other areas (the edition pipeline, then sync and the data layer).
+- **Audit right after a merge of two things.** The merged screens left dead parameters, a picture reader kept alive only by a test, and checks spelled three times; none showed in review, because each PR was correct on its own.
+- **Let the state settle in a test that toggles.** A pause then a play, back to back, reach a `StateFlow` collector as no change at all; wait until the app has seen the pause, as a real one is long.
+
 ### Cycle N9 (30 Oct) — build: one view, step 3 — the playing screen goes
 
 See [DEVLOG.md](DEVLOG.md).

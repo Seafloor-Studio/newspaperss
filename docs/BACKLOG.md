@@ -132,6 +132,10 @@ Whole-codebase passes for what a review of one PR can't see. Each follows the au
 - [ ] **Check on a phone: a background install while an edition sent from its notification is in another app's hands.** Send on the notification starts the mail app or e-reader from `SendEditionActivity`, outside `MainActivity`, and nothing waits for it. If an install then replaces the app, can that app still read the book? Steps: tap Send, leave the mail draft open, let the next build install, then send the mail. *(device)*
 
 ### Tech debt
+From the N10 audit of the article view and Listen (30 Oct). Read against the code; none is a bug a reader meets today.
+- [ ] **The article view takes six Listen parameters** (`player`, `editionId`, `podcastVoice`, `instead`, `reading`, `onVoiceInstead`), each defaulted for tests and wired one by one in `MainActivity`; the edition page takes one `Listening`. Pass `Listening?` with those flows on it: five fewer parameters, and the dock's buttons go through the same object as the bar's. Touches every `ArticlePreviewScreen(…)` in `ListenAppTest` and `ScreenshotTest`.
+- [ ] **"Listen has this edition" is worked out three times in `ArticlePreviewScreen`**, and its error is drawn in two places (above the page when nothing is open, in `ListenNotes` otherwise). Compute it once and draw the error in one place; the error then sits above a recording's note rather than below. Add a test that drives an error into the article view: none does.
+- [ ] **The view reads the edition's articles from three places:** the EPUB's article files (how many, which decides where the closing page starts), its contents page (the "Next" line) and the database (title, episodes, Listen's pages). They agree while positions run 0 to n-1, which every edition so far does; one list would remove the guess at the closing page's boundary.
 - [ ] Listen sometimes stops at the paragraph instead of scrolling down to the sentence being read: its fine scroll needs the paragraph's text layout, which may not be recorded yet when the scroll runs. Seen as `11d-listen-larger-text` differing between two renders; likely on a phone too *(today B7)*
 
 ### Later

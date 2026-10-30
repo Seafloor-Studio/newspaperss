@@ -20,6 +20,11 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 The 30 Oct cycle run (N1–N12, about every half hour): the test audit's gaps, then one view for reading and listening, then three architecture and simplification audits. Earlier today, outside the run: a paused episode or reading plays on from where it got (#408), and older not-sent editions get Listen and Mark as sent back, greyed out while an edition is made (#410).
 
+### N10: audit — the article view and Listen
+- **Why:** three PRs merged the preview and the playing screen into one view; merges leave things behind.
+- **Fixed:** Play, Next or a seek from the article view's own player now binds Listen's service, as the bar always did, so after the service went while paused, playing again keeps its notification and audio focus. A table row is a "Read from here" button only while Listen plays (TalkBack offered one that did nothing). About 40 lines of dead or doubled code gone: a picture reader only a test used, a text size passed and never read, a scroll offset always 0, a link to the closing page no page has, the episode count worked out three times, each page parsed twice for its title.
+- **Left:** three larger simplifications, in BACKLOG's Tech debt.
+
 ### N9: one view, step 3 — the playing screen goes
 - **Why:** after N7 and N8 the article view did everything the playing screen did, so two screens drew the same thing.
 - **Built:** the playing screen and its route are gone; the bar, the media notification and the edition's Listen open the article the voice is on. The article view says "You've heard the whole edition." at the end and "Tap a time to play from there." on an episode. The page moves a screen at a time: a sentence already on screen leaves it be, as each move redraws an e-ink screen. The playing screen's tests were ported to the article view.
