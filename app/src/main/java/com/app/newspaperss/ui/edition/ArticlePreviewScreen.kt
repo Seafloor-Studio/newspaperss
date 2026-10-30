@@ -207,7 +207,7 @@ fun ArticlePreviewScreen(
 ) {
     // Read in the background so the screen shows at once: reading a large edition during
     // composition holds up the frame, and the tap that opened it seems not to have registered.
-    val book by produceState<Book>(Book.Loading, editionId, position) {
+    val book by produceState<Book>(Book.Loading, position) {
         val pages = withContext(Dispatchers.IO) { loadFile()?.let(::EpubPages) }
         try {
             val articles = pages?.let { withContext(Dispatchers.IO) { generateSequence(0) { it + 1 }.takeWhile { at -> it.has("OEBPS/" + EpubPages.articleHref(at)) }.count() } } ?: 0
@@ -220,7 +220,7 @@ fun ArticlePreviewScreen(
         }
     }
     // The article on screen: the "Next" line turns to the next. Kept across rotation.
-    var article by rememberSaveable(editionId, position) { mutableIntStateOf(position) }
+    var article by rememberSaveable(position) { mutableIntStateOf(position) }
     val open = book as? Book.Open
     val listenState = player?.state?.collectAsStateWithLifecycle()?.value
     // Listen has this edition's page open: not before its script is read, when its place is still
@@ -230,7 +230,7 @@ fun ArticlePreviewScreen(
     val listenOpening = editionId != null && listenState?.editionId == editionId && listening == null && listenState.error == null
     // The page turns with the voice when the voice moves on, not to wherever it was left: an
     // article opened, or the screen recreated, while Listen is paused elsewhere stays.
-    var voiceWasOn by rememberSaveable(editionId, position) { mutableStateOf(listening?.at?.page) }
+    var voiceWasOn by rememberSaveable(position) { mutableStateOf(listening?.at?.page) }
     LaunchedEffect(listening?.at?.page) {
         val page = listening?.at?.page
         if (page != null && page != voiceWasOn) article = page
