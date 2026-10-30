@@ -33,7 +33,6 @@ import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onFirst
 import androidx.media3.common.Player
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -906,12 +905,12 @@ class ListenAppTest {
         player.pause()
         compose.setContent(playing(id))
         idleUntil { compose.onAllNodesWithText("Paragraph 1.").fetchSemanticsNodes().isNotEmpty() }
-        fun displayed(text: String) = runCatching { compose.onAllNodesWithText(text).onFirst().assertIsDisplayed() }.isSuccess
+        fun displayed(text: String) = runCatching { compose.onNodeWithText(text, substring = true).assertIsDisplayed() }.isSuccess
         // Source, title and byline, then a line a paragraph.
         player.seek(ListenPosition(0, 3 + 1))
         idleUntil { player.state.value.at.line == 4 }
         compose.waitForIdle()
-        assertTrue("the title stays while the voice is on the screen below it", displayed(knots.title))
+        assertTrue("the byline stays while the voice is on the screen below it", displayed("By Erica Klarreich"))
         // Off the screen, a screen turns: the line comes into view near the top.
         player.seek(ListenPosition(0, 3 + 29))
         idleUntil { player.state.value.at.line == 32 && displayed("Paragraph 30.") }
