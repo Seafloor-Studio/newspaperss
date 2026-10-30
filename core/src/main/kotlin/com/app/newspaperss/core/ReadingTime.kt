@@ -42,6 +42,9 @@ object ReadingTime {
         return if (rest == 0L) "${whole / 60} hr" else "${whole / 60} hr $rest min"
     }
 
+    /** "8 articles · about 1 hr 15 min": an edition's size, the same on every screen, the cover and the notification. */
+    fun summary(articles: Int, minutes: Double): String = "${plural(articles, "article")} · about ${format(minutes)}"
+
     private val WHITESPACE = Regex("\\s+")
     private val IDEOGRAPHIC = setOf(Character.UnicodeScript.HAN, Character.UnicodeScript.HIRAGANA, Character.UnicodeScript.KATAKANA)
     private const val WORDS_PER_IDEOGRAPH = 238.0 / 350.0

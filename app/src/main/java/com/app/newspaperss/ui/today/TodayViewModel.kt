@@ -3,6 +3,7 @@ package com.app.newspaperss.ui.today
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.WorkInfo
+import com.app.newspaperss.core.ReadingTime
 import com.app.newspaperss.data.EditionArticleEntity
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionRepository
@@ -148,7 +149,7 @@ class TodayViewModel(
             val podcast = SettingsSummary.podcastStart(s, Locale.getDefault())?.let {
                 ", with its audio. It starts at $it: leave your phone charging"
             }.orEmpty()
-            return "$day at $time \u00b7 about ${s.edition.minutes} min$podcast"
+            return "$day at $time \u00b7 about ${ReadingTime.format(s.edition.minutes.toDouble())}$podcast"
         }
 
         /** @param online without a connection, queued work is waiting for one, not checking sources. */

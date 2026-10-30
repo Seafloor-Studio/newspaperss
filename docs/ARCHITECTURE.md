@@ -144,7 +144,7 @@ The steps, with where they live:
    marks any edition left `BUILDING` by a dead process as failed, and
    releases editions still `READY` (never sent) so their articles go back.
    It then inserts the new edition as `BUILDING` and reads the candidates
-   (`ArticleDao.candidates`), dropping left-out publications' unless starred.
+   (`ArticleDao.buildCandidates`, without the feed text), dropping left-out publications' unless starred.
 3. **Order.** `EditionPlanner.order` (`core/edition/EditionPlanner.kt`)
    sorts candidates: stars first, then by turns across publications: a
    feed added here is one, and each of a tt-rss account's feeds is one. A
