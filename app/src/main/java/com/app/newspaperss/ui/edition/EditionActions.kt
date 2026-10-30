@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.app.newspaperss.data.EditionStatus
@@ -146,7 +147,13 @@ fun MarkAsSentLine(preferOpen: Boolean, onSent: () -> Unit, modifier: Modifier =
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.semantics(mergeDescendants = true) {},
             )
-            TextButton(onClick = onSent, enabled = !waiting, contentPadding = PaddingValues(horizontal = 8.dp)) { Text("Mark as sent") }
+            // The reason on the button too: moving between controls, TalkBack would only say "disabled".
+            TextButton(
+                onClick = onSent,
+                enabled = !waiting,
+                contentPadding = PaddingValues(horizontal = 8.dp),
+                modifier = Modifier.semantics { if (waiting) stateDescription = MARK_SENT_WAITING },
+            ) { Text("Mark as sent") }
         }
         if (waiting) {
             Text(

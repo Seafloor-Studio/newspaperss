@@ -349,10 +349,20 @@ class EditionDetailScreenTest {
         show(id)
         waitFor(MARK_SENT_WAITING)
         compose.onNodeWithText("Mark as sent").assertIsNotEnabled()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, MARK_SENT_WAITING))
 
         runBlocking { db.editions().update(db.editions().byId(building)!!.copy(status = EditionStatus.READY)) }
         idleUntil { compose.onAllNodesWithText(MARK_SENT_WAITING).fetchSemanticsNodes().isEmpty() }
         compose.onNodeWithText("Mark as sent").assertIsEnabled().performClick()
+        idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+        assertEquals(ArticleState.DELIVERED, runBlocking { db.articles().byId(articles[0]) }?.state)
+    }
+
+    @Test
+    fun anEditionReleasedUnderTheOlderWordingCanBeMarkedAsSent() {
+        val (id, articles) = edition(EditionStatus.FAILED, listOf("A story"), articleState = ArticleState.NEW, error = EditionBuilder.OLD_NOT_SENT)
+        show(id)
+        compose.onNodeWithText("Mark as sent").performClick()
         idleUntil { statusOf(id) == EditionStatus.DELIVERED }
         assertEquals(ArticleState.DELIVERED, runBlocking { db.articles().byId(articles[0]) }?.state)
     }
