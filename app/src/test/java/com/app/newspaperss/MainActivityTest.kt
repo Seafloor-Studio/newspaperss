@@ -90,16 +90,36 @@ class MainActivityTest {
         compose.onAllNodes(hasText("Listening · Rail Talk")).fetchSemanticsNodes().let { assertEquals(0, it.size) }
     }
 
-    /** An edition of one article, "The ferry planner" from Rail Talk, with its book; returns its id. */
-    private fun listenedEdition(): Long = runBlocking {
+    /** While another edition's article is open, the bar opens the playing edition's, not that page again. */
+    @Test
+    fun theBarOverAnotherEditionsArticleOpensThePlayingOnesArticle() {
+        runBlocking { app.container.settings.update { it.copy(onboarded = true) } }
+        val other = listenedEdition()
+        val playing = listenedEdition("Lagos Drivers Built Their Own App", "Rest of World", "m.epub", "32")
+        app.container.listen.start(other)
+        idleUntil { app.container.listen.state.value.pages.isNotEmpty() }
+        val open = android.content.Intent(app, MainActivity::class.java).putExtra(MainActivity.EXTRA_OPEN, MainActivity.OPEN_LISTENING)
+        ActivityScenario.launch<MainActivity>(open)
+        shows("The ferry planner")
+        app.container.listen.start(playing)
+        shows("Listening · Rest of World")
+        compose.onNodeWithText("Listening · Rest of World").performClick()
+        // Its own article, with the player under it, and not the bar over it.
+        idleUntil { compose.onAllNodes(hasText("Listening · Rest of World")).fetchSemanticsNodes().isEmpty() }
+        shows("Lagos Drivers Built Their Own App")
+        compose.onAllNodes(hasText("The ferry planner")).fetchSemanticsNodes().let { assertEquals("the other edition's page has gone", 0, it.size) }
+    }
+
+    /** An edition of one article, "The ferry planner" from Rail Talk unless named, with its book; returns its id. */
+    private fun listenedEdition(title: String = "The ferry planner", source: String = "Rail Talk", file: String = "l.epub", uuid: String = "31"): Long = runBlocking {
         val dir = File(app.filesDir, "editions").apply { mkdirs() }
-        val article = EditionArticle("The ferry planner", "Rail Talk", "https://example.com/f", "<p>One. Two. Three.</p>", 1.0)
-        File(dir, "l.epub").outputStream().use {
+        val article = EditionArticle(title, source, "https://example.com/$uuid", "<p>One. Two. Three.</p>", 1.0)
+        File(dir, file).outputStream().use {
             com.app.newspaperss.core.epub.EpubWriter.write(
-                com.app.newspaperss.core.epub.EditionDoc("Edition", java.time.LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000031", listOf(com.app.newspaperss.core.epub.EditionSection(null, listOf(article)))), it,
+                com.app.newspaperss.core.epub.EditionDoc("Edition $uuid", java.time.LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-0000000000$uuid", listOf(com.app.newspaperss.core.epub.EditionSection(null, listOf(article)))), it,
             )
         }
-        app.container.db.editions().insert(EditionEntity(title = "Edition", status = EditionStatus.DELIVERED, fileName = "l.epub", articleCount = 1, minutes = 1.0)).also { id ->
+        app.container.db.editions().insert(EditionEntity(title = "Edition $uuid", status = EditionStatus.DELIVERED, fileName = file, articleCount = 1, minutes = 1.0)).also { id ->
             app.container.db.editions().insertArticles(listOf(EditionArticleEntity(editionId = id, articleId = null, position = 0, title = article.title, sourceTitle = article.sourceTitle, minutes = 1.0)))
         }
     }

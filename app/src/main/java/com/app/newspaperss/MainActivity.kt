@@ -222,7 +222,11 @@ private fun App(
         if (id != null) {
             // While it opens, its place isn't known to the player yet: where it was left.
             val page = if (now.editionId == id && !now.loading && now.pages.isNotEmpty()) now.at.page else container.listening.saved(id)?.page ?: 0
-            nav.navigate("edition/$id/article/$page") { launchSingleTop = true }
+            // A fresh entry in place of an article already open, not the same one with new
+            // arguments: that keeps the old one's page, even another edition's book.
+            nav.navigate("edition/$id/article/$page") {
+                if (nav.currentDestination?.route == ARTICLE) popUpTo(ARTICLE) { inclusive = true }
+            }
         }
     }
     LaunchedEffect(opening) {

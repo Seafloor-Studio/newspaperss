@@ -76,7 +76,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -205,7 +207,7 @@ fun ArticlePreviewScreen(
 ) {
     // Read in the background so the screen shows at once: reading a large edition during
     // composition holds up the frame, and the tap that opened it seems not to have registered.
-    val book by produceState<Book>(Book.Loading, position) {
+    val book by produceState<Book>(Book.Loading, editionId, position) {
         val pages = withContext(Dispatchers.IO) { loadFile()?.let(::EpubPages) }
         try {
             val articles = pages?.let { withContext(Dispatchers.IO) { generateSequence(0) { it + 1 }.takeWhile { at -> it.has("OEBPS/" + EpubPages.articleHref(at)) }.count() } } ?: 0
@@ -218,7 +220,7 @@ fun ArticlePreviewScreen(
         }
     }
     // The article on screen: the "Next" line turns to the next. Kept across rotation.
-    var article by rememberSaveable(position) { mutableIntStateOf(position) }
+    var article by rememberSaveable(editionId, position) { mutableIntStateOf(position) }
     val open = book as? Book.Open
     val listenState = player?.state?.collectAsStateWithLifecycle()?.value
     // Listen has this edition's page open: not before its script is read, when its place is still
@@ -228,7 +230,7 @@ fun ArticlePreviewScreen(
     val listenOpening = editionId != null && listenState?.editionId == editionId && listening == null && listenState.error == null
     // The page turns with the voice when the voice moves on, not to wherever it was left: an
     // article opened, or the screen recreated, while Listen is paused elsewhere stays.
-    var voiceWasOn by rememberSaveable(position) { mutableStateOf(listening?.at?.page) }
+    var voiceWasOn by rememberSaveable(editionId, position) { mutableStateOf(listening?.at?.page) }
     LaunchedEffect(listening?.at?.page) {
         val page = listening?.at?.page
         if (page != null && page != voiceWasOn) article = page
@@ -355,12 +357,16 @@ fun ArticlePreviewScreen(
                     )
                     val hint = when {
                         state.finished -> "You've heard the whole edition."
-                        // An episode's lines are its time marks, each a tap away.
-                        here && state.pages.getOrNull(state.at.page)?.episode == true && (state.script?.lines?.size ?: 0) > 2 -> "Tap a time to play from there."
+                        // An episode's last block is its time marks, each a tap away while it plays.
+                        here && playing && state.pages.getOrNull(state.at.page)?.episode == true &&
+                            (state.script?.let { s -> s.lines.count { it.block == s.blocks.lastIndex } } ?: 0) > 1 -> "Tap a time to play from there."
                         else -> null
                     }
                     hint?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp))
+                        Text(
+                            it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                        )
                     }
                 }
                 episodeFor(onScreen.article)?.let(::episodeNote)?.let { note ->

@@ -231,7 +231,13 @@ class ListenAppTest {
 
         compose.setContent(playing(id, player))
         player.seek(ListenPosition(3, 0))
-        idleUntil { player.state.value.at.page == 3 && compose.onAllNodesWithText("Tap a time to play from there.").fetchSemanticsNodes().isNotEmpty() }
+        idleUntil { player.state.value.at.page == 3 && compose.onAllNodesWithText("0:30", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        player.pause()
+        idleUntil { !player.state.value.playing }
+        compose.waitForIdle()
+        compose.onAllNodesWithText("Tap a time to play from there.").fetchSemanticsNodes().let { assertEquals("paused, a tap doesn't play", 0, it.size) }
+        player.play()
+        idleUntil { compose.onAllNodesWithText("Tap a time to play from there.").fetchSemanticsNodes().isNotEmpty() }
         player.seek(ListenPosition(1, 0))
         idleUntil { player.state.value.at.page == 1 && compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
         // From the edition, one tap to the episodes after it; on one, its own times and how to move in it.
@@ -690,7 +696,7 @@ class ListenAppTest {
     }
 
     /** An edition whose notes post's episode plays after its closing page: page 2 the closing page, page 3 the episode. */
-    private fun editionWithAnEpisodeAfterIt(): Long = runBlocking {
+    private fun editionWithAnEpisodeAfterIt(seconds: Int? = 2_280): Long = runBlocking {
         val notes = EditionArticle(
             title = "Episode 12: The ferry planner", sourceTitle = "The Example Show", url = "https://example.com/12",
             bodyHtml = "<p>This week we talk to a ferry planner.</p>", minutes = 1.0,
@@ -700,7 +706,7 @@ class ListenAppTest {
         }
         val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Show"))
         val article = db.articles().insertIgnoring(
-            ArticleEntity(sourceId = source, guid = "12", url = notes.url, title = notes.title, episodeKind = EpisodeKind.NOTES, audioUrl = "https://cdn.example/12.mp3", audioSeconds = 2_280),
+            ArticleEntity(sourceId = source, guid = "12", url = notes.url, title = notes.title, episodeKind = EpisodeKind.NOTES, audioUrl = "https://cdn.example/12.mp3", audioSeconds = seconds),
         )
         db.editions().insert(EditionEntity(title = "Saturday Morning Edition", status = EditionStatus.DELIVERED, fileName = "n.epub", articleCount = 2, minutes = 3.0)).also { id ->
             db.editions().insertArticles(
@@ -710,6 +716,20 @@ class ListenAppTest {
                 ),
             )
         }
+    }
+
+    /** An episode with no known length has no times to tap, so no hint to tap one. */
+    @Test
+    fun anEpisodeWithoutALengthDoesntOfferItsTimes() {
+        val id = editionWithAnEpisodeAfterIt(seconds = null)
+        val player = ListenPlayer(speaker, progress, open = { ListenBook.open(repo, it, Readings(db, { Recordings() })) }, CoroutineScope(SupervisorJob() + Dispatchers.Main))
+        player.start(id, ListenPosition(3, 0))
+        idleUntil { player.state.value.script != null && player.state.value.at.page == 3 && player.state.value.playing }
+        compose.setContent {
+            ArticlePreviewScreen(loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = 3, title = "Saturday Morning Edition", onBack = {}, onListen = {}, player = player, editionId = id)
+        }
+        idleUntil { compose.onAllNodesWithText("The episode.").fetchSemanticsNodes().isNotEmpty() }
+        compose.onAllNodesWithText("Tap a time to play from there.").fetchSemanticsNodes().let { assertEquals(0, it.size) }
     }
 
     /** From the closing page to the episode after it and back, the view goes with the voice, never back to the last article. */

@@ -737,8 +737,9 @@ class ScreenshotTest {
         idleUntil { player.state.value.script != null }
         speaker.startNext()
         val now = readings.at(id, page)?.let { ReadingSpeaker.Now(id, page, it, voiceInstead = false) }
+        val title = player.state.value.pages[page].title
         shoot(name, ready = { player.state.value.at.page == page && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
-            ArticlePreviewScreen(loadFile = { File(files, "e.epub") }, position = page, title = player.state.value.pages[page].title, onBack = {}, onListen = {}, player = player, editionId = id, reading = MutableStateFlow(now))
+            ArticlePreviewScreen(loadFile = { File(files, "e.epub") }, position = page, title = title, onBack = {}, onListen = {}, player = player, editionId = id, reading = MutableStateFlow(now))
         }
     }
 
