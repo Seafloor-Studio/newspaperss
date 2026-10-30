@@ -68,6 +68,9 @@ import com.app.newspaperss.testutil.transparentPng
 import com.app.newspaperss.ui.edition.EditionDetailScreen
 import com.app.newspaperss.ui.edition.EditionDetailViewModel
 import com.app.newspaperss.ui.listen.ListenScreen
+import com.app.newspaperss.ui.edition.ArticlePreviewScreen
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.semantics.getOrNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -522,6 +525,66 @@ class ListenAppTest {
         compose.onNodeWithContentDescription("Contents").performClick()
         compose.onNode(hasText("Lagos Drivers Built Their Own App") and hasAnyAncestor(isDialog())).performClick()
         idleUntil { player.state.value.at.page == 1 }
+    }
+
+    /**
+     * One view for reading and listening: Listen from the article preview plays in place, the
+     * player under the page, the sentence being read marked, a tapped sentence read from while it
+     * plays (not while paused), and the page turning with the voice and the voice with the page.
+     */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun thePreviewListensInPlaceAndTurnsWithTheVoice() {
+        val id = edition()
+        compose.setContent {
+            ArticlePreviewScreen(
+                loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = 0, title = "Thursday Morning Edition", onBack = {},
+                onListen = { listening.start(id, ListenPosition(it, 0)) }, player = player, editionId = id,
+            )
+        }
+        idleUntil { compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        assertTrue("no player before Listen", compose.onAllNodes(hasContentDescription("Pause")).fetchSemanticsNodes().isEmpty())
+
+        compose.onNodeWithContentDescription("Listen from here").performClick()
+        idleUntil { player.state.value.editionId == id && player.state.value.playing && player.state.value.script != null }
+        compose.onNodeWithContentDescription("Pause").assertExists()
+        compose.onNodeWithContentDescription("Listen from here").assertDoesNotExist()
+        // The sentence being read is underlined in the page, once the voice reaches it past the heading.
+        while (speaker.queue.firstOrNull()?.text != "Nobody could say how many knots there are.") speaker.sayNext()
+        speaker.startNext()
+        idleUntil { underlined("Nobody could say") == listOf("Nobody could say how many knots there are.") }
+
+        // Playing, a tapped sentence is read from.
+        tapWord(hasText("Nobody could say", substring = true), "program")
+        idleUntil { speaker.queue.firstOrNull()?.text == "Then a teacher wrote a program." }
+
+        // The voice going on to the next article turns the page.
+        compose.onNodeWithContentDescription("Next article").performClick()
+        idleUntil { compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
+        // Back a page, by the voice, and the page follows it there too.
+        compose.onNodeWithContentDescription("Previous article").performClick()
+        idleUntil { compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isNotEmpty() && player.state.value.at.page == 0 }
+
+        // Paused, a tap on a sentence doesn't move the voice.
+        compose.onNodeWithContentDescription("Pause").performClick()
+        val at = player.state.value.at
+        tapWord(hasText("Nobody could say", substring = true), "program")
+        compose.waitForIdle()
+        assertEquals(at, player.state.value.at)
+        assertFalse(player.state.value.playing)
+
+        // The page's "Next" line takes the voice, and the page with it, to the next article.
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Next:", substring = true))
+        tapWord(hasText("Next:", substring = true), "Lagos")
+        idleUntil { player.state.value.at.page == 1 && compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
+        player.stop()
+    }
+
+    /** The spans of the paragraph starting [start] drawn underlined: the sentence the voice is on. */
+    private fun underlined(start: String): List<String> {
+        val nodes = compose.onAllNodes(hasText(start, substring = true), useUnmergedTree = true).fetchSemanticsNodes()
+        val text = nodes.firstOrNull()?.config?.getOrNull(SemanticsProperties.Text)?.firstOrNull() ?: return emptyList()
+        return text.spanStyles.filter { it.item.textDecoration == androidx.compose.ui.text.style.TextDecoration.Underline }.map { text.text.substring(it.start, it.end) }
     }
 
     /** Taps [word] where it's drawn in the text of the node [matcher] finds. */

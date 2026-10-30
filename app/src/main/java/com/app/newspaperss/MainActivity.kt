@@ -311,15 +311,16 @@ private fun App(
                     onBack = { nav.navigateUp() },
                     textSize = textSize,
                     onTextSize = { size -> container.appScope.launch { container.settings.update { it.copy(previewTextSize = size) } } },
-                    onListen = { article ->
-                        container.listening.start(id, ListenPosition(article, 0))
-                        nav.navigate(LISTEN) { launchSingleTop = true }
-                    },
+                    // The player comes up under the page: reading and listening are one view.
+                    onListen = { article -> container.listening.start(id, ListenPosition(article, 0)) },
                     sourceAt = { position -> goTo(contents, moving, position)?.title },
                     onOpenSource = { position ->
                         goTo(contents, moving, position)?.let { nav.navigate(sourceRoute(it)) { launchSingleTop = true } }
                     },
                     episodeFor = { article -> contents.getOrNull(article)?.let { episodeJudgement(it, recordings) } },
+                    player = container.listen,
+                    editionId = id,
+                    podcastVoice = container.podcastPlaying,
                 )
             }
             composable(LISTEN) {
