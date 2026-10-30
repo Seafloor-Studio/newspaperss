@@ -67,7 +67,6 @@ import com.app.newspaperss.testutil.idleUntil
 import com.app.newspaperss.testutil.transparentPng
 import com.app.newspaperss.ui.edition.EditionDetailScreen
 import com.app.newspaperss.ui.edition.EditionDetailViewModel
-import com.app.newspaperss.ui.listen.ListenScreen
 import com.app.newspaperss.ui.edition.ArticlePreviewScreen
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.semantics.getOrNull
@@ -91,7 +90,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.time.LocalDate
 
-/** Listening to a real edition's book: the player, the edition page's button, the playing screen and the media controls. */
+/** Listening to a real edition's book: the player, the edition page's button, the article view and the media controls. */
 @RunWith(AndroidJUnit4::class)
 @Config(application = TestApp::class, qualifiers = "w411dp-h891dp")
 class ListenAppTest {
@@ -230,13 +229,17 @@ class ListenAppTest {
         idleUntil { player.state.value.at.page == 2 }
         assertTrue(progress.finished(id))
 
-        compose.setContent { ListenScreen(player, onBack = {}) }
+        compose.setContent(playing(id, player))
         player.seek(ListenPosition(3, 0))
-        idleUntil { player.state.value.at.page == 3 }
-        compose.onNodeWithText("Listening · episode 1 of 1").assertIsDisplayed()
+        idleUntil { player.state.value.at.page == 3 && compose.onAllNodesWithText("0:30", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        player.pause()
+        idleUntil { !player.state.value.playing }
+        compose.waitForIdle()
+        compose.onAllNodesWithText("Tap a time to play from there.").fetchSemanticsNodes().let { assertEquals("paused, a tap doesn't play", 0, it.size) }
+        player.play()
+        idleUntil { compose.onAllNodesWithText("Tap a time to play from there.").fetchSemanticsNodes().isNotEmpty() }
         player.seek(ListenPosition(1, 0))
-        idleUntil { player.state.value.at.page == 1 }
-        compose.onNodeWithText("Listening · 2 of 2").assertIsDisplayed()
+        idleUntil { player.state.value.at.page == 1 && compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
         // From the edition, one tap to the episodes after it; on one, its own times and how to move in it.
         compose.onNodeWithText("Then 1 episode ›").performClick()
         idleUntil { player.state.value.at.page == 3 }
@@ -467,9 +470,11 @@ class ListenAppTest {
 
     @Test
     fun theContentsDontComeBackOverAPlayerWithNothingInIt() {
-        startAndWait(edition())
+        val id = edition()
+        startAndWait(id)
         val restoration = StateRestorationTester(compose)
-        restoration.setContent { ListenScreen(player, onBack = {}) }
+        restoration.setContent(playing(id))
+        idleUntil { compose.onAllNodes(hasContentDescription("Contents")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Contents").performClick()
         compose.onNodeWithText("Thursday Morning Edition").assertIsDisplayed()
 
@@ -484,9 +489,11 @@ class ListenAppTest {
 
     @Test
     fun theOpenContentsSurviveTheScreenBeingRecreated() {
-        startAndWait(edition())
+        val id = edition()
+        startAndWait(id)
         val restoration = StateRestorationTester(compose)
-        restoration.setContent { ListenScreen(player, onBack = {}) }
+        restoration.setContent(playing(id))
+        idleUntil { compose.onAllNodes(hasContentDescription("Contents")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Contents").performClick()
         compose.onNodeWithText("Thursday Morning Edition").assertIsDisplayed()
 
@@ -505,9 +512,9 @@ class ListenAppTest {
             ReadingSpeaker.Now(id, 0, Reading("https://cdn.example/r.mp3", 130, own = false, bodyLine = 3, starts = listOf(0.0)), voiceInstead = false),
         )
         val asked = mutableListOf<Boolean>()
-        compose.setContent { ListenScreen(player, onBack = {}, reading = now, onVoiceInstead = { asked += it }) }
+        compose.setContent(playing(id, reading = now, onVoiceInstead = { asked += it }))
 
-        compose.onNodeWithText("Playing its recorded reading · 2 min.").assertIsDisplayed()
+        idleUntil { compose.onAllNodesWithText("Playing its recorded reading · 2 min.").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Have the voice read it instead").performClick()
         assertEquals(listOf(true), asked)
 
@@ -522,11 +529,11 @@ class ListenAppTest {
     }
 
     @Test
-    fun thePlayingScreenFollowsTheVoiceAndATappedSentenceIsReadFromThere() {
+    fun thePlayingViewFollowsTheVoiceAndATappedSentenceIsReadFromThere() {
         val id = edition()
         startAndWait(id)
-        compose.setContent { ListenScreen(player, onBack = {}) }
-        compose.onNodeWithText("Listening · 1 of 2").assertIsDisplayed()
+        compose.setContent(playing(id))
+        idleUntil { compose.onAllNodesWithText("Tait's table of knots").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Tait's table of knots").assertIsDisplayed()
         compose.onNodeWithContentDescription("Pause").performClick()
         assertFalse(player.state.value.playing)
@@ -540,8 +547,7 @@ class ListenAppTest {
         assertEquals("Image: Tait's table of knots", speaker.queue.first().text)
         compose.onNodeWithContentDescription("Back a sentence").performClick()
         compose.onNodeWithContentDescription("Next article").performClick()
-        idleUntil { player.state.value.at.page == 1 }
-        compose.onNodeWithText("Listening · 2 of 2").assertIsDisplayed()
+        idleUntil { player.state.value.at.page == 1 && compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Previous article").performClick()
         idleUntil { player.state.value.at.page == 0 }
 
@@ -610,6 +616,26 @@ class ListenAppTest {
         player.stop()
     }
 
+    /**
+     * The one view, open at the page [player] is on, as the bar and the notification open it.
+     * Its top bar has the article's title; "Thursday Morning Edition" is the edition's, in Contents.
+     */
+    private fun playing(
+        id: Long,
+        player: ListenPlayer = this.player,
+        textSize: com.app.newspaperss.settings.PreviewTextSize? = com.app.newspaperss.settings.PreviewTextSize.DEFAULT,
+        reading: kotlinx.coroutines.flow.StateFlow<ReadingSpeaker.Now?> = kotlinx.coroutines.flow.MutableStateFlow(null),
+        onVoiceInstead: (Boolean) -> Unit = {},
+    ): @androidx.compose.runtime.Composable () -> Unit {
+        val at = player.state.value.at.page
+        return {
+            ArticlePreviewScreen(
+                loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = at, title = "An article", onBack = {}, textSize = textSize,
+                onListen = { listening.start(id, ListenPosition(it, 0)) }, player = player, editionId = id, reading = reading, onVoiceInstead = onVoiceInstead,
+            )
+        }
+    }
+
     /** The preview of one article, with Listen's player, as the app shows it. */
     private fun preview(id: Long, position: Int) = @androidx.compose.runtime.Composable {
         ArticlePreviewScreen(
@@ -670,7 +696,7 @@ class ListenAppTest {
     }
 
     /** An edition whose notes post's episode plays after its closing page: page 2 the closing page, page 3 the episode. */
-    private fun editionWithAnEpisodeAfterIt(): Long = runBlocking {
+    private fun editionWithAnEpisodeAfterIt(seconds: Int? = 2_280): Long = runBlocking {
         val notes = EditionArticle(
             title = "Episode 12: The ferry planner", sourceTitle = "The Example Show", url = "https://example.com/12",
             bodyHtml = "<p>This week we talk to a ferry planner.</p>", minutes = 1.0,
@@ -680,7 +706,7 @@ class ListenAppTest {
         }
         val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Show"))
         val article = db.articles().insertIgnoring(
-            ArticleEntity(sourceId = source, guid = "12", url = notes.url, title = notes.title, episodeKind = EpisodeKind.NOTES, audioUrl = "https://cdn.example/12.mp3", audioSeconds = 2_280),
+            ArticleEntity(sourceId = source, guid = "12", url = notes.url, title = notes.title, episodeKind = EpisodeKind.NOTES, audioUrl = "https://cdn.example/12.mp3", audioSeconds = seconds),
         )
         db.editions().insert(EditionEntity(title = "Saturday Morning Edition", status = EditionStatus.DELIVERED, fileName = "n.epub", articleCount = 2, minutes = 3.0)).also { id ->
             db.editions().insertArticles(
@@ -690,6 +716,20 @@ class ListenAppTest {
                 ),
             )
         }
+    }
+
+    /** An episode with no known length has no times to tap, so no hint to tap one. */
+    @Test
+    fun anEpisodeWithoutALengthDoesntOfferItsTimes() {
+        val id = editionWithAnEpisodeAfterIt(seconds = null)
+        val player = ListenPlayer(speaker, progress, open = { ListenBook.open(repo, it, Readings(db, { Recordings() })) }, CoroutineScope(SupervisorJob() + Dispatchers.Main))
+        player.start(id, ListenPosition(3, 0))
+        idleUntil { player.state.value.script != null && player.state.value.at.page == 3 && player.state.value.playing }
+        compose.setContent {
+            ArticlePreviewScreen(loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = 3, title = "Saturday Morning Edition", onBack = {}, onListen = {}, player = player, editionId = id)
+        }
+        idleUntil { compose.onAllNodesWithText("The episode.").fetchSemanticsNodes().isNotEmpty() }
+        compose.onAllNodesWithText("Tap a time to play from there.").fetchSemanticsNodes().let { assertEquals(0, it.size) }
     }
 
     /** From the closing page to the episode after it and back, the view goes with the voice, never back to the last article. */
@@ -803,7 +843,9 @@ class ListenAppTest {
                 opened += uri
             }
         }
-        compose.setContent { CompositionLocalProvider(LocalUriHandler provides uris) { ListenScreen(player, onBack = {}) } }
+        val view = playing(id)
+        compose.setContent { CompositionLocalProvider(LocalUriHandler provides uris) { view() } }
+        idleUntil { compose.onAllNodesWithText("Plain bold and the paper.").fetchSemanticsNodes().isNotEmpty() }
         // The byline whole, not only the author the voice reads; bold where it was bold; a list's own numbers; a code block's spacing.
         compose.onNodeWithText("By Erica Klarreich · 9 min read").assertIsDisplayed()
         val plain = compose.onNodeWithText("Plain bold and the paper.", useUnmergedTree = true).fetchSemanticsNode().config[SemanticsProperties.Text].single()
@@ -812,7 +854,8 @@ class ListenAppTest {
         compose.onNodeWithContentDescription("3.", useUnmergedTree = true).assertIsDisplayed()
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("x = 1\n  y = 2"))
 
-        // A table row tapped is read from, a row at a time.
+        // Playing, a table row tapped is read from, a row at a time.
+        player.play()
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Crossings"))
         compose.onNode(hasText("3") and hasClickAction()).performClick()
         idleUntil { speaker.queue.firstOrNull()?.text == "3, 1" }
@@ -827,13 +870,37 @@ class ListenAppTest {
         assertEquals(listOf("Open the paper"), actions.map { it.label })
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Next:", substring = true))
         val next = compose.onNodeWithText("Next:", substring = true).fetchSemanticsNode().config[SemanticsActions.CustomActions].single()
-        assertEquals("Go to Lagos Drivers Built Their Own App", next.label)
+        assertTrue(next.label, next.label.startsWith("Go to Next: Lagos Drivers Built Their Own App"))
+        // Paused, it turns the page and leaves the voice; playing, it moves the voice there too.
         tapWord(hasText("Next:", substring = true), "Lagos")
+        idleUntil { compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(0, player.state.value.at.page)
+        // The voice moved there and back brings the page back with it.
+        player.seek(ListenPosition(1, 0))
         idleUntil { player.state.value.at.page == 1 }
+        compose.waitForIdle()
         player.seek(ListenPosition(0, 0))
-        idleUntil { player.state.value.at.page == 0 }
-        compose.runOnIdle { next.action() }
+        player.play()
+        idleUntil { compose.onAllNodesWithText("Plain bold and the paper.").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Next:", substring = true))
+        val playingNext = compose.onNodeWithText("Next:", substring = true).fetchSemanticsNode().config[SemanticsActions.CustomActions].single()
+        compose.runOnIdle { playingNext.action() }
         idleUntil { player.state.value.at.page == 1 }
+    }
+
+    /** Heard to the end, the page the voice stopped on says so: there is no "Next" left to follow. */
+    @Test
+    fun theEditionHeardToTheEndSaysSo() {
+        val id = edition("Short", knots.copy(bodyHtml = "<p>One line.</p>", images = emptyList()))
+        startAndWait(id)
+        compose.setContent(playing(id))
+        while (!player.state.value.finished) {
+            idleUntil { speaker.queue.isNotEmpty() || player.state.value.finished }
+            if (speaker.queue.isNotEmpty()) speaker.sayNext()
+        }
+        idleUntil { compose.onAllNodesWithText("You've heard the whole edition.").fetchSemanticsNodes().isNotEmpty() }
+        // TalkBack says it as it appears.
+        assertTrue(androidx.compose.ui.semantics.SemanticsProperties.LiveRegion in compose.onNodeWithText("You've heard the whole edition.").fetchSemanticsNode().config)
     }
 
     @Test
@@ -842,7 +909,8 @@ class ListenAppTest {
         val id = edition("Long table", knots.copy(bodyHtml = "<p>The counts.</p><table><tr><th>Row</th><th>Twice</th></tr>$rows</table>", images = emptyList()), lagos)
         startAndWait(id)
         player.pause()
-        compose.setContent { ListenScreen(player, onBack = {}) }
+        compose.setContent(playing(id))
+        idleUntil { compose.onAllNodesWithText("The counts.").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Row 70").assertIsNotDisplayed()
         // Source, title, byline, the paragraph, the header row, then rows 1 to 70.
         player.seek(ListenPosition(0, 4 + 70))
@@ -850,11 +918,37 @@ class ListenAppTest {
         compose.waitUntil(5_000) { runCatching { compose.onNodeWithText("Row 70").assertIsDisplayed() }.isSuccess }
     }
 
+    /** The page moves a screen at a time: each move redraws an e-ink screen, so not at every sentence. */
+    @Test
+    fun aLineAlreadyOnScreenLeavesThePageWhereItIs() {
+        val paras = (1..40).joinToString("") { "<p>Paragraph $it.</p>" }
+        val id = edition("Many paragraphs", knots.copy(bodyHtml = paras, images = emptyList()), lagos)
+        startAndWait(id)
+        player.pause()
+        compose.setContent(playing(id))
+        idleUntil { compose.onAllNodesWithText("Paragraph 1.").fetchSemanticsNodes().isNotEmpty() }
+        fun displayed(text: String) = runCatching { compose.onNodeWithText(text, substring = true).assertIsDisplayed() }.isSuccess
+        // Source, title and byline, then a line a paragraph.
+        player.seek(ListenPosition(0, 3 + 1))
+        idleUntil { player.state.value.at.line == 4 }
+        compose.waitForIdle()
+        assertTrue("the byline stays while the voice is on the screen below it", displayed("By Erica Klarreich"))
+        // Off the screen, a screen turns: the line comes into view near the top.
+        player.seek(ListenPosition(0, 3 + 29))
+        idleUntil { player.state.value.at.line == 32 && displayed("Paragraph 30.") }
+        player.seek(ListenPosition(0, 3 + 30))
+        idleUntil { player.state.value.at.line == 33 }
+        compose.waitForIdle()
+        assertTrue("the line before stays: the page didn't move for the next", displayed("Paragraph 30."))
+    }
+
     @Test
     fun theArticleIsReadAtTheArticleTextSize() {
-        startAndWait(edition())
+        val id = edition()
+        startAndWait(id)
         var size by androidx.compose.runtime.mutableStateOf(com.app.newspaperss.settings.PreviewTextSize.DEFAULT)
-        compose.setContent { ListenScreen(player, onBack = {}, textSize = size) }
+        compose.setContent { playing(id, textSize = size)() }
+        idleUntil { compose.onAllNodesWithText("The count took a week.").fetchSemanticsNodes().isNotEmpty() }
         fun laidOut(): androidx.compose.ui.text.TextLayoutResult {
             val results = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
             compose.onNodeWithText("The count took a week.").fetchSemanticsNode()
@@ -881,8 +975,10 @@ class ListenAppTest {
 
     @Test
     fun scrollingAwayStopsFollowingUntilAsked() {
-        startAndWait(edition())
-        compose.setContent { ListenScreen(player, onBack = {}) }
+        val id = edition()
+        startAndWait(id)
+        compose.setContent(playing(id))
+        idleUntil { compose.onAllNodesWithText("The count took a week.").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("The count took a week.").performTouchInput { swipeDown() }
         compose.onNodeWithText("Back to where it's reading").performClick()
         assertEquals(0, compose.onAllNodesWithText("Back to where it's reading").fetchSemanticsNodes().size)
@@ -891,17 +987,13 @@ class ListenAppTest {
     @Test
     fun anArticleWithNoVoiceForItsLanguageOffersToGetOne() {
         speaker.installed = setOf("en")
-        startAndWait(edition("Édition", knots.copy(language = "fr")))
-        compose.setContent { ListenScreen(player, onBack = {}) }
+        val id = edition("Édition", knots.copy(language = "fr"))
+        startAndWait(id)
+        compose.setContent(playing(id))
+        idleUntil { compose.onAllNodesWithText("Get a French voice").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Get a French voice").performClick()
         val started = shadowOf(app).nextStartedActivity
         assertEquals(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA, started.action)
-    }
-
-    @Test
-    fun withNothingPlayingTheScreenSaysHowToStart() {
-        compose.setContent { ListenScreen(player, onBack = {}) }
-        compose.onNodeWithText("Nothing is playing. Open an edition and tap Listen.").assertIsDisplayed()
     }
 
     @Test

@@ -76,7 +76,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -162,7 +164,7 @@ private sealed interface Book {
 
 /**
  * One article of the edition, read straight out of the EPUB and drawn by the app from its page
- * ([ListenScript], as the playing screen draws it): close to the e-reader's page, though each
+ * ([ListenScript]): close to the e-reader's page, though each
  * e-reader sets its own fonts and margins. The "Next" line at its end turns to the next article.
  *
  * @param loadFile the edition's file, or null if it's gone. Called off the main thread.
@@ -353,6 +355,20 @@ fun ArticlePreviewScreen(
                         now, onVoiceInstead,
                         Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
                     )
+                    val hint = when {
+                        state.finished -> "You've heard the whole edition."
+                        // An episode's last block is its time marks, each a tap away while it plays.
+                        here && playing && state.pages.getOrNull(state.at.page)?.episode == true &&
+                            (state.script?.let { s -> s.lines.count { it.block == s.blocks.lastIndex } } ?: 0) > 1 -> "Tap a time to play from there."
+                        else -> null
+                    }
+                    hint?.let {
+                        Text(
+                            it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            // Said when the edition ends, not each time an episode's hint comes back with Play.
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp).semantics { if (state.finished) liveRegion = LiveRegionMode.Polite },
+                        )
+                    }
                 }
                 episodeFor(onScreen.article)?.let(::episodeNote)?.let { note ->
                     // Held to four lines: it stays above the article for the whole read.

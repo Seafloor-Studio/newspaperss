@@ -105,7 +105,6 @@ import com.app.newspaperss.listen.PodcastStore
 import com.app.newspaperss.listen.Podcasts
 import com.app.newspaperss.listen.StoredListenProgress
 import com.app.newspaperss.testutil.FakeSpeaker
-import com.app.newspaperss.ui.listen.ListenScreen
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
 import com.app.newspaperss.core.epub.EditionSection
@@ -656,27 +655,6 @@ class ScreenshotTest {
     @Config(fontScale = 2f)
     fun todayWithTheListenBarAtTwiceTheFontSize() = todayWithListenBar("11h3-listen-bar-font-200", playing = true)
 
-    /** An article with its formatting: bold, a link, a quote, a numbered list, a table and code. */
-    @Test
-    fun listenPlayingAFormattedArticle() {
-        val files = tmp.newFolder()
-        val article = FORMATTED
-        File(files, "f.epub").outputStream().use {
-            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000012", listOf(EditionSection(null, listOf(article)))), it)
-        }
-        val id = runBlocking {
-            val id = db.editions().insert(EditionEntity(title = "Thursday Morning Edition", status = EditionStatus.DELIVERED, fileName = "f.epub", articleCount = 1, minutes = 3.0))
-            db.editions().insertArticles(listOf(EditionArticleEntity(editionId = id, articleId = null, position = 0, title = article.title, sourceTitle = article.sourceTitle, minutes = 3.0)))
-            id
-        }
-        val (player, speaker) = listenPlayer(files)
-        // The quote, after the source, title, byline and first paragraph.
-        player.start(id, ListenPosition(0, 4))
-        idleUntil { player.state.value.script != null }
-        speaker.startNext()
-        shoot("11i-listen-formatted", ready = { player.state.value.at.line == 4 }) { ListenScreen(player, onBack = {}) }
-    }
-
     /** One view: the article preview while Listen plays it, the quote being read and the player under the page. */
     @Test
     fun articlePreviewListening() {
@@ -759,8 +737,9 @@ class ScreenshotTest {
         idleUntil { player.state.value.script != null }
         speaker.startNext()
         val now = readings.at(id, page)?.let { ReadingSpeaker.Now(id, page, it, voiceInstead = false) }
-        shoot(name, ready = { player.state.value.at.page == page }) {
-            ListenScreen(player, onBack = {}, reading = MutableStateFlow(now))
+        val title = player.state.value.pages[page].title
+        shoot(name, ready = { player.state.value.at.page == page && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(loadFile = { File(files, "e.epub") }, position = page, title = title, onBack = {}, onListen = {}, player = player, editionId = id, reading = MutableStateFlow(now))
         }
     }
 
@@ -800,8 +779,11 @@ class ScreenshotTest {
         idleUntil { player.state.value.script != null }
         speaker.startNext()
         val now = ReadingSpeaker.Now(id, 1, Reading("https://example.com/knots.mp3", if (episode) 5_220 else 540, own = episode, bodyLine = 3, starts = listOf(0.0), episode = episode), voiceInstead = false).takeIf { recording }
-        shoot(name, ready = { player.state.value.at.line == 6 }) {
-            ListenScreen(player, onBack = {}, podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), textSize = textSize, reading = MutableStateFlow(now))
+        shoot(name, ready = { player.state.value.at.line == 6 && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(
+                loadFile = { File(files, "l.epub") }, position = 1, title = knots.title, onBack = {}, onListen = {}, textSize = textSize,
+                player = player, editionId = id, podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), reading = MutableStateFlow(now),
+            )
         }
     }
 
@@ -1827,7 +1809,7 @@ class ScreenshotTest {
     }
 
     private companion object {
-        /** An article with bold, a link, a quote, a numbered list, a table and code: for the playing screen and the preview. */
+        /** An article with bold, a link, a quote, a numbered list, a table and code: for the article view, read and listened to. */
         val FORMATTED = EditionArticle(
             title = "How a Retired Teacher Counted the Knots", sourceTitle = "Quanta Magazine", url = "https://example.com/count",
             bodyHtml = "<p>The count took <b>a week</b> of computer time, and the <a href=\"https://example.com/paper\">paper</a> ran to <em>forty pages</em>.</p>" +

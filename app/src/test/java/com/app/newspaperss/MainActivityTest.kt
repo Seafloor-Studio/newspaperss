@@ -74,15 +74,34 @@ class MainActivityTest {
     }
 
     @Test
-    fun thePlayersNotificationOpensThePlayingScreenAndSoDoesTappingItAgain() {
+    fun thePlayersNotificationOpensTheArticleBeingReadAndSoDoesTappingItAgain() {
         runBlocking { app.container.settings.update { it.copy(onboarded = true) } }
+        val id = listenedEdition()
+        app.container.listen.start(id)
+        idleUntil { app.container.listen.state.value.pages.isNotEmpty() }
         val open = android.content.Intent(app, MainActivity::class.java).putExtra(MainActivity.EXTRA_OPEN, MainActivity.OPEN_LISTENING)
         val scenario = ActivityScenario.launch<MainActivity>(open)
-        shows("Nothing is playing")
+        shows("1 min read")
+        compose.onNodeWithContentDescription("Text size").assertExists()
         compose.onNode(hasText("Back") or androidx.compose.ui.test.hasContentDescription("Back")).performClick()
-        shows("Sources")
+        shows("Listening · Rail Talk")
         scenario.onActivity { it.onNewIntent(open) }
-        shows("Nothing is playing")
+        shows("1 min read")
+        compose.onAllNodes(hasText("Listening · Rail Talk")).fetchSemanticsNodes().let { assertEquals(0, it.size) }
+    }
+
+    /** An edition of one article, "The ferry planner" from Rail Talk, with its book; returns its id. */
+    private fun listenedEdition(): Long = runBlocking {
+        val dir = File(app.filesDir, "editions").apply { mkdirs() }
+        val article = EditionArticle("The ferry planner", "Rail Talk", "https://example.com/f", "<p>One. Two. Three.</p>", 1.0)
+        File(dir, "l.epub").outputStream().use {
+            com.app.newspaperss.core.epub.EpubWriter.write(
+                com.app.newspaperss.core.epub.EditionDoc("Edition", java.time.LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000031", listOf(com.app.newspaperss.core.epub.EditionSection(null, listOf(article)))), it,
+            )
+        }
+        app.container.db.editions().insert(EditionEntity(title = "Edition", status = EditionStatus.DELIVERED, fileName = "l.epub", articleCount = 1, minutes = 1.0)).also { id ->
+            app.container.db.editions().insertArticles(listOf(EditionArticleEntity(editionId = id, articleId = null, position = 0, title = article.title, sourceTitle = article.sourceTitle, minutes = 1.0)))
+        }
     }
 
     /** While an edition is open in Listen, a bar along the bottom of every screen shows it, pauses it and opens the player. */
@@ -92,18 +111,7 @@ class MainActivityTest {
         shows("Sources")
         // Not before Listen is used: showing it mustn't start the player either.
         compose.onAllNodes(hasText("Listening ·", substring = true)).fetchSemanticsNodes().let { assertEquals(0, it.size) }
-        val id = runBlocking {
-            val dir = File(app.filesDir, "editions").apply { mkdirs() }
-            val article = EditionArticle("The ferry planner", "Rail Talk", "https://example.com/f", "<p>One. Two. Three.</p>", 1.0)
-            File(dir, "l.epub").outputStream().use {
-                com.app.newspaperss.core.epub.EpubWriter.write(
-                    com.app.newspaperss.core.epub.EditionDoc("Edition", java.time.LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000031", listOf(com.app.newspaperss.core.epub.EditionSection(null, listOf(article)))), it,
-                )
-            }
-            app.container.db.editions().insert(EditionEntity(title = "Edition", status = EditionStatus.DELIVERED, fileName = "l.epub", articleCount = 1, minutes = 1.0)).also { id ->
-                app.container.db.editions().insertArticles(listOf(EditionArticleEntity(editionId = id, articleId = null, position = 0, title = article.title, sourceTitle = article.sourceTitle, minutes = 1.0)))
-            }
-        }
+        val id = listenedEdition()
         app.container.listen.start(id)
         shows("The ferry planner")
         shows("Listening · Rail Talk")
@@ -119,7 +127,7 @@ class MainActivityTest {
         compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
         shows("About 30 minutes")
         compose.onNodeWithText("The ferry planner").performClick()
-        // The article's page, its byline at the top, with the preview's own Aa: not the old playing screen.
+        // The article's page, its byline at the top, with the preview's own Aa.
         shows("1 min read")
         compose.onNodeWithContentDescription("Text size").assertExists()
         compose.onNodeWithContentDescription("Next article").assertExists()

@@ -17,7 +17,6 @@ import android.content.Intent
 import com.app.newspaperss.listen.KokoroSupport
 import com.app.newspaperss.listen.ListenPosition
 import com.app.newspaperss.ui.components.episodeJudgement
-import com.app.newspaperss.ui.listen.ListenScreen
 import android.os.Bundle
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.ComponentActivity
@@ -99,7 +98,6 @@ private const val LEFT_OUT = "source/{id}/left-out"
 private const val NOT_IN_PAPER = "source/{id}/not-in-paper"
 private const val SETTINGS_PAGE = "settings/{page}"
 private const val NATURAL_VOICE = "settings/listening/natural-voice"
-private const val LISTEN = "listen"
 private val FEEDS_FROM = "settings/${SettingsPage.FEEDS.slug}"
 
 class MainActivity : ComponentActivity() {
@@ -220,9 +218,8 @@ private fun App(
     val openPlayer = { fallback: Long? ->
         val now = container.listen.state.value
         val id = now.editionId ?: fallback
-        if (id == null) {
-            nav.navigate(LISTEN) { launchSingleTop = true }
-        } else {
+        // Nothing playing (a notification left from before): nothing to open.
+        if (id != null) {
             // While it opens, its place isn't known to the player yet: where it was left.
             val page = if (now.editionId == id && !now.loading && now.pages.isNotEmpty()) now.at.page else container.listening.saved(id)?.page ?: 0
             nav.navigate("edition/$id/article/$page") { launchSingleTop = true }
@@ -237,10 +234,9 @@ private fun App(
     Scaffold(
         bottomBar = {
             Column {
-                // Not over the playing screen, which is the same and more, nor an article of the edition
-                // it's playing, which has the player under the page.
+                // Not over an article of the edition it's playing, which has the player under the page.
                 val onItsArticle = current?.destination?.route == ARTICLE && current?.arguments?.getLong("id") == listenNow?.editionId
-                listenNow?.takeIf { showsListenBar(it) && current?.destination?.route != LISTEN && !onItsArticle }?.let { state ->
+                listenNow?.takeIf { showsListenBar(it) && !onItsArticle }?.let { state ->
                     ListenBar(state, onOpen = { openPlayer(null) }, onToggle = container.listening::toggle, onClose = container.listen::stop)
                 }
                 // The tab whose stack the screen is on: switching tabs pops back to Today, the start,
@@ -255,8 +251,6 @@ private fun App(
                             onClick = {
                                 // Tapping the tab you're in goes back to its top screen; restoring
                                 // saved state would otherwise reopen the detail screen you're on.
-                                // The player isn't kept in the tab left: coming back, the tab shows itself.
-                                if (!inTab && current?.destination?.route == LISTEN) nav.popBackStack()
                                 if (inTab) nav.popBackStack(tab.route, inclusive = false) else nav.navigate(tab.route) {
                                     popUpTo(nav.graph.findStartDestination().id) { saveState = true }
                                     launchSingleTop = true
@@ -340,13 +334,6 @@ private fun App(
                     instead = container.podcastInstead,
                     reading = container.readingNow,
                     onVoiceInstead = container::useVoiceInstead,
-                )
-            }
-            composable(LISTEN) {
-                ListenScreen(
-                    container.listen, onBack = { nav.navigateUp() }, podcastVoice = container.podcastPlaying, instead = container.podcastInstead,
-                    reading = container.readingNow, onVoiceInstead = container::useVoiceInstead,
-                    textSize = textSize,
                 )
             }
             composable(Tab.SOURCES.route) {

@@ -62,7 +62,7 @@ data class ListenState(
 
 /**
  * Reads an edition aloud, a line at a time, from where it was left: the one player behind the
- * edition's Listen button, the playing screen and the lock screen's controls. Call it from the
+ * edition's Listen button, the article view's player and the lock screen's controls. Call it from the
  * main thread.
  *
  * The voice is given the line being read and the one after, so there's no gap between them, and

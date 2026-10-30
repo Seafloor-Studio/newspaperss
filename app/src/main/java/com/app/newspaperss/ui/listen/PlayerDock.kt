@@ -169,22 +169,32 @@ private fun Chapters(state: ListenState, modifier: Modifier) {
 }
 
 /**
- * Scrolls [list] to the voice's [line] on a page of [script]'s blocks, [before] rows after the
- * list's start. A jump, not an animated scroll, which smears on e-ink. In a long paragraph or a
- * table, down to the sentence or row, a little below the top.
+ * Brings the voice's [line] on a page of [script]'s blocks into view in [list], whose blocks start
+ * [before] rows in. A line already on screen leaves it be; one that isn't turns a screen, putting
+ * the line a little below the top. On e-ink each scroll redraws the screen, so it moves by whole
+ * screens, and jumps rather than animates, which smears there.
  */
 internal suspend fun follow(list: LazyListState, script: ListenScript, line: ListenScript.Line, layouts: Map<Int, TextLayoutResult>, tables: Map<Int, TableRows>, before: Int = 0) {
-    list.scrollToItem(before + line.block)
     val block = script.blocks[line.block]
     val text = drawnAsText(block)
-    val top = if (text != null) {
-        val layout = layouts[line.block] ?: return
-        layout.getLineTop(layout.getLineForOffset(text.ranges[line.index].first))
+    // The line's top and bottom within its block, when its block has been drawn.
+    val span = if (text != null) {
+        layouts[line.block]?.let { layout ->
+            val range = text.ranges[line.index]
+            layout.getLineTop(layout.getLineForOffset(range.first)) to layout.getLineBottom(layout.getLineForOffset(range.last))
+        }
     } else {
-        val table = block as? ListenScript.Block.Table ?: return
-        val row = table.rows.runningFold(0) { at, r -> at + r.sentences.size }.indexOfLast { it <= line.index }.coerceAtLeast(0)
-        tables[line.block]?.offset(row) ?: return
+        (block as? ListenScript.Block.Table)?.let { table ->
+            val row = table.rows.runningFold(0) { at, r -> at + r.sentences.size }.indexOfLast { it <= line.index }.coerceAtLeast(0)
+            tables[line.block]?.offset(row)?.let { it to it }
+        }
     }
-    val viewport = list.layoutInfo.viewportSize.height
+    // Items' offsets count from inside the content padding, as do the viewport's bounds here.
+    val info = list.layoutInfo
+    val viewport = info.viewportSize.height
+    val shown = info.visibleItemsInfo.firstOrNull { it.index == before + line.block }
+    if (shown != null && span != null && shown.offset + span.first >= info.viewportStartOffset && shown.offset + span.second <= info.viewportEndOffset) return
+    list.scrollToItem(before + line.block)
+    val top = span?.first ?: return
     if (top > viewport / 3) list.scrollBy(top - viewport / 4f)
 }
