@@ -48,6 +48,18 @@ Cycle G6. Fixed in #363 (CI) and #364 (nested JSON). Measured unless it says "re
   - **Feed images can point at local-network addresses.** As in any feed reader.
   - **tt-rss in Docker uses `:latest` on purpose,** and the emulator's KOReader is F-Droid's latest.
 
+### From the 30 Oct test audit *(audit)*
+
+What each screen offers by the edition's state wasn't tested past ready and sent editions, so a not-sent edition lost Listen (#401, #410). Robolectric unless it says otherwise.
+
+- [ ] **A not-sent edition made the real way:** build edition A, then B, and check A's page offers Listen, Resume, the audio line, Mark as sent and Save a copy, and opens an article. Every test now sets "not sent" by hand with the same constant the code reads.
+- [ ] **The natural-voice audio line on the edition page, by status:** ready, sent and not sent, against audio asked for, part made and made. `PodcastLineTest` checks the line alone; only a screenshot shows it inside the page.
+- [ ] **Deleting the edition you're listening to, or one that has audio:** through the real wiring in `AppContainer` (`listen.forget`, `podcastStore.delete`), and the clean-up after each run (`pruneFiles`). The bar should let go and the audio's space come back. The tests now check that a stand-in was called.
+- [ ] **Today's card when the newest edition is a not-sent one** (after making another and deleting it): it offers only "Try again", while its page offers Mark as sent and Listen. Make the card match the page (EditionActions says they offer the same), with a test.
+- [ ] **The status changing while the page is open or playing:** a ready edition released by the morning build keeps Listen and its audio line.
+- [ ] **Emulator:** `journeys.sh two-editions` stops at Today's list; go on to open the not-sent edition and wait for "Listen ·" and "Mark as sent". *(device)*
+- [ ] **Your call: on a Boox, a not-sent edition asks "Read it another way?"** with no first way offered (no Read or Open). Offer Read there, or word it as "Read it on your Boox?" Recommended: offer Read, since its book is still here.
+
 ### Onboarding and setup
 
 ### Sources and fetching
@@ -289,6 +301,16 @@ The phone's voice reading an edition, and Settings › Listening for it, are bui
 - **🔊 in the article preview**, starting the same player at that article.
 - **A sleep timer**, and a way in from Today's card.
 - **Save as audio:** the edition as a file with a chapter per article, for a podcast or audiobook app. With the audio made, it's already most of the way there.
+
+### Naming the recording chips *(you asked)*
+
+- [ ] **Your call: the chip names in Settings › Listening › Recordings,** one for each way a recording takes the voice's place:
+  1. a transcript's episode in its place;
+  2. an author's reading in its place;
+  3. a notes post's episode at the end of the edition;
+  4. maybe a notes post's episode in place of its show notes (not built).
+
+  Suggested: **Episode instead of its transcript**, **Author's reading**, **Episode after the paper**, **Episode instead of its show notes**. For 3 and 4, one three-way choice (notes read / episode at the end / episode in their place) might be clearer than two chips. Waiting on madCode's pick; then rename the chips, the note above the page and DESIGN.md.
 
 ### Listening in the reading view *(you asked)*
 The article preview (the book's page in a WebView) and the playing screen (the article redrawn
