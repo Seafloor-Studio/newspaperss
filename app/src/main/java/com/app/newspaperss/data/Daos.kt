@@ -485,20 +485,6 @@ interface ArticleDao {
     )
     suspend fun forgetDelivered(editionId: Long, deliveredAt: Instant)
 
-    /** Keeps the first star's time, so repeated taps don't move it back in line. Not while it's in an unsent edition. */
-    @Query("UPDATE articles SET starredAt = COALESCE(starredAt, :at) WHERE id = :id AND state != 'IN_EDITION'")
-    suspend fun star(id: Long, at: Instant): Int
-
-    /**
-     * Refused while an edition started after [buildingSince] is being made: it has taken the
-     * article as a candidate and may already have written it into the book.
-     */
-    @Query(
-        """UPDATE articles SET starredAt = NULL WHERE id = :id AND state != 'IN_EDITION'
-           AND NOT EXISTS (SELECT 1 FROM editions WHERE status = 'BUILDING' AND createdAt > :buildingSince)""",
-    )
-    suspend fun unstar(id: Long, buildingSince: Instant): Int
-
     /**
      * Stars a source's articles by guid, for stars taken from tt-rss. Not one already delivered:
      * starred there after it went out, it's being kept, not asked for again.
@@ -512,11 +498,14 @@ interface ArticleDao {
     @Query("SELECT guid FROM articles WHERE sourceId = :sourceId AND guid IN (:guids) AND state = 'IN_EDITION'")
     suspend fun inEditionAmong(sourceId: Long, guids: List<String>): List<String>
 
-    /** [star] for several articles at once. */
+    /** Keeps each first star's time, so repeated taps don't move it back in line. Not while it's in an unsent edition. */
     @Query("UPDATE articles SET starredAt = COALESCE(starredAt, :at) WHERE id IN (:ids) AND state != 'IN_EDITION'")
     suspend fun starAll(ids: Collection<Long>, at: Instant): Int
 
-    /** [unstar] for several articles at once, with the same hold during a build. */
+    /**
+     * Refused while an edition started after [buildingSince] is being made: it has taken the
+     * articles as candidates and may already have written them into the book.
+     */
     @Query(
         """UPDATE articles SET starredAt = NULL WHERE id IN (:ids) AND state != 'IN_EDITION'
            AND NOT EXISTS (SELECT 1 FROM editions WHERE status = 'BUILDING' AND createdAt > :buildingSince)""",
@@ -524,12 +513,12 @@ interface ArticleDao {
     suspend fun unstarAll(ids: Collection<Long>, buildingSince: Instant): Int
 
     suspend fun setStarred(id: Long, starred: Boolean, now: Instant): Boolean =
-        (if (starred) star(id, now) else unstar(id, now.minus(BUILD_HOLD))) > 0
+        (if (starred) starAll(listOf(id), now) else unstarAll(listOf(id), now.minus(BUILD_HOLD))) > 0
 
     /**
      * Waiting articles, and ones in an unsent edition: its book can't change, but the article
      * won't come back for another if it's never sent. Their stars go with them. Refused during a
-     * build, as for [unstar].
+     * build, as for [unstarAll].
      */
     @Query(
         """UPDATE articles SET state = 'SKIPPED', starredAt = NULL WHERE id IN (:ids) AND state IN ('NEW', 'IN_EDITION')

@@ -242,7 +242,7 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
         if (batch.starred) {
             ids.size - db.articles().unstarAll(ids, clock.instant().minus(BUILD_HOLD))
         } else {
-            batch.changed.count { it.starredAt == null || db.articles().star(it.articleId, it.starredAt) == 0 }
+            batch.changed.count { it.starredAt == null || db.articles().starAll(listOf(it.articleId), it.starredAt) == 0 }
         }
     }
 
