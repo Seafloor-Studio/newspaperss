@@ -91,6 +91,12 @@ class ReadingSpeaker(
     private var reported = -1
     /** How far into the recording it last was, for the log when it stops. */
     private var atMs = 0L
+    /**
+     * The line a paused recording had reached, and how far into it it was: played again from that
+     * line, it plays on from there rather than the line's start, which for an episode's marks or
+     * a reading without them can be minutes back.
+     */
+    private var left: Pair<LineId, Long>? = null
     /** The voice saying an episode won't play: only its own end moves on, not one said before a seek. */
     private var skipping: String? = null
 
@@ -205,8 +211,11 @@ class ReadingSpeaker(
         // either, it starts from the beginning and seeks once the player knows the length.
         val total = markedMs(reading) ?: lengths[reading.url] ?: reading.seconds?.let { it * 1000L }
         val share = reading.shareAt(from.line)
-        val ms = total?.let { (share * it).toLong() } ?: 0L
-        seekWhenKnown = share.takeIf { total == null && it > 0 }
+        // By place: every pause and play is a new generation of the player's lines.
+        val resume = left?.takeIf { (line, _) -> line.copy(generation = from.generation) == from }?.second
+        left = null
+        val ms = resume ?: total?.let { (share * it).toLong() } ?: 0L
+        seekWhenKnown = share.takeIf { resume == null && total == null && it > 0 }
         atMs = ms
         log("Reading: edition ${from.editionId} page ${from.page} from line ${from.line}: ${reading.url} at ${ms / 1000}s, speed ${"%.1f".format(Locale.ROOT, rate)}")
         audio.play(reading.url, ms, rate)
@@ -244,6 +253,7 @@ class ReadingSpeaker(
         }
         reading?.let { r -> (lengths[r.url] ?: r.seconds?.let { it * 1000L })?.let { atMs = it } }
         stopRecording("played to the end")
+        left = null
         listener?.onDone(at.copy(line = at.lines - 1).toString())
     }
 
@@ -293,10 +303,22 @@ class ReadingSpeaker(
     }
 
     override fun stop() {
+        left = null
         waiting = null
         skipping = null
         stopRecording("stopped")
         voice.stop()
+    }
+
+    override fun pause() {
+        // Nothing playing (play, after a pause, pauses first): the place stays. Still waiting to
+        // seek, it isn't where atMs says yet.
+        val place = when (val at = playing) {
+            null -> left
+            else -> (at.copy(line = maxOf(reported, at.line)) to atMs).takeIf { seekWhenKnown == null }
+        }
+        stop()
+        left = place
     }
 
     override fun release() {

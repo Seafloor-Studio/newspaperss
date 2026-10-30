@@ -149,11 +149,11 @@ class ListenPlayer(
         }
         _state.update { it.copy(playing = true, error = null) }
         // Mid-turn, the new page starts itself once it's read; mid-pause, once the pause ends.
-        if (!turning && !chiming) speakFrom(current.at.line)
+        if (!turning && !chiming) speakFrom(current.at.line, keepPlace = true)
     }
 
     fun pause() {
-        silence()
+        silence(keepPlace = true)
         _state.update { it.copy(playing = false) }
     }
 
@@ -254,7 +254,7 @@ class ListenPlayer(
         if (speed == _state.value.speed) return
         _state.update { it.copy(speed = speed) }
         // Mid-pause, the next article starts at the new speed when the pause ends.
-        if (_state.value.playing && !turning && !chiming) speakFrom(_state.value.at.line)
+        if (_state.value.playing && !turning && !chiming) speakFrom(_state.value.at.line, keepPlace = true)
     }
 
     private fun nextPage(play: Boolean, chimeFirst: Boolean = false) {
@@ -332,16 +332,17 @@ class ListenPlayer(
         _state.update { it.copy(playing = false, finished = true) }
     }
 
-    private fun silence() {
+    /** [keepPlace] for a pause or a change of speed, so a recording plays on from where it got (see [Speaker.pause]). */
+    private fun silence(keepPlace: Boolean = false) {
         generation++
         queued = -1
         if (_state.value.between) _state.update { it.copy(between = false) }
         chime.stop()
-        speaker.stop()
+        if (keepPlace) speaker.pause() else speaker.stop()
     }
 
-    private fun speakFrom(line: Int) {
-        silence()
+    private fun speakFrom(line: Int, keepPlace: Boolean = false) {
+        silence(keepPlace)
         queued = line
         say(line, flush = true)
         queueNext()

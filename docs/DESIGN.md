@@ -657,7 +657,8 @@ whose Kindle and KOReader answers ask for more on the same page).
     reads the source, title and author, says "Now its recorded reading,
     12 minutes.", and the recording plays the rest, streamed. Sentences are
     tinted as it reaches about their share of it, and a tap plays from about
-    there. Above the page: "Playing its recorded reading · 12 min" with
+    there. A pause, a call or a speed change plays on from where it got;
+    ↶ goes back to the sentence's start. Above the page: "Playing its recorded reading · 12 min" with
     **Have the voice read it instead**, kept for that article, and back with
     **Play its recorded reading**. The podcast log records each switch, how
     far each recording got when it stopped or ended, and, as an edition
@@ -691,8 +692,8 @@ whose Kindle and KOReader answers ask for more on the same page).
     already plays in its place isn't played again.
     - The page shows a mark every 30 seconds ("0:00", "0:30"), tinted as
       the episode reaches it: a pause, a call or a speed change plays on
-      from the last mark, ↷ skips 30 seconds, and a tapped mark plays from
-      there. An episode's length comes from its feed, or from its file's
+      from where it got, ↶ goes back to the last mark, ↷ skips 30 seconds,
+      and a tapped mark plays from there. An episode's length comes from its feed, or from its file's
       first bytes when the edition is made; without one, a single line.
     - They aren't the edition's: the contents list them as "Episode", the
       title reads "Listening · episode 1 of 2", and the edition's times

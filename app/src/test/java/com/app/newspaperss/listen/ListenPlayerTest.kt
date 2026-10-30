@@ -213,6 +213,46 @@ class ListenPlayerTest {
         assertEquals(ListenPosition(0, 0), state.at)
     }
 
+    /**
+     * A recording in an article's place (an episode, an author's reading), where a line can be
+     * minutes long: a pause or a change of speed plays on from where it got, and ↶ goes back to
+     * the line's start.
+     */
+    @Test
+    fun aRecordingPlaysOnFromWhereItWasPausedAndBackGoesToItsLinesStart() {
+        val audio = object : ReadingAudio {
+            override var listener: ReadingAudio.Listener? = null
+            val played = mutableListOf<Pair<Long, Float>>()
+            override fun play(url: String, fromMs: Long, speed: Float) { played += fromMs to speed }
+            override fun stop() {}
+            override fun release() {}
+        }
+        val choices = object : ReadingChoices {
+            override fun voiceInstead(editionId: Long, page: Int) = false
+            override fun setVoiceInstead(editionId: Long, page: Int, instead: Boolean) {}
+        }
+        val reading = Reading("https://cdn.example/episode.mp3", 100, own = true, bodyLine = 0, starts = listOf(0.0, 0.4, 0.8))
+        val recordings = ReadingSpeaker(speaker, audio, { _, page -> reading.takeIf { page == 0 } }, choices)
+        val player = ListenPlayer(recordings, progress, open = openBook, scope = TestScope(UnconfinedTestDispatcher()), now = { clock }, chime = chime)
+        progress.set(7, ListenPosition(0, 1))
+        player.start(7)
+        assertEquals(40_000L to 1f, audio.played.last())
+
+        audio.listener!!.onPosition(55_000, 100_000)
+        player.pause()
+        player.play()
+        assertEquals(55_000L to 1f, audio.played.last())
+
+        audio.listener!!.onPosition(61_000, 100_000)
+        player.setSpeed(1.5f)
+        assertEquals(61_000L to 1.5f, audio.played.last())
+
+        audio.listener!!.onPosition(70_000, 100_000)
+        clock = 10_000
+        player.back()
+        assertEquals(40_000L to 1.5f, audio.played.last())
+    }
+
     @Test
     fun backFromAnArticlesFirstSentenceGoesToTheEndOfTheOneBefore() {
         progress.set(7, ListenPosition(1, 0))
