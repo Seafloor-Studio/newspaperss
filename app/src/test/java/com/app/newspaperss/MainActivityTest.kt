@@ -98,6 +98,8 @@ class MainActivityTest {
         app.container.listen.start(id)
         idleUntil { app.container.listen.state.value.pages.isNotEmpty() }
         app.container.listen.pause()
+        // Paused for a while, as the service goes only some time after: the app has seen it.
+        idleUntil { app.container.listenNow.value?.playing == false }
         app.listenConnects = 0
         app.container.listen.play()
         idleUntil { app.listenConnects > 0 }
