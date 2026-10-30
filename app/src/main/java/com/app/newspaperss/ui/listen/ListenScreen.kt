@@ -133,12 +133,7 @@ fun ListenScreen(
     val recording by reading.collectAsStateWithLifecycle()
     val voice by podcastVoice.collectAsStateWithLifecycle()
     val why by instead.collectAsStateWithLifecycle()
-    // One quiet line where the voice changes; nothing is said aloud about it.
-    val voiceNote = when (why) {
-        PodcastSpeaker.Instead.NOT_MADE_YET -> "From here, your phone's voice: the audio hasn't reached this article yet."
-        PodcastSpeaker.Instead.LEFT_OUT -> "This article plays in your phone's voice: it was left out of the audio, as it's not in English or couldn't be made."
-        null -> null
-    }
+    val voiceNote = voiceNote(why)
     var contents by rememberSaveable { mutableStateOf(false) }
     val onPage = state.pages.getOrNull(state.at.page)
     val title = when {
@@ -179,6 +174,38 @@ fun ListenScreen(
     }
     // Not over an empty player: saved open, it can come back after Android ended the app.
     if (contents && state.pages.isNotEmpty()) Contents(state, onPick = { contents = false; player.seek(ListenPosition(it, 0)) }, onDismiss = { contents = false })
+}
+
+/** One quiet line where the voice changes; nothing is said aloud about it. */
+internal fun voiceNote(why: PodcastSpeaker.Instead?): String? = when (why) {
+    PodcastSpeaker.Instead.NOT_MADE_YET -> "From here, your phone's voice: the audio hasn't reached this article yet."
+    PodcastSpeaker.Instead.LEFT_OUT -> "This article plays in your phone's voice: it was left out of the audio, as it's not in English or couldn't be made."
+    null -> null
+}
+
+/**
+ * What Listen has to say above the page it's reading: the recording playing in the article's
+ * place and the switch to the voice, the natural voice's note, a missing voice for the page's
+ * language, and an error. Shown by the playing screen and the article preview alike.
+ */
+@Composable
+internal fun ListenNotes(state: ListenState, voiceNote: String?, recording: ReadingSpeaker.Now?, onVoiceInstead: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    if (recording == null && voiceNote == null && state.missingLanguage == null && state.error == null) return
+    Column(modifier) {
+        recording?.let { RecordingNote(it, onVoiceInstead) }
+        voiceNote?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
+        state.missingLanguage?.let { MissingVoice(it) }
+        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 12.dp)) }
+    }
 }
 
 @Composable
@@ -306,7 +333,7 @@ private fun ImageBlock(block: Block.Image, current: Boolean, player: ListenPlaye
 
 /** The page's language has no voice on this phone: Android can download one. */
 @Composable
-private fun MissingVoice(tag: String) {
+internal fun MissingVoice(tag: String) {
     val context = LocalContext.current
     val language = Locale.forLanguageTag(tag).getDisplayLanguage(LocalConfiguration.current.locales[0]).ifEmpty { tag }
     Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
@@ -363,7 +390,7 @@ internal fun minutes(seconds: Double): String = ReadingTime.format(seconds / 60)
  * switch to the other. Where the voice's note goes, and like it, quiet.
  */
 @Composable
-private fun RecordingNote(now: ReadingSpeaker.Now, onVoiceInstead: (Boolean) -> Unit) {
+internal fun RecordingNote(now: ReadingSpeaker.Now, onVoiceInstead: (Boolean) -> Unit) {
     val minutes = now.reading.seconds?.let { " · ${ReadingTime.format(it / 60.0)}" }.orEmpty()
     val what = if (now.reading.episode) "its episode" else "its recorded reading"
     val has = if (now.reading.episode) "it has its episode" else "it has a recorded reading"

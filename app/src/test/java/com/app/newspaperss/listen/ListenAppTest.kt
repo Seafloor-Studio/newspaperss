@@ -573,10 +573,60 @@ class ListenAppTest {
         assertEquals(at, player.state.value.at)
         assertFalse(player.state.value.playing)
 
-        // The page's "Next" line takes the voice, and the page with it, to the next article.
+        // Paused, the page's "Next" line turns only the page: the voice stays where it was, quiet.
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Next:", substring = true))
         tapWord(hasText("Next:", substring = true), "Lagos")
+        idleUntil { compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(at, player.state.value.at)
+        assertFalse(player.state.value.playing)
+        // On another article than the voice's, Listen from here is offered again.
+        compose.onNodeWithContentDescription("Listen from here").assertExists()
+        player.stop()
+    }
+
+    /** The preview of one article, with Listen's player, as the app shows it. */
+    private fun preview(id: Long, position: Int) = @androidx.compose.runtime.Composable {
+        ArticlePreviewScreen(
+            loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = position, title = "Thursday Morning Edition", onBack = {},
+            onListen = { listening.start(id, ListenPosition(it, 0)) }, player = player, editionId = id,
+        )
+    }
+
+    /**
+     * Listen paused on one article, another opened: the page is the one opened, not the voice's,
+     * and stays so when the screen is recreated; playing on from there turns it with the voice.
+     */
+    @Test
+    fun anArticleOpenedWhileListenIsPausedElsewhereStaysOnScreen() {
+        val trains = EditionArticle(title = "Night Trains Return", sourceTitle = "The Example Review", url = "https://example.com/trains", bodyHtml = "<p>Sleepers are back.</p>", minutes = 2.0)
+        val id = edition("Three", knots, lagos, trains)
+        startAndWait(id)
+        player.pause()
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent { preview(id, position = 2)() }
+        idleUntil { compose.onAllNodesWithText("Sleepers are back.").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Listen from here").assertExists()
+        restoration.emulateSavedInstanceStateRestore()
+        idleUntil { compose.onAllNodesWithText("Sleepers are back.").fetchSemanticsNodes().isNotEmpty() }
+        assertTrue("still not the voice's article", compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isEmpty())
+        assertEquals(0, player.state.value.at.page)
+
+        // The voice moving on now turns the page to where it went.
+        compose.onNodeWithContentDescription("Play").performClick()
+        compose.onNodeWithContentDescription("Next article").performClick()
         idleUntil { player.state.value.at.page == 1 && compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
+        player.stop()
+    }
+
+    /** What Listen says about the page it's reading shows above the article in the preview too. */
+    @Test
+    fun theNoteForAMissingVoiceShowsInThePreview() {
+        speaker.installed = setOf("en")
+        val id = edition("Édition", knots.copy(language = "fr"))
+        compose.setContent { preview(id, position = 0)() }
+        idleUntil { compose.onAllNodes(hasContentDescription("Listen from here")).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Listen from here").performClick()
+        idleUntil { compose.onAllNodesWithText("Get a French voice").fetchSemanticsNodes().isNotEmpty() }
         player.stop()
     }
 

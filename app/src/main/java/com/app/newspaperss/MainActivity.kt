@@ -223,8 +223,10 @@ private fun App(
     Scaffold(
         bottomBar = {
             Column {
-                // Not over the playing screen, which is the same and more.
-                listenNow?.takeIf { showsListenBar(it) && current?.destination?.route != LISTEN }?.let { state ->
+                // Not over the playing screen, which is the same and more, nor an article of the edition
+                // it's playing, which has the player under the page.
+                val onItsArticle = current?.destination?.route == ARTICLE && current?.arguments?.getLong("id") == listenNow?.editionId
+                listenNow?.takeIf { showsListenBar(it) && current?.destination?.route != LISTEN && !onItsArticle }?.let { state ->
                     ListenBar(state, onOpen = { nav.navigate(LISTEN) { launchSingleTop = true } }, onToggle = container.listening::toggle, onClose = container.listen::stop)
                 }
                 // The tab whose stack the screen is on: switching tabs pops back to Today, the start,
@@ -321,6 +323,9 @@ private fun App(
                     player = container.listen,
                     editionId = id,
                     podcastVoice = container.podcastPlaying,
+                    instead = container.podcastInstead,
+                    reading = container.readingNow,
+                    onVoiceInstead = container::useVoiceInstead,
                 )
             }
             composable(LISTEN) {
