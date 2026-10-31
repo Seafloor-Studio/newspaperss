@@ -50,7 +50,7 @@ class TodayHeadlinesTest {
             )
         }
         compose.setContent { TodayScreen(vm) }
-        idleUntil { compose.waitForIdle(); vm.state.value.editions?.isNotEmpty() == true }
+        compose.idleUntil { vm.state.value.editions?.isNotEmpty() == true }
     }
 
     @Test

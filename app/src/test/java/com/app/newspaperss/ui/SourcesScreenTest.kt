@@ -69,7 +69,7 @@ class SourcesScreenTest {
         waitFor("No sources yet")
     }
 
-    private fun waitFor(text: String, present: Boolean = true) = idleUntil {
+    private fun waitFor(text: String, present: Boolean = true) = compose.idleUntil {
         compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty() == present
     }
 

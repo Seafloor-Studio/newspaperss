@@ -76,8 +76,8 @@ class MoveFeedsTest {
     @After fun stopStore() = stopStores(storeScope)
 
     private fun visible(text: String) = compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
-    private fun waitFor(text: String) = idleUntil { compose.waitForIdle(); visible(text) }
-    private fun waitGone(text: String) = idleUntil { compose.waitForIdle(); !visible(text) }
+    private fun waitFor(text: String) = compose.idleUntil { visible(text) }
+    private fun waitGone(text: String) = compose.idleUntil { !visible(text) }
 
     private fun signedIn() = runBlocking {
         server.categories[4] = "Science"
@@ -90,7 +90,7 @@ class MoveFeedsTest {
     private fun showSources(): SourcesViewModel {
         val vm = SourcesViewModel(sources, FeedFinder(http), ttrss, settings = store, moves = moves) {}
         compose.setContent { SourcesScreen(vm) }
-        idleUntil { vm.screen.value != null }
+        compose.idleUntil { vm.screen.value != null }
         return vm
     }
 
@@ -114,7 +114,7 @@ class MoveFeedsTest {
         phoneFeed("https://aeon.example/feed", "Aeon")
         waitFor("1 feed is fetched by this phone")
         runBlocking { accounts.clear() }
-        idleUntil { vm.screen.value?.needsSignIn == true }
+        compose.idleUntil { vm.screen.value?.needsSignIn == true }
         compose.waitForIdle()
         assertFalse("nowhere to move them without a working account", visible("fetched by this phone"))
     }
@@ -134,11 +134,11 @@ class MoveFeedsTest {
         waitFor("Move 2 feeds to tt-rss")
         compose.onNodeWithText("Already in your tt-rss: just removed here").assertExists()
         waitFor("Category for the new ones")
-        idleUntil { compose.waitForIdle(); visible("Uncategorized") }
+        compose.idleUntil { visible("Uncategorized") }
         compose.onNodeWithText("Move 2").performClick()
-        idleUntil { runBlocking { moves.current().running } }
+        compose.idleUntil { runBlocking { moves.current().running } }
         // Scheduled after the move is saved as running, from the screen's own coroutine.
-        idleUntil { scheduled == 1 }
+        compose.idleUntil { scheduled == 1 }
         waitFor("Moving 1 of 2 · Aeon")
 
         runBlocking { moves.run() }
@@ -157,10 +157,10 @@ class MoveFeedsTest {
         val vm = SourcesViewModel(sources, FeedFinder(http), ttrss, settings = store, moves = moves) {}
         val restoration = StateRestorationTester(compose)
         restoration.setContent { SourcesScreen(vm) }
-        idleUntil { vm.screen.value != null }
+        compose.idleUntil { vm.screen.value != null }
         vm.mover!!.open()
         waitFor("Category for the new ones")
-        idleUntil { compose.waitForIdle(); compose.onAllNodes(hasContentDescription("Category, ", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("Category, ", substring = true)).fetchSemanticsNodes().isNotEmpty() }
         compose.onNode(hasContentDescription("Category, ", substring = true)).performClick()
         waitFor("Science")
 
@@ -188,10 +188,10 @@ class MoveFeedsTest {
 
         compose.onNodeWithText("Move the other one").performClick()
         waitFor("Move 1 feed to tt-rss")
-        idleUntil { compose.waitForIdle(); visible("Uncategorized") }
+        compose.idleUntil { visible("Uncategorized") }
         server.refuse.clear()
         compose.onNodeWithText("Move 1").performClick()
-        idleUntil { runBlocking { moves.current().running } }
+        compose.idleUntil { runBlocking { moves.current().running } }
         runBlocking { moves.run() }
         waitFor("Moved 1 feed to your tt-rss")
         assertEquals(listOf("https://aeon.example/feed", "https://blocked.example/feed", "https://blocked.example/feed"), server.subscribed.map { it.first })
@@ -201,7 +201,7 @@ class MoveFeedsTest {
         val settingsVm = SettingsViewModel(store, ttrss.observeStatus()) {}
         val feedsVm = FeedsFromViewModel(store, ttrss, moves, sources)
         compose.setContent { SettingsPageScreen(settingsVm, SettingsPage.FEEDS, onBack = {}, feedsFrom = feedsVm) }
-        idleUntil { settingsVm.settings.value != null }
+        compose.idleUntil { settingsVm.settings.value != null }
         return feedsVm
     }
 
@@ -253,9 +253,9 @@ class MoveFeedsTest {
         compose.onNodeWithText("Signed in.").assertExists()
         compose.onNodeWithText("Move 1").performScrollTo().performClick()
         waitFor("Move 1 feed to tt-rss")
-        idleUntil { compose.waitForIdle(); visible("Uncategorized") }
+        compose.idleUntil { visible("Uncategorized") }
         compose.onNodeWithText("Move 1").performClick()
-        idleUntil { runBlocking { moves.current().running } }
+        compose.idleUntil { runBlocking { moves.current().running } }
         waitFor("Moving 1 of 1 · Aeon")
     }
 
@@ -272,12 +272,12 @@ class MoveFeedsTest {
         val vm = showFeedsFrom()
         server.user = "partner"
         server.password = "theirs"
-        idleUntil { compose.waitForIdle(); vm.state.value?.ttrss?.source != null }
+        compose.idleUntil { vm.state.value?.ttrss?.source != null }
         vm.openSignIn()
         vm.editSignIn(vm.form.value!!.copy(user = "partner", password = "theirs"))
         vm.signIn()
 
         // A phone feed again, which the banner offers to move into this account.
-        idleUntil { compose.waitForIdle(); runBlocking { !db.sources().byId(aeon)!!.paused && moves.current().retiring.isEmpty() } }
+        compose.idleUntil { runBlocking { !db.sources().byId(aeon)!!.paused && moves.current().retiring.isEmpty() } }
     }
 }

@@ -106,7 +106,7 @@ class OnboardingTest {
     /** At the fork: picking sites on this phone. Saving the choice finishes off the main thread. */
     private fun choosePhone() {
         click("I'll pick some sites")
-        idleUntil { compose.waitForIdle(); vm.state.value.step == Step.SOURCES || visible("Pick a few to start") }
+        compose.idleUntil { vm.state.value.step == Step.SOURCES || visible("Pick a few to start") }
     }
 
     @Test
@@ -146,7 +146,7 @@ class OnboardingTest {
         click("Next")
         click("Make my first edition")
 
-        idleUntil { finished != null }
+        compose.idleUntil { finished != null }
         val s = finished!!
         assertEquals(true, s.onboarded)
         assertEquals(Device.KINDLE, s.device)
@@ -202,7 +202,7 @@ class OnboardingTest {
         click("Next")
         click("Make my first edition")
 
-        idleUntil { finished != null }
+        compose.idleUntil { finished != null }
         assertEquals(DeliveryMethod.SHARE, finished!!.delivery)
         assertNull("an address typed before changing their mind isn't kept", finished!!.kindleEmail)
     }
@@ -228,13 +228,13 @@ class OnboardingTest {
         scrollAndClick("Kobo")
         click("Next")
         click("I'll pick some sites")
-        idleUntil { compose.waitForIdle(); pocketVm.state.value.step == Step.SOURCES }
+        compose.idleUntil { pocketVm.state.value.step == Step.SOURCES }
 
         compose.onNodeWithText("2 saved links waiting", substring = true).performScrollTo().assertExists()
         click("Next")
         click("Make my first edition")
 
-        idleUntil { finished != null }
+        compose.idleUntil { finished != null }
         assertEquals(true, finished!!.onboarded)
         assertEquals("no feeds needed", emptyList<String>(), runBlocking { db.sources().all() }.map { it.url })
     }
@@ -244,7 +244,7 @@ class OnboardingTest {
         vm.chooseDevice(Device.KOBO)
         vm.next(); vm.next()
         vm.answer(FeedsAnswer.SITES)
-        idleUntil { vm.state.value.step == Step.SOURCES }
+        compose.idleUntil { vm.state.value.step == Step.SOURCES }
         assertFalse(vm.state.value.canContinue)
     }
 
@@ -259,7 +259,7 @@ class OnboardingTest {
         scrollAndClick("Kobo")
         click("Next")
         click("On my own RSS server")
-        idleUntil { compose.waitForIdle(); visible("Sign in to your tt-rss") }
+        compose.idleUntil { visible("Sign in to your tt-rss") }
     }
 
     private fun typeLogin(password: String) {
@@ -280,12 +280,12 @@ class OnboardingTest {
         server.apiEnabled = false
         typeLogin(server.password)
         click("Sign in")
-        idleUntil { compose.waitForIdle(); visible("Enable the API in tt-rss preferences") }
+        compose.idleUntil { visible("Enable the API in tt-rss preferences") }
         compose.onNodeWithText("rss.example.com/tt-rss").assertExists()
 
         server.apiEnabled = true
         click("Sign in")
-        idleUntil { compose.waitForIdle(); visible("Found 3 feeds in 2 categories") }
+        compose.idleUntil { visible("Found 3 feeds in 2 categories") }
         compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Step 3 of 5")).assertExists()
         click("Next")
 
@@ -294,7 +294,7 @@ class OnboardingTest {
         scrollAndClick("Arts & Letters Daily")
         click("Next")
         click("Make my first edition")
-        idleUntil { finished != null }
+        compose.idleUntil { finished != null }
 
         assertEquals(FeedsFrom.SERVER, finished!!.feedsFrom)
         assertEquals(
@@ -309,7 +309,7 @@ class OnboardingTest {
         toSignIn(server)
         typeLogin("wrong")
         click("Sign in")
-        idleUntil { compose.waitForIdle(); visible("didn't accept that username and password") }
+        compose.idleUntil { visible("didn't accept that username and password") }
         compose.onNodeWithText("rss.example.com/tt-rss").assertExists()
         compose.onNodeWithText("reader").assertExists()
         assertTrue(runBlocking { db.sources().all() }.isEmpty())
@@ -321,17 +321,17 @@ class OnboardingTest {
         toSignIn(server)
         typeLogin("wrong")
         click("Sign in")
-        idleUntil { compose.waitForIdle(); visible("didn't accept that username and password") }
+        compose.idleUntil { visible("didn't accept that username and password") }
         assertFalse(visible("wait 5 seconds"))
 
         now += Duration.ofSeconds(2)
         compose.onAllNodes(hasSetTextAction())[2].performTextReplacement(server.password)
         click("Sign in")
-        idleUntil { compose.waitForIdle(); visible("wait 5 seconds and try again") }
+        compose.idleUntil { visible("wait 5 seconds and try again") }
 
         now += Duration.ofSeconds(6)
         click("Sign in")
-        idleUntil { compose.waitForIdle(); visible("Found 3 feeds in 2 categories") }
+        compose.idleUntil { visible("Found 3 feeds in 2 categories") }
     }
 
     @Test
@@ -340,14 +340,14 @@ class OnboardingTest {
         toSignIn(server)
         typeLogin(server.password)
         click("Sign in")
-        idleUntil { compose.waitForIdle(); visible("Found 3 feeds") }
+        compose.idleUntil { visible("Found 3 feeds") }
         click("Next")
         click("Back")
         click("Back")
         compose.onNodeWithText("Where do your feeds live now?").assertExists()
 
         choosePhone()
-        idleUntil { runBlocking { db.sources().all() }.isEmpty() }
+        compose.idleUntil { runBlocking { db.sources().all() }.isEmpty() }
         assertEquals("no half-made account is left", StoredAccount.None, runBlocking { accounts.load() })
         assertEquals(FeedsFrom.PHONE, runBlocking { store.current().feedsFrom })
         compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Step 3 of 4")).assertExists()
@@ -360,10 +360,10 @@ class OnboardingTest {
         toSignIn(server)
         typeLogin(server.password)
         click("Sign in")
-        idleUntil { compose.waitForIdle(); visible("Found 3 feeds") }
+        compose.idleUntil { visible("Found 3 feeds") }
         click("Back")
         click("On my own RSS server")
-        idleUntil { compose.waitForIdle(); visible("Found 3 feeds") }
+        compose.idleUntil { visible("Found 3 feeds") }
         assertEquals(listOf(SourceKind.TTRSS), runBlocking { db.sources().all() }.map { it.kind })
     }
 
@@ -376,7 +376,7 @@ class OnboardingTest {
         choosePhone()
         runBlocking { SourceRepository(db).addFeed("https://a.example/feed", "A") }
         click("Back")
-        idleUntil { compose.waitForIdle(); vm.state.value.phoneFeeds == 1 }
+        compose.idleUntil { vm.state.value.phoneFeeds == 1 }
         click("On my own RSS server")
         compose.onNodeWithText("Remove the 1 site you added?").assertExists()
         click("Keep them")
@@ -384,7 +384,7 @@ class OnboardingTest {
         assertEquals(1, runBlocking { db.sources().all() }.size)
         click("On my own RSS server")
         click("Remove and use my server")
-        idleUntil { compose.waitForIdle(); visible("Sign in to your tt-rss") }
+        compose.idleUntil { visible("Sign in to your tt-rss") }
         assertTrue("never mixed", runBlocking { db.sources().all() }.isEmpty())
     }
 
@@ -396,10 +396,10 @@ class OnboardingTest {
         http.onPost = { url, body -> answer.await(); answers(url, body) }
         vm.next(); vm.chooseDevice(Device.KOBO); vm.next()
         vm.answer(FeedsAnswer.SERVER)
-        idleUntil { vm.state.value.step == Step.SIGN_IN }
+        compose.idleUntil { vm.state.value.step == Step.SIGN_IN }
         vm.editSignIn(vm.state.value.signIn.copy(address = "rss.example.com/tt-rss", user = server.user, password = server.password))
         vm.signIn()
-        idleUntil { vm.state.value.signIn.testing }
+        compose.idleUntil { vm.state.value.signIn.testing }
 
         vm.usePhoneInstead()
         vm.back()
@@ -407,7 +407,7 @@ class OnboardingTest {
         assertEquals(FeedsFrom.SERVER, vm.state.value.feedsFrom)
 
         answer.complete(Unit)
-        idleUntil { vm.state.value.signedIn }
+        compose.idleUntil { vm.state.value.signedIn }
         assertEquals(FeedsFrom.SERVER, runBlocking { store.current().feedsFrom })
     }
 
@@ -416,7 +416,7 @@ class OnboardingTest {
         val server = FakeTtrss(http)
         toSignIn(server)
         scrollAndClick("Use this phone instead")
-        idleUntil { compose.waitForIdle(); visible("Pick a few to start") }
+        compose.idleUntil { visible("Pick a few to start") }
         assertEquals(FeedsFrom.PHONE, runBlocking { store.current().feedsFrom })
     }
 
@@ -427,17 +427,17 @@ class OnboardingTest {
         val first = OnboardingViewModel(store, SourceRepository(db), FeedFinder(http), ttrss, handle) {}
         first.next(); first.chooseDevice(Device.KOBO); first.next()
         first.answer(FeedsAnswer.SERVER)
-        idleUntil { first.state.value.step == Step.SIGN_IN }
+        compose.idleUntil { first.state.value.step == Step.SIGN_IN }
         first.editSignIn(first.state.value.signIn.copy(address = "rss.example.com/tt-rss", user = server.user, password = server.password))
         first.signIn()
-        idleUntil { handle.get<Int>("onboarding.foundFeeds") != null }
+        compose.idleUntil { handle.get<Int>("onboarding.foundFeeds") != null }
         assertNull("the password isn't kept with the rest", handle.keys().firstOrNull { "password" in it })
 
         val restored = OnboardingViewModel(
             store, SourceRepository(db), FeedFinder(http), ttrss,
             androidx.lifecycle.SavedStateHandle(handle.keys().associateWith { handle.get<Any>(it) }),
         ) {}
-        idleUntil { restored.state.value.signedIn }
+        compose.idleUntil { restored.state.value.signedIn }
         val s = restored.state.value
         assertEquals(Step.SIGN_IN, s.step)
         assertEquals(FeedsFrom.SERVER, s.feedsFrom)
@@ -458,16 +458,16 @@ class OnboardingTest {
 
         val resolver = ApplicationProvider.getApplicationContext<android.content.Context>().contentResolver
         sourcesVm.importOpml(resolver, android.net.Uri.fromFile(tmp.newFile("empty.opml").apply { writeText("<opml version=\"2.0\"><body/></opml>") }))
-        idleUntil { compose.waitForIdle(); visible("No sites in that file") }
+        compose.idleUntil { visible("No sites in that file") }
         val opml = tmp.newFile("feeds.opml").apply {
             writeText("""<opml version="2.0"><body><outline type="rss" text="A" xmlUrl="https://a.example/feed"/><outline type="rss" text="B" xmlUrl="https://b.example/feed"/></body></opml>""")
         }
         sourcesVm.importOpml(resolver, android.net.Uri.fromFile(opml))
-        idleUntil { compose.waitForIdle(); visible("2 sources added") }
+        compose.idleUntil { visible("2 sources added") }
 
         click("Next")
         click("Make my first edition")
-        idleUntil { finished != null }
+        compose.idleUntil { finished != null }
         assertEquals(setOf("https://a.example/feed", "https://b.example/feed"), runBlocking { db.sources().all() }.map { it.url }.toSet())
     }
 
@@ -481,7 +481,7 @@ class OnboardingTest {
         vm.next()
         assertEquals("nor without saying where the sites come from", Step.FEEDS_FROM, vm.state.value.step)
         vm.answer(FeedsAnswer.SITES)
-        idleUntil { vm.state.value.step == Step.SOURCES }
+        compose.idleUntil { vm.state.value.step == Step.SOURCES }
         vm.next()
         assertEquals(Step.SOURCES, vm.state.value.step)
         assertFalse(vm.state.value.canContinue)
@@ -500,10 +500,10 @@ class OnboardingTest {
 
         compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("plain.example/essay")
         click("Add")
-        idleUntil { compose.waitForIdle(); visible("Save this page to your reading list instead") }
+        compose.idleUntil { visible("Save this page to your reading list instead") }
         scrollAndClick("Save this page to your reading list instead")
 
-        idleUntil { compose.waitForIdle(); visible("Saved to your reading list") }
+        compose.idleUntil { visible("Saved to your reading list") }
         assertEquals(listOf("https://plain.example/essay"), runBlocking { db.articles().allForSource(readingList.sourceId()) }.map { it.url })
         assertFalse("the dead end is gone", visible("Save this page to your reading list instead"))
         assertEquals("", vm.state.value.pasted)
@@ -529,9 +529,9 @@ class OnboardingTest {
 
         compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("plain.example/essay")
         click("Add")
-        idleUntil { compose.waitForIdle(); visible("Save this page to your reading list instead") }
+        compose.idleUntil { visible("Save this page to your reading list instead") }
         scrollAndClick("Save this page to your reading list instead")
-        idleUntil { compose.waitForIdle(); visible("Saved to your reading list") }
+        compose.idleUntil { visible("Saved to your reading list") }
 
         fun saidSaved() = access.sentAccessibilityEvents
             .filter { it.eventType == android.view.accessibility.AccessibilityEvent.TYPE_ANNOUNCEMENT }
@@ -569,11 +569,11 @@ class OnboardingTest {
 
         compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("blog.example")
         click("Add")
-        idleUntil { compose.waitForIdle(); said("Found Blog. It's ticked below.") == 1 }
+        compose.idleUntil { said("Found Blog. It's ticked below.") == 1 }
 
         compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("gone.example")
         click("Add")
-        idleUntil { compose.waitForIdle(); vm.state.value.findError != null }
+        compose.idleUntil { vm.state.value.findError != null }
         val reason = vm.state.value.findError!!
         assertTrue("the reason is shown at the field", visible(reason))
         assertEquals(1, said(reason))
@@ -586,9 +586,9 @@ class OnboardingTest {
         // Answered without the network, so "Checking…" never shows between the two.
         compose.onNode(hasSetTextAction()).performScrollTo().performTextReplacement("not an address")
         click("Add")
-        idleUntil { compose.waitForIdle(); said("That doesn't look like a web address.") == 1 }
+        compose.idleUntil { said("That doesn't look like a web address.") == 1 }
         click("Add")
-        idleUntil { compose.waitForIdle(); said("That doesn't look like a web address.") == 2 }
+        compose.idleUntil { said("That doesn't look like a web address.") == 2 }
     }
 
     @Test
@@ -596,7 +596,7 @@ class OnboardingTest {
         http.page("https://plain.example/essay", "<html><head><title>An essay</title></head><body><p>Words.</p></body></html>")
         vm.editPasted("plain.example/essay")
         vm.findPasted()
-        idleUntil { vm.state.value.findPage != null }
+        compose.idleUntil { vm.state.value.findPage != null }
         val page = vm.state.value.findPage!!
         vm.savingInstead(page)
         assertNull("no second tap", vm.state.value.findPage)
@@ -613,7 +613,7 @@ class OnboardingTest {
         http.page("https://blog.example/feed", rss("Blog"))
         vm.editPasted("blog.example")
         vm.findPasted()
-        idleUntil { vm.state.value.found.isNotEmpty() }
+        compose.idleUntil { vm.state.value.found.isNotEmpty() }
         assertEquals(setOf("https://blog.example/feed"), vm.state.value.chosen)
     }
 
@@ -627,7 +627,7 @@ class OnboardingTest {
         )
         vm.editPasted("comic.example")
         vm.findPasted()
-        idleUntil { vm.state.value.found.isNotEmpty() }
+        compose.idleUntil { vm.state.value.found.isNotEmpty() }
         assertEquals(listOf("comic.example/atom.xml", "comic.example/rss.xml"), vm.state.value.found.map { it.title })
     }
 
@@ -645,19 +645,19 @@ class OnboardingTest {
     fun theStepCountFollowsThePathChosen() {
         compose.setContent { OnboardingScreen(vm) }
         vm.next(); vm.chooseDevice(Device.KOBO); vm.next()
-        idleUntil { compose.waitForIdle(); stepIs("Step 2 of 4") }
+        compose.idleUntil { stepIs("Step 2 of 4") }
         vm.answer(FeedsAnswer.SERVER)
-        idleUntil { compose.waitForIdle(); vm.state.value.step == Step.SIGN_IN && stepIs("Step 3 of 5") }
+        compose.idleUntil { vm.state.value.step == Step.SIGN_IN && stepIs("Step 3 of 5") }
         vm.back()
         vm.answer(FeedsAnswer.SITES)
-        idleUntil { compose.waitForIdle(); vm.state.value.step == Step.SOURCES && stepIs("Step 3 of 4") }
+        compose.idleUntil { vm.state.value.step == Step.SOURCES && stepIs("Step 3 of 4") }
         vm.next()
         assertEquals("no sources yet, so it waits", Step.SOURCES, vm.state.value.step)
         vm.back()
         vm.answer(FeedsAnswer.OTHER_APP)
-        idleUntil { compose.waitForIdle(); vm.state.value.step == Step.IMPORT && stepIs("Step 3 of 5") }
+        compose.idleUntil { vm.state.value.step == Step.IMPORT && stepIs("Step 3 of 5") }
         vm.next()
-        idleUntil { compose.waitForIdle(); vm.state.value.step == Step.SOURCES && stepIs("Step 4 of 5") }
+        compose.idleUntil { vm.state.value.step == Step.SOURCES && stepIs("Step 4 of 5") }
     }
 
     @Test
@@ -666,7 +666,7 @@ class OnboardingTest {
         vm.chooseFolder("content://tree/books", "Books")
         vm.toggleFeed(StarterPacks.all.first().feeds.first().url)
         vm.finish()
-        idleUntil { finished != null }
+        compose.idleUntil { finished != null }
         assertEquals(DeliveryMethod.FOLDER, finished!!.delivery)
         assertEquals("Books", finished!!.folderName)
     }
@@ -683,7 +683,7 @@ class OnboardingTest {
         first.useKindleApp()
         first.toggleFeed(StarterPacks.all.first().feeds.first().url)
         first.setMinutes(45)
-        idleUntil { handle.get<Int>("onboarding.minutes") == 45 }
+        compose.idleUntil { handle.get<Int>("onboarding.minutes") == 45 }
 
         // A new process gets the same saved handle and nothing else.
         val restored = OnboardingViewModel(store, SourceRepository(db), FeedFinder(http), saved = androidx.lifecycle.SavedStateHandle(handle.keys().associateWith { handle.get<Any>(it) })) {}.state.value
@@ -721,7 +721,7 @@ class OnboardingTest {
         scrollAndClick("Kobo")
         click("Next")
         click("In another reader app")
-        idleUntil { compose.waitForIdle(); vm.state.value.step == Step.IMPORT }
+        compose.idleUntil { vm.state.value.step == Step.IMPORT }
     }
 
     @Test
@@ -750,19 +750,19 @@ class OnboardingTest {
         compose.onNodeWithText("Skip").assertIsEnabled()
 
         vm.importOpml(resolver, opml("feeds.opml", "https://a.example/feed", "https://b.example/feed"))
-        idleUntil { compose.waitForIdle(); visible("Added 2 sites.") }
+        compose.idleUntil { visible("Added 2 sites.") }
         click("Next")
-        idleUntil { compose.waitForIdle(); vm.state.value.step == Step.SOURCES }
+        compose.idleUntil { vm.state.value.step == Step.SOURCES }
         assertTrue(stepIs("Step 4 of 5"))
         // From the sources the step watches, which catch up with the import a moment later.
-        idleUntil { vm.state.value.canContinue }
+        compose.idleUntil { vm.state.value.canContinue }
 
         click("Back")
         assertEquals(Step.IMPORT, vm.state.value.step)
         click("Next")
         click("Next")
         click("Make my first edition")
-        idleUntil { finished != null }
+        compose.idleUntil { finished != null }
         assertEquals(FeedsFrom.PHONE, finished!!.feedsFrom)
         assertEquals(setOf("https://a.example/feed", "https://b.example/feed"), runBlocking { db.sources().all() }.map { it.url }.toSet())
     }
@@ -771,10 +771,10 @@ class OnboardingTest {
     fun aFileThatCantBeReadSaysSoAndCanBeSkippedForTheStarterPacks() {
         toImport()
         vm.importOpml(resolver, android.net.Uri.fromFile(java.io.File(tmp.root, "missing.opml")))
-        idleUntil { compose.waitForIdle(); visible("Couldn't read that file.") }
+        compose.idleUntil { visible("Couldn't read that file.") }
         compose.onNodeWithText("Try again").assertIsEnabled()
         click("Skip")
-        idleUntil { compose.waitForIdle(); visible("Pick a few to start") }
+        compose.idleUntil { visible("Pick a few to start") }
         assertTrue(stepIs("Step 4 of 5"))
     }
 
@@ -783,11 +783,11 @@ class OnboardingTest {
         runBlocking { SourceRepository(db).addFeed("https://a.example/feed", "A") }
         toImport()
         vm.importOpml(resolver, opml("none.opml"))
-        idleUntil { compose.waitForIdle(); visible("No sites in that file.") }
+        compose.idleUntil { visible("No sites in that file.") }
         vm.importOpml(resolver, opml("known.opml", "https://a.example/feed", "https://a.example/feed"))
-        idleUntil { compose.waitForIdle(); visible("All the sites in that file are added already.") }
+        compose.idleUntil { visible("All the sites in that file are added already.") }
         vm.importOpml(resolver, opml("some.opml", "https://a.example/feed", "https://b.example/feed"))
-        idleUntil { compose.waitForIdle(); visible("Added 1 site. The other one was added already.") }
+        compose.idleUntil { visible("Added 1 site. The other one was added already.") }
         assertEquals(2, runBlocking { db.sources().all() }.size)
     }
 
@@ -797,15 +797,15 @@ class OnboardingTest {
         val first = OnboardingViewModel(store, SourceRepository(db), FeedFinder(http), saved = handle) {}
         first.next(); first.chooseDevice(Device.KOBO); first.next()
         first.answer(FeedsAnswer.OTHER_APP)
-        idleUntil { first.state.value.step == Step.IMPORT }
+        compose.idleUntil { first.state.value.step == Step.IMPORT }
         first.importOpml(resolver, opml("feeds.opml", "https://a.example/feed"))
-        idleUntil { handle.get<IntArray>("onboarding.import") != null }
+        compose.idleUntil { handle.get<IntArray>("onboarding.import") != null }
 
         val restored = OnboardingViewModel(
             store, SourceRepository(db), FeedFinder(http),
             saved = androidx.lifecycle.SavedStateHandle(handle.keys().associateWith { handle.get<Any>(it) }),
         ) {}
-        idleUntil { restored.state.value.phoneFeeds == 1 }
+        compose.idleUntil { restored.state.value.phoneFeeds == 1 }
         val s = restored.state.value
         assertEquals(Step.IMPORT, s.step)
         assertEquals(5, s.path.size)
@@ -819,18 +819,18 @@ class OnboardingTest {
     fun goingBackFromTheImportAndChoosingTheServerRemovesTheImportedSites() {
         toImport()
         vm.importOpml(resolver, opml("feeds.opml", "https://a.example/feed"))
-        idleUntil { compose.waitForIdle(); visible("Added 1 site.") }
+        compose.idleUntil { visible("Added 1 site.") }
         click("Back")
-        idleUntil { compose.waitForIdle(); vm.state.value.phoneFeeds == 1 }
+        compose.idleUntil { vm.state.value.phoneFeeds == 1 }
         click("On my own RSS server")
         click("Remove and use my server")
-        idleUntil { compose.waitForIdle(); visible("Sign in to your tt-rss") }
+        compose.idleUntil { visible("Sign in to your tt-rss") }
         assertTrue("never mixed", runBlocking { db.sources().all() }.isEmpty())
         assertTrue(stepIs("Step 3 of 5"))
 
         click("Back")
         click("In another reader app")
-        idleUntil { compose.waitForIdle(); vm.state.value.step == Step.IMPORT }
+        compose.idleUntil { vm.state.value.step == Step.IMPORT }
         assertFalse("the earlier file's result went with its sites", visible("Added 1 site."))
         compose.onNodeWithText("Skip").assertExists()
     }
@@ -842,16 +842,16 @@ class OnboardingTest {
         assertEquals(0, ProcessBuilder("mkfifo", fifo.path).start().waitFor())
         vm.next(); vm.chooseDevice(Device.KOBO); vm.next()
         vm.answer(FeedsAnswer.OTHER_APP)
-        idleUntil { vm.state.value.step == Step.IMPORT }
+        compose.idleUntil { vm.state.value.step == Step.IMPORT }
         vm.importOpml(resolver, android.net.Uri.fromFile(fifo))
         assertEquals(FileImport.Reading, vm.state.value.fileImport)
 
         vm.back()
         vm.answer(FeedsAnswer.SERVER)
-        idleUntil { vm.state.value.step == Step.SIGN_IN }
+        compose.idleUntil { vm.state.value.step == Step.SIGN_IN }
         // Only now does the file arrive: the reader didn't wait for it.
         Thread { fifo.writeText("""<opml version="2.0"><body><outline type="rss" text="A" xmlUrl="https://a.example/feed"/></body></opml>""") }.start()
-        idleUntil { vm.state.value.fileImport == null }
+        compose.idleUntil { vm.state.value.fileImport == null }
         assertTrue("never mixed", runBlocking { db.sources().all() }.none { it.kind == SourceKind.FEED })
         assertEquals(FeedsFrom.SERVER, runBlocking { store.current().feedsFrom })
     }

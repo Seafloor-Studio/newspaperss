@@ -107,13 +107,13 @@ class SettingsScreenTest {
             }
         }
         // The title draws before the settings load from DataStore, so wait for the content.
-        idleUntil { vm.settings.value != null }
+        compose.idleUntil { vm.settings.value != null }
         waitFor(if (page == null) "NewspapeRSS" else page.title)
     }
 
     @After fun stopStore() = stopStores(storeScope)
 
-    private fun waitFor(text: String) = idleUntil {
+    private fun waitFor(text: String) = compose.idleUntil {
         compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
     }
 
@@ -121,7 +121,7 @@ class SettingsScreenTest {
     fun turningOnTheScheduleShowsDaysAndReschedules() {
         show(SettingsPage.SCHEDULE)
         compose.onNodeWithText("Make an edition automatically").performScrollTo().performClick()
-        idleUntil { rescheduled.isNotEmpty() }
+        compose.idleUntil { rescheduled.isNotEmpty() }
         waitFor("Mon")
         compose.onNodeWithText("Make an edition automatically").assertHeightIsAtLeast(48.dp)
         assertEquals(true, rescheduled.last().scheduleEnabled)
@@ -153,7 +153,7 @@ class SettingsScreenTest {
     fun screenReadersHearWhatTheStepperChangesAndTheNewNumber() {
         show(SettingsPage.EDITION)
         compose.onNodeWithContentDescription("More from each source").performScrollTo().performClick()
-        idleUntil { runBlocking { store.current().edition.maxPerSource } == 2 }
+        compose.idleUntil { runBlocking { store.current().edition.maxPerSource } == 2 }
         compose.onNode(hasText("2 articles from each source", substring = true) and SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion)).assertExists()
         compose.onNodeWithContentDescription("Fewer from each source").assertIsEnabled()
     }
@@ -169,7 +169,7 @@ class SettingsScreenTest {
     fun orderingIsSaved() {
         show(SettingsPage.EDITION)
         compose.onNodeWithText("Shuffle").performScrollTo().performClick()
-        idleUntil { runBlocking { store.current().edition.ordering } == Ordering.SHUFFLE }
+        compose.idleUntil { runBlocking { store.current().edition.ordering } == Ordering.SHUFFLE }
         compose.onNodeWithText("Shuffle").assertIsSelected()
     }
 
@@ -186,7 +186,7 @@ class SettingsScreenTest {
         compose.onNodeWithText("Larger").assertIsSelected()
 
         compose.onNodeWithText("Largest").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
-        idleUntil { runBlocking { store.current().previewTextSize } == PreviewTextSize.LARGEST }
+        compose.idleUntil { runBlocking { store.current().previewTextSize } == PreviewTextSize.LARGEST }
         compose.onNodeWithText("Largest").assertIsSelected()
         compose.onNodeWithText("Larger").assertIsNotSelected()
 
@@ -204,7 +204,7 @@ class SettingsScreenTest {
         compose.onNodeWithText("1×").assertIsSelected()
 
         compose.onNodeWithText("1.5×").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
-        idleUntil { runBlocking { store.current().listenSpeed } == 1.5f }
+        compose.idleUntil { runBlocking { store.current().listenSpeed } == 1.5f }
         compose.onNodeWithText("1.5×").assertIsSelected()
 
         compose.onNodeWithText("Hear it").performClick()
@@ -221,16 +221,16 @@ class SettingsScreenTest {
         waitFor("Play a post's own recording")
         compose.onNodeWithText("Readings").performScrollTo().assertIsSelected()
         compose.onNodeWithText("Episodes").assertIsSelected().performClick()
-        idleUntil { runBlocking { store.current().recordings } == Recordings(episodes = false) }
+        compose.idleUntil { runBlocking { store.current().recordings } == Recordings(episodes = false) }
         compose.onNodeWithText("Episodes").assertIsNotSelected()
 
         compose.onNodeWithText("Play a post's own recording").performClick()
-        idleUntil { runBlocking { store.current().recordings } == Recordings(on = false, episodes = false) }
+        compose.idleUntil { runBlocking { store.current().recordings } == Recordings(on = false, episodes = false) }
         compose.onNodeWithText("Readings").assertDoesNotExist()
 
         // Back on, the kinds are as they were left.
         compose.onNodeWithText("Play a post's own recording").performClick()
-        idleUntil { runBlocking { store.current().recordings.on } }
+        compose.idleUntil { runBlocking { store.current().recordings.on } }
         compose.onNodeWithText("Readings").assertIsSelected()
         compose.onNodeWithText("Episodes").assertIsNotSelected()
     }
@@ -254,10 +254,10 @@ class SettingsScreenTest {
         compose.onNode(hasText("Your e-reader") and hasClickAction()).performClick()
         compose.onNodeWithText("Boox or another Android e-reader").performClick()
 
-        idleUntil { runBlocking { store.current().device } == Device.BOOX }
+        compose.idleUntil { runBlocking { store.current().device } == Device.BOOX }
         waitFor("Boox or another Android e-reader")
         // A Boox reader isn't offered Kindle email.
-        idleUntil { compose.onAllNodes(hasText("Email it to your Kindle")).fetchSemanticsNodes().isEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasText("Email it to your Kindle")).fetchSemanticsNodes().isEmpty() }
     }
 
     @Test
@@ -281,7 +281,7 @@ class SettingsScreenTest {
 
         // A Kindle owner saving to a folder isn't told to wait for a Send.
         runBlocking { store.update { it.copy(delivery = DeliveryMethod.FOLDER, folderUri = "content://tree", folderName = "Books") } }
-        idleUntil { compose.onAllNodes(hasText("tap Send", substring = true)).fetchSemanticsNodes().isEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasText("tap Send", substring = true)).fetchSemanticsNodes().isEmpty() }
 
         runBlocking { store.update { it.copy(delivery = DeliveryMethod.KINDLE_EMAIL, kindleEmail = "me_42@kindle.com") } }
         waitFor("Email it to your Kindle")
@@ -310,7 +310,7 @@ class SettingsScreenTest {
         compose.onNodeWithText("Email it to your Kindle").performClick()
         waitFor("The address you send from")
         compose.onNode(hasSetTextAction() and hasText("Kindle's email address")).performScrollTo().performTextInput("me_42@kindle.com")
-        idleUntil { runBlocking { store.current().kindleEmailTarget } != null }
+        compose.idleUntil { runBlocking { store.current().kindleEmailTarget } != null }
 
         compose.onNodeWithContentDescription("Back").performClick()
         waitFor("Kindle · emailed to me_42@kindle.com")
@@ -379,15 +379,15 @@ class SettingsScreenTest {
         compose.onNodeWithText("Kindle's email address").assertDoesNotExist()
 
         compose.onNodeWithText("Email it to your Kindle").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
-        idleUntil { runBlocking { store.current().delivery } == DeliveryMethod.KINDLE_EMAIL }
+        compose.idleUntil { runBlocking { store.current().delivery } == DeliveryMethod.KINDLE_EMAIL }
         waitFor("The address you send from must be on Amazon's approved list.")
 
         compose.onNode(hasSetTextAction() and hasText("Kindle's email address")).performScrollTo().performTextInput("me_42@kindle.com")
-        idleUntil { runBlocking { store.current().kindleEmail } == "me_42@kindle.com" }
+        compose.idleUntil { runBlocking { store.current().kindleEmail } == "me_42@kindle.com" }
         compose.onNodeWithText("Ask each time").performScrollTo().performClick()
         compose.onNodeWithText("Example Mail").performClick()
 
-        idleUntil { runBlocking { store.current().kindleEmailTarget } == KindleEmail("me_42@kindle.com", MAIL_APP) }
+        compose.idleUntil { runBlocking { store.current().kindleEmailTarget } == KindleEmail("me_42@kindle.com", MAIL_APP) }
     }
 
     @Test
@@ -425,7 +425,7 @@ class SettingsScreenTest {
         waitFor(line)
 
         compose.onNode(hasSetTextAction() and hasText("Kindle's email address")).performScrollTo().performTextInput("me_42@kindle.com")
-        idleUntil { compose.onAllNodes(hasText(line)).fetchSemanticsNodes().isEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasText(line)).fetchSemanticsNodes().isEmpty() }
 
         // Still said after the e-reader changes, with an address that doesn't work.
         runBlocking { store.update { it.copy(device = Device.KOBO, kindleEmail = "me_42@kindle") } }
@@ -450,7 +450,7 @@ class SettingsScreenTest {
         compose.setContent {
             CompositionLocalProvider(LocalActivityResultRegistryOwner provides owner) { SettingsPageScreen(vm, SettingsPage.DELIVERY, onBack = {}) }
         }
-        idleUntil { vm.settings.value != null }
+        compose.idleUntil { vm.settings.value != null }
     }
 
     @Test
@@ -470,7 +470,7 @@ class SettingsScreenTest {
         // Grants are capped per app, so the folder delivery moved away from is let go.
         picked = kindle
         compose.onNodeWithText("Choose another delivery folder").performScrollTo().performClick()
-        idleUntil { runBlocking { store.current().folderUri } == kindle }
+        compose.idleUntil { runBlocking { store.current().folderUri } == kindle }
         assertEquals(setOf(kindle), granted())
     }
 

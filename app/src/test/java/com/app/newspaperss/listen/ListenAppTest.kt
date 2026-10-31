@@ -133,7 +133,7 @@ class ListenAppTest {
 
     private fun startAndWait(id: Long) {
         listening.start(id)
-        idleUntil { player.state.value.script != null }
+        compose.idleUntil { player.state.value.script != null }
     }
 
     @Test
@@ -195,7 +195,7 @@ class ListenAppTest {
         val player = ListenPlayer(speaker, progress, open = { ListenBook.open(repo, it, readings) }, CoroutineScope(SupervisorJob() + Dispatchers.Main))
 
         player.start(id)
-        idleUntil { player.state.value.script != null }
+        compose.idleUntil { player.state.value.script != null }
         val pages = player.state.value.pages
         assertEquals(listOf(false, false, true, false), pages.map { it.end })
         assertEquals(listOf(false, false, false, true), pages.map { it.episode })
@@ -207,11 +207,11 @@ class ListenAppTest {
         val heard = mutableListOf<String>()
         while (speaker.queue.isNotEmpty() && player.state.value.at.page < 3) {
             heard += speaker.sayNext()
-            idleUntil { speaker.queue.isNotEmpty() || player.state.value.finished }
+            compose.idleUntil { speaker.queue.isNotEmpty() || player.state.value.finished }
         }
         val end = heard.indexOf("That's all for today.")
         assertTrue(heard.toString(), heard.indexOf("This week we talk to a ferry planner.") in 0 until end)
-        idleUntil { player.state.value.at.page == 3 && speaker.queue.isNotEmpty() }
+        compose.idleUntil { player.state.value.at.page == 3 && speaker.queue.isNotEmpty() }
         assertEquals("The Example Show", speaker.sayNext())
         // Into the episodes, the edition is heard: Resume and "Finish it first?" are about the paper.
         assertTrue(progress.finished(id))
@@ -219,35 +219,35 @@ class ListenAppTest {
         assertEquals("the edition's own length, not the episode's", player.state.value.secondsTotal, player.state.value.secondsIn, 0.001)
         // The episode's time is its marks', not its heading's: at "19:00", 19 minutes in.
         player.seek(ListenPosition(3, 2 + 38))
-        idleUntil { player.state.value.at == ListenPosition(3, 40) }
+        compose.idleUntil { player.state.value.at == ListenPosition(3, 40) }
         assertEquals(19 * 60.0, player.state.value.secondsInPage, 1.0)
         // ⏮ from its start lands on the closing page, which doesn't make the edition unfinished again.
         player.seek(ListenPosition(3, 0))
-        idleUntil { player.state.value.at == ListenPosition(3, 0) }
+        compose.idleUntil { player.state.value.at == ListenPosition(3, 0) }
         player.pause()
         player.previous()
-        idleUntil { player.state.value.at.page == 2 }
+        compose.idleUntil { player.state.value.at.page == 2 }
         assertTrue(progress.finished(id))
 
         compose.setContent(playing(id, player))
         player.seek(ListenPosition(3, 0))
-        idleUntil { player.state.value.at.page == 3 && compose.onAllNodesWithText("0:30", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { player.state.value.at.page == 3 && compose.onAllNodesWithText("0:30", substring = true).fetchSemanticsNodes().isNotEmpty() }
         player.pause()
-        idleUntil { !player.state.value.playing }
+        compose.idleUntil { !player.state.value.playing }
         compose.waitForIdle()
         compose.onAllNodesWithText("Tap a time to play from there.").fetchSemanticsNodes().let { assertEquals("paused, a tap doesn't play", 0, it.size) }
         player.play()
-        idleUntil { compose.onAllNodesWithText("Tap a time to play from there.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Tap a time to play from there.").fetchSemanticsNodes().isNotEmpty() }
         player.seek(ListenPosition(1, 0))
-        idleUntil { player.state.value.at.page == 1 && compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { player.state.value.at.page == 1 && compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
         // From the edition, one tap to the episodes after it; on one, its own times and how to move in it.
         compose.onNodeWithText("Then 1 episode ›").performClick()
-        idleUntil { player.state.value.at.page == 3 }
+        compose.idleUntil { player.state.value.at.page == 3 }
         compose.onNodeWithText("Episode 1 of 1 · 0 min in · 38 min left").assertIsDisplayed()
         compose.onNodeWithText("Tap a time to play from there.").assertExists()
         compose.onAllNodesWithText("Then 1 episode ›").fetchSemanticsNodes().let { assertEquals("not on the episode itself", 0, it.size) }
         player.seek(ListenPosition(3, 2 + 38))
-        idleUntil { player.state.value.at == ListenPosition(3, 40) }
+        compose.idleUntil { player.state.value.at == ListenPosition(3, 40) }
         compose.onNodeWithText("Episode 1 of 1 · 19 min in · 19 min left").assertIsDisplayed()
         player.stop()
     }
@@ -259,7 +259,7 @@ class ListenAppTest {
         val heard = mutableListOf<String>()
         while (speaker.queue.isNotEmpty()) {
             heard += speaker.sayNext()
-            idleUntil { speaker.queue.isNotEmpty() || player.state.value.finished }
+            compose.idleUntil { speaker.queue.isNotEmpty() || player.state.value.finished }
         }
         assertEquals(
             listOf(
@@ -296,12 +296,12 @@ class ListenAppTest {
         var openedPlayer = 0
         compose.setContent { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = { openedPlayer++ }) }
         // 6 minutes to read is 9 to hear.
-        idleUntil { compose.onAllNodesWithText("Listen · about 9 min").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Listen · about 9 min").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Listen · about 9 min").performClick()
-        idleUntil { compose.onAllNodesWithText("Finish Wednesday Morning Edition first?").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Finish Wednesday Morning Edition first?").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Finish Wednesday Morning Edition first?").assertIsDisplayed()
         compose.onNodeWithText("Finish it").performClick()
-        idleUntil { player.state.value.script != null }
+        compose.idleUntil { player.state.value.script != null }
         assertEquals(yesterday, player.state.value.editionId)
         // Where it was left: its second line.
         assertEquals("Lagos Drivers Built Their Own App", speaker.queue.first().text)
@@ -309,15 +309,15 @@ class ListenAppTest {
 
         // Playing yesterday's; today's still says Listen, and starting it now is the choice made.
         compose.onNodeWithText("Listen · about 9 min").performClick()
-        idleUntil { compose.onAllNodesWithText("Start this one").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Start this one").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Start this one").performClick()
-        idleUntil { player.state.value.editionId == today && player.state.value.script != null }
+        compose.idleUntil { player.state.value.editionId == today && player.state.value.script != null }
         compose.onNodeWithText("Listening · Open player").performClick()
         assertEquals(3, openedPlayer)
 
         player.next()
         player.pause()
-        idleUntil { compose.onAllNodesWithText("Resume · 3 min left").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Resume · 3 min left").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Resume · 3 min left").assertIsDisplayed()
     }
 
@@ -340,7 +340,7 @@ class ListenAppTest {
         compose.setContent { showing?.let { vm -> key(vm) { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = {}) } } }
         fun show(id: Long) {
             showing = viewModels.add(EditionDetailViewModel(repo, id) {})
-            idleUntil { compose.onAllNodesWithText("Contents").fetchSemanticsNodes().isNotEmpty() }
+            compose.idleUntil { compose.onAllNodesWithText("Contents").fetchSemanticsNodes().isNotEmpty() }
         }
         for ((status, error, offered) in cases) {
             val id = edition("$status $error")
@@ -350,7 +350,7 @@ class ListenAppTest {
             assertEquals("$status $error", offered, compose.onAllNodesWithText("Resume · 3 min left").fetchSemanticsNodes().isNotEmpty())
             if (offered) {
                 compose.onNodeWithText("Resume · 3 min left").performClick()
-                idleUntil { player.state.value.editionId == id && player.state.value.at.page == 1 }
+                compose.idleUntil { player.state.value.editionId == id && player.state.value.at.page == 1 }
                 player.stop()
             }
         }
@@ -390,13 +390,13 @@ class ListenAppTest {
         var read: Int? = null
         val vm = viewModels.add(EditionDetailViewModel(repo, first) {})
         compose.setContent { EditionDetailScreen(vm, onBack = {}, onReadArticle = { read = it }, listening = listening, onOpenPlayer = {}) }
-        idleUntil { compose.onAllNodesWithText("Contents").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Contents").fetchSemanticsNodes().isNotEmpty() }
 
         compose.onNodeWithText("Mark as sent").assertIsEnabled()
         compose.onNodeWithText("b b1").performClick()
         assertEquals(1, read)
         compose.onNodeWithText("Resume", substring = true).performClick()
-        idleUntil { player.state.value.editionId == first && player.state.value.at.page == 1 }
+        compose.idleUntil { player.state.value.editionId == first && player.state.value.at.page == 1 }
         player.stop()
         compose.onNodeWithContentDescription("More options").performClick()
         compose.onNodeWithText("Save a copy…").assertExists()
@@ -413,13 +413,13 @@ class ListenAppTest {
         runBlocking { db.editions().update(db.editions().byId(id)!!.copy(status = EditionStatus.READY)) }
         val vm = viewModels.add(EditionDetailViewModel(repo, id) {})
         compose.setContent { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = {}) }
-        idleUntil { compose.onAllNodesWithText("Listen", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Listen", substring = true).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Listen", substring = true).performClick()
-        idleUntil { player.state.value.editionId == id && player.state.value.playing }
+        compose.idleUntil { player.state.value.editionId == id && player.state.value.playing }
 
         // As EditionBuilder.releaseUndelivered does when the next edition is planned.
         runBlocking { db.editions().update(db.editions().byId(id)!!.copy(status = EditionStatus.FAILED, error = EditionBuilder.NOT_SENT)) }
-        idleUntil { compose.onAllNodesWithText(EditionBuilder.NOT_SENT).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText(EditionBuilder.NOT_SENT).fetchSemanticsNodes().isNotEmpty() }
 
         assertTrue("Listen stays", compose.onAllNodesWithText("Listen", substring = true).fetchSemanticsNodes().isNotEmpty())
         compose.onNodeWithText("Mark as sent").assertIsEnabled()
@@ -436,15 +436,15 @@ class ListenAppTest {
         val vm = viewModels.add(EditionDetailViewModel(repo, today) {})
         val restoration = StateRestorationTester(compose)
         restoration.setContent { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = {}) }
-        idleUntil { compose.onAllNodesWithText("Listen · about 9 min").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Listen · about 9 min").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Listen · about 9 min").performClick()
-        idleUntil { compose.onAllNodesWithText("Finish Wednesday Morning Edition first?").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Finish Wednesday Morning Edition first?").fetchSemanticsNodes().isNotEmpty() }
 
         restoration.emulateSavedInstanceStateRestore()
 
-        idleUntil { compose.onAllNodesWithText("Finish Wednesday Morning Edition first?").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Finish Wednesday Morning Edition first?").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Finish it").performClick()
-        idleUntil { player.state.value.script != null }
+        compose.idleUntil { player.state.value.script != null }
         assertEquals(yesterday, player.state.value.editionId)
     }
 
@@ -456,15 +456,15 @@ class ListenAppTest {
         val vm = viewModels.add(EditionDetailViewModel(repo, today) {})
         val restoration = StateRestorationTester(compose)
         restoration.setContent { EditionDetailScreen(vm, onBack = {}, listening = listening, onOpenPlayer = {}) }
-        idleUntil { compose.onAllNodesWithText("Listen · about 9 min").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Listen · about 9 min").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Listen · about 9 min").performClick()
-        idleUntil { compose.onAllNodesWithText("Finish Wednesday Morning Edition first?").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Finish Wednesday Morning Edition first?").fetchSemanticsNodes().isNotEmpty() }
 
         // Finished on another screen, or its file pruned, while the app was away.
         progress.finish(yesterday)
         restoration.emulateSavedInstanceStateRestore()
 
-        idleUntil { compose.onAllNodesWithText("Finish Wednesday Morning Edition first?").fetchSemanticsNodes().isEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Finish Wednesday Morning Edition first?").fetchSemanticsNodes().isEmpty() }
     }
 
     @Test
@@ -473,13 +473,13 @@ class ListenAppTest {
         startAndWait(id)
         val restoration = StateRestorationTester(compose)
         restoration.setContent(playing(id))
-        idleUntil { compose.onAllNodes(hasContentDescription("Contents")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("Contents")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Contents").performClick()
         compose.onNodeWithText("Thursday Morning Edition").assertIsDisplayed()
 
         // As after Android ended the app: the screen comes back, the player starts empty.
         player.stop()
-        idleUntil { player.state.value.pages.isEmpty() }
+        compose.idleUntil { player.state.value.pages.isEmpty() }
         restoration.emulateSavedInstanceStateRestore()
 
         compose.waitForIdle()
@@ -492,7 +492,7 @@ class ListenAppTest {
         startAndWait(id)
         val restoration = StateRestorationTester(compose)
         restoration.setContent(playing(id))
-        idleUntil { compose.onAllNodes(hasContentDescription("Contents")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("Contents")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Contents").performClick()
         compose.onNodeWithText("Thursday Morning Edition").assertIsDisplayed()
 
@@ -513,7 +513,7 @@ class ListenAppTest {
         val asked = mutableListOf<Boolean>()
         compose.setContent(playing(id, reading = now, onVoiceInstead = { asked += it }))
 
-        idleUntil { compose.onAllNodesWithText("Playing its recorded reading · 2 min.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Playing its recorded reading · 2 min.").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Have the voice read it instead").performClick()
         assertEquals(listOf(true), asked)
 
@@ -523,7 +523,7 @@ class ListenAppTest {
 
         // Only on its own article.
         compose.onNodeWithContentDescription("Next article").performClick()
-        idleUntil { player.state.value.at.page == 1 }
+        compose.idleUntil { player.state.value.at.page == 1 }
         compose.onNodeWithText("recorded reading", substring = true).assertDoesNotExist()
     }
 
@@ -532,7 +532,7 @@ class ListenAppTest {
         val id = edition()
         startAndWait(id)
         compose.setContent(playing(id))
-        idleUntil { compose.onAllNodesWithText("Tait's table of knots").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Tait's table of knots").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Tait's table of knots").assertIsDisplayed()
         compose.onNodeWithContentDescription("Pause").performClick()
         assertFalse(player.state.value.playing)
@@ -541,21 +541,21 @@ class ListenAppTest {
 
         // The paragraph's second sentence: near the end of its text.
         compose.onNodeWithText("Nobody could say", substring = true).performTouchInput { click(centerRight.copy(x = right - 4f)) }
-        idleUntil { speaker.queue.firstOrNull()?.text == "Then a teacher wrote a program." }
+        compose.idleUntil { speaker.queue.firstOrNull()?.text == "Then a teacher wrote a program." }
         compose.onNodeWithContentDescription("Next sentence").performClick()
         assertEquals("Image: Tait's table of knots", speaker.queue.first().text)
         compose.onNodeWithContentDescription("Back a sentence").performClick()
         compose.onNodeWithContentDescription("Next article").performClick()
-        idleUntil { player.state.value.at.page == 1 && compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { player.state.value.at.page == 1 && compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Previous article").performClick()
-        idleUntil { player.state.value.at.page == 0 }
+        compose.idleUntil { player.state.value.at.page == 0 }
 
         compose.onNodeWithContentDescription("Speed 1×. Change speed").performClick()
         assertEquals(1.2f, player.state.value.speed)
 
         compose.onNodeWithContentDescription("Contents").performClick()
         compose.onNode(hasText("Lagos Drivers Built Their Own App") and hasAnyAncestor(isDialog())).performClick()
-        idleUntil { player.state.value.at.page == 1 }
+        compose.idleUntil { player.state.value.at.page == 1 }
     }
 
     /**
@@ -573,28 +573,28 @@ class ListenAppTest {
                 onListen = { listening.start(id, ListenPosition(it, 0)) }, player = player, editionId = id,
             )
         }
-        idleUntil { compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isNotEmpty() }
         assertTrue("no player before Listen", compose.onAllNodes(hasContentDescription("Pause")).fetchSemanticsNodes().isEmpty())
 
         compose.onNodeWithContentDescription("Listen from here").performClick()
-        idleUntil { player.state.value.editionId == id && player.state.value.playing && player.state.value.script != null }
+        compose.idleUntil { player.state.value.editionId == id && player.state.value.playing && player.state.value.script != null }
         compose.onNodeWithContentDescription("Pause").assertExists()
         compose.onNodeWithContentDescription("Listen from here").assertDoesNotExist()
         // The sentence being read is underlined in the page, once the voice reaches it past the heading.
         while (speaker.queue.firstOrNull()?.text != "Nobody could say how many knots there are.") speaker.sayNext()
         speaker.startNext()
-        idleUntil { underlined("Nobody could say") == listOf("Nobody could say how many knots there are.") }
+        compose.idleUntil { underlined("Nobody could say") == listOf("Nobody could say how many knots there are.") }
 
         // Playing, a tapped sentence is read from.
         tapWord(hasText("Nobody could say", substring = true), "program")
-        idleUntil { speaker.queue.firstOrNull()?.text == "Then a teacher wrote a program." }
+        compose.idleUntil { speaker.queue.firstOrNull()?.text == "Then a teacher wrote a program." }
 
         // The voice going on to the next article turns the page.
         compose.onNodeWithContentDescription("Next article").performClick()
-        idleUntil { compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
         // Back a page, by the voice, and the page follows it there too.
         compose.onNodeWithContentDescription("Previous article").performClick()
-        idleUntil { compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isNotEmpty() && player.state.value.at.page == 0 }
+        compose.idleUntil { compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isNotEmpty() && player.state.value.at.page == 0 }
 
         // Paused, a tap on a sentence doesn't move the voice.
         compose.onNodeWithContentDescription("Pause").performClick()
@@ -607,7 +607,7 @@ class ListenAppTest {
         // Paused, the page's "Next" line turns only the page: the voice stays where it was, quiet.
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Next:", substring = true))
         tapWord(hasText("Next:", substring = true), "Lagos")
-        idleUntil { compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
         assertEquals(at, player.state.value.at)
         assertFalse(player.state.value.playing)
         // On another article than the voice's, Listen from here is offered again.
@@ -655,17 +655,17 @@ class ListenAppTest {
         player.pause()
         val restoration = StateRestorationTester(compose)
         restoration.setContent { preview(id, position = 2)() }
-        idleUntil { compose.onAllNodesWithText("Sleepers are back.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Sleepers are back.").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Listen from here").assertExists()
         restoration.emulateSavedInstanceStateRestore()
-        idleUntil { compose.onAllNodesWithText("Sleepers are back.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Sleepers are back.").fetchSemanticsNodes().isNotEmpty() }
         assertTrue("still not the voice's article", compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isEmpty())
         assertEquals(0, player.state.value.at.page)
 
         // The voice moving on now turns the page to where it went.
         compose.onNodeWithContentDescription("Play").performClick()
         compose.onNodeWithContentDescription("Next article").performClick()
-        idleUntil { player.state.value.at.page == 1 && compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { player.state.value.at.page == 1 && compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
         player.stop()
     }
 
@@ -677,20 +677,20 @@ class ListenAppTest {
     fun theClosingPageAndTheContentsAreInTheArticleView() {
         val id = edition()
         compose.setContent { preview(id, position = 1)() }
-        idleUntil { compose.onAllNodes(hasContentDescription("Listen from here")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("Listen from here")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Listen from here").performClick()
-        idleUntil { player.state.value.at.page == 1 && player.state.value.script != null }
+        compose.idleUntil { player.state.value.at.page == 1 && player.state.value.script != null }
 
         // Not the last article's own "Next" line, which says the same: its text is gone.
         compose.onNodeWithContentDescription("Next article").performClick()
-        idleUntil {
+        compose.idleUntil {
             player.state.value.at.page == 2 && compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isEmpty() &&
                 compose.onAllNodesWithText(EpubWriter.END_TITLE, substring = true).fetchSemanticsNodes().isNotEmpty()
         }
 
         compose.onNodeWithContentDescription("Contents").performClick()
         compose.onNode(hasText("The Mathematician Who Counted Knots") and hasAnyAncestor(isDialog())).performClick()
-        idleUntil { player.state.value.at.page == 0 && compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { player.state.value.at.page == 0 && compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isNotEmpty() }
         player.stop()
     }
 
@@ -723,11 +723,11 @@ class ListenAppTest {
         val id = editionWithAnEpisodeAfterIt(seconds = null)
         val player = ListenPlayer(speaker, progress, open = { ListenBook.open(repo, it, Readings(db, { Recordings() })) }, CoroutineScope(SupervisorJob() + Dispatchers.Main))
         player.start(id, ListenPosition(3, 0))
-        idleUntil { player.state.value.script != null && player.state.value.at.page == 3 && player.state.value.playing }
+        compose.idleUntil { player.state.value.script != null && player.state.value.at.page == 3 && player.state.value.playing }
         compose.setContent {
             ArticlePreviewScreen(loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = 3, title = "Saturday Morning Edition", onBack = {}, onListen = {}, player = player, editionId = id)
         }
-        idleUntil { compose.onAllNodesWithText("The episode.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("The episode.").fetchSemanticsNodes().isNotEmpty() }
         compose.onAllNodesWithText("Tap a time to play from there.").fetchSemanticsNodes().let { assertEquals(0, it.size) }
     }
 
@@ -737,18 +737,18 @@ class ListenAppTest {
         val id = editionWithAnEpisodeAfterIt()
         val player = ListenPlayer(speaker, progress, open = { ListenBook.open(repo, it, Readings(db, { Recordings() })) }, CoroutineScope(SupervisorJob() + Dispatchers.Main))
         player.start(id, ListenPosition(2, 0))
-        idleUntil { player.state.value.script != null && player.state.value.at.page == 2 }
+        compose.idleUntil { player.state.value.script != null && player.state.value.at.page == 2 }
         compose.setContent {
             ArticlePreviewScreen(loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = 2, title = "Saturday Morning Edition", onBack = {}, onListen = {}, player = player, editionId = id)
         }
-        idleUntil { compose.onAllNodesWithText(EpubWriter.END_TITLE, substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText(EpubWriter.END_TITLE, substring = true).fetchSemanticsNodes().isNotEmpty() }
         val lagosShown = { compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
 
         player.seek(ListenPosition(3, 0))
-        idleUntil { player.state.value.at.page == 3 && compose.onAllNodesWithText("0:30", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { player.state.value.at.page == 3 && compose.onAllNodesWithText("0:30", substring = true).fetchSemanticsNodes().isNotEmpty() }
         assertFalse(lagosShown())
         player.seek(ListenPosition(2, 0))
-        idleUntil { player.state.value.at.page == 2 && compose.onAllNodesWithText("0:30", substring = true).fetchSemanticsNodes().isEmpty() }
+        compose.idleUntil { player.state.value.at.page == 2 && compose.onAllNodesWithText("0:30", substring = true).fetchSemanticsNodes().isEmpty() }
         assertFalse(lagosShown())
         assertTrue(compose.onAllNodesWithText(EpubWriter.END_TITLE, substring = true).fetchSemanticsNodes().isNotEmpty())
         player.stop()
@@ -761,10 +761,10 @@ class ListenAppTest {
         startAndWait(id)
         player.pause()
         compose.setContent { preview(id, position = 1)() }
-        idleUntil { compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Contents").performClick()
         compose.onNode(hasText("The Mathematician Who Counted Knots", substring = true) and hasAnyAncestor(isDialog())).performClick()
-        idleUntil { player.state.value.at.page == 0 && compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { player.state.value.at.page == 0 && compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isNotEmpty() }
         player.stop()
     }
 
@@ -773,15 +773,15 @@ class ListenAppTest {
     fun contentsLeftOpenWhenListenStopsDontComeBackByThemselves() {
         val id = edition()
         compose.setContent { preview(id, position = 0)() }
-        idleUntil { compose.onAllNodes(hasContentDescription("Listen from here")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("Listen from here")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Listen from here").performClick()
-        idleUntil { player.state.value.script != null }
+        compose.idleUntil { player.state.value.script != null }
         compose.onNodeWithContentDescription("Contents").performClick()
         compose.onNode(isDialog()).assertExists()
         player.stop()
-        idleUntil { compose.onAllNodes(hasContentDescription("Listen from here")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("Listen from here")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Listen from here").performClick()
-        idleUntil { player.state.value.script != null }
+        compose.idleUntil { player.state.value.script != null }
         compose.waitForIdle()
         assertEquals(0, compose.onAllNodes(isDialog()).fetchSemanticsNodes().size)
         player.stop()
@@ -793,9 +793,9 @@ class ListenAppTest {
         speaker.installed = setOf("en")
         val id = edition("Édition", knots.copy(language = "fr"))
         compose.setContent { preview(id, position = 0)() }
-        idleUntil { compose.onAllNodes(hasContentDescription("Listen from here")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("Listen from here")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Listen from here").performClick()
-        idleUntil { compose.onAllNodesWithText("Get a French voice").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Get a French voice").fetchSemanticsNodes().isNotEmpty() }
         player.stop()
     }
 
@@ -844,7 +844,7 @@ class ListenAppTest {
         }
         val view = playing(id)
         compose.setContent { CompositionLocalProvider(LocalUriHandler provides uris) { view() } }
-        idleUntil { compose.onAllNodesWithText("Plain bold and the paper.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Plain bold and the paper.").fetchSemanticsNodes().isNotEmpty() }
         // The byline whole, not only the author the voice reads; bold where it was bold; a list's own numbers; a code block's spacing.
         compose.onNodeWithText("By Erica Klarreich · 9 min read").assertIsDisplayed()
         val plain = compose.onNodeWithText("Plain bold and the paper.", useUnmergedTree = true).fetchSemanticsNode().config[SemanticsProperties.Text].single()
@@ -860,7 +860,7 @@ class ListenAppTest {
         player.play()
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Crossings"))
         compose.onNode(hasText("3") and hasClickAction()).performClick()
-        idleUntil { speaker.queue.firstOrNull()?.text == "3, 1" }
+        compose.idleUntil { speaker.queue.firstOrNull()?.text == "3, 1" }
         player.pause()
 
         // A web link opens; the "Next" line moves the voice to the next article.
@@ -875,19 +875,19 @@ class ListenAppTest {
         assertTrue(next.label, next.label.startsWith("Go to Next: Lagos Drivers Built Their Own App"))
         // Paused, it turns the page and leaves the voice; playing, it moves the voice there too.
         tapWord(hasText("Next:", substring = true), "Lagos")
-        idleUntil { compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }
         assertEquals(0, player.state.value.at.page)
         // The voice moved there and back brings the page back with it.
         player.seek(ListenPosition(1, 0))
-        idleUntil { player.state.value.at.page == 1 }
+        compose.idleUntil { player.state.value.at.page == 1 }
         compose.waitForIdle()
         player.seek(ListenPosition(0, 0))
         player.play()
-        idleUntil { compose.onAllNodesWithText("Plain bold and the paper.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Plain bold and the paper.").fetchSemanticsNodes().isNotEmpty() }
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Next:", substring = true))
         val playingNext = compose.onNodeWithText("Next:", substring = true).fetchSemanticsNode().config[SemanticsActions.CustomActions].single()
         compose.runOnIdle { playingNext.action() }
-        idleUntil { player.state.value.at.page == 1 }
+        compose.idleUntil { player.state.value.at.page == 1 }
     }
 
     /** Heard to the end, the page the voice stopped on says so: there is no "Next" left to follow. */
@@ -897,10 +897,10 @@ class ListenAppTest {
         startAndWait(id)
         compose.setContent(playing(id))
         while (!player.state.value.finished) {
-            idleUntil { speaker.queue.isNotEmpty() || player.state.value.finished }
+            compose.idleUntil { speaker.queue.isNotEmpty() || player.state.value.finished }
             if (speaker.queue.isNotEmpty()) speaker.sayNext()
         }
-        idleUntil { compose.onAllNodesWithText("You've heard the whole edition.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("You've heard the whole edition.").fetchSemanticsNodes().isNotEmpty() }
         // TalkBack says it as it appears.
         assertTrue(androidx.compose.ui.semantics.SemanticsProperties.LiveRegion in compose.onNodeWithText("You've heard the whole edition.").fetchSemanticsNode().config)
     }
@@ -912,11 +912,11 @@ class ListenAppTest {
         startAndWait(id)
         player.pause()
         compose.setContent(playing(id))
-        idleUntil { compose.onAllNodesWithText("The counts.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("The counts.").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Row 70").assertIsNotDisplayed()
         // Source, title, byline, the paragraph, the header row, then rows 1 to 70.
         player.seek(ListenPosition(0, 4 + 70))
-        idleUntil { player.state.value.at.line == 74 }
+        compose.idleUntil { player.state.value.at.line == 74 }
         compose.waitUntil(5_000) { runCatching { compose.onNodeWithText("Row 70").assertIsDisplayed() }.isSuccess }
     }
 
@@ -928,18 +928,18 @@ class ListenAppTest {
         startAndWait(id)
         player.pause()
         compose.setContent(playing(id))
-        idleUntil { compose.onAllNodesWithText("Paragraph 1.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Paragraph 1.").fetchSemanticsNodes().isNotEmpty() }
         fun displayed(text: String) = runCatching { compose.onNodeWithText(text, substring = true).assertIsDisplayed() }.isSuccess
         // Source, title and byline, then a line a paragraph.
         player.seek(ListenPosition(0, 3 + 1))
-        idleUntil { player.state.value.at.line == 4 }
+        compose.idleUntil { player.state.value.at.line == 4 }
         compose.waitForIdle()
         assertTrue("the byline stays while the voice is on the screen below it", displayed("By Erica Klarreich"))
         // Off the screen, a screen turns: the line comes into view near the top.
         player.seek(ListenPosition(0, 3 + 29))
-        idleUntil { player.state.value.at.line == 32 && displayed("Paragraph 30.") }
+        compose.idleUntil { player.state.value.at.line == 32 && displayed("Paragraph 30.") }
         player.seek(ListenPosition(0, 3 + 30))
-        idleUntil { player.state.value.at.line == 33 }
+        compose.idleUntil { player.state.value.at.line == 33 }
         compose.waitForIdle()
         assertTrue("the line before stays: the page didn't move for the next", displayed("Paragraph 30."))
     }
@@ -950,7 +950,7 @@ class ListenAppTest {
         startAndWait(id)
         var size by androidx.compose.runtime.mutableStateOf(com.app.newspaperss.settings.PreviewTextSize.DEFAULT)
         compose.setContent { playing(id, textSize = size)() }
-        idleUntil { compose.onAllNodesWithText("The count took a week.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("The count took a week.").fetchSemanticsNodes().isNotEmpty() }
         fun laidOut(): androidx.compose.ui.text.TextLayoutResult {
             val results = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
             compose.onNodeWithText("The count took a week.").fetchSemanticsNode()
@@ -969,7 +969,7 @@ class ListenAppTest {
         val id = edition()
         progress.set(id, ListenPosition(0, 2))
         listening.start(id, ListenPosition(1, 0))
-        idleUntil { player.state.value.script != null }
+        compose.idleUntil { player.state.value.script != null }
         assertEquals(ListenPosition(1, 0), player.state.value.at)
         assertEquals("Rest of World", speaker.queue.first().text)
         assertEquals(1, connected)
@@ -980,7 +980,7 @@ class ListenAppTest {
         val id = edition()
         startAndWait(id)
         compose.setContent(playing(id))
-        idleUntil { compose.onAllNodesWithText("The count took a week.").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("The count took a week.").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("The count took a week.").performTouchInput { swipeDown() }
         compose.onNodeWithText("Back to where it's reading").performClick()
         assertEquals(0, compose.onAllNodesWithText("Back to where it's reading").fetchSemanticsNodes().size)
@@ -992,7 +992,7 @@ class ListenAppTest {
         val id = edition("Édition", knots.copy(language = "fr"))
         startAndWait(id)
         compose.setContent(playing(id))
-        idleUntil { compose.onAllNodesWithText("Get a French voice").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Get a French voice").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Get a French voice").performClick()
         val started = shadowOf(app).nextStartedActivity
         assertEquals(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA, started.action)
@@ -1023,11 +1023,11 @@ class ListenAppTest {
         assertEquals(0, player.state.value.at.line)
         // The second pair: an article.
         session.seekToNextMediaItem()
-        idleUntil { player.state.value.at.page == 1 }
+        compose.idleUntil { player.state.value.at.page == 1 }
         session.seekToPreviousMediaItem()
-        idleUntil { player.state.value.at.page == 0 }
+        compose.idleUntil { player.state.value.at.page == 0 }
         session.seekToDefaultPosition(1)
-        idleUntil { player.state.value.at.page == 1 }
+        compose.idleUntil { player.state.value.at.page == 1 }
         session.setPlaybackSpeed(1.5f)
         assertEquals(1.5f, player.state.value.speed)
         session.pause()

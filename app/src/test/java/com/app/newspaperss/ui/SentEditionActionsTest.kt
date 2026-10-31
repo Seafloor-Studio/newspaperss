@@ -94,7 +94,7 @@ class SentEditionActionsTest {
     private fun today(device: Device, sentToKindle: Map<Long, KindleSend> = emptyMap(), onOpenEdition: (Long) -> Unit = {}) {
         val vm = viewModels.add(TodayViewModel(repo, flowOf(null), settings = flowOf(Settings(device = device)), sentToKindle = flowOf(sentToKindle)) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = onOpenEdition) }
-        idleUntil { compose.waitForIdle(); compose.onAllNodes(hasText("Tuesday Morning Edition")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasText("Tuesday Morning Edition")).fetchSemanticsNodes().isNotEmpty() }
     }
 
     private fun page(id: Long, device: Device) {
@@ -102,7 +102,7 @@ class SentEditionActionsTest {
         compose.setContent {
             EditionDetailScreen(vm, onBack = {}, preferOpen = device == Device.BOOX, offerOpen = device.offersOpen, kindleReader = device == Device.KINDLE)
         }
-        idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
+        compose.idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
     }
 
     private fun button(text: String) = compose.onNode(hasText(text) and hasClickAction())
@@ -228,7 +228,7 @@ class SentEditionActionsTest {
         compose.onNodeWithContentDescription(options).assertDoesNotExist()
 
         button("Mark as sent").performClick()
-        idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+        compose.idleUntil { statusOf(id) == EditionStatus.DELIVERED }
     }
 
     @Test
@@ -251,7 +251,7 @@ class SentEditionActionsTest {
         compose.onNodeWithText("Try again").assertDoesNotExist()
         compose.onNodeWithText("Make another edition").assertExists()
         button("Mark as sent").performClick()
-        idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+        compose.idleUntil { statusOf(id) == EditionStatus.DELIVERED }
     }
 
     @Test
@@ -286,7 +286,7 @@ class SentEditionActionsTest {
         button("Read").performClick()
 
         assertEquals(Intent.ACTION_VIEW, shadowOf(app).nextStartedActivity.action)
-        idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+        compose.idleUntil { statusOf(id) == EditionStatus.DELIVERED }
     }
 
     @Test

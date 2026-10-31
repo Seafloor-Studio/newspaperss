@@ -49,14 +49,14 @@ class PodcastLineTest {
         compose.setContent { PodcastLine(podcasts, 7, minutes) }
     }
 
-    private fun waitFor(text: String) = idleUntil { compose.onAllNodes(androidx.compose.ui.test.hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty() }
+    private fun waitFor(text: String) = compose.idleUntil { compose.onAllNodes(androidx.compose.ui.test.hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty() }
 
     @Test
     fun anEditionMadeByHandOffersToMakeItsPodcast() {
         show()
         waitFor("No audio for this edition yet")
         compose.onNodeWithText("Make the audio", substring = true).performClick()
-        idleUntil { compose.waitForIdle(); started > 0 }
+        compose.idleUntil { started > 0 }
         assertEquals(1, started)
         assertNotNull(store.voice(7))
         // Asked for, it says how it's made.
@@ -107,12 +107,12 @@ class PodcastLineTest {
         // Nothing to delete until audio is kept: the made pages here are only marked so.
         assertTrue(compose.onAllNodes(androidx.compose.ui.test.hasText("Delete audio", substring = true)).fetchSemanticsNodes().isEmpty())
         compose.onNodeWithText("Stop making").performClick()
-        idleUntil { store.stopped(7) }
+        compose.idleUntil { store.stopped(7) }
         assertTrue(store.waiting().isEmpty())
         waitFor("Stopped. 12 min of 27 min made.")
 
         compose.onNodeWithText("Make the rest", substring = true).performClick()
-        idleUntil { started > 0 }
+        compose.idleUntil { started > 0 }
         assertFalse(store.stopped(7))
         assertEquals(listOf(7L), store.waiting())
     }
@@ -130,7 +130,7 @@ class PodcastLineTest {
         assertNotNull(store.voice(7))
         compose.onNodeWithText("Delete").performClick()
         // The folder goes file by file, on another thread: the voice can be gone before the audio.
-        idleUntil { store.voice(7) == null && store.bytes(7) == 0L }
+        compose.idleUntil { store.voice(7) == null && store.bytes(7) == 0L }
         waitFor("No audio for this edition yet")
     }
 

@@ -69,7 +69,7 @@ class MainActivityTest {
         ActivityScenario.launch(MainActivity::class.java)
     }
 
-    private fun shows(text: String) = idleUntil {
+    private fun shows(text: String) = compose.idleUntil {
         compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
     }
 
@@ -78,7 +78,7 @@ class MainActivityTest {
         runBlocking { app.container.settings.update { it.copy(onboarded = true) } }
         val id = listenedEdition()
         app.container.listen.start(id)
-        idleUntil { app.container.listen.state.value.pages.isNotEmpty() }
+        compose.idleUntil { app.container.listen.state.value.pages.isNotEmpty() }
         val open = android.content.Intent(app, MainActivity::class.java).putExtra(MainActivity.EXTRA_OPEN, MainActivity.OPEN_LISTENING)
         val scenario = ActivityScenario.launch<MainActivity>(open)
         shows("1 min read")
@@ -96,13 +96,13 @@ class MainActivityTest {
         launchWith(onboarded = true)
         val id = listenedEdition()
         app.container.listen.start(id)
-        idleUntil { app.container.listen.state.value.pages.isNotEmpty() }
+        compose.idleUntil { app.container.listen.state.value.pages.isNotEmpty() }
         app.container.listen.pause()
         // Paused for a while, as the service goes only some time after: the app has seen it.
-        idleUntil { app.container.listenNow.value?.playing == false }
+        compose.idleUntil { app.container.listenNow.value?.playing == false }
         app.listenConnects = 0
         app.container.listen.play()
-        idleUntil { app.listenConnects > 0 }
+        compose.idleUntil { app.listenConnects > 0 }
     }
 
     /** An edition of one article, "The ferry planner" from Rail Talk, with its book; returns its id. */
@@ -132,10 +132,10 @@ class MainActivityTest {
         shows("Listening · Rail Talk")
 
         compose.onNodeWithContentDescription("Pause").performClick()
-        idleUntil { !app.container.listen.state.value.playing }
+        compose.idleUntil { !app.container.listen.state.value.playing }
         shows("Paused · Rail Talk")
         compose.onNodeWithContentDescription("Play").performClick()
-        idleUntil { app.container.listen.state.value.playing }
+        compose.idleUntil { app.container.listen.state.value.playing }
 
         // On every tab, and it opens the article the voice is on, the player under it, where the bar
         // isn't shown: the player is the same and more.
@@ -154,7 +154,7 @@ class MainActivityTest {
 
         // Stopped from the bar: it goes, and the place is kept.
         compose.onNodeWithContentDescription("Stop listening").performClick()
-        idleUntil { compose.onAllNodes(hasText("Listening · Rail Talk")).fetchSemanticsNodes().isEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasText("Listening · Rail Talk")).fetchSemanticsNodes().isEmpty() }
         assertNull(app.container.listen.state.value.editionId)
     }
 
@@ -301,7 +301,7 @@ class MainActivityTest {
         compose.onAllNodesWithText("Monday Morning Edition").onFirst().performClick()
         shows(story)
         compose.onAllNodesWithText(story).onFirst().performClick()
-        idleUntil { compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("More").performClick()
         compose.onNodeWithText("Go to Quanta Magazine").performClick()
 
@@ -352,7 +352,7 @@ class MainActivityTest {
         compose.onAllNodesWithText("Monday Morning Edition").onFirst().performClick()
         shows(story)
         compose.onAllNodesWithText(story).onFirst().performClick()
-        idleUntil { compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("More").performClick()
         // The reading list has a screen of its own, not a source page.
         compose.onNodeWithText("Go to Your reading list").performClick()

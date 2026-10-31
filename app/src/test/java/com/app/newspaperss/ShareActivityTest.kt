@@ -47,7 +47,7 @@ class ShareActivityTest {
         return ActivityScenario.launch(intent)
     }
 
-    private fun shows(text: String) = idleUntil { compose.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty() }
+    private fun shows(text: String) = compose.idleUntil { compose.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty() }
 
     private fun tap(text: String) {
         shows(text)
@@ -64,10 +64,10 @@ class ShareActivityTest {
     private fun saved() = runBlocking { app.container.db.articles().candidates() }
     // A choice is acted on in the app's scope after the screen has gone: waits for it to be done,
     // so a check that nothing happened isn't made before anything could.
-    private fun settled() = idleUntil { app.container.appScope.coroutineContext[Job]!!.children.none { it.isActive } }
+    private fun settled() = compose.idleUntil { app.container.appScope.coroutineContext[Job]!!.children.none { it.isActive } }
     private fun feeds() = runBlocking { app.container.db.sources().ofKind(SourceKind.FEED) }
     private fun toldOnly(text: String) {
-        runCatching { idleUntil(timeoutMs = 10_000) { ShadowToast.getTextOfLatestToast() == text } }
+        runCatching { compose.idleUntil(timeoutMs = 10_000) { ShadowToast.getTextOfLatestToast() == text } }
         assertEquals(text, ShadowToast.getTextOfLatestToast())
     }
 
@@ -91,7 +91,7 @@ class ShareActivityTest {
         val fetched = mutableListOf<String>()
         app.http.beforeResponse = { fetched += it }
         tap("Save to your reading list")
-        idleUntil { saved().isNotEmpty() }
+        compose.idleUntil { saved().isNotEmpty() }
         settled()
         val article = saved().single()
         assertEquals("https://a.example/story?ref=share", article.url)
@@ -106,7 +106,7 @@ class ShareActivityTest {
     fun aSubjectThatIsJustTheUrlIsntUsedAsTheTitle() {
         share("https://a.example/post", subject = "https://a.example/post")
         tap("Save to your reading list")
-        idleUntil { saved().isNotEmpty() }
+        compose.idleUntil { saved().isNotEmpty() }
         assertEquals("", saved().single().title)
     }
 
@@ -116,7 +116,7 @@ class ShareActivityTest {
         share("https://news.example/")
         assertEquals(listOf("Subscribe to this site", "Save to your reading list", "Both"), order())
         tap("Subscribe to this site")
-        idleUntil { feeds().isNotEmpty() }
+        compose.idleUntil { feeds().isNotEmpty() }
         assertEquals("https://news.example/feed", feeds().single().url)
         toldOnly("Added Example News to your sites.")
         assertTrue(saved().isEmpty())
@@ -127,7 +127,7 @@ class ShareActivityTest {
         app.http.page("https://plain.example/notes/one", "<html><head><title>One</title></head><body>Words</body></html>")
         share("https://plain.example/notes/one")
         tap("Subscribe to this site")
-        idleUntil { saved().isNotEmpty() }
+        compose.idleUntil { saved().isNotEmpty() }
         assertEquals("https://plain.example/notes/one", saved().single().url)
         toldOnly("No feed found at https://plain.example/notes/one. Saved the page for your next edition instead.")
         assertTrue(feeds().isEmpty())
@@ -139,7 +139,7 @@ class ShareActivityTest {
         runBlocking { app.container.sources.addFeed("http://www.news.example/feed/", "Example News") }
         share("https://news.example/2026/10/a-story", subject = "A story")
         tap("Both")
-        idleUntil { saved().isNotEmpty() }
+        compose.idleUntil { saved().isNotEmpty() }
         toldOnly("Example News is already in your sites. Saved for your next edition.")
         assertEquals(1, feeds().size)
     }
@@ -156,7 +156,7 @@ class ShareActivityTest {
         }
         share("https://news.example/")
         tap("Subscribe to this site")
-        idleUntil { server.subscribed.isNotEmpty() }
+        compose.idleUntil { server.subscribed.isNotEmpty() }
         assertEquals(listOf("https://news.example/feed" to 5), server.subscribed)
         toldOnly("Added Example News to your tt-rss, in News.")
         // In tt-rss, not on the phone as well.
@@ -181,9 +181,9 @@ class ShareActivityTest {
         server.refuse["https://news.example/feed"] = 5
         share("https://news.example/")
         tap("Subscribe to this site")
-        idleUntil { saved().isNotEmpty() }
+        compose.idleUntil { saved().isNotEmpty() }
         assertEquals("https://news.example/", saved().single().url)
-        idleUntil { ShadowToast.getTextOfLatestToast().startsWith("tt-rss") }
+        compose.idleUntil { ShadowToast.getTextOfLatestToast().startsWith("tt-rss") }
         val told = ShadowToast.getTextOfLatestToast()
         assertTrue(told, told.startsWith("tt-rss didn't add Example News.") && told.endsWith("Saved the page for your next edition instead."))
         // The toast said it all: Sources doesn't say it again later.
@@ -199,13 +199,13 @@ class ShareActivityTest {
         server.subscribeGate = gate
         share("https://news.example/")
         tap("Subscribe to this site")
-        idleUntil { server.subscribed.isNotEmpty() }
+        compose.idleUntil { server.subscribed.isNotEmpty() }
         // Sources' Add, asking while the share waits: it can't start, and waits for the share's answer.
         val subscriptions = app.container.ttrssSubscriptions
         val request = com.app.newspaperss.data.TtrssSubscriptions.Request("https://news.example/feed", "Example News", com.app.newspaperss.core.ttrss.TtrssCategory(0, "Uncategorized"))
         assertTrue(!subscriptions.subscribe(request))
         gate.complete(Unit)
-        idleUntil { subscriptions.results.value.isNotEmpty() }
+        compose.idleUntil { subscriptions.results.value.isNotEmpty() }
         val outcome = subscriptions.results.value.single().outcome as com.app.newspaperss.data.TtrssSubscriptions.Outcome.Subscribed
         assertTrue(outcome.answer is com.app.newspaperss.data.TtrssRepository.Subscribed.Failed)
     }
@@ -218,7 +218,7 @@ class ShareActivityTest {
         server.subscribeGate = gate
         share("https://news.example/2026/10/a-story")
         tap("Both")
-        idleUntil { server.subscribed.isNotEmpty() }
+        compose.idleUntil { server.subscribed.isNotEmpty() }
         // tt-rss hasn't answered, and the page is safe already.
         assertEquals(1, saved().size)
         gate.complete(Unit)
@@ -231,7 +231,7 @@ class ShareActivityTest {
         shows("Both")
         scenario.recreate()
         tap("Save to your reading list")
-        idleUntil { saved().isNotEmpty() }
+        compose.idleUntil { saved().isNotEmpty() }
         settled()
         assertEquals(1, saved().size)
         // Saved twice would still be one row: the second toast is what shows it.
@@ -243,7 +243,7 @@ class ShareActivityTest {
         val scenario = share("https://a.example/story")
         tap("Cancel")
         var finishing = false
-        idleUntil { scenario.onActivity { finishing = it.isFinishing }; finishing }
+        compose.idleUntil { scenario.onActivity { finishing = it.isFinishing }; finishing }
         settled()
         assertTrue(saved().isEmpty())
         assertEquals(0, ShadowToast.shownToastCount())

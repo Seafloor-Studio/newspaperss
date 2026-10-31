@@ -112,9 +112,9 @@ class PodcastSettingsTest {
      * rule's own dispatcher, which draining the main looper never advances. [waitFor] gets this
      * from `fetchSemanticsNodes`.
      */
-    private fun settle(condition: () -> Boolean) = idleUntil { compose.waitForIdle(); condition() }
+    private fun settle(condition: () -> Boolean) = compose.idleUntil { condition() }
 
-    private fun waitFor(text: String) = idleUntil { compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty() }
+    private fun waitFor(text: String) = compose.idleUntil { compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty() }
 
     private fun on(type: Int) = shadowOf(context.getSystemService(ConnectivityManager::class.java))
         .setActiveNetworkInfo(ShadowNetworkInfo.newInstance(NetworkInfo.DetailedState.CONNECTED, type, 0, true, NetworkInfo.State.CONNECTED))
@@ -174,13 +174,13 @@ class PodcastSettingsTest {
         waitFor("This phone can do it")
         waitFor("Your 30-minute paper takes about 55 minutes to make here")
         compose.onNodeWithText("Use it").performScrollTo().performClick()
-        idleUntil { vm.settings.value?.listenVoice == ListenVoice.PODCAST }
+        compose.idleUntil { vm.settings.value?.listenVoice == ListenVoice.PODCAST }
         // In use: its voices, each with a sample, on a page of their own.
         waitFor("Voices and audio")
         compose.onAllNodes(hasText("Emma")).fetchSemanticsNodes().let { assertEquals("not on Listening itself", 0, it.size) }
         openVoicesAndAudio()
         compose.onNodeWithText("Emma").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
-        idleUntil { vm.settings.value?.podcastVoice == PodcastVoice.EMMA }
+        compose.idleUntil { vm.settings.value?.podcastVoice == PodcastVoice.EMMA }
         waitFor("Listen plays an article in the natural voice once its audio is made")
     }
 
@@ -195,7 +195,7 @@ class PodcastSettingsTest {
         compose.onNodeWithText("Remove Kokoro (0 MB)").performScrollTo().performClick()
         // Waited for on the screen's own state: blocking the main thread for the store would hold
         // up the removal, which finishes there.
-        idleUntil { vm.settings.value?.podcastPace == null }
+        compose.idleUntil { vm.settings.value?.podcastPace == null }
         assertEquals(1, stopped)
         assertFalse(install.dir.exists())
         assertEquals(ListenVoice.PHONE, vm.settings.value?.listenVoice)
@@ -235,11 +235,11 @@ class PodcastSettingsTest {
         compose.onNodeWithText("Delete all audio").performScrollTo().performClick()
         waitFor("It frees 5 MB")
         compose.onNodeWithText("Delete").performClick()
-        idleUntil { podcasts.voice(7) == null }
+        compose.idleUntil { podcasts.voice(7) == null }
         assertTrue(install.complete)
         assertEquals(ListenVoice.PODCAST, runBlocking { store.current() }.listenVoice)
         // Nothing left to delete: the button goes.
-        idleUntil { compose.onAllNodes(hasText("Delete all audio")).fetchSemanticsNodes().isEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasText("Delete all audio")).fetchSemanticsNodes().isEmpty() }
     }
 
     @Test
@@ -264,7 +264,7 @@ class PodcastSettingsTest {
         val vm = show()
         openVoicesAndAudio()
         compose.onNodeWithText("Remove Kokoro").performScrollTo().performClick()
-        idleUntil { vm.settings.value?.podcastPace == null }
+        compose.idleUntil { vm.settings.value?.podcastPace == null }
         waitFor("Speed")
         compose.onNodeWithText("Your phone's voice").assertIsSelected()
         assertFalse(install.dir.exists())
@@ -282,7 +282,7 @@ class PodcastSettingsTest {
         waitFor("Run started (try 1)")
 
         compose.onNodeWithText("Share").performClick()
-        idleUntil { compose.waitForIdle(); shadowOf(context).peekNextStartedActivity() != null }
+        compose.idleUntil { shadowOf(context).peekNextStartedActivity() != null }
 
         val chooser = shadowOf(context).peekNextStartedActivity()!!
         val send = chooser.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
@@ -321,7 +321,7 @@ class PodcastSettingsTest {
         work.value = WorkInfo(UUID.randomUUID(), WorkInfo.State.FAILED, emptySet(), outputData = workDataOf(PodcastSetup.ERROR to "Couldn't download Kokoro."))
         waitFor("Couldn't download Kokoro.")
         compose.onNodeWithText("Your phone's voice").performScrollTo().performClick()
-        idleUntil { compose.onAllNodes(hasText("Couldn't download Kokoro.")).fetchSemanticsNodes().isEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasText("Couldn't download Kokoro.")).fetchSemanticsNodes().isEmpty() }
     }
 
     @Test

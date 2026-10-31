@@ -86,8 +86,8 @@ class FeedsFromTest {
     @After fun stopStore() = stopStores(storeScope)
 
     private fun visible(text: String) = compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
-    private fun waitFor(text: String) = idleUntil { compose.waitForIdle(); visible(text) }
-    private fun waitGone(text: String) = idleUntil { compose.waitForIdle(); !visible(text) }
+    private fun waitFor(text: String) = compose.idleUntil { visible(text) }
+    private fun waitGone(text: String) = compose.idleUntil { !visible(text) }
 
     /** Settings from its summary, as the app shows it, with Back to the summary. */
     private fun showSettings(page: SettingsPage? = null): FeedsFromViewModel {
@@ -100,7 +100,7 @@ class FeedsFromTest {
                 else -> SettingsPageScreen(settingsVm, p, onBack = { open = null }, feedsFrom = feedsVm)
             }
         }
-        idleUntil { settingsVm.settings.value != null }
+        compose.idleUntil { settingsVm.settings.value != null }
         return feedsVm
     }
 
@@ -129,9 +129,9 @@ class FeedsFromTest {
         val saved = SavedStateHandle()
         val first = FeedsFromViewModel(store, ttrss, saved = saved) {}
         first.openSignIn()
-        idleUntil { first.form.value != null }
+        compose.idleUntil { first.form.value != null }
         first.editSignIn(first.form.value!!.copy(address = "rss.example.com/tt-rss", user = "reader", password = "secret"))
-        idleUntil { "reader" in saved.keys().map { saved.get<Any?>(it) } }
+        compose.idleUntil { "reader" in saved.keys().map { saved.get<Any?>(it) } }
         assertFalse("never the password", "secret" in saved.keys().map { saved.get<Any?>(it) })
 
         val settingsVm = SettingsViewModel(store, ttrss.observeStatus()) {}
@@ -146,7 +146,7 @@ class FeedsFromTest {
         val restoredSaved = afterProcessDeath(saved)
         val again = FeedsFromViewModel(store, ttrss, saved = restoredSaved) {}
         again.closeSignIn()
-        idleUntil { "reader" !in restoredSaved.keys().map { restoredSaved.get<Any?>(it) } }
+        compose.idleUntil { "reader" !in restoredSaved.keys().map { restoredSaved.get<Any?>(it) } }
         assertEquals(null, FeedsFromViewModel(store, ttrss, saved = afterProcessDeath(restoredSaved)) {}.form.value)
     }
 
@@ -220,7 +220,7 @@ class FeedsFromTest {
         compose.onNodeWithText("I pick my own sites").performClick()
         waitFor("Stop using tt-rss")
         compose.onNodeWithText("Stop using tt-rss").performClick()
-        idleUntil { runBlocking { store.current().feedsFrom } == FeedsFrom.PHONE }
+        compose.idleUntil { runBlocking { store.current().feedsFrom } == FeedsFrom.PHONE }
         waitFor("2 feeds from tt-rss are on this phone now. 1 was here already. 1 feed had no address yet: add it in Sources.")
         val phone = runBlocking { db.sources().all() }.associateBy { it.url }
         assertEquals("the paper's feeds came; not one outside its category", setOf("https://blog.example/feed", "https://quiet.example/feed", "https://www.both.example/feed/"), phone.keys)
@@ -269,9 +269,9 @@ class FeedsFromTest {
         showSettings(SettingsPage.FEEDS)
         waitFor("Until you do")
         compose.onNodeWithText("I pick my own sites").performClick()
-        idleUntil { runBlocking { store.current().feedsFrom } == FeedsFrom.PHONE }
+        compose.idleUntil { runBlocking { store.current().feedsFrom } == FeedsFrom.PHONE }
         compose.onNode(isDialog()).assertDoesNotExist()
-        idleUntil { runBlocking { accounts.load() } == StoredAccount.None }
+        compose.idleUntil { runBlocking { accounts.load() } == StoredAccount.None }
     }
 
     @Test
@@ -284,7 +284,7 @@ class FeedsFromTest {
         waitFor("Ideas")
         compose.onNodeWithText("Special").assertDoesNotExist()
         compose.onNodeWithText("Ideas").performClick()
-        idleUntil { compose.waitForIdle(); syncs == 1 && visible("Ideas") }
+        compose.idleUntil { syncs == 1 && visible("Ideas") }
         assertEquals(4, runBlocking { db.sources().byId(id)!!.ttrssCategoryId })
 
         compose.onNodeWithText("Mark read when they expire here").performScrollTo().performClick()
@@ -371,7 +371,7 @@ class FeedsFromTest {
         showSettings(SettingsPage.FEEDS)
         waitFor("Paused: nothing comes from your tt-rss")
         compose.onNodeWithText("Resume").performScrollTo().performClick()
-        idleUntil { runBlocking { db.sources().byId(id)!!.paused } == false }
+        compose.idleUntil { runBlocking { db.sources().byId(id)!!.paused } == false }
         waitGone("Paused: nothing comes from your tt-rss")
         assertEquals(1, syncs)
     }

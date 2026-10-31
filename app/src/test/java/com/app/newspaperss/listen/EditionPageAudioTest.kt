@@ -120,9 +120,9 @@ class EditionPageAudioTest {
             val id = edition("Edition${n++}", case.status, case.error, case.withFile)
             make(id)
             vm = viewModels.add(EditionDetailViewModel(repo, id) {})
-            idleUntil { compose.waitForIdle(); shown("Contents") }
+            compose.idleUntil { shown("Contents") }
             if (case.line) {
-                idleUntil { shown(says) }
+                compose.idleUntil { shown(says) }
             } else {
                 compose.waitForIdle()
                 assertEquals(label, false, shown("audio"))

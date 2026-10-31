@@ -36,7 +36,7 @@ class ReadingListScreenTest {
     @get:Rule val compose = createComposeRule()
     private val app = ApplicationProvider.getApplicationContext<TestApp>()
 
-    private fun waitFor(text: String) = idleUntil {
+    private fun waitFor(text: String) = compose.idleUntil {
         compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
     }
 
@@ -130,7 +130,7 @@ class ReadingListScreenTest {
         compose.waitForIdle()
         assertEquals("settled on the way out", null, vm.removed.value)
 
-        idleUntil { runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.isEmpty() }
+        compose.idleUntil { runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.isEmpty() }
     }
 
     @Test
@@ -144,9 +144,9 @@ class ReadingListScreenTest {
         compose.onNodeWithContentDescription("Remove One").performClick()
         // A second removal settles the first; leaving settles the second.
         compose.onNodeWithContentDescription("Remove Two").performClick()
-        idleUntil { runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.map { it.title } == listOf("Two") }
+        compose.idleUntil { runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.map { it.title } == listOf("Two") }
         vm.commitRemove()
-        idleUntil { runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.isEmpty() }
+        compose.idleUntil { runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.isEmpty() }
     }
 
     /** Moved by hand: the app going to the background and coming back. */
@@ -168,7 +168,7 @@ class ReadingListScreenTest {
 
         // Not left waiting: an edition made meanwhile would take it, and a killed app would bring it back.
         compose.runOnUiThread { owner.registry.currentState = Lifecycle.State.CREATED }
-        idleUntil { runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.isEmpty() }
+        compose.idleUntil { runBlocking { app.container.db.articles().allForSource(list.sourceId()) }.isEmpty() }
         assertEquals(null, vm.removed.value)
 
         compose.runOnUiThread { owner.registry.currentState = Lifecycle.State.RESUMED }
