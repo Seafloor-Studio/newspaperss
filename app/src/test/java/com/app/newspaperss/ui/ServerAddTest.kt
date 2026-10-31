@@ -6,7 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -96,7 +96,7 @@ class ServerAddTest {
     }
 
     private fun visible(text: String) = compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
-    private fun waitFor(text: String) = idleUntil { compose.waitForIdle(); visible(text) }
+    private fun waitFor(text: String) = compose.idleUntil { visible(text) }
 
     /** Signed in to a tt-rss with Science and News, in the server setup; a site with a feed to add. */
     private fun signedIn(): Long = runBlocking {
@@ -121,7 +121,7 @@ class ServerAddTest {
         shown = vm
         if (!contentSet) compose.setContent { shown?.let { SourcesScreen(it) } }
         contentSet = true
-        idleUntil { compose.waitForIdle(); vm.screen.value?.server != null }
+        compose.idleUntil { vm.screen.value?.server != null }
         return vm
     }
 
@@ -132,7 +132,7 @@ class ServerAddTest {
     }
 
     private fun pick(category: String) {
-        idleUntil { compose.waitForIdle(); compose.onAllNodes(hasContentDescription("Category, ", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("Category, ", substring = true)).fetchSemanticsNodes().isNotEmpty() }
         compose.onNode(hasContentDescription("Category, ", substring = true)).performClick()
         compose.onNodeWithText(category).performClick()
         compose.onNodeWithText("Done").performClick()
@@ -144,17 +144,17 @@ class ServerAddTest {
         val first = SourcesViewModel(sources, FeedFinder(http), saved = saved) {}
         first.openAdd()
         first.editInput("science.example")
-        idleUntil { "science.example" in saved.keys().map { saved.get<Any?>(it) } }
+        compose.idleUntil { "science.example" in saved.keys().map { saved.get<Any?>(it) } }
 
         // What Android keeps of it, read back by the new process's view model.
         val restored = SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) })
         val vm = SourcesViewModel(sources, FeedFinder(http), saved = restored) {}
         compose.setContent { SourcesScreen(vm) }
-        idleUntil { compose.waitForIdle(); compose.onAllNodes(hasSetTextAction() and hasText("science.example")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasSetTextAction() and hasText("science.example")).fetchSemanticsNodes().isNotEmpty() }
 
         // Closing the dialog lets it go, so it isn't back the next time.
         vm.closeAdd()
-        idleUntil { restored.keys().none { restored.get<Any?>(it) == "science.example" } }
+        compose.idleUntil { restored.keys().none { restored.get<Any?>(it) == "science.example" } }
     }
 
     @Test
@@ -163,10 +163,10 @@ class ServerAddTest {
         val vm = SourcesViewModel(sources, FeedFinder(http), ttrss, settings = settings, subscriptions = subscriptions) {}
         val restoration = StateRestorationTester(compose)
         restoration.setContent { SourcesScreen(vm) }
-        idleUntil { compose.waitForIdle(); vm.screen.value?.server != null }
+        compose.idleUntil { vm.screen.value?.server != null }
         add("science.example")
         waitFor("Subscribe in your tt-rss")
-        idleUntil { compose.waitForIdle(); compose.onAllNodes(hasContentDescription("Category, ", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("Category, ", substring = true)).fetchSemanticsNodes().isNotEmpty() }
         compose.onNode(hasContentDescription("Category, ", substring = true)).performClick()
         waitFor("Science")
 
@@ -196,13 +196,13 @@ class ServerAddTest {
         waitFor("Science Weekly")
         assertTrue("its row, under Science", visible("Science") && visible("Not fetched by tt-rss yet"))
         // Saved by its own coroutine, apart from tt-rss's answer.
-        idleUntil { runBlocking { settings.current().lastCategoryId } == 4 }
+        compose.idleUntil { runBlocking { settings.current().lastCategoryId } == 4 }
 
         compose.onNodeWithText("Undo").performClick()
         waitFor("Took Science Weekly out of your tt-rss.")
         assertEquals(1, server.unsubscribed.size)
         assertTrue(server.feeds.values.none { it.url == feedUrl })
-        idleUntil { compose.waitForIdle(); !visible("Not fetched by tt-rss yet") }
+        compose.idleUntil { !visible("Not fetched by tt-rss yet") }
         assertNull(runBlocking { ttrss.feedAt(feedUrl) })
     }
 
@@ -218,7 +218,7 @@ class ServerAddTest {
         val vm = SourcesViewModel(sources, FeedFinder(http), ttrss, settings = settings, subscriptions = subscriptions) {}
         val owner = Owner()
         compose.setContent { CompositionLocalProvider(LocalLifecycleOwner provides owner) { SourcesScreen(vm) } }
-        idleUntil { compose.waitForIdle(); vm.screen.value?.server != null }
+        compose.idleUntil { vm.screen.value?.server != null }
         add("science.example")
         pick("Science")
         compose.onNodeWithText("Subscribe").performClick()
@@ -245,12 +245,12 @@ class ServerAddTest {
         compose.onNodeWithText("Subscribe").performClick()
         waitFor("Added to your tt-rss, in News.")
         // The next dialog reads the category last used, saved apart from tt-rss's answer.
-        idleUntil { runBlocking { settings.current().lastCategoryId } == 5 }
+        compose.idleUntil { runBlocking { settings.current().lastCategoryId } == 5 }
 
         http.page("https://other.example/rss", rss("Other", "1" to "Story"))
         add("other.example/rss")
         waitFor("Subscribe in your tt-rss")
-        idleUntil { compose.waitForIdle(); (vm.add.value as? AddState.Subscribing)?.categories != null }
+        compose.idleUntil { (vm.add.value as? AddState.Subscribing)?.categories != null }
         compose.onNodeWithContentDescription("Category, News").assertExists()
     }
 
@@ -268,7 +268,7 @@ class ServerAddTest {
         assertTrue(visible("Science Weekly is in Science."))
         assertTrue(server.subscribed.isEmpty())
         compose.onNodeWithText("OK").performClick()
-        idleUntil { compose.waitForIdle(); !visible("Already in your tt-rss") }
+        compose.idleUntil { !visible("Already in your tt-rss") }
     }
 
     @Test
@@ -305,7 +305,7 @@ class ServerAddTest {
         add("aldaily.com")
         waitFor("A curated list")
         compose.onNodeWithText("Add Arts & Letters Daily").performClick()
-        idleUntil { runBlocking { db.sources().all() }.any { it.kind == SourceKind.LIST } }
+        compose.idleUntil { runBlocking { db.sources().all() }.any { it.kind == SourceKind.LIST } }
         assertTrue(server.subscribed.isEmpty())
     }
 
@@ -317,7 +317,7 @@ class ServerAddTest {
         val vm = show()
         add("science.example/2026/10/comet")
         waitFor("Subscribe in your tt-rss")
-        idleUntil { compose.waitForIdle(); (vm.add.value as? AddState.Subscribing)?.categories != null }
+        compose.idleUntil { (vm.add.value as? AddState.Subscribing)?.categories != null }
         compose.onNodeWithText("Subscribe").performClick()
         waitFor("tt-rss couldn't fetch it")
         assertTrue(visible("tt-rss couldn't download it.") && visible("Some sites block servers"))
@@ -335,7 +335,7 @@ class ServerAddTest {
         val vm = show()
         add("science.example")
         waitFor("Subscribe in your tt-rss")
-        idleUntil { compose.waitForIdle(); (vm.add.value as? AddState.Subscribing)?.categories != null }
+        compose.idleUntil { (vm.add.value as? AddState.Subscribing)?.categories != null }
         compose.onNodeWithText("Subscribe").performClick()
         waitFor("tt-rss didn't add it")
         assertTrue(visible("Your tt-rss is too old to add feeds from NewspapeRSS."))
@@ -350,13 +350,13 @@ class ServerAddTest {
         val vm = show()
         add("science.example")
         waitFor("Subscribe in your tt-rss")
-        idleUntil { compose.waitForIdle(); (vm.add.value as? AddState.Subscribing)?.categories != null }
+        compose.idleUntil { (vm.add.value as? AddState.Subscribing)?.categories != null }
         compose.onNodeWithText("Subscribe").performClick()
         // A second tap, as on a slow e-ink screen, finds nothing left to do.
         vm.subscribeInTtrss()
         waitFor("Asking tt-rss to subscribe…")
         compose.onNodeWithText("Close").performClick()
-        idleUntil { compose.waitForIdle(); !visible("Asking tt-rss") }
+        compose.idleUntil { !visible("Asking tt-rss") }
 
         gate.complete(Unit)
         waitFor("Added to your tt-rss, in Uncategorized.")
@@ -370,14 +370,14 @@ class ServerAddTest {
         server.subscribeCode = 5
         val first = show()
         add("science.example")
-        idleUntil { compose.waitForIdle(); (first.add.value as? AddState.Subscribing)?.categories != null }
+        compose.idleUntil { (first.add.value as? AddState.Subscribing)?.categories != null }
         val gate = CompletableDeferred<Unit>()
         server.subscribeGate = gate
         first.subscribeInTtrss()
         shown = null
         compose.waitForIdle()
         gate.complete(Unit)
-        idleUntil { subscriptions.results.value.isNotEmpty() }
+        compose.idleUntil { subscriptions.results.value.isNotEmpty() }
 
         show()
         waitFor("tt-rss didn't add Science Weekly. tt-rss couldn't download it.")
@@ -399,7 +399,7 @@ class ServerAddTest {
         http.page("https://science.example", """<html><head><link rel="alternate" type="application/rss+xml" title="Science Weekly" href="/feed"></head></html>""")
         val vm = SourcesViewModel(sources, FeedFinder(http), ttrss, settings = settings, subscriptions = subscriptions) {}
         compose.setContent { SourcesScreen(vm) }
-        idleUntil { compose.waitForIdle(); vm.screen.value != null }
+        compose.idleUntil { vm.screen.value != null }
         compose.onNodeWithContentDescription("More options").performClick()
         assertTrue(visible("Import from another reader (OPML)") && visible("Export your sites (OPML)"))
 
@@ -407,7 +407,7 @@ class ServerAddTest {
         assertFalse(visible("It goes into your tt-rss"))
         compose.onNode(hasSetTextAction()).performTextInput("science.example")
         compose.onNodeWithText("Add").performClick()
-        idleUntil { runBlocking { db.sources().all() }.any { it.url == feedUrl } }
+        compose.idleUntil { runBlocking { db.sources().all() }.any { it.url == feedUrl } }
         assertTrue("a phone feed, nothing asked of tt-rss", server.subscribed.isEmpty())
     }
 
@@ -416,7 +416,7 @@ class ServerAddTest {
         signedIn()
         show()
         add("science.example")
-        idleUntil { compose.waitForIdle(); compose.onAllNodes(hasContentDescription("Category, ", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("Category, ", substring = true)).fetchSemanticsNodes().isNotEmpty() }
         compose.onNode(hasContentDescription("Category, ", substring = true)).performClick()
         compose.onNodeWithText("News").performClick()
         Espresso.pressBack()
@@ -431,12 +431,12 @@ class ServerAddTest {
         server.subscribeGate = gate
         val vm = show()
         add("science.example")
-        idleUntil { compose.waitForIdle(); (vm.add.value as? AddState.Subscribing)?.categories != null }
+        compose.idleUntil { (vm.add.value as? AddState.Subscribing)?.categories != null }
         compose.onNodeWithText("Subscribe").performClick()
         compose.onNodeWithText("Close").performClick()
         compose.onNodeWithText("Add a site", useUnmergedTree = true).performClick()
         gate.complete(Unit)
-        idleUntil { compose.waitForIdle(); subscriptions.results.value.isEmpty() && vm.notices.value.isNotEmpty() }
+        compose.idleUntil { subscriptions.results.value.isEmpty() && vm.notices.value.isNotEmpty() }
         assertFalse(visible("Added to your tt-rss"))
 
         compose.onNodeWithText("Cancel").performClick()

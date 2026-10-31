@@ -2,7 +2,7 @@ package com.app.newspaperss.ui
 
 import com.app.newspaperss.testutil.TestDataStores
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -116,7 +116,7 @@ class TtrssFeedsTest {
         runBlocking { repo.addList(com.app.newspaperss.core.lists.CuratedLists.all.first()) }
         val vm = sources(FeedsFrom.SERVER)
         compose.setContent { SourcesScreen(vm) }
-        idleUntil { compose.waitForIdle(); visible("Quarterly Review") }
+        compose.idleUntil { visible("Quarterly Review") }
 
         compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Left out"))
         compose.waitForIdle()
@@ -129,21 +129,21 @@ class TtrssFeedsTest {
         account()
         val vm = sources(FeedsFrom.SERVER)
         compose.setContent { SourcesScreen(vm) }
-        idleUntil { compose.waitForIdle(); visible("The Bay Dispatch") }
+        compose.idleUntil { visible("The Bay Dispatch") }
 
         compose.onNode(isHeading("News, 2 feeds")).assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Expanded")).performClick()
-        idleUntil { compose.waitForIdle(); !visible("The Bay Dispatch") }
+        compose.idleUntil { !visible("The Bay Dispatch") }
         assertFalse(visible("Morning Wire"))
         assertTrue("the others stay open", visible("Quarterly Review") && visible("Garden Log"))
         compose.onNode(isHeading("News, 2 feeds")).assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Collapsed"))
         assertEquals("kept for next time", setOf("News"), runBlocking { settings.current().foldedCategories })
 
         compose.onNode(isHeading("Uncategorized, 2 feeds")).performClick()
-        idleUntil { compose.waitForIdle(); !visible("Garden Log") }
+        compose.idleUntil { !visible("Garden Log") }
         assertEquals("Uncategorized is folded by its own key", setOf("News", ""), runBlocking { settings.current().foldedCategories })
 
         compose.onNode(isHeading("News, 2 feeds")).performClick()
-        idleUntil { compose.waitForIdle(); visible("The Bay Dispatch") && visible("Morning Wire") }
+        compose.idleUntil { visible("The Bay Dispatch") && visible("Morning Wire") }
         assertEquals(setOf(""), runBlocking { settings.current().foldedCategories })
     }
 
@@ -165,7 +165,7 @@ class TtrssFeedsTest {
         compose.setContent {
             SourcesScreen(vm, onOpenFeed = { id, key -> feed = id to key }, onOpenLeftOut = { leftOut = it })
         }
-        idleUntil { compose.waitForIdle(); visible("Quarterly Review") }
+        compose.idleUntil { visible("Quarterly Review") }
 
         assertEquals(
             "A to Z, Uncategorized last, holding the feeds with no category too",
@@ -203,20 +203,20 @@ class TtrssFeedsTest {
         var settingsOpened = false
         compose.setContent { SourcesScreen(vm, onOpenAccount = { settingsOpened = true }) }
         // The banner draws at once; the list once the folded categories have been read.
-        idleUntil { compose.waitForIdle(); visible("⚠ Couldn't reach tt-rss.") && visible("Quarterly Review") }
+        compose.idleUntil { visible("⚠ Couldn't reach tt-rss.") && visible("Quarterly Review") }
         assertTrue("it says what's listed is from before", visible("Showing what it last listed."))
         compose.onNodeWithContentDescription("Your tt-rss settings").performClick()
         assertTrue(settingsOpened)
 
         runBlocking { db.sources().recordSuccess(account, Instant.now(), null, null, SourceRepository.TTRSS_TITLE) }
-        idleUntil { compose.waitForIdle(); !visible("Couldn't reach") }
+        compose.idleUntil { !visible("Couldn't reach") }
         assertFalse(visible("Settings"))
 
         runBlocking { db.sources().setPaused(account, true) }
-        idleUntil { compose.waitForIdle(); visible("Your tt-rss is paused") }
+        compose.idleUntil { visible("Your tt-rss is paused") }
         runBlocking { db.sources().setServerNote(account, "Couldn't mark articles read") }
         runBlocking { db.sources().setPaused(account, false) }
-        idleUntil { compose.waitForIdle(); visible("⚠ Couldn't mark articles read") }
+        compose.idleUntil { visible("⚠ Couldn't mark articles read") }
     }
 
     @Test
@@ -225,7 +225,7 @@ class TtrssFeedsTest {
         runBlocking { repo.addFeed("https://phone.example/feed", "A phone feed") }
         val vm = sources(FeedsFrom.PHONE)
         compose.setContent { SourcesScreen(vm) }
-        idleUntil { compose.waitForIdle(); visible("A phone feed") }
+        compose.idleUntil { visible("A phone feed") }
         assertNull(vm.screen.value!!.server)
         assertEquals(listOf("A phone feed"), vm.screen.value!!.rows.map { it.source.title })
         assertFalse(visible("tt-rss"))
@@ -250,7 +250,7 @@ class TtrssFeedsTest {
         val vm = sources(FeedsFrom.SERVER)
         var notIn: Long? = null
         compose.setContent { SourcesScreen(vm, onOpenNotInPaper = { notIn = it }) }
-        idleUntil { compose.waitForIdle(); visible("Not in your paper") }
+        compose.idleUntil { visible("Not in your paper") }
 
         assertTrue(visible("Outside News") && visible("3 feeds"))
         compose.onNodeWithText("Outside News").performClick()
@@ -258,7 +258,7 @@ class TtrssFeedsTest {
 
         // Until the next list, the feeds known are the old category's: none are shown as in the paper.
         runBlocking { db.sources().setTtrssCategory(account, 4, "Science") }
-        idleUntil { compose.waitForIdle(); visible("Your feeds in Science show here after the next check.") }
+        compose.idleUntil { visible("Your feeds in Science show here after the next check.") }
         assertFalse(visible("Quarterly Review"))
         assertFalse(visible("Outside News"))
         assertTrue("a left-out feed can still be brought back", visible("Left out") && visible("1 feed"))
@@ -277,7 +277,7 @@ class TtrssFeedsTest {
         var opened = false
         compose.setContent { NotInPaperScreen(vm, onBack = {}, onOpenAccount = { opened = true }) }
         // The list and the hint come from separate queries.
-        idleUntil { compose.waitForIdle(); visible("2 feeds: Deep Time (left out), Field Station") && visible("Your paper takes articles from News only") }
+        compose.idleUntil { visible("2 feeds: Deep Time (left out), Field Station") && visible("Your paper takes articles from News only") }
         compose.onNodeWithText("Change Articles from in Settings").performClick()
         assertTrue(opened)
     }
@@ -300,7 +300,7 @@ class TtrssFeedsTest {
         val account = account()
         val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = "7"))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
-        idleUntil { compose.waitForIdle(); visible("In your tt-rss · category Essays") }
+        compose.idleUntil { visible("In your tt-rss · category Essays") }
 
         assertTrue(visible("quarterly.example"))
         assertEquals("only this feed's articles", setOf("7"), vm.detail.value!!.articles.map { it.originId }.toSet())
@@ -309,33 +309,33 @@ class TtrssFeedsTest {
         assertFalse("no Pause or Remove: those are the account's", visible("Pause"))
 
         compose.onNodeWithContentDescription("More articles from this site").performClick()
-        idleUntil { runBlocking { db.sources().publication(account, "7")!!.maxArticles } == 2 }
+        compose.idleUntil { runBlocking { db.sources().publication(account, "7")!!.maxArticles } == 2 }
 
         compose.onNodeWithText("Article text").performClick()
         compose.onNodeWithText("Always fetch the full page").performClick()
-        idleUntil { runBlocking { db.sources().publication(account, "7")!!.chosenMode } == ContentMode.PAGE }
-        idleUntil { compose.waitForIdle(); visible("Full page") }
+        compose.idleUntil { runBlocking { db.sources().publication(account, "7")!!.chosenMode } == ContentMode.PAGE }
+        compose.idleUntil { visible("Full page") }
 
         compose.onNodeWithText("Leave out of the paper").performClick()
-        idleUntil { compose.waitForIdle(); visible("its waiting articles go") }
+        compose.idleUntil { visible("its waiting articles go") }
         compose.onNodeWithText("Leave out").performClick()
-        idleUntil { compose.waitForIdle(); visible("Left out of the paper") }
+        compose.idleUntil { visible("Left out of the paper") }
         val left = runBlocking { db.sources().publication(account, "7")!! }
         assertTrue(left.leftOut)
         assertEquals("its settings stay for when it comes back", 2, left.maxArticles)
         // Left out, its other settings are hidden, and the row says only that.
-        idleUntil { compose.waitForIdle(); !visible("Article text") }
+        compose.idleUntil { !visible("Article text") }
         compose.onNodeWithContentDescription("This site's settings: Left out").assertExists()
 
         compose.onNodeWithText("Bring back").performClick()
-        idleUntil { runBlocking { db.sources().publication(account, "7")!!.leftOut } == false }
-        idleUntil { compose.waitForIdle(); visible("Article text") }
+        compose.idleUntil { runBlocking { db.sources().publication(account, "7")!!.leftOut } == false }
+        compose.idleUntil { visible("Article text") }
         compose.onNodeWithContentDescription("This site's settings: Full page · At most 2 articles").assertExists()
     }
 
     private fun openSettings() {
         compose.onNode(hasContentDescription("This site's settings:", substring = true)).performClick()
-        idleUntil { compose.waitForIdle(); visible("This site's settings") }
+        compose.idleUntil { visible("This site's settings") }
     }
 
     /** Skipping paid posts is each feed's own: its page has the switch, the account's page doesn't. */
@@ -345,12 +345,12 @@ class TtrssFeedsTest {
         runBlocking { repo.markPaidOnly(db.articles().allForSource(account).first { it.originId == "7" }.id, skip = false) }
         val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = "7"))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
-        idleUntil { compose.waitForIdle(); visible("In your tt-rss") }
+        compose.idleUntil { visible("In your tt-rss") }
         openSettings()
-        idleUntil { compose.waitForIdle(); visible("Skip paid posts with nothing free") }
+        compose.idleUntil { visible("Skip paid posts with nothing free") }
 
         compose.onNodeWithText("Skip paid posts with nothing free").performClick()
-        idleUntil { runBlocking { db.sources().publication(account, "7")!!.skipPaidPosts } }
+        compose.idleUntil { runBlocking { db.sources().publication(account, "7")!!.skipPaidPosts } }
         assertFalse(runBlocking { db.sources().publication(account, "8")!!.skipPaidPosts })
     }
 
@@ -361,9 +361,9 @@ class TtrssFeedsTest {
         runBlocking { repo.setSkipPaidPosts(account, "42", true) }
         val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = "42"))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
-        idleUntil { compose.waitForIdle(); visible("Left out of the paper") }
+        compose.idleUntil { visible("Left out of the paper") }
         openSettings()
-        idleUntil { compose.waitForIdle(); visible("Bring back") }
+        compose.idleUntil { visible("Bring back") }
         assertFalse(visible("Skip paid posts"))
     }
 
@@ -374,14 +374,14 @@ class TtrssFeedsTest {
         var opened: String? = null
         var back = false
         compose.setContent { LeftOutScreen(vm, onBack = { back = true }, onOpenFeed = { opened = it }) }
-        idleUntil { compose.waitForIdle(); visible("Press Office") }
+        compose.idleUntil { visible("Press Office") }
 
         assertFalse(visible("Quarterly Review"))
         compose.onNodeWithText("Press Office").performClick()
         assertEquals("42", opened)
 
         runBlocking { repo.remove(db.sources().byId(account)!!) }
-        idleUntil { compose.waitForIdle(); back }
+        compose.idleUntil { back }
     }
 
     /** The banner names the feeds tt-rss can't fetch, so they're found under folded categories too. */

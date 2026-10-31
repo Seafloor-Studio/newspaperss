@@ -7,7 +7,7 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -69,7 +69,7 @@ class SourcesScreenTest {
         waitFor("No sources yet")
     }
 
-    private fun waitFor(text: String, present: Boolean = true) = idleUntil {
+    private fun waitFor(text: String, present: Boolean = true) = compose.idleUntil {
         compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty() == present
     }
 

@@ -7,7 +7,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -68,7 +68,7 @@ class SourceLinksTest {
     private fun show(id: Long, key: String = PublicationEntity.OWN, until: String) {
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1), key = key))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
-        idleUntil { compose.waitForIdle(); visible(until) }
+        compose.idleUntil { visible(until) }
     }
 
     @Test
@@ -118,7 +118,7 @@ class SourceLinksTest {
         compose.onNodeWithText("Feed: example.com/weekly/rss.xml").performClick()
 
         assertEquals("https://example.com/weekly/rss.xml", copied())
-        idleUntil { compose.waitForIdle(); visible("No browser here. Copied example.com/weekly/rss.xml") }
+        compose.idleUntil { visible("No browser here. Copied example.com/weekly/rss.xml") }
     }
 
     /** The feed line is small text: the space around it still takes the tap, up to 48dp. */
@@ -151,7 +151,7 @@ class SourceLinksTest {
 
         assertNull(opened())
         assertEquals("https://example.com/", copied())
-        idleUntil { compose.waitForIdle(); visible("Copied example.com") }
+        compose.idleUntil { visible("Copied example.com") }
     }
 
     @Test

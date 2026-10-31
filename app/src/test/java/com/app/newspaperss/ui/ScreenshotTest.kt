@@ -33,7 +33,7 @@ import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.isDialog
 import com.app.newspaperss.ui.components.LocalClock
@@ -200,7 +200,7 @@ class ScreenshotTest {
         compose.setContent { NewspaperssTheme { CompositionLocalProvider(LocalClock provides clock, LocalRippleConfiguration provides null, content = content) } }
         // Recomposing on each check: some screens only start loading part of what [ready] waits
         // for once they're drawn (Sources' folded categories).
-        idleUntil { compose.waitForIdle(); ready() }
+        compose.idleUntil { ready() }
         compose.waitForIdle()
         act()
         compose.waitForIdle()
@@ -272,7 +272,7 @@ class ScreenshotTest {
     /** At the import step, after the question was answered with another reader app. */
     private fun atTheImportStep(): OnboardingViewModel = onboarding().apply {
         next(); chooseDevice(Device.KOBO); next(); answer(FeedsAnswer.OTHER_APP)
-        idleUntil { state.value.step == Step.IMPORT }
+        compose.idleUntil { state.value.step == Step.IMPORT }
     }
 
     @Test
@@ -306,7 +306,7 @@ class ScreenshotTest {
     private fun onboardingOnThePhone(vm: OnboardingViewModel) = vm.apply {
         next(); chooseDevice(Device.KINDLE); editKindleEmail("name_abc123@kindle.com"); next()
         answer(FeedsAnswer.SITES)
-        idleUntil { state.value.step == Step.SOURCES }
+        compose.idleUntil { state.value.step == Step.SOURCES }
     }
 
     /** A site with no feed: its page can go to the reading list instead. */
@@ -350,7 +350,7 @@ class ScreenshotTest {
         OnboardingViewModel(store, SourceRepository(db, clock), FeedFinder(ttrssHttp), ttrss) {}.apply {
             next(); chooseDevice(Device.KINDLE); editKindleEmail("name_abc123@kindle.com"); next()
             answer(FeedsAnswer.SERVER)
-            idleUntil { state.value.step == Step.SIGN_IN }
+            compose.idleUntil { state.value.step == Step.SIGN_IN }
         }
 
     @Test
@@ -366,10 +366,10 @@ class ScreenshotTest {
             editSignIn(state.value.signIn.copy(address = "rss.example.com/tt-rss", user = server.user, password = "wrong"))
             signIn()
         }
-        idleUntil { vm.state.value.signIn.error != null }
+        compose.idleUntil { vm.state.value.signIn.error != null }
         vm.editSignIn(vm.state.value.signIn.copy(password = server.password))
         vm.signIn()
-        idleUntil { vm.state.value.signIn.error == TtrssRepository.REFUSED_SOON_AFTER }
+        compose.idleUntil { vm.state.value.signIn.error == TtrssRepository.REFUSED_SOON_AFTER }
         shoot("03b-onboarding-sign-in-too-soon") { OnboardingScreen(vm) }
     }
 
@@ -390,7 +390,7 @@ class ScreenshotTest {
             editSignIn(state.value.signIn.copy(address = "rss.example.com/tt-rss", user = server.user, password = server.password))
             signIn()
         }
-        idleUntil { vm.state.value.signedIn }
+        compose.idleUntil { vm.state.value.signedIn }
         vm.next()
         val readingList = com.app.newspaperss.ui.readinglist.ReadingListViewModel(com.app.newspaperss.data.ReadingListRepository(db, clock))
         shoot("03d-onboarding-extras") { OnboardingScreen(vm, readingList = readingList) }
@@ -671,7 +671,7 @@ class ScreenshotTest {
         }
         val (player, speaker) = listenPlayer(files)
         player.start(id, ListenPosition(0, 4))
-        idleUntil { player.state.value.script != null }
+        compose.idleUntil { player.state.value.script != null }
         speaker.startNext()
         val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock)) {}
         shoot("05c3-article-preview-listening", ready = { player.state.value.at.line == 4 && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
@@ -736,7 +736,7 @@ class ScreenshotTest {
         val readings = Readings(db, { Recordings() })
         val (player, speaker) = listenPlayer(files, readings)
         player.start(id, ListenPosition(page, 0))
-        idleUntil { player.state.value.script != null }
+        compose.idleUntil { player.state.value.script != null }
         speaker.startNext()
         val now = readings.at(id, page)?.let { ReadingSpeaker.Now(id, page, it, voiceInstead = false) }
         val title = player.state.value.pages[page].title
@@ -779,7 +779,7 @@ class ScreenshotTest {
         }
         val (player, speaker) = listenPlayer(files)
         player.start(id, ListenPosition(1, 6))
-        idleUntil { player.state.value.script != null }
+        compose.idleUntil { player.state.value.script != null }
         speaker.startNext()
         val now = ReadingSpeaker.Now(id, 1, Reading("https://example.com/knots.mp3", if (episode) 5_220 else 540, own = episode, bodyLine = 3, starts = listOf(0.0), episode = episode), voiceInstead = false).takeIf { recording }
         val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock), podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), reading = MutableStateFlow(now)) {}
@@ -1543,7 +1543,7 @@ class ScreenshotTest {
             install.finishDownload()
             runBlocking { store.update { it.copy(podcastPace = 1.2f) } }
             checked.value = null
-            idleUntil { compose.waitForIdle(); vm.kokoro.value is KokoroState.Ready }
+            compose.idleUntil { vm.kokoro.value is KokoroState.Ready }
         }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
     }
 
@@ -1590,7 +1590,7 @@ class ScreenshotTest {
             ready = { vm.kokoro.value is KokoroState.Ready },
             act = {
                 compose.onNodeWithText("Audio log").performScrollTo().performClick()
-                idleUntil { compose.onAllNodes(hasText("Stopped: unplugged", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+                compose.idleUntil { compose.onAllNodes(hasText("Stopped: unplugged", substring = true)).fetchSemanticsNodes().isNotEmpty() }
             },
             dialog = true,
         ) { NaturalVoiceScreen(vm, onBack = {}) }
@@ -1680,7 +1680,7 @@ class ScreenshotTest {
                 name, ready = { vm.screen.value?.server != null }, dialog = true,
                 act = {
                     act(vm)
-                    idleUntil { compose.waitForIdle(); state(vm) }
+                    compose.idleUntil { state(vm) }
                 },
             ) { SourcesScreen(vm) }
         } finally {
@@ -1704,7 +1704,7 @@ class ScreenshotTest {
     fun addingASiteWithAServerPickingACategory() =
         shootServerAdd("09b-add-server-category", categoriesLoaded) {
             it.typeAndFind("quantamagazine.org")
-            idleUntil { compose.waitForIdle(); categoriesLoaded(it) }
+            compose.idleUntil { categoriesLoaded(it) }
             compose.onNodeWithContentDescription("Category, Science").performClick()
         }
 
@@ -1712,7 +1712,7 @@ class ScreenshotTest {
     fun addingASiteWithAServerAsking() =
         shootServerAdd("09c-add-server-asking", { it.add.value is AddState.Asking }, server = { subscribeGate = CompletableDeferred() }) {
             it.typeAndFind("quantamagazine.org")
-            idleUntil { compose.waitForIdle(); categoriesLoaded(it) }
+            compose.idleUntil { categoriesLoaded(it) }
             it.subscribeInTtrss()
         }
 
@@ -1720,7 +1720,7 @@ class ScreenshotTest {
     fun addingASiteAlreadyInTtrss() =
         shootServerAdd("09d-add-server-already", { it.add.value is AddState.AlreadyIn }, server = { feeds[6] = FakeTtrss.Feed("Quanta Magazine", "https://www.quantamagazine.org/feed/", categoryId = 3) }) {
             it.typeAndFind("quantamagazine.org")
-            idleUntil { compose.waitForIdle(); categoriesLoaded(it) }
+            compose.idleUntil { categoriesLoaded(it) }
             it.subscribeInTtrss()
         }
 
@@ -1732,7 +1732,7 @@ class ScreenshotTest {
                 """<html><head><link rel="alternate" type="application/rss+xml" title="Quanta Magazine" href="https://www.quantamagazine.org/feed/"></head></html>""",
             )
             it.typeAndFind("https://www.quantamagazine.org/a-new-proof-20261001/")
-            idleUntil { compose.waitForIdle(); categoriesLoaded(it) }
+            compose.idleUntil { categoriesLoaded(it) }
             it.subscribeInTtrss()
         }
 
@@ -1766,9 +1766,9 @@ class ScreenshotTest {
                 "09g-add-server-added", ready = { vm.screen.value?.server != null },
                 act = {
                     vm.typeAndFind("quantamagazine.org")
-                    idleUntil { compose.waitForIdle(); categoriesLoaded(vm) }
+                    compose.idleUntil { categoriesLoaded(vm) }
                     vm.subscribeInTtrss()
-                    idleUntil { compose.waitForIdle(); compose.onAllNodes(hasText("Undo")).fetchSemanticsNodes().isNotEmpty() }
+                    compose.idleUntil { compose.onAllNodes(hasText("Undo")).fetchSemanticsNodes().isNotEmpty() }
                 },
             ) { SourcesScreen(vm) }
         } finally {
@@ -1814,7 +1814,7 @@ class ScreenshotTest {
                 name, ready = { vm.screen.value?.phoneFeeds != null }, dialog = dialog,
                 act = {
                     act(vm, moves, scope)
-                    idleUntil { compose.waitForIdle(); ready(vm) }
+                    compose.idleUntil { ready(vm) }
                 },
             ) { SourcesScreen(vm) }
         } finally {
@@ -1876,7 +1876,7 @@ class ScreenshotTest {
         }
         shoot(
             "10e-move-offer", ready = { feeds.offer.value != null && feeds.form.value == null },
-            act = { idleUntil { compose.waitForIdle(); compose.onAllNodes(hasText("Move 3")).fetchSemanticsNodes().isNotEmpty() } },
+            act = { compose.idleUntil { compose.onAllNodes(hasText("Move 3")).fetchSemanticsNodes().isNotEmpty() } },
         ) {
             SettingsPageScreen(settingsVm, SettingsPage.FEEDS, onBack = {}, feedsFrom = feeds)
         }
