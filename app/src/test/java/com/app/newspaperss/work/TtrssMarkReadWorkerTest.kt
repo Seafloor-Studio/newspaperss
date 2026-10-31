@@ -14,6 +14,7 @@ import com.app.newspaperss.data.EditionArticleEntity
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.data.SourceKind
+import com.app.newspaperss.data.connect
 import com.app.newspaperss.testutil.FakeTtrss
 import com.app.newspaperss.testutil.TestApp
 import com.app.newspaperss.testutil.idleUntil

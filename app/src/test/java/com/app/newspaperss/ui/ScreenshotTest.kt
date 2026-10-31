@@ -137,6 +137,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import com.app.newspaperss.data.TtrssSubscriptions
 import com.app.newspaperss.data.FeedMoves
+import com.app.newspaperss.data.connect
 import com.app.newspaperss.data.insertNew
 import com.app.newspaperss.ui.sources.PhoneFeeds
 import kotlinx.coroutines.launch

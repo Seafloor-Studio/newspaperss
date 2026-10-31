@@ -29,6 +29,7 @@ import com.app.newspaperss.data.SourceRepository
 import com.app.newspaperss.data.StoredAccount
 import com.app.newspaperss.data.TtrssAccountStore
 import com.app.newspaperss.data.TtrssRepository
+import com.app.newspaperss.data.connect
 import com.app.newspaperss.data.insertNew
 import com.app.newspaperss.settings.FeedsFrom
 import com.app.newspaperss.settings.SettingsStore

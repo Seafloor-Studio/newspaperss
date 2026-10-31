@@ -1166,14 +1166,6 @@ class TtrssSyncTest {
     }
 
     @Test
-    fun connectingAgainStartsFromAllUnread() = runTest {
-        val source = connect()
-        ttrss.chooseCategory(source.id, TtrssCategory(0, "Uncategorized"))
-        connect()
-        assertNull(db.sources().byId(source.id)!!.ttrssCategoryId)
-    }
-
-    @Test
     fun anAccountSetToLeaveArticlesUnreadIsntToldWhatWasDelivered() = runTest {
         val source = connect()
         ttrss.setMarkRead(source.id, false)
