@@ -1199,4 +1199,22 @@ class ListenAppTest {
         }
         idleUntil { compose.onAllNodesWithContentDescription("Play from the start").fetchSemanticsNodes().isNotEmpty() }
     }
+
+    /** The missing-voice note stays over the edition's other articles while the voice is on that one. */
+    @Test
+    fun theMissingVoiceNoteStaysWhileTheReaderTurnsToAnotherArticle() {
+        speaker.installed = setOf("en")
+        val id = edition("Édition", knots.copy(language = "fr"), lagos)
+        startAndWait(id)
+        player.pause()
+        compose.setContent(playing(id))
+        idleUntil { shown("Get a French voice") > 0 }
+        // Paused, the Next line turns only the page.
+        compose.onNode(androidx.compose.ui.test.hasScrollToIndexAction()).performScrollToNode(androidx.compose.ui.test.hasText("Next:", substring = true))
+        compose.onNodeWithText("Next:", substring = true).fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsActions.CustomActions]
+            .single { it.label.startsWith("Go to Next") }.let { next -> compose.runOnIdle { next.action() } }
+        idleUntil { shown("The drivers met in a car park.") > 0 }
+        assertEquals(0, player.state.value.at.page)
+        assertEquals(1, shown("Get a French voice"))
+    }
 }
