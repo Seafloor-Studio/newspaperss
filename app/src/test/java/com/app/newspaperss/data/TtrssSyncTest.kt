@@ -55,7 +55,7 @@ class TtrssSyncTest {
         assertEquals(server.apiUrl, source.url)
         assertEquals(SourceRepository.TTRSS_TITLE, source.title)
         assertEquals(StoredAccount.Ready(TtrssAccount(server.apiUrl, "reader", "secret")), accounts.load())
-        assertEquals("the test login is closed again", listOf("login", "logout"), server.ops)
+        assertEquals("the feed list read, and the login closed again", listOf("login", "getFeeds", "logout"), server.ops)
     }
 
     @Test

@@ -3,6 +3,12 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle T3 (31 Oct) — build: code only tests kept alive goes
+
+See [DEVLOG.md](DEVLOG.md). The last of the Tech debt cycles.
+- **Moving tests onto what the app calls finds what the app really does.** Two tests failed when switched, both on real differences: the build's query leaves out feed text, and the app's sign-in reads the feed list. Each was the test assuming the test-only path.
+- **A test-side extension with the removed function's name keeps 32 call sites unchanged;** only the import moves.
+
 ### Cycle T2 (31 Oct) — build: tt-rss sessions in one place
 
 See [DEVLOG.md](DEVLOG.md).
