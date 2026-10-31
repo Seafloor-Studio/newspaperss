@@ -109,8 +109,7 @@ class PodcastSettingsTest {
     /**
      * [idleUntil] for a view model's state, idling Compose too. The view model's flows only run
      * once the screen's effects subscribe to them, and those effects run on the Compose test
-     * rule's own dispatcher, which draining the main looper never advances. [waitFor] gets this
-     * from `fetchSemanticsNodes`.
+     * rule's own dispatcher, which draining the main looper never advances.
      */
     private fun settle(condition: () -> Boolean) = compose.idleUntil { condition() }
 
