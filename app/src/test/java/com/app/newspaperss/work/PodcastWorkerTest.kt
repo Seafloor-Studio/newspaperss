@@ -136,7 +136,7 @@ class PodcastWorkerTest {
 
         val again = WorkManager.getInstance(app).getWorkInfosForUniqueWork("podcast").get().filter { it.state == WorkInfo.State.ENQUEUED }
         assertEquals(1, again.size)
-        assertTrue(again.single().initialDelayMillis > 0)
+        assertEquals(5 * 60_000L, again.single().initialDelayMillis)
         assertEquals(1, noted("Run failed: java.lang.IllegalStateException; trying again in 5 min"))
     }
 
