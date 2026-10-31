@@ -548,7 +548,7 @@ class EditionBuilderTest {
     @Test
     fun aBuildWithNothingToPickLeavesNoEditionBehindToHoldTheButtons() = runTest {
         assertEquals(BuildResult.NothingNew, builder.build(EditionSettings()))
-        assertEquals(0, db.editions().observeAll().first().size)
+        assertEquals(0, EditionStatus.entries.sumOf { db.editions().withStatus(it).size })
         assertFalse(editions.observeBuilding().first())
     }
 
@@ -1383,7 +1383,7 @@ class EditionBuilderTest {
         db.articles().insertNew(listOf(post("a", true), post("b", true)))
 
         assertEquals(BuildResult.NothingNew, tuned.build(EditionSettings(minutes = 600, maxPerSource = 10)))
-        assertEquals("no failed edition left behind", 0, db.editions().observeAll().first().size)
+        assertEquals("no failed edition left behind", 0, EditionStatus.entries.sumOf { db.editions().withStatus(it).size })
     }
 
     private suspend fun paidSource(): Triple<EditionBuilder, Long, (String, Boolean) -> ArticleEntity> {
