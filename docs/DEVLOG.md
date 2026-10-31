@@ -16,6 +16,15 @@ caught, and what got in the way. Newest first. Times are Pacific.
   3. Once it's published, tell people where readers are (r/rss, r/androidapps): F-Droid's only early exception is "proven to have some users".
 - **Also waiting on you:** on a phone, ⋮ › Save a copy… on a sent edition, saved to Downloads, then opened from Files in an e-reader app (#338). The F-Droid merge request now has a date on it: **not before late December 2026**, three months of active development from this repository's first commit (29 Sep) — the one exception in reach is "proven to have some users", so readers on the GitHub APK are what moves it earlier. `docs/RELEASING.md` has the template's requirements. Also: two weeks of episode labels in real use (report a wrong one with Send for a look), and how the recordings sound in Listen; an `episodes` label on the repo; whether the `handle-issues` skill learns about "Episode label:" issues (claude-playground). [#18](https://github.com/Seafloor-Studio/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
 
+## Sat 31 Oct
+
+A few cycles on BACKLOG's Tech debt (T1–T3), as you asked: the larger cuts the 30 Oct audits left.
+
+### T1: the book writer's sections go
+- **Why:** every edition is one untitled section, but `EpubWriter` still drew section headings, a nested contents and nested NCX entries.
+- **Built:** `EditionDoc` takes a flat list of articles. The same four editions written before and after (pictures, Arabic, an untitled article, thirty articles, none) differ only in `style.css`, which lost the two section rules.
+- **Left:** PNG and GIF in the writer, which no edition uses either: about 10 lines against an interface change and 42 test edits, and the check keeps a picture's media type honest.
+
 ## Fri 30 Oct
 
 The 30 Oct cycle run (N1–N12, about every half hour): the test audit's gaps, then one view for reading and listening, then three architecture and simplification audits.

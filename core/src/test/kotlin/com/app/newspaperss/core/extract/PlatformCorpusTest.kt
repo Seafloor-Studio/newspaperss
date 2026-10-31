@@ -3,7 +3,6 @@ package com.app.newspaperss.core.extract
 import com.app.newspaperss.core.ReadingTime
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
-import com.app.newspaperss.core.epub.EditionSection
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.core.listen.pageProblems
 import java.io.ByteArrayOutputStream
@@ -185,7 +184,7 @@ class PlatformCorpusTest(private val post: Post, @Suppress("unused") private val
     fun itsPageHoldsAllItsTextAndSaysWhatItShows() {
         val doc = EditionDoc(
             "Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000099",
-            listOf(EditionSection(null, listOf(EditionArticle(title = article.title, sourceTitle = "Source", url = post.url, bodyHtml = article.html, minutes = ReadingTime.minutes(article.wordCount), author = article.author, note = article.note)))),
+            listOf(EditionArticle(title = article.title, sourceTitle = "Source", url = post.url, bodyHtml = article.html, minutes = ReadingTime.minutes(article.wordCount), author = article.author, note = article.note)),
         )
         val book = ByteArrayOutputStream().also { EpubWriter.write(doc, it) }.toByteArray()
         val page = ZipInputStream(book.inputStream()).use { zip ->
