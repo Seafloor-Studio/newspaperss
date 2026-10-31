@@ -880,6 +880,17 @@ class ScreenshotTest {
         }
     }
 
+    /** A video-only episode's transcript: the line says there's no audio to play. */
+    @Test
+    fun articlePreviewTranscriptNoAudio() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "Transcript: the ferry planner", sourceTitle = "The Example Letter", url = "https://example.com/ferry-transcript", bodyHtml = "<p>This week's guest plans ferries.</p>", minutes = 40.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05c2-article-preview-transcript-no-audio", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, episodeFor = { EpisodeJudgement(EpisodeKind.TRANSCRIPT, hasAudio = false, pairHasAudio = false) })
+        }
+    }
+
     /** Send for a look on an episode post: the second reason, a wrong label, picked. */
     @Test
     fun articlePreviewSendForALookLabel() {

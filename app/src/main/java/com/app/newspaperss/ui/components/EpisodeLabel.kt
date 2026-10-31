@@ -92,6 +92,8 @@ fun episodeNote(judgement: EpisodeJudgement): String? {
             if (hasAudio && recordings.playAtTheEnd) "Episode notes. Listen reads them, then plays the episode after the edition." else "Episode notes. Listen reads them."
         EpisodeKind.TRANSCRIPT -> (title?.let { "Transcript of $it." } ?: "Transcript of an episode.") + " " + when {
             !recordings.playEpisodes -> "Listen reads it."
+            // Where Listen looks for the episode: the post's own audio, or its notes post's.
+            !hasAudio && !(pairHasAudio && pair?.episodeKind == EpisodeKind.NOTES) -> "No episode audio found, so Listen reads it."
             preview != null -> "Its audio is a ${maxOf(1, (preview / 60.0).roundToInt())}-min preview, so Listen reads it."
             else -> "Listen plays the episode in its place when it can."
         }
