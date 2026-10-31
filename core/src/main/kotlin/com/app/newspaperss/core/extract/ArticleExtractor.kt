@@ -73,12 +73,15 @@ data class ExtractedArticle(
      */
     val notTheStory: Boolean = false,
     /**
-     * A post for paying subscribers, of which [html] is only the free part: the page said so, or the
-     * feed's text ended in Substack's "Read more" back to the post.
+     * A post for subscribers, of which [html] is only the free part: the page said so, or the
+     * feed's text ended in Substack's "Read more" back to the post. For paying subscribers unless
+     * [freeSignUp].
      */
     val paidPost: Boolean = false,
+    /** A [paidPost] whose rest opens with a free sign-up, not a payment. */
+    val freeSignUp: Boolean = false,
 ) {
-    /** A paid post with next to nothing free: a title and a picture, a sentence of preview. */
+    /** A [paidPost] with next to nothing free: a title and a picture, a sentence of preview. */
     val nothingFree: Boolean get() = paidPost && wordCount < ArticleExtractor.NOTHING_FREE_WORDS
 }
 
@@ -111,7 +114,8 @@ class ArticleExtractor(private val http: HttpClient) {
         // A paywalled page beside a full-length feed text is a subscriber's own feed: the article is whole.
         val wholeFeed = article.usedFeedContent && article.feedWordCount >= FULL_TEXT_WORDS && !feedTeaser
         if (!paywalled || wholeFeed) return article
-        return article.copy(paidPost = true, note = article.note ?: PAID_NOTE)
+        val freeSignUp = page?.content?.freeSignUp == true
+        return article.copy(paidPost = true, freeSignUp = freeSignUp, note = article.note ?: if (freeSignUp) SIGN_UP_NOTE else PAID_NOTE)
     }
 
     private suspend fun extract(input: ExtractInput, onPage: (PageResult.Fetched) -> Unit, onFeedTeaser: () -> Unit): ExtractedArticle {
@@ -425,6 +429,7 @@ class ArticleExtractor(private val http: HttpClient) {
         const val FULL_TEXT_WORDS = 300
         const val SHORT_STORY_NOTE = "Only the summary: the story's own page had little more to read."
         const val PAID_NOTE = "A post for paying subscribers: this is the part that's free."
+        const val SIGN_UP_NOTE = "A post for subscribers: signing up is free. This is the part that's open."
         /** Fewer words than this in a paid post's free part is next to nothing (see [ExtractedArticle.nothingFree]). */
         const val NOTHING_FREE_WORDS = 50
         private const val KEEP_FEED_RATIO = 0.7
