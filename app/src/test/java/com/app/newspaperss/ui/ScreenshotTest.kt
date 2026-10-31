@@ -107,7 +107,6 @@ import com.app.newspaperss.listen.StoredListenProgress
 import com.app.newspaperss.testutil.FakeSpeaker
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
-import com.app.newspaperss.core.epub.EditionSection
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.ui.edition.EditionDetailViewModel
 import com.app.newspaperss.ui.onboarding.OnboardingScreen
@@ -661,7 +660,7 @@ class ScreenshotTest {
         val files = tmp.newFolder()
         val article = FORMATTED
         File(files, "f.epub").outputStream().use {
-            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000013", listOf(EditionSection(null, listOf(article)))), it)
+            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000013", listOf(article)), it)
         }
         val id = runBlocking {
             val id = db.editions().insert(EditionEntity(title = "Thursday Morning Edition", status = EditionStatus.DELIVERED, fileName = "f.epub", articleCount = 1, minutes = 3.0))
@@ -719,7 +718,7 @@ class ScreenshotTest {
             EditionArticle(title = "Episode 48: Night trains", sourceTitle = "Rail Talk", url = "https://example.com/48", bodyHtml = "<p>Night trains are back.</p>", minutes = 1.0),
         )
         File(files, "e.epub").outputStream().use {
-            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000011", listOf(EditionSection(null, articles))), it)
+            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000011", articles), it)
         }
         val id = runBlocking {
             val show = db.sources().insert(SourceEntity(url = "https://example.com/show.xml", title = "The Example Show"))
@@ -767,7 +766,7 @@ class ScreenshotTest {
         ).map { (st, minutes) -> EditionArticle(title = st.second, sourceTitle = st.first, url = "https://example.com/x", bodyHtml = "<p>Text.</p>", minutes = minutes) }
         val articles = listOf(EditionArticle(title = "Flooding forces thousands from their homes in northern Italy", sourceTitle = "BBC News", url = "https://example.com/f", bodyHtml = "<p>Text.</p>", minutes = 3.0), knots) + others
         File(files, "l.epub").outputStream().use {
-            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000010", listOf(EditionSection(null, articles))), it)
+            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000010", articles), it)
         }
         val id = runBlocking {
             val id = db.editions().insert(EditionEntity(title = "Thursday Morning Edition", status = EditionStatus.DELIVERED, fileName = "l.epub", articleCount = articles.size, minutes = articles.sumOf { it.minutes }))

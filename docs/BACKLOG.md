@@ -139,8 +139,8 @@ From the N12 audit of sync and the data layer (30 Oct). Mostly lean; no reader-f
 - [ ] A link saved or shared over 4,000 characters isn't held to `RowLimits` as feed articles are. Nothing breaks (the row fits), and refusing it needs its own message ("already on your list" would be wrong), so left until a reader meets it.
 
 From the N11 audit of making an edition (30 Oct). The build flow itself (failure, cancellation, the commit, releasing unsent editions, the deadline) held up.
-- [ ] **Titled sections in the book are built for and never used:** every edition is one untitled section (`EditionBuilder` makes `EditionSection(null, …)`; DESIGN says no section headings), but `EpubWriter` still draws section headings, a nested contents and nested NCX entries. `EditionDoc(articles)` would cut about 35 lines with the book byte for byte the same; about 20 test call sites change, most through `testutil/Epubs.kt`. Do it with the next item.
-- [ ] **Only JPEG pictures are ever made** (`AndroidImageEncoder`, the cover), yet `ArticleImages`, `EpubWriter` and `EncodedImage.mediaType` allow PNG and GIF; tests are their only users. Drop with the sections, not alone: the check is cheap.
+- [x] **Titled sections in the book are built for and never used:** `EditionDoc` takes a flat list of articles; the book is byte for byte the same but for two unused CSS rules (cycle T1).
+- **Left as is (T1): only JPEG pictures are ever made, yet the writer allows PNG and GIF.** Dropping it would save about 10 lines and touch the encoder's interface and 42 test call sites, and lose the check that keeps a picture's media type honest in the book.
 - [ ] `Budget.Articles` and a null `maxPerSource` exist only for `EditionPlannerTest`; the app always budgets minutes with a cap.
 
 From the N10 audit of the article view and Listen (30 Oct). Read against the code; none is a bug a reader meets today.

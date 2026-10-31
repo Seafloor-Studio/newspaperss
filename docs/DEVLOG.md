@@ -22,6 +22,13 @@ caught, and what got in the way. Newest first. Times are Pacific.
 - **Why:** a Substack post for free subscribers went in as its 40-word opening, as if that were the whole post, with no note.
 - **Fixed:** Substack's "Subscribe for free to continue reading" box marks such a post; its open part has its own note ("signing up is free"), and the box is taken out of the article. madCode chose option C: the skip switch covers these posts too, renamed **Skip posts with nothing free**.
 
+A few cycles on BACKLOG's Tech debt (T1–T3), as you asked: the larger cuts the 30 Oct audits left.
+
+### T1: the book writer's sections go
+- **Why:** every edition is one untitled section, but `EpubWriter` still drew section headings, a nested contents and nested NCX entries.
+- **Built:** `EditionDoc` takes a flat list of articles. The same four editions written before and after (pictures, Arabic, an untitled article, thirty articles, none) differ only in `style.css`, which lost the two section rules.
+- **Left:** PNG and GIF in the writer, which no edition uses either: about 10 lines against an interface change and 42 test edits, and the check keeps a picture's media type honest.
+
 ## Fri 30 Oct
 
 The 30 Oct cycle run (N1–N12, about every half hour): the test audit's gaps, then one view for reading and listening, then three architecture and simplification audits.

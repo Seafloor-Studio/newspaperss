@@ -4,7 +4,6 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
-import com.app.newspaperss.core.epub.EditionSection
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.data.EditionArticleEntity
 import com.app.newspaperss.data.EditionEntity
@@ -41,7 +40,7 @@ class BookGoneTest {
     private fun edition(name: String, daysAgo: Long = 0): Long = runBlocking {
         val article = EditionArticle("Knots", "Quanta", "https://example.com/k", "<p>One. Two. Three.</p>", 1.0)
         File(dir, "$name.epub").outputStream().use {
-            EpubWriter.write(EditionDoc(name, LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000009", listOf(EditionSection(null, listOf(article)))), it)
+            EpubWriter.write(EditionDoc(name, LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000009", listOf(article)), it)
         }
         val made = Instant.parse("2026-10-30T06:00:00Z").minusSeconds(daysAgo * 86_400)
         val id = container.db.editions().insert(EditionEntity(title = name, createdAt = made, status = EditionStatus.DELIVERED, fileName = "$name.epub", articleCount = 1, minutes = 1.0))
