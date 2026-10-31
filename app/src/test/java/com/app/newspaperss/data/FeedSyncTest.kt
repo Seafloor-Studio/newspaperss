@@ -142,7 +142,7 @@ class FeedSyncTest {
         fun item(guid: String, html: String) = "<item><guid>$guid</guid><title>$guid</title><link>https://example.com/$guid</link><description><![CDATA[$html]]></description></item>"
         http.page(url, "<rss version=\"2.0\"><channel><title>Blog</title>${item("pictured", words + picture)}${item("long", "<p>${"word ".repeat(150_000)}</p>")}</channel></rss>")
         sync.syncAll()
-        val stored = db.articles().buildCandidates().associate { it.guid to it.feedHtml }
+        val stored = db.articles().buildCandidates().associate { it.guid to db.articles().feedHtml(it.id) }
         assertEquals("the inlined picture goes, the words stay", words + "<img src=\"\">", stored["pictured"])
         assertNull("too long even then: the page is fetched instead", stored["long"])
     }
