@@ -3,6 +3,12 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle T1 (31 Oct) — build: the book writer's sections go
+
+See [DEVLOG.md](DEVLOG.md).
+- **For a change that should leave output alone, compare the output, not only the tests.** A throwaway test wrote four editions with main's code and the branch's; `diff -r` on the unzipped books showed the one file that changed and why.
+- **Measure the second half of a planned cut before doing it.** PNG and GIF looked like part of the same job; counted, it was 10 lines for 42 test edits and a lost check, so it stayed.
+
 ### Cycle N12 (30 Oct) — audit: sync and the data layer
 
 See [DEVLOG.md](DEVLOG.md). The last of three architecture audits, and the run's stopping cycle.
