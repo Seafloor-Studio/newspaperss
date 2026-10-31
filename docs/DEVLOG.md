@@ -20,6 +20,11 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 A few cycles on BACKLOG's Tech debt (T1–T3), as you asked: the larger cuts the 30 Oct audits left.
 
+### T2: tt-rss sessions in one place
+- **Why:** ten places opened a tt-rss session and logged out by hand, `subscribe` twice and not at all if its first call threw.
+- **Built:** `TtrssClient.session { }` logs out however the block ends; the three paging loops share one request and one id parser; the account source and "still in the account" are one function and one property each.
+- **Size:** about the same (−7 lines ignoring indentation). The gain is that a new tt-rss call can't forget to log out.
+
 ### T1: the book writer's sections go
 - **Why:** every edition is one untitled section, but `EpubWriter` still drew section headings, a nested contents and nested NCX entries.
 - **Built:** `EditionDoc` takes a flat list of articles. The same four editions written before and after (pictures, Arabic, an untitled article, thirty articles, none) differ only in `style.css`, which lost the two section rules.

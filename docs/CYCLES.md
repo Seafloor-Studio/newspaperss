@@ -3,6 +3,12 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle T2 (31 Oct) — build: tt-rss sessions in one place
+
+See [DEVLOG.md](DEVLOG.md).
+- **An `inline` helper keeps a `try`'s early returns.** Wrapping ten try/finally blocks in a lambda would otherwise have needed each `return` rewritten; inline, they return from the caller as before.
+- **Not every simplification shrinks the code.** This one came out 7 lines shorter; say what it buys (the logout can't be forgotten) rather than count lines.
+
 ### Cycle T1 (31 Oct) — build: the book writer's sections go
 
 See [DEVLOG.md](DEVLOG.md).
