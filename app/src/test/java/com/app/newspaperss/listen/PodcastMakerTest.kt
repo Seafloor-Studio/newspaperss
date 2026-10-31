@@ -717,7 +717,7 @@ class PodcastMakerTest {
         val id = edition("Thursday", knots, lagos)
         request(id)
         encoderBrokenOn = "Quanta"
-        repeat(PodcastMaker.FAILURES - 1) { assertTrue(runCatching { make() }.exceptionOrNull() is IllegalStateException) }
+        repeat(PodcastMaker.FAILURES - 1) { assertTrue(runCatching { make() }.exceptionOrNull() is PodcastMaker.PageFailed) }
         assertFalse(store.settled(id, 0))
         make()
 

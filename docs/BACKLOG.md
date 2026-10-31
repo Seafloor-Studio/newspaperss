@@ -122,6 +122,7 @@ A full pass over the app and the book, not just spot fixes:
 
 ### Performance *(resources)*
 - [ ] A floor device: Android 8, 2 GB RAM, slow CPU and storage (a 2018 budget phone or an older Boox) *(you asked)*. Measured so far (#352, CI's `low-end` job, a debug build): cold start about 1 s, the first edition about 10 s, the app about 90 MB. Still to do: a full 30-minute edition rather than the first small one, timed editions under Doze on Android 8 (#352 measured Doze on Android 16), whether long lists and the preview stay smooth, and budgets set from the numbers
+- [ ] A natural-voice run that crawls *(you asked)*. On 31 Oct, after the process before it was killed for memory, Kokoro took 35 to 211 s a line (12 s of audio in 176 s), with heat headroom at 0.33, far below the 0.95 that stops a run. The failure that followed now gets a retry, but a run that slow can't finish a night. Spot it from seconds of work per second of audio, and stop and start again fresh, as the heat check does. Wait for a second log showing it before building it.
 
 ### Recurring reviews *(audit)*
 Whole-codebase passes for what a review of one PR can't see. Each follows the audit's pattern: fresh-eyes reviewers, each finding checked, a PR per area.
