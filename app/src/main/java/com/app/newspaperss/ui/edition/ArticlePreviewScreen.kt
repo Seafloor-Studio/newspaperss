@@ -213,11 +213,12 @@ fun ArticlePreviewScreen(
     var article by rememberSaveable(position) { mutableIntStateOf(position) }
     val open = book as? Book.Open
     val listenState = player?.state?.collectAsStateWithLifecycle()?.value
-    // Listen has this edition's page open: not before its script is read, when its place is still
-    // the edition's start.
-    val listening = listenState?.takeIf { editionId != null && it.editionId == editionId && it.pages.isNotEmpty() && it.script != null }
+    // Listen has this edition, opening or open.
+    val mine = listenState?.takeIf { editionId != null && it.editionId == editionId }
+    // Its page open: not before its script is read, when its place is still the edition's start.
+    val listening = mine?.takeIf { it.pages.isNotEmpty() && it.script != null }
     // Opening: not after an error, which the page then says (below), offering Listen again.
-    val listenOpening = editionId != null && listenState?.editionId == editionId && listening == null && listenState.error == null
+    val listenOpening = mine != null && listening == null && mine.error == null
     // The page turns with the voice when the voice moves on, not to wherever it was left: an
     // article opened, or the screen recreated, while Listen is paused elsewhere stays.
     var voiceWasOn by rememberSaveable(position) { mutableStateOf(listening?.at?.page) }
@@ -331,7 +332,7 @@ fun ArticlePreviewScreen(
             else -> Column(Modifier.fillMaxSize().padding(padding)) {
                 val onScreen = shown!!
                 // An error before the page was read, as when the book can't be opened: said here.
-                listenState?.takeIf { listening == null && editionId != null && it.editionId == editionId }?.error?.let { error ->
+                mine?.takeIf { listening == null }?.error?.let { error ->
                     Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp))
                 }
                 listening?.let { state ->
@@ -371,7 +372,7 @@ fun ArticlePreviewScreen(
                         onScreen, open.pages, textSize, link,
                         onArticle = { at -> if (at in 0 until open.articles) toArticle(at) },
                         modifier = Modifier.fillMaxWidth().weight(1f),
-                        voice = listening?.takeIf { it.at.page == onScreen.article && it.script != null },
+                        voice = listening?.takeIf { it.at.page == onScreen.article },
                         onReadFrom = { line -> player?.seek(ListenPosition(onScreen.article, line)) },
                     )
                 }
