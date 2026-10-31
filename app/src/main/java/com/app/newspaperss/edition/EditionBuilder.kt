@@ -8,7 +8,6 @@ import com.app.newspaperss.core.edition.EditionPlanner
 import com.app.newspaperss.core.edition.EditionTitles
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
-import com.app.newspaperss.core.epub.EditionSection
 import com.app.newspaperss.core.epub.EpubImage
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.core.extract.ArticleExtractor
@@ -232,7 +231,7 @@ class EditionBuilder(
             title = title,
             date = now.toLocalDate(),
             identifier = "urn:uuid:${UUID.randomUUID()}",
-            sections = listOf(EditionSection(null, withImages.map { (a, c) -> toEpub(a, c, minutesOf(c), sourcesById.getValue(a.sourceId), zone) })),
+            articles = withImages.map { (a, c) -> toEpub(a, c, minutesOf(c), sourcesById.getValue(a.sourceId), zone) },
             modified = clock.instant(),
             cover = coverImage,
             reflection = Reflection.forEdition(editionId),

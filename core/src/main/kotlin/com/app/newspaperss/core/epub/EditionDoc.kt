@@ -11,7 +11,7 @@ import java.time.LocalDate
  * @property date the edition's date, shown on the cover and written as `dc:date`.
  * @property language BCP 47 language code of the content.
  * @property identifier a unique id for this book, usually `urn:uuid:…`.
- * @property sections the edition's articles in reading order, grouped into sections.
+ * @property articles the edition's articles in reading order.
  * @property masthead the paper's name, shown on the cover and written as the book's creator.
  * @property modified written as `dcterms:modified` and used as the zip entries' timestamps.
  * @property cover the cover image e-readers show as the library thumbnail, also shown on the cover
@@ -24,23 +24,12 @@ data class EditionDoc(
     val title: String,
     val date: LocalDate,
     val identifier: String,
-    val sections: List<EditionSection>,
+    val articles: List<EditionArticle>,
     val language: String = "en",
     val masthead: String = "NewspapeRSS",
     val modified: Instant = Instant.now(),
     val cover: EpubImage? = null,
     val reflection: String? = null,
-) {
-    val articles: List<EditionArticle> get() = sections.flatMap { it.articles }
-}
-
-/**
- * A group of articles. A section with a null or blank [title] is written without a heading and
- * its articles appear at the top level of the table of contents.
- */
-data class EditionSection(
-    val title: String?,
-    val articles: List<EditionArticle>,
 )
 
 /**

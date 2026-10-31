@@ -111,7 +111,7 @@ class MainActivityTest {
         val article = EditionArticle("The ferry planner", "Rail Talk", "https://example.com/f", "<p>One. Two. Three.</p>", 1.0)
         File(dir, "l.epub").outputStream().use {
             com.app.newspaperss.core.epub.EpubWriter.write(
-                com.app.newspaperss.core.epub.EditionDoc("Edition", java.time.LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000031", listOf(com.app.newspaperss.core.epub.EditionSection(null, listOf(article)))), it,
+                com.app.newspaperss.core.epub.EditionDoc("Edition", java.time.LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000031", listOf(article)), it,
             )
         }
         app.container.db.editions().insert(EditionEntity(title = "Edition", status = EditionStatus.DELIVERED, fileName = "l.epub", articleCount = 1, minutes = 1.0)).also { id ->
