@@ -4,8 +4,6 @@ import android.content.Intent
 import androidx.compose.material.icons.automirrored.filled.List
 import com.app.newspaperss.ui.listen.Contents
 import androidx.compose.foundation.clickable
-import com.app.newspaperss.listen.PodcastSpeaker
-import com.app.newspaperss.listen.ReadingSpeaker
 import com.app.newspaperss.ui.listen.ListenNotes
 import com.app.newspaperss.ui.listen.voiceNote
 import androidx.compose.foundation.background
@@ -15,14 +13,11 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.app.newspaperss.listen.ListenPlayer
+import com.app.newspaperss.listen.Listening
 import com.app.newspaperss.listen.ListenPosition
 import com.app.newspaperss.listen.ListenState
-import com.app.newspaperss.settings.PodcastVoice
 import com.app.newspaperss.ui.listen.PlayerDock
 import com.app.newspaperss.ui.listen.follow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -195,16 +190,11 @@ fun ArticlePreviewScreen(
      * it: said in a line above the page, and a wrong label can be sent for a look.
      */
     episodeFor: (Int) -> EpisodeJudgement? = { null },
-    /** Listen's player; while it has [editionId] open, its controls sit under the page and the page follows the voice. */
-    player: ListenPlayer? = null,
+    /** Listen; while its player has [editionId] open, its controls sit under the page and the page follows the voice. */
+    listen: Listening? = null,
     editionId: Long? = null,
-    podcastVoice: StateFlow<PodcastVoice?> = MutableStateFlow(null),
-    instead: StateFlow<PodcastSpeaker.Instead?> = MutableStateFlow(null),
-    /** The article with a recording, while it's the one playing; null when there's none. */
-    reading: StateFlow<ReadingSpeaker.Now?> = MutableStateFlow(null),
-    /** Turns the article back to the voice (true), or to its recording again. */
-    onVoiceInstead: (Boolean) -> Unit = {},
 ) {
+    val player = listen?.player
     // Read in the background so the screen shows at once: reading a large edition during
     // composition holds up the frame, and the tap that opened it seems not to have registered.
     val book by produceState<Book>(Book.Loading, position) {
@@ -327,7 +317,7 @@ fun ArticlePreviewScreen(
                 },
             )
         },
-        bottomBar = { if (listening != null && player != null) PlayerDock(listening, player, podcastVoice.collectAsStateWithLifecycle().value) },
+        bottomBar = { if (listening != null && player != null) PlayerDock(listening, player, listen?.podcastVoice?.collectAsStateWithLifecycle()?.value) },
     ) { padding ->
         when {
             book == Book.Missing -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -346,14 +336,14 @@ fun ArticlePreviewScreen(
                 }
                 listening?.let { state ->
                     val here = state.at.page == onScreen.article
-                    val recording by reading.collectAsStateWithLifecycle()
-                    val why by instead.collectAsStateWithLifecycle()
+                    val recording = listen?.reading?.collectAsStateWithLifecycle()?.value
+                    val why = listen?.instead?.collectAsStateWithLifecycle()?.value
                     val playing = state.playing && !state.between
                     val now = recording?.takeIf { here && playing && it.editionId == state.editionId && it.page == state.at.page }
                     ListenNotes(
                         state,
                         voiceNote(why).takeIf { here && playing && (now == null || now.voiceInstead) },
-                        now, onVoiceInstead,
+                        now, { listen?.useVoiceInstead(it) },
                         Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
                     )
                     val hint = when {

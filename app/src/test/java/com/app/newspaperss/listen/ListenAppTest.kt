@@ -132,6 +132,15 @@ class ListenAppTest {
         id
     }
 
+    /** Listen around [player], with what the article view says about the voice playing. */
+    private fun listenOf(
+        player: ListenPlayer,
+        reading: kotlinx.coroutines.flow.StateFlow<ReadingSpeaker.Now?> = kotlinx.coroutines.flow.MutableStateFlow(null),
+        instead: kotlinx.coroutines.flow.StateFlow<PodcastSpeaker.Instead?> = kotlinx.coroutines.flow.MutableStateFlow(null),
+        podcastVoice: kotlinx.coroutines.flow.StateFlow<com.app.newspaperss.settings.PodcastVoice?> = kotlinx.coroutines.flow.MutableStateFlow(null),
+        voiceInstead: (Boolean) -> Unit = {},
+    ) = Listening(player, progress, repo, podcastVoice = podcastVoice, instead = instead, reading = reading, voiceInstead = voiceInstead) {}
+
     private fun startAndWait(id: Long) {
         listening.start(id)
         idleUntil { player.state.value.script != null }
@@ -571,7 +580,7 @@ class ListenAppTest {
         compose.setContent {
             ArticlePreviewScreen(
                 loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = 0, title = "Thursday Morning Edition", onBack = {},
-                onListen = { listening.start(id, ListenPosition(it, 0)) }, player = player, editionId = id,
+                onListen = { listening.start(id, ListenPosition(it, 0)) }, listen = listenOf(player), editionId = id,
             )
         }
         idleUntil { compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isNotEmpty() }
@@ -633,8 +642,8 @@ class ListenAppTest {
         return {
             ArticlePreviewScreen(
                 loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = at, title = "An article", onBack = {}, textSize = textSize,
-                onListen = { listening.start(id, ListenPosition(it, 0)) }, player = player, editionId = id, reading = reading, onVoiceInstead = onVoiceInstead,
-                instead = instead, podcastVoice = podcastVoice,
+                onListen = { listening.start(id, ListenPosition(it, 0)) }, editionId = id,
+                listen = listenOf(player, reading = reading, instead = instead, podcastVoice = podcastVoice, voiceInstead = onVoiceInstead),
             )
         }
     }
@@ -643,7 +652,7 @@ class ListenAppTest {
     private fun preview(id: Long, position: Int, player: ListenPlayer = this.player, onListen: (Int) -> Unit = { listening.start(id, ListenPosition(it, 0)) }) = @androidx.compose.runtime.Composable {
         ArticlePreviewScreen(
             loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = position, title = "Thursday Morning Edition", onBack = {},
-            onListen = onListen, player = player, editionId = id,
+            onListen = onListen, listen = listenOf(player), editionId = id,
         )
     }
 
@@ -729,7 +738,7 @@ class ListenAppTest {
         player.start(id, ListenPosition(3, 0))
         idleUntil { player.state.value.script != null && player.state.value.at.page == 3 && player.state.value.playing }
         compose.setContent {
-            ArticlePreviewScreen(loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = 3, title = "Saturday Morning Edition", onBack = {}, onListen = {}, player = player, editionId = id)
+            ArticlePreviewScreen(loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = 3, title = "Saturday Morning Edition", onBack = {}, onListen = {}, listen = listenOf(player), editionId = id)
         }
         idleUntil { compose.onAllNodesWithText("The episode.").fetchSemanticsNodes().isNotEmpty() }
         compose.onAllNodesWithText("Tap a time to play from there.").fetchSemanticsNodes().let { assertEquals(0, it.size) }
@@ -743,7 +752,7 @@ class ListenAppTest {
         player.start(id, ListenPosition(2, 0))
         idleUntil { player.state.value.script != null && player.state.value.at.page == 2 }
         compose.setContent {
-            ArticlePreviewScreen(loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = 2, title = "Saturday Morning Edition", onBack = {}, onListen = {}, player = player, editionId = id)
+            ArticlePreviewScreen(loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = 2, title = "Saturday Morning Edition", onBack = {}, onListen = {}, listen = listenOf(player), editionId = id)
         }
         idleUntil { compose.onAllNodesWithText(EpubWriter.END_TITLE, substring = true).fetchSemanticsNodes().isNotEmpty() }
         val lagosShown = { compose.onAllNodesWithText("The drivers met in a car park.").fetchSemanticsNodes().isNotEmpty() }

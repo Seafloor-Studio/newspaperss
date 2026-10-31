@@ -673,8 +673,9 @@ class ScreenshotTest {
         player.start(id, ListenPosition(0, 4))
         idleUntil { player.state.value.script != null }
         speaker.startNext()
+        val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock)) {}
         shoot("05c3-article-preview-listening", ready = { player.state.value.at.line == 4 && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
-            ArticlePreviewScreen(loadFile = { File(files, "f.epub") }, position = 0, title = article.title, onBack = {}, onListen = {}, player = player, editionId = id)
+            ArticlePreviewScreen(loadFile = { File(files, "f.epub") }, position = 0, title = article.title, onBack = {}, onListen = {}, listen = listen, editionId = id)
         }
     }
 
@@ -739,8 +740,9 @@ class ScreenshotTest {
         speaker.startNext()
         val now = readings.at(id, page)?.let { ReadingSpeaker.Now(id, page, it, voiceInstead = false) }
         val title = player.state.value.pages[page].title
+        val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock), reading = MutableStateFlow(now)) {}
         shoot(name, ready = { player.state.value.at.page == page && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
-            ArticlePreviewScreen(loadFile = { File(files, "e.epub") }, position = page, title = title, onBack = {}, onListen = {}, player = player, editionId = id, reading = MutableStateFlow(now))
+            ArticlePreviewScreen(loadFile = { File(files, "e.epub") }, position = page, title = title, onBack = {}, onListen = {}, listen = listen, editionId = id)
         }
     }
 
@@ -780,10 +782,12 @@ class ScreenshotTest {
         idleUntil { player.state.value.script != null }
         speaker.startNext()
         val now = ReadingSpeaker.Now(id, 1, Reading("https://example.com/knots.mp3", if (episode) 5_220 else 540, own = episode, bodyLine = 3, starts = listOf(0.0), episode = episode), voiceInstead = false).takeIf { recording }
+        val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock), podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), reading = MutableStateFlow(now)) {}
         shoot(name, ready = { player.state.value.at.line == 6 && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
             ArticlePreviewScreen(
                 loadFile = { File(files, "l.epub") }, position = 1, title = knots.title, onBack = {}, onListen = {}, textSize = textSize,
-                player = player, editionId = id, podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), reading = MutableStateFlow(now),
+                listen = listen,
+                editionId = id,
             )
         }
     }

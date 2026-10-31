@@ -263,7 +263,10 @@ class AppContainer(
      */
     val listenNow: StateFlow<ListenState?> = _listenNow.asStateFlow()
     val listening: Listening by lazy {
-        Listening(listen, listenProgress, editions, podcasts) { connectListening() }
+        Listening(
+            listen, listenProgress, editions, podcasts,
+            podcastVoice = podcastPlaying, instead = podcastInstead, reading = readingNow, voiceInstead = ::useVoiceInstead,
+        ) { connectListening() }
     }
 
     /** Getting the podcast's voice onto the phone. */
