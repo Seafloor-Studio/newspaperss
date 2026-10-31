@@ -32,6 +32,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.media3.common.Player
 import androidx.room.Room
@@ -625,21 +626,24 @@ class ListenAppTest {
         textSize: com.app.newspaperss.settings.PreviewTextSize? = com.app.newspaperss.settings.PreviewTextSize.DEFAULT,
         reading: kotlinx.coroutines.flow.StateFlow<ReadingSpeaker.Now?> = kotlinx.coroutines.flow.MutableStateFlow(null),
         onVoiceInstead: (Boolean) -> Unit = {},
+        instead: kotlinx.coroutines.flow.StateFlow<PodcastSpeaker.Instead?> = kotlinx.coroutines.flow.MutableStateFlow(null),
+        podcastVoice: kotlinx.coroutines.flow.StateFlow<com.app.newspaperss.settings.PodcastVoice?> = kotlinx.coroutines.flow.MutableStateFlow(null),
     ): @androidx.compose.runtime.Composable () -> Unit {
         val at = player.state.value.at.page
         return {
             ArticlePreviewScreen(
                 loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = at, title = "An article", onBack = {}, textSize = textSize,
                 onListen = { listening.start(id, ListenPosition(it, 0)) }, player = player, editionId = id, reading = reading, onVoiceInstead = onVoiceInstead,
+                instead = instead, podcastVoice = podcastVoice,
             )
         }
     }
 
     /** The preview of one article, with Listen's player, as the app shows it. */
-    private fun preview(id: Long, position: Int) = @androidx.compose.runtime.Composable {
+    private fun preview(id: Long, position: Int, player: ListenPlayer = this.player, onListen: (Int) -> Unit = { listening.start(id, ListenPosition(it, 0)) }) = @androidx.compose.runtime.Composable {
         ArticlePreviewScreen(
             loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = position, title = "Thursday Morning Edition", onBack = {},
-            onListen = { listening.start(id, ListenPosition(it, 0)) }, player = player, editionId = id,
+            onListen = onListen, player = player, editionId = id,
         )
     }
 
@@ -1039,5 +1043,178 @@ class ListenAppTest {
         shadowOf(android.os.Looper.getMainLooper()).idle()
         assertEquals(Player.STATE_READY, session.playbackState)
         session.release()
+    }
+
+    private fun shown(text: String, substring: Boolean = false) = compose.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().size
+
+    /** An edition whose book is gone says so once, above the page, and offers Listen again. */
+    @Test
+    fun anEditionWhoseBookIsGoneSaysSoAboveThePageOnce() {
+        val id = edition()
+        val gone = ListenPlayer(FakeSpeaker(), progress, open = { null }, CoroutineScope(SupervisorJob() + Dispatchers.Main))
+        gone.start(id)
+        idleUntil { gone.state.value.error != null }
+        compose.setContent(preview(id, 0, gone))
+        idleUntil { shown("This edition's file is gone, so it can't be read aloud.") > 0 }
+        compose.waitForIdle()
+        assertEquals(1, shown("This edition's file is gone, so it can't be read aloud."))
+        compose.onNodeWithContentDescription("Listen from here").assertExists()
+        compose.onAllNodesWithContentDescription("Pause").fetchSemanticsNodes().let { assertEquals("no player for a book that isn't there", 0, it.size) }
+    }
+
+    /** A voice that stops working says so once, in the article view, with the player still under the page. */
+    @Test
+    fun aVoiceThatStopsWorkingSaysSoOnceWithThePlayerStillThere() {
+        val id = edition()
+        startAndWait(id)
+        compose.setContent(playing(id))
+        idleUntil { shown("Nobody could say", substring = true) > 0 }
+        while (player.state.value.error == null) {
+            idleUntil { speaker.queue.isNotEmpty() || player.state.value.error != null }
+            if (speaker.queue.isNotEmpty()) speaker.fail()
+        }
+        val error = "The phone's voice isn't working. Check Android's text-to-speech settings, then try again."
+        idleUntil { shown(error) > 0 }
+        compose.waitForIdle()
+        assertEquals(1, shown(error))
+        compose.onNodeWithContentDescription("Play").assertExists()
+        compose.onNodeWithContentDescription("Contents").assertExists()
+    }
+
+    /** Listen on another edition leaves this one's article alone: no player, no Contents, and not its error. */
+    @Test
+    fun listenOnAnotherEditionLeavesThisArticleAlone() {
+        val other = edition("Other")
+        val id = edition()
+        startAndWait(other)
+        compose.setContent(preview(id, 0))
+        idleUntil { shown("Nobody could say", substring = true) > 0 }
+        compose.onNodeWithContentDescription("Listen from here").assertExists()
+        assertEquals(0, compose.onAllNodesWithContentDescription("Pause").fetchSemanticsNodes().size)
+        assertEquals(0, compose.onAllNodesWithContentDescription("Contents").fetchSemanticsNodes().size)
+    }
+
+    /** Another edition's Listen error isn't shown over this one's article. */
+    @Test
+    fun anotherEditionsListenErrorIsntShownHere() {
+        val other = edition("Other")
+        val id = edition()
+        val gone = ListenPlayer(FakeSpeaker(), progress, open = { null }, CoroutineScope(SupervisorJob() + Dispatchers.Main))
+        gone.start(other)
+        idleUntil { gone.state.value.error != null }
+        compose.setContent(preview(id, 0, gone))
+        idleUntil { shown("Nobody could say", substring = true) > 0 }
+        compose.waitForIdle()
+        assertEquals("another edition's error isn't this one's", 0, shown("This edition's file is gone", substring = true))
+    }
+
+    /** While this edition opens in Listen, Listen from here goes and nothing else shows; once open, the player does. */
+    @Test
+    fun whileTheEditionOpensThereIsNoListenButtonAndNoPlayerYet() {
+        val id = edition()
+        val opened = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val slow = ListenPlayer(speaker, progress, open = { opened.await(); ListenBook.open(repo, it) }, CoroutineScope(SupervisorJob() + Dispatchers.Main))
+        compose.setContent(preview(id, 0, slow) { slow.start(id, ListenPosition(it, 0)) })
+        idleUntil { shown("Nobody could say", substring = true) > 0 }
+        compose.onNodeWithContentDescription("Listen from here").performClick()
+        idleUntil { slow.state.value.loading }
+        compose.waitForIdle()
+        assertEquals(0, compose.onAllNodesWithContentDescription("Listen from here").fetchSemanticsNodes().size)
+        assertEquals(0, compose.onAllNodesWithContentDescription("Pause").fetchSemanticsNodes().size)
+        assertEquals(0, compose.onAllNodesWithContentDescription("Contents").fetchSemanticsNodes().size)
+        opened.complete(Unit)
+        idleUntil { compose.onAllNodesWithContentDescription("Pause").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Contents").assertExists()
+    }
+
+    /** The phone's-voice note shows on the voice's article while it plays, in its own words for each reason. */
+    @Test
+    fun thePhonesVoiceNoteShowsWhilePlayingOnTheVoicesArticle() {
+        val id = edition()
+        startAndWait(id)
+        val why = kotlinx.coroutines.flow.MutableStateFlow<PodcastSpeaker.Instead?>(PodcastSpeaker.Instead.NOT_MADE_YET)
+        compose.setContent(playing(id, instead = why))
+        val notYet = "From here, your phone's voice: the audio hasn't reached this article yet."
+        idleUntil { shown(notYet) > 0 }
+        why.value = PodcastSpeaker.Instead.LEFT_OUT
+        idleUntil { shown("This article plays in your phone's voice", substring = true) > 0 }
+        player.pause()
+        idleUntil { !player.state.value.playing }
+        compose.waitForIdle()
+        assertEquals("paused, nothing is playing in any voice", 0, shown("phone's voice", substring = true))
+    }
+
+    /** The natural voice's name shows while it plays, and not paused. */
+    @Test
+    fun theNaturalVoicesNameShowsOnlyWhilePlaying() {
+        val id = edition()
+        startAndWait(id)
+        compose.setContent(playing(id, podcastVoice = kotlinx.coroutines.flow.MutableStateFlow(com.app.newspaperss.settings.PodcastVoice.HEART)))
+        val name = "Audio, in ${com.app.newspaperss.settings.PodcastVoice.HEART.label}'s voice"
+        idleUntil { compose.onAllNodesWithContentDescription(name).fetchSemanticsNodes().isNotEmpty() }
+        player.pause()
+        idleUntil { !player.state.value.playing }
+        compose.waitForIdle()
+        assertEquals(0, compose.onAllNodesWithContentDescription(name).fetchSemanticsNodes().size)
+    }
+
+    /** A recording's note is for while it plays: paused, it goes. */
+    @Test
+    fun aRecordingsNoteGoesWhenPaused() {
+        val id = edition()
+        startAndWait(id)
+        val now = kotlinx.coroutines.flow.MutableStateFlow<ReadingSpeaker.Now?>(
+            ReadingSpeaker.Now(id, 0, Reading("https://cdn.example/r.mp3", 130, own = false, bodyLine = 3, starts = listOf(0.0)), voiceInstead = false),
+        )
+        compose.setContent(playing(id, reading = now))
+        idleUntil { shown("Playing its recorded reading · 2 min.") > 0 }
+        player.pause()
+        idleUntil { !player.state.value.playing }
+        compose.waitForIdle()
+        assertEquals(0, shown("recorded reading", substring = true))
+    }
+
+    /** Listen stopped on the closing page, the view goes back to the last article. */
+    @Test
+    fun listenStoppedOnTheClosingPageGoesBackToTheLastArticle() {
+        val id = edition()
+        startAndWait(id)
+        player.seek(ListenPosition(2, 0))
+        idleUntil { player.state.value.at.page == 2 && player.state.value.script != null }
+        compose.setContent(playing(id))
+        idleUntil { shown(EpubWriter.END_TITLE, substring = true) > 0 }
+        player.stop()
+        idleUntil { shown("The drivers met in a car park.") > 0 }
+    }
+
+    /** Heard to the end, Play starts it again from the start, and says so. */
+    @Test
+    fun heardToTheEndPlaySaysItStartsFromTheStart() {
+        val id = edition("Short", knots.copy(bodyHtml = "<p>One line.</p>", images = emptyList()))
+        startAndWait(id)
+        compose.setContent(playing(id))
+        while (!player.state.value.finished) {
+            idleUntil { speaker.queue.isNotEmpty() || player.state.value.finished }
+            if (speaker.queue.isNotEmpty()) speaker.sayNext()
+        }
+        idleUntil { compose.onAllNodesWithContentDescription("Play from the start").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    /** The missing-voice note stays over the edition's other articles while the voice is on that one. */
+    @Test
+    fun theMissingVoiceNoteStaysWhileTheReaderTurnsToAnotherArticle() {
+        speaker.installed = setOf("en")
+        val id = edition("Édition", knots.copy(language = "fr"), lagos)
+        startAndWait(id)
+        player.pause()
+        compose.setContent(playing(id))
+        idleUntil { shown("Get a French voice") > 0 }
+        // Paused, the Next line turns only the page.
+        compose.onNode(androidx.compose.ui.test.hasScrollToIndexAction()).performScrollToNode(androidx.compose.ui.test.hasText("Next:", substring = true))
+        compose.onNodeWithText("Next:", substring = true).fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsActions.CustomActions]
+            .single { it.label.startsWith("Go to Next") }.let { next -> compose.runOnIdle { next.action() } }
+        idleUntil { shown("The drivers met in a car park.") > 0 }
+        assertEquals(0, player.state.value.at.page)
+        assertEquals(1, shown("Get a French voice"))
     }
 }
