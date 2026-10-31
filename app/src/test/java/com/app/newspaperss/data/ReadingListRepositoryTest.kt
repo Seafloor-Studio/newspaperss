@@ -69,7 +69,7 @@ class ReadingListRepositoryTest {
         assertEquals(ReadingListRepository.Imported(ReadingListFile.Format.POCKET_CSV, added = 4, unread = 2), result)
         assertEquals("Tides, explained", byUrl("https://a.example/tides").title)
         assertEquals(ArticleState.DELIVERED, byUrl("https://a.example/old").state)
-        assertEquals(setOf("https://a.example/tides", "https://a.example/untitled"), db.articles().candidates().map { it.url }.toSet())
+        assertEquals(setOf("https://a.example/tides", "https://a.example/untitled"), db.articles().buildCandidates().map { it.url }.toSet())
         assertEquals("only unread ones are waiting (enough to start onboarding with)", 2, list.observeWaiting().first())
         // Read ones won't be in an edition, so there's no point fetching their pages.
         assertEquals(listOf(byUrl("https://a.example/untitled").id), untitled)
@@ -89,16 +89,16 @@ class ReadingListRepositoryTest {
     fun aLinkArchivedInInstapaperIsMarkedReadHere() = runTest {
         list.save("https://a.example/1", "One")
         list.import("URL,Title,Selection,Folder,Timestamp\nhttps://a.example/1,One,,Archive,1712345678\n")
-        assertTrue(db.articles().candidates().isEmpty())
+        assertTrue(db.articles().buildCandidates().isEmpty())
     }
 
     @Test
     fun importedTickedItemsDontComeBackAndExportTicksWhatWasDelivered() = runTest {
         val added = list.import("- [ ] https://a.example/1\n- [x] https://a.example/2\n- [ ] https://a.example/3\n").added
         assertEquals(3, added)
-        assertEquals(setOf("https://a.example/1", "https://a.example/3"), db.articles().candidates().map { it.url }.toSet())
+        assertEquals(setOf("https://a.example/1", "https://a.example/3"), db.articles().buildCandidates().map { it.url }.toSet())
 
-        val one = db.articles().candidates().first { it.url == "https://a.example/1" }
+        val one = db.articles().buildCandidates().first { it.url == "https://a.example/1" }
         db.articles().setState(listOf(one.id), ArticleState.DELIVERED)
 
         assertEquals(
@@ -124,7 +124,7 @@ class ReadingListRepositoryTest {
     fun aLinkTickedElsewhereIsMarkedReadOnReimport() = runTest {
         list.import("- [ ] https://a.example/1\n")
         list.import("- [x] https://a.example/1 (error 404)\n")
-        assertTrue(db.articles().candidates().isEmpty())
+        assertTrue(db.articles().buildCandidates().isEmpty())
     }
 
     @Test
@@ -136,6 +136,6 @@ class ReadingListRepositoryTest {
             override fun instant(): Instant = Instant.now().plus(Duration.ofDays(30))
         }
         FeedSync(db, FakeHttp(), clock).syncAll()
-        assertEquals(1, db.articles().candidates().size)
+        assertEquals(1, db.articles().buildCandidates().size)
     }
 }

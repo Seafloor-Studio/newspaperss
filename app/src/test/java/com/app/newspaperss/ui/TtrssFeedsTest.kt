@@ -26,6 +26,7 @@ import com.app.newspaperss.ui.sources.NotInPaperScreen
 import com.app.newspaperss.ui.sources.accountProblem
 import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.SourceKind
+import com.app.newspaperss.data.insertNew
 import com.app.newspaperss.settings.FeedsFrom
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -303,26 +304,38 @@ class TtrssFeedsTest {
 
         assertTrue(visible("quarterly.example"))
         assertEquals("only this feed's articles", setOf("7"), vm.detail.value!!.articles.map { it.originId }.toSet())
+        compose.onNodeWithContentDescription("More options").assertDoesNotExist()
+        openSettings()
         assertFalse("no Pause or Remove: those are the account's", visible("Pause"))
 
         compose.onNodeWithContentDescription("More articles from this site").performClick()
         idleUntil { runBlocking { db.sources().publication(account, "7")!!.maxArticles } == 2 }
 
-
-        compose.onNodeWithText("Article text: Automatic").performClick()
+        compose.onNodeWithText("Article text").performClick()
         compose.onNodeWithText("Always fetch the full page").performClick()
         idleUntil { runBlocking { db.sources().publication(account, "7")!!.chosenMode } == ContentMode.PAGE }
+        idleUntil { compose.waitForIdle(); visible("Full page") }
 
-        compose.onNodeWithText("Leave out").performClick()
+        compose.onNodeWithText("Leave out of the paper").performClick()
         idleUntil { compose.waitForIdle(); visible("its waiting articles go") }
-        compose.onAllNodes(hasText("Leave out"))[1].performClick()
+        compose.onNodeWithText("Leave out").performClick()
         idleUntil { compose.waitForIdle(); visible("Left out of the paper") }
         val left = runBlocking { db.sources().publication(account, "7")!! }
         assertTrue(left.leftOut)
         assertEquals("its settings stay for when it comes back", 2, left.maxArticles)
+        // Left out, its other settings are hidden, and the row says only that.
+        idleUntil { compose.waitForIdle(); !visible("Article text") }
+        compose.onNodeWithContentDescription("This site's settings: Left out").assertExists()
 
         compose.onNodeWithText("Bring back").performClick()
         idleUntil { runBlocking { db.sources().publication(account, "7")!!.leftOut } == false }
+        idleUntil { compose.waitForIdle(); visible("Article text") }
+        compose.onNodeWithContentDescription("This site's settings: Full page · At most 2 articles").assertExists()
+    }
+
+    private fun openSettings() {
+        compose.onNode(hasContentDescription("This site's settings:", substring = true)).performClick()
+        idleUntil { compose.waitForIdle(); visible("This site's settings") }
     }
 
     /** Skipping paid posts is each feed's own: its page has the switch, the account's page doesn't. */
@@ -332,6 +345,8 @@ class TtrssFeedsTest {
         runBlocking { repo.markPaidOnly(db.articles().allForSource(account).first { it.originId == "7" }.id, skip = false) }
         val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = "7"))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
+        idleUntil { compose.waitForIdle(); visible("In your tt-rss") }
+        openSettings()
         idleUntil { compose.waitForIdle(); visible("Skip posts with nothing free") }
 
         compose.onNodeWithText("Skip posts with nothing free").performClick()
@@ -346,6 +361,8 @@ class TtrssFeedsTest {
         runBlocking { repo.setSkipPaidPosts(account, "42", true) }
         val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = "42"))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
+        idleUntil { compose.waitForIdle(); visible("Left out of the paper") }
+        openSettings()
         idleUntil { compose.waitForIdle(); visible("Bring back") }
         assertFalse(visible("Skip posts with nothing free"))
     }

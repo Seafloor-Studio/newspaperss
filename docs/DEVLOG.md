@@ -24,6 +24,26 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 A few cycles on BACKLOG's Tech debt (T1–T3), as you asked: the larger cuts the 30 Oct audits left.
 
+### L: the article view's Listen wiring, with its behaviour pinned first
+- **Why:** the article view took six Listen parameters, each wired by hand, and decided "this edition is in Listen" three ways. You asked for the cut with tests proving the experience unchanged.
+- **Tests first (#430):** an audit mapped 51 Listen behaviours of the article view to the tests that would catch them; eleven new tests fill the gaps the refactor touches, each broken on purpose to show it fails. All 116 screenshots come out byte for byte the same across two runs of the same code, so they could be compared too.
+- **Built:** the view takes one `Listening`, which now carries the natural voice's flows; "this edition is in Listen" is worked out once. After each step the Listen tests passed and all 116 screenshots matched main's exactly.
+- **Size:** about the same (−6 lines): the flows moved rather than went. The error stays drawn in two places, since one would move it on screen.
+
+### T3: code only tests kept alive goes
+- **Why:** seven functions in the app existed only for tests, and `connect` signed in differently from the app (it reset the category, and skipped the feed list).
+- **Built:** tests now sign in through `signIn`, read candidates with `buildCandidates` and pause with `setPaused`, as the app does; `insertNew` is a test helper. App code: about 40 lines shorter. One test of `connect`'s category reset went with it: no reader can do that.
+- **The Tech debt run, closing:** T1–T3 and the live check's fix are merged; app code is about 100 lines shorter. Left in BACKLOG's Tech debt: the article view's six Listen parameters, the Listen checks spelled three times, the three lists of an edition's articles, and a few smaller ones.
+
+### T2: tt-rss sessions in one place
+- **Why:** ten places opened a tt-rss session and logged out by hand, `subscribe` twice and not at all if its first call threw.
+- **Built:** `TtrssClient.session { }` logs out however the block ends; the three paging loops share one request and one id parser; the account source and "still in the account" are one function and one property each.
+- **Size:** about the same (−7 lines ignoring indentation). The gain is that a new tt-rss call can't forget to log out.
+
+### The daily tt-rss check, green again
+- **Why:** the live check against a real tt-rss had failed every day since 26 Oct, unnoticed. One test asked tt-rss to update a feed whose file it had deleted, and failed when tt-rss refused one of those updates; it only needed tt-rss to record the 404.
+- **Fixed:** that loop no longer insists each update succeeds, and a failing run prints the test's message, so the next surprise shows tt-rss's own answer.
+
 ### T1: the book writer's sections go
 - **Why:** every edition is one untitled section, but `EpubWriter` still drew section headings, a nested contents and nested NCX entries.
 - **Built:** `EditionDoc` takes a flat list of articles. The same four editions written before and after (pictures, Arabic, an untitled article, thirty articles, none) differ only in `style.css`, which lost the two section rules.
@@ -75,6 +95,10 @@ Earlier today, outside the run: a paused episode or reading plays on from where 
 - **Built:** a test that builds two editions with the real builder and checks the first one's page: Resume where it was left, Mark as sent, its articles open, Save a copy. Falsified by having the builder write a reworded note.
 
 ## Sat 24 Oct
+
+### A source's page: settings behind one row, and a switch for its recordings (#384)
+- **What you asked:** option A1 for a source's page, and a per-source switch for its recordings in Listen.
+- **Built:** the page leads with how the site is doing and its articles. Its settings (Pause, Article text, the article limit, Skip paid posts, and, on a source that posts recordings, **Its recordings in Listen**) are in a sheet behind one row that names only what differs from the defaults, or "Default settings". Paused also leads the status line. The switch is read when an edition opens in Listen (debug builds), and carries across a move to or from tt-rss. Database version 18.
 
 ### No build for a merge that changes nothing in the app
 - **What you asked:** stop the test build offering an update that changes nothing (build 1031 was the voiceover research, docs only).

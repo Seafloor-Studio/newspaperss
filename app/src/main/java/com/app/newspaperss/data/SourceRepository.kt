@@ -146,11 +146,12 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
         return if (id == -1L) sources.byUrl(url)!!.id else id
     }
 
-    suspend fun update(source: SourceEntity) = sources.update(source)
-
     suspend fun setPaused(id: Long, paused: Boolean) = sources.setPaused(id, paused)
 
     suspend fun setSkipPaidPosts(sourceId: Long, key: String, skip: Boolean) = editPublication(sourceId, key) { it.copy(skipPaidPosts = skip) }
+
+    /** Whether its posts' recordings play in Listen; from the next edition opened there. */
+    suspend fun setRecordingsOff(sourceId: Long, key: String, off: Boolean) = editPublication(sourceId, key) { it.copy(recordingsOff = off) }
 
     fun observePaidOnly(sourceId: Long, key: String): Flow<PaidOnlyCount> = db.articles().observePaidOnly(sourceId, key)
 
@@ -316,7 +317,7 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
         val all = sources.all()
         val server = all.filter { it.kind == SourceKind.TTRSS }.flatMap { account ->
             sources.observePublicationsOf(account.id).first()
-                .filter { it.feedUrl != null && (it.listed || it.outsideCategory) }
+                .filter { it.feedUrl != null && it.inAccount }
                 .map { OpmlFeed(it.feedUrl!!, it.title, folder = it.category?.ifBlank { null }) }
         }
         val phone = all.filter { it.kind == SourceKind.FEED }.map { OpmlFeed(it.url, it.title, folder = null) }

@@ -36,6 +36,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import com.app.newspaperss.data.RowLimits
+import com.app.newspaperss.data.insertNew
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -193,7 +194,7 @@ class EditionBuilderTest {
 
         assertEquals(1, db.editions().byId(result.editionId)!!.articleCount)
         // The rest wait for the next edition.
-        assertEquals(2, db.articles().candidates().size)
+        assertEquals(2, db.articles().buildCandidates().size)
     }
 
     @Test
@@ -404,7 +405,7 @@ class EditionBuilderTest {
 
         unreadable += "b1"
         source("b", "b1")
-        db.articles().setState(listOf(db.articles().candidates().first { it.guid == "a2" }.id), ArticleState.SKIPPED)
+        db.articles().setState(listOf(db.articles().buildCandidates().first { it.guid == "a2" }.id), ArticleState.SKIPPED)
         editions.markDelivered(built.editionId)
         val failed = builder.build(EditionSettings()) as BuildResult.Failed
         assertEquals(EditionStatus.FAILED, db.editions().byId(failed.editionId)!!.status)
@@ -438,7 +439,7 @@ class EditionBuilderTest {
     @Test
     fun pausedSourcesAreLeftOut() = runTest {
         val id = source("a", "a1")
-        sources.update(db.sources().byId(id)!!.copy(paused = true))
+        sources.setPaused(id, true)
         assertEquals(BuildResult.NothingNew, builder.build(EditionSettings()))
     }
 
@@ -547,7 +548,7 @@ class EditionBuilderTest {
     @Test
     fun aBuildWithNothingToPickLeavesNoEditionBehindToHoldTheButtons() = runTest {
         assertEquals(BuildResult.NothingNew, builder.build(EditionSettings()))
-        assertEquals(0, db.editions().count())
+        assertEquals(0, EditionStatus.entries.sumOf { db.editions().withStatus(it).size })
         assertFalse(editions.observeBuilding().first())
     }
 
@@ -753,7 +754,7 @@ class EditionBuilderTest {
         val b = source("b", "b1")
         val list = ReadingListRepository(db)
         list.save("https://saved.example/post", "A saved post")
-        val saved = db.articles().candidates().single { it.url == "https://saved.example/post" }
+        val saved = db.articles().buildCandidates().single { it.url == "https://saved.example/post" }
         // Removed once its articles were read for the build, while it fetches the last one.
         var removed = false
         val removing = ArticleContentProvider { a, s, allowance, choice ->
@@ -1113,7 +1114,7 @@ class EditionBuilderTest {
         editions.delete(first.editionId)
 
         assertEquals(ArticleState.IN_EDITION, stateOf("a1"))
-        assertFalse("not offered to a third edition", db.articles().candidates().any { it.guid == "a1" })
+        assertFalse("not offered to a third edition", db.articles().buildCandidates().any { it.guid == "a1" })
     }
 
     /** An article that went out again in a newer edition was delivered: marking the old one as not sent mustn't send it a third time. */
@@ -1382,7 +1383,7 @@ class EditionBuilderTest {
         db.articles().insertNew(listOf(post("a", true), post("b", true)))
 
         assertEquals(BuildResult.NothingNew, tuned.build(EditionSettings(minutes = 600, maxPerSource = 10)))
-        assertEquals("no failed edition left behind", 0, db.editions().count())
+        assertEquals("no failed edition left behind", 0, EditionStatus.entries.sumOf { db.editions().withStatus(it).size })
     }
 
     /** A post for subscribers who sign up for free is skipped as a paid one is: only when next to nothing is open. */

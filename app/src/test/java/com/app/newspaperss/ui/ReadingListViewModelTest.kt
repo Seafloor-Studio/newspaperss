@@ -37,6 +37,6 @@ class ReadingListViewModelTest {
             "Added 2 links from Pocket, all already read.",
             import("part_000001.csv", "title,url,time_added,tags,status\nOld,https://a.example/5,1,,archive\nOlder,https://a.example/6,1,,archive\n"),
         )
-        runBlocking { assertEquals(3, app.container.db.articles().candidates().size) }
+        runBlocking { assertEquals(3, app.container.db.articles().buildCandidates().size) }
     }
 }

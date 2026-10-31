@@ -164,7 +164,7 @@ class EditionRunTest {
         assertEquals(EditionStatus.DELIVERED, status(result))
         assertEquals(listOf("content://tree/${db.editions().byId((result as BuildResult.Built).editionId)!!.title}.epub (application/epub+zip):true"), saved)
         assertEquals(listOf("delivered to Kobo"), notices)
-        assertTrue(db.articles().candidates().isEmpty())
+        assertTrue(db.articles().buildCandidates().isEmpty())
     }
 
     @Test

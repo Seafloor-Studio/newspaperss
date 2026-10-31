@@ -137,6 +137,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import com.app.newspaperss.data.TtrssSubscriptions
 import com.app.newspaperss.data.FeedMoves
+import com.app.newspaperss.data.connect
+import com.app.newspaperss.data.insertNew
 import com.app.newspaperss.ui.sources.PhoneFeeds
 import kotlinx.coroutines.launch
 import com.app.newspaperss.ui.sources.AddState
@@ -671,8 +673,9 @@ class ScreenshotTest {
         player.start(id, ListenPosition(0, 4))
         idleUntil { player.state.value.script != null }
         speaker.startNext()
+        val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock)) {}
         shoot("05c3-article-preview-listening", ready = { player.state.value.at.line == 4 && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
-            ArticlePreviewScreen(loadFile = { File(files, "f.epub") }, position = 0, title = article.title, onBack = {}, onListen = {}, player = player, editionId = id)
+            ArticlePreviewScreen(loadFile = { File(files, "f.epub") }, position = 0, title = article.title, onBack = {}, onListen = {}, listen = listen, editionId = id)
         }
     }
 
@@ -737,8 +740,9 @@ class ScreenshotTest {
         speaker.startNext()
         val now = readings.at(id, page)?.let { ReadingSpeaker.Now(id, page, it, voiceInstead = false) }
         val title = player.state.value.pages[page].title
+        val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock), reading = MutableStateFlow(now)) {}
         shoot(name, ready = { player.state.value.at.page == page && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
-            ArticlePreviewScreen(loadFile = { File(files, "e.epub") }, position = page, title = title, onBack = {}, onListen = {}, player = player, editionId = id, reading = MutableStateFlow(now))
+            ArticlePreviewScreen(loadFile = { File(files, "e.epub") }, position = page, title = title, onBack = {}, onListen = {}, listen = listen, editionId = id)
         }
     }
 
@@ -778,10 +782,12 @@ class ScreenshotTest {
         idleUntil { player.state.value.script != null }
         speaker.startNext()
         val now = ReadingSpeaker.Now(id, 1, Reading("https://example.com/knots.mp3", if (episode) 5_220 else 540, own = episode, bodyLine = 3, starts = listOf(0.0), episode = episode), voiceInstead = false).takeIf { recording }
+        val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock), podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), reading = MutableStateFlow(now)) {}
         shoot(name, ready = { player.state.value.at.line == 6 && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
             ArticlePreviewScreen(
                 loadFile = { File(files, "l.epub") }, position = 1, title = knots.title, onBack = {}, onListen = {}, textSize = textSize,
-                player = player, editionId = id, podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), reading = MutableStateFlow(now),
+                listen = listen,
+                editionId = id,
             )
         }
     }
@@ -970,7 +976,7 @@ class ScreenshotTest {
                 "The quiet return of the paperback",
             )
             db.articles().insertNew(titles.mapIndexed { i, t -> ArticleEntity(sourceId = id, guid = "$i", url = "https://www.theguardian.com/$i", title = t, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1))) })
-            val ids = db.articles().candidates().sortedBy { it.guid }.map { it.id }
+            val ids = db.articles().buildCandidates().sortedBy { it.guid }.map { it.id }
             repo.setStarred(ids[1], true)
             db.articles().setState(listOf(ids[2]), ArticleState.SKIPPED)
             db.articles().setState(listOf(ids[3]), ArticleState.IN_EDITION)
@@ -1297,7 +1303,10 @@ class ScreenshotTest {
         val vm = feedPage("5")
         shoot(
             "08e-leave-out-dialog", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, dialog = true,
-            act = { compose.onNodeWithText("Leave out").performClick() },
+            act = {
+                openSiteSettings()
+                compose.onNodeWithText("Leave out of the paper").performClick()
+            },
         ) { SourceDetailScreen(vm, onBack = {}) }
     }
 
@@ -1306,7 +1315,10 @@ class ScreenshotTest {
         val vm = feedPage("5")
         shoot(
             "08g-article-text-dialog", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, dialog = true,
-            act = { compose.onNodeWithText("Article text: Automatic").performClick() },
+            act = {
+                openSiteSettings()
+                compose.onNodeWithText("Article text").performClick()
+            },
         ) { SourceDetailScreen(vm, onBack = {}) }
     }
 
@@ -1331,6 +1343,69 @@ class ScreenshotTest {
         }
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         shoot("06g-source-detail-failing", ready = { vm.detail.value?.source?.lastError != null }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** A newsletter that posts episodes and readings, set apart from the defaults with [change]. */
+    private fun letter(change: suspend (SourceRepository, Long) -> Unit = { _, _ -> }): SourceDetailViewModel {
+        val repo = SourceRepository(db, clock)
+        val id = runBlocking {
+            val id = repo.addFeed("https://example.com/feed", "The Example Letter")
+            val posts = listOf("How a ferry timetable is made", "The case for slower trains", "October 15", "What the harbour master saw")
+            db.articles().insertNew(
+                posts.mapIndexed { i, title ->
+                    ArticleEntity(
+                        sourceId = id, guid = title, url = "https://example.com/$i", title = title, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1)),
+                        audioUrl = "https://example.com/$i.mp3".takeIf { i == 0 || i == 2 },
+                    )
+                },
+            )
+            db.articles().setEpisodeKind(id, posts[0], EpisodeKind.NOTES)
+            posts.drop(1).forEach { db.articles().setEpisodeKind(id, it, EpisodeKind.ARTICLE) }
+            db.sources().recordSuccess(id, clock.instant(), null, "https://example.com", "")
+            change(repo, id)
+            id
+        }
+        return viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
+    }
+
+    /** Two settings changed: the row names only those, in the sheet's order. */
+    @Test
+    fun sourceDetailSettingsChanged() {
+        val vm = letter { repo, id ->
+            repo.setMaxArticles(id, PublicationEntity.OWN, 2)
+            repo.setRecordingsOff(id, PublicationEntity.OWN, true)
+        }
+        shoot("06h-source-detail-settings-changed", ready = { vm.detail.value?.text?.recordingsOff == true && vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** Paused: the status line says so first, as well as the settings row. */
+    @Test
+    fun sourceDetailPaused() {
+        val vm = letter { repo, id ->
+            repo.setMaxArticles(id, PublicationEntity.OWN, 2)
+            repo.setPaused(id, true)
+        }
+        shoot("06i-source-detail-paused", ready = { vm.detail.value?.source?.paused == true && vm.detail.value?.text?.maxArticles == 2 }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** The site's settings, opened from the row, with the switch for its recordings. */
+    @Test
+    fun sourceDetailSettingsSheet() {
+        val vm = letter()
+        shoot("06j-source-settings-sheet", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, act = ::openSiteSettings) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** The site's settings at twice the font size: the sheet scrolls, and the limit's buttons get their own line. */
+    @Test
+    @Config(fontScale = 2f)
+    fun sourceDetailSettingsSheetAtTwiceTheFontSize() {
+        val vm = letter()
+        shoot("06k-source-settings-sheet-200", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, act = ::openSiteSettings) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    private fun openSiteSettings() {
+        compose.onNode(hasContentDescription("This site's settings:", substring = true)).performClick()
+        compose.waitForIdle()
     }
 
     /** A phone feed's page from the top: its settings. */

@@ -9,6 +9,7 @@ import com.app.newspaperss.core.listen.ListenTime
 import com.app.newspaperss.data.AppDatabase
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.EditionContent
+import com.app.newspaperss.data.PublicationEntity
 import com.app.newspaperss.settings.Recordings
 import kotlinx.coroutines.CancellationException
 import java.util.Locale
@@ -111,7 +112,9 @@ class Readings(
     /**
      * Finds the recordings for an edition's [contents], in book order, reading the pages that may
      * have one with [script]. Logs what it found, and why each transcript the voice reads has no
-     * episode to play: how often each reason comes up, on a reader's own feeds.
+     * episode to play: how often each reason comes up, on a reader's own feeds. A source whose
+     * recordings are switched off ([PublicationEntity.recordingsOff]) is read by the voice; the
+     * switch is read here, so an edition already open carries on as it started.
      */
     suspend fun load(editionId: Long, contents: List<EditionContent>, script: suspend (page: Int) -> ListenScript?) {
         val found = mutableMapOf<Int, Reading>()
@@ -138,6 +141,10 @@ class Readings(
                 read += "page $page (its page wouldn't read)"
                 null
             } ?: return@forEachIndexed
+            if (db.sources().publication(article.sourceId, PublicationEntity.keyOf(article))?.recordingsOff == true) {
+                read += "page $page (its source's recordings are switched off)"
+                return@forEachIndexed
+            }
             // Each recording plays once: a second post with the same one is read by the voice.
             val first = found.entries.firstOrNull { it.value.url == reading.url }
             if (first != null) {
