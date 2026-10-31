@@ -20,6 +20,11 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 A few cycles on BACKLOG's Tech debt (T1–T3), as you asked: the larger cuts the 30 Oct audits left.
 
+### T2: tt-rss sessions in one place
+- **Why:** ten places opened a tt-rss session and logged out by hand, `subscribe` twice and not at all if its first call threw.
+- **Built:** `TtrssClient.session { }` logs out however the block ends; the three paging loops share one request and one id parser; the account source and "still in the account" are one function and one property each.
+- **Size:** about the same (−7 lines ignoring indentation). The gain is that a new tt-rss call can't forget to log out.
+
 ### The daily tt-rss check, green again
 - **Why:** the live check against a real tt-rss had failed every day since 26 Oct, unnoticed. One test asked tt-rss to update a feed whose file it had deleted, and failed when tt-rss refused one of those updates; it only needed tt-rss to record the 404.
 - **Fixed:** that loop no longer insists each update succeeds, and a failing run prints the test's message, so the next surprise shows tt-rss's own answer.
