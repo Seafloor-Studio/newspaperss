@@ -52,7 +52,7 @@ data class SourceEntity(
     /** tt-rss only: the category to take unread articles from, null for all of them. */
     val ttrssCategoryId: Int? = null,
     val ttrssCategoryTitle: String? = null,
-    /** tt-rss only: mark delivered articles read on the server. */
+    /** tt-rss only: sync read status both ways, Settings' "Sync read status with tt-rss". */
     val markReadOnServer: Boolean = true,
     /**
      * tt-rss only, with [markReadOnServer]: an article that waits here past its keep window is
@@ -95,9 +95,9 @@ enum class ArticleState {
     /** In an edition that hasn't been delivered yet; goes back to NEW if it never is. */
     IN_EDITION,
     DELIVERED,
-    /** The reader marked it as read: never in an edition, and read in tt-rss at the next sync. */
+    /** Read, here or in tt-rss, rather than delivered; marked read in tt-rss when read status syncs. */
     SKIPPED,
-    /** Never picked and older than the keep window. */
+    /** Never picked, and no longer waiting: older than the keep window, its feed left out, or a paid post skipped. */
     EXPIRED,
 }
 
@@ -175,8 +175,8 @@ data class ArticleEntity(
      */
     val audioSeconds: Int? = null,
     /**
-     * What it is beside the podcast episodes it may belong to, as the detector judged it when it
-     * was first synced ([com.app.newspaperss.core.episodes.EpisodeDetector]). Null for an
+     * What it is beside the podcast episodes it may belong to, as the detector judged it
+     * ([com.app.newspaperss.core.episodes.EpisodeDetector]), judged again as its pair turns up. Null for an
      * article from before the detector, and for saved links, which it never judges.
      */
     val episodeKind: EpisodeKind? = null,
@@ -207,7 +207,7 @@ data class PublicationEntity(
     val key: String,
     /**
      * What the automatic full-text check has learned (see
-     * [com.app.newspaperss.core.extract.FullTextCheck]); a mode the reader chose stays on the source.
+     * [com.app.newspaperss.core.extract.FullTextCheck]); a mode the reader chose is [chosenMode].
      */
     val contentMode: ContentMode = ContentMode.AUTO,
     /** The latest article's [FullTextEvidence] and the run of days behind it. */
@@ -268,6 +268,25 @@ data class PublicationEntity(
     /** tt-rss only: when the app started watching the feed post, for one with no post seen since. */
     val watchedSince: Instant? = null,
 ) {
+    /** tt-rss only: still in the account, in the paper's category or outside it. */
+    val inAccount: Boolean get() = listed || outsideCategory
+
+    /**
+     * This feed with [other]'s settings: what moving a feed between the phone and tt-rss keeps.
+     * A setting added to the feed belongs here, or a move drops it.
+     */
+    fun withSettingsOf(other: PublicationEntity) = copy(
+        contentMode = other.contentMode,
+        fullTextEvidence = other.fullTextEvidence,
+        fullTextStreak = other.fullTextStreak,
+        fullTextDay = other.fullTextDay,
+        checkedDay = other.checkedDay,
+        chosenMode = other.chosenMode,
+        maxArticles = other.maxArticles,
+        skipPaidPosts = other.skipPaidPosts,
+        recordingsOff = other.recordingsOff,
+    )
+
     companion object {
         /** The key of a source's own feed, and of an article with no [ArticleEntity.originId]. */
         const val OWN = ""

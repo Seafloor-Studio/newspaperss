@@ -62,6 +62,14 @@ class PodcastMaker(
             val waited = seconds(now() - asked)
             if (waited >= 1) log.add("Waited ${waited}s for the last run's sentence to end")
             store.dropScratch()
+            // Best effort: without it, audio made before keys were noted is only made again.
+            try {
+                noteKeys()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log.add("Couldn't note what earlier audio says: ${e.javaClass.simpleName}")
+            }
             makeUnderLock()
         }
     }
@@ -77,6 +85,57 @@ class PodcastMaker(
         settings.update { s ->
             val last = s.podcastPace ?: return@update s
             s.copy(podcastPace = PodcastPace.learn(last.toDouble(), s.podcastPaceMeasured, nanos / 1e9, speech).toFloat(), podcastPaceMeasured = true)
+        }
+    }
+
+    /**
+     * Notes the key of each page made before keys were, from its edition's book, so a later edition
+     * can reuse it. Only where its audio covers the page's lines as they're read today: audio from
+     * a page read differently then isn't passed on. A page that can't be keyed is marked so, and
+     * not tried again; one edition's book failing doesn't stop the rest.
+     */
+    private suspend fun noteKeys() {
+        for ((editionId, pages) in store.unsaid()) {
+            try {
+                val voice = store.voice(editionId)
+                val book = voice?.let { ListenBook.open(editions, editionId) }
+                if (book == null) {
+                    pages.forEach { store.saidKey(editionId, it, PodcastStore.NO_KEY) }
+                    continue
+                }
+                book.use {
+                    for (page in pages) {
+                        val lines = script(book, page)?.lines?.takeIf { it.isNotEmpty() && store.linesMade(editionId, page) == it.size }
+                        store.saidKey(editionId, page, lines?.let { saidKey(voice, it) } ?: PodcastStore.NO_KEY)
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log.add("Couldn't note what edition $editionId's audio says: ${e.javaClass.simpleName}")
+            }
+        }
+    }
+
+    /**
+     * Notes [page]'s key and, if another edition has made a page that says the same, takes its
+     * audio: before Kokoro is loaded, so an edition whose articles are all reused never loads it.
+     * True if the page is now made.
+     */
+    private fun reused(editionId: Long, asked: String?, page: Int, script: ListenScript?, voice: PodcastVoice): Boolean {
+        if (script == null || script.lines.isEmpty() || !english(script.language)) return false
+        val key = saidKey(voice, script.lines)
+        store.saidKey(editionId, page, key)
+        if (store.linesMade(editionId, page) > 0) return false
+        val (other, otherPage) = store.madeElsewhere(key, editionId) ?: return false
+        return try {
+            store.reuse(other, otherPage, editionId, page, asked).also {
+                if (it) log.add("Page $page: the same as edition $other page $otherPage, its audio reused")
+            }
+        } catch (e: IOException) {
+            // A full disk, most likely: Kokoro makes the page instead, and meets the same.
+            log.add("Page $page: couldn't reuse edition $other's audio (${e.javaClass.simpleName}), made instead")
+            false
         }
     }
 
@@ -112,6 +171,8 @@ class PodcastMaker(
                         }
                         // A newer edition asked for since: it goes first, and this one carries on after.
                         if (store.waiting().firstOrNull() != editionId || !store.wanted(editionId, asked)) return@use
+                        val script = script(book, page)
+                        if (reused(editionId, asked, page, script, voice)) continue
                         val threads = threads(editionId)
                         if (kokoro?.first != voice || kokoro?.second != threads) {
                             kokoro?.third?.release()
@@ -122,7 +183,7 @@ class PodcastMaker(
                             store.addCost(editionId, now() - began, 0.0)
                             log.add("Kokoro loaded (${voice.label}, $threads threads) in ${seconds(now() - began)}s")
                         }
-                        makePage(editionId, asked, page, script(book, page), kokoro!!.third)
+                        makePage(editionId, asked, page, script, kokoro!!.third)
                     }
                     // Stopped during its last page: not finished, so Make the rest can carry on.
                     if (!store.wanted(editionId, asked)) return@use
@@ -305,6 +366,23 @@ class PodcastMaker(
 
         /** Runs failing on the same page before it's left to the phone's voice. */
         internal const val FAILURES = 3
+
+        /**
+         * What a page's audio says and how: the voice, each line, and where the breath between
+         * paragraphs falls. Pages with the same key have the same audio, whatever edition they're in.
+         * [SAID_VERSION] goes up when what's said changes in a way the lines don't show.
+         */
+        fun saidKey(voice: PodcastVoice, lines: List<ListenScript.Line>): String {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            digest.update("$SAID_VERSION\n${voice.name}\n".toByteArray())
+            lines.forEachIndexed { i, line ->
+                val pause = i > 0 && lines[i - 1].block != line.block
+                digest.update("${if (pause) "¶" else ""}${line.spoken}\n".toByteArray())
+            }
+            return digest.digest().joinToString("") { "%02x".format(it) }
+        }
+
+        private const val SAID_VERSION = 1
 
         /** Kokoro's voices here are English ones; a page with no language is taken to be English. */
         fun english(language: String?): Boolean = language == null || Locale.forLanguageTag(language).language == "en"

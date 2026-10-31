@@ -1,5 +1,6 @@
 package com.app.newspaperss.core.extract
 
+import com.app.newspaperss.core.ReadingTime
 import com.app.newspaperss.core.net.HttpBytes
 import com.app.newspaperss.core.net.HttpClient
 import com.app.newspaperss.core.net.HttpResponse
@@ -95,7 +96,6 @@ class ArticleExtractorTest {
         // Page furniture and the repeated title don't reach the reader.
         listOf("Comments (212)", "Share on Facebook", "Sign up for our newsletter", "technical storage", "<h1>", "Quiet Joy of")
             .forEach { assertFalse("\"$it\" leaked", it in article.html) }
-        assertEquals(article.wordCount / 238.0, article.minutes, 1e-9)
         assertEquals(ContentMode.PAGE, ArticleExtractor.suggestMode(article.feedWordCount, article.pageWordCount))
     }
 
@@ -393,7 +393,7 @@ class ArticleExtractorTest {
 
         assertTrue(article.usedFeedContent)
         assertTrue(http.requested.isEmpty())
-        assertTrue("${article.minutes}", article.minutes > 3)
+        assertTrue("${article.wordCount}", ReadingTime.minutes(article.wordCount) > 3)
     }
 
     private fun words(n: Int, prefix: String) = (1..n).joinToString(" ") { "$prefix$it" }

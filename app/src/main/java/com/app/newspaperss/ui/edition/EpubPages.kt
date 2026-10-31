@@ -12,10 +12,10 @@ import kotlin.concurrent.write
 /**
  * Reads pages and their resources back out of an edition's EPUB for the in-app preview.
  *
- * The zip is opened on first read and kept open until [close]: a page asks for its stylesheet
- * and every image, and reopening the zip for each is a central-directory read apiece. Reads are
- * safe from several threads (the WebView serves requests off the main thread), and a read after
- * [close] returns null, since the WebView can still be asking as its screen goes away.
+ * The zip is opened on first read and kept open until [close]: a page asks for every image, and
+ * reopening the zip for each is a central-directory read apiece. Reads are safe from several
+ * threads (pictures load off the main thread), and a read after [close] returns null, since a
+ * picture can still be loading as its screen goes away.
  */
 class EpubPages(private val file: File) : Closeable {
     // Reads share the lock; close() waits for them. ZipFile.close() ends the inflater a read may
@@ -36,6 +36,15 @@ class EpubPages(private val file: File) : Closeable {
         }
     }
 
+    /** Whether the book has a file at [path], without reading it. */
+    fun has(path: String): Boolean = lock.read {
+        try {
+            open()?.getEntry(path) != null
+        } catch (_: IOException) {
+            false
+        }
+    }
+
     // Under the read lock, so only racing other first reads.
     @Synchronized
     private fun open(): ZipFile? {
@@ -51,21 +60,5 @@ class EpubPages(private val file: File) : Closeable {
 
     companion object {
         fun articleHref(position: Int) = EpubWriter.articleHref(position)
-
-        /** The article [path] (a page's path in the book) is, or null if it's another page: the contents, the end. */
-        fun articleAt(path: String): Int? =
-            ARTICLE_PAGE.matchEntire(path)?.groupValues?.get(1)?.toIntOrNull()?.minus(1)?.takeIf { it >= 0 }
-
-        // EpubWriter.articleHref's form.
-        private val ARTICLE_PAGE = Regex("article-(\\d{3,})\\.xhtml")
-
-        fun mimeOf(path: String) = when (path.substringAfterLast('.').lowercase()) {
-            "css" -> "text/css"
-            "jpg", "jpeg" -> "image/jpeg"
-            "png" -> "image/png"
-            "gif" -> "image/gif"
-            "xhtml" -> "application/xhtml+xml"
-            else -> "application/octet-stream"
-        }
     }
 }

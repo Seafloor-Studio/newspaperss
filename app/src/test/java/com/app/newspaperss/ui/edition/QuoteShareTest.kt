@@ -24,6 +24,17 @@ class QuoteShareTest {
         assertEquals("A story", out.getStringExtra(Intent.EXTRA_SUBJECT))
     }
 
+    /** What the preview's selection menu sends for Share: the words picked, then where they're from. */
+    @Test
+    fun aQuoteSelectedOnThePageSaysWhereItsFrom() {
+        val chooser = quoteIntent("A line worth keeping.", link)
+        assertEquals(Intent.ACTION_CHOOSER, chooser.action)
+        @Suppress("DEPRECATION")
+        val send = chooser.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)!!
+        assertEquals("A line worth keeping.\n\nhttps://a.example/story", send.getStringExtra(Intent.EXTRA_TEXT))
+        assertEquals("A story", send.getStringExtra(Intent.EXTRA_SUBJECT))
+    }
+
     @Test
     fun aSubjectAlreadyThereIsKept() {
         val out = withSource(text(Intent.EXTRA_TEXT to "A quote", Intent.EXTRA_SUBJECT to "Theirs"), link)

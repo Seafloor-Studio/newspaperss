@@ -89,7 +89,7 @@ object EpubWriter {
 
     private class Page(val id: String, val href: String, val title: String, val xhtml: String)
 
-    private class TocEntry(val label: String, val href: String, val children: List<TocEntry> = emptyList())
+    private class TocEntry(val label: String, val href: String)
 
     private class Book(val doc: EditionDoc) {
         val lang = doc.language
@@ -97,8 +97,6 @@ object EpubWriter {
         val articleHrefs = articles.indices.map(::articleHref)
         val images = collectImages()
         val totalMinutes = articles.sumOf { it.minutes }
-        val sections = doc.sections.filter { it.articles.isNotEmpty() }
-        val articleSections = sections.flatMap { section -> section.articles.map { section.title?.trim().orEmpty() } }
         val sources = articles.map { it.sourceTitle.trim() }.filter { it.isNotEmpty() }.distinct()
 
         fun articleTitle(index: Int): String = articles[index].title.trim().ifEmpty { "Article ${index + 1}" }
@@ -147,28 +145,12 @@ object EpubWriter {
 
         private fun toc(): List<TocEntry> {
             val entries = mutableListOf(TocEntry("Contents", CONTENTS))
-            var index = 0
-            for (section in sections) {
-                val articleEntries = section.articles.map {
-                    TocEntry(articleTitle(index), articleHrefs[index]).also { index++ }
-                }
-                val title = section.title?.trim().orEmpty()
-                if (title.isEmpty()) {
-                    entries += articleEntries
-                } else {
-                    // The section's first article, not its heading on the contents page: an entry
-                    // pointing back to the contents takes the TOC out of reading order, and Kindle's
-                    // "next chapter" would jump back to the front.
-                    entries += TocEntry(title, articleEntries.first().href, articleEntries)
-                }
-            }
+            entries += articles.indices.map { TocEntry(articleTitle(it), articleHrefs[it]) }
             // A chapter of its own, so the wrap-up and the closing question can be found from the
             // contents; an e-reader's own "go to end" lands past it.
             entries += TocEntry(END_TITLE, END)
             return entries
         }
-
-        private fun sectionId(index: Int) = "section-${index + 1}"
 
         private fun coverPage(): Page {
             val sourceLine = sources.take(MAX_COVER_SOURCES).joinToString(", ") +
@@ -201,21 +183,14 @@ object EpubWriter {
                 append("<p class=\"dateline\">${esc(DATELINE.format(doc.date))}</p>\n")
                 append("<h1 class=\"contents-title\">In this edition</h1>\n")
                 append("<p class=\"totals\">${esc(totalsLine())}</p>\n")
-                var index = 0
-                sections.forEachIndexed { sectionIndex, section ->
-                    val title = section.title?.trim().orEmpty()
-                    if (title.isNotEmpty()) {
-                        val minutes = minutesLabel(section.articles.sumOf { it.minutes })?.let { " <span class=\"meta\">· ${esc(it)}</span>" }.orEmpty()
-                        append("<h2 class=\"section-title\" id=\"${sectionId(sectionIndex)}\">${esc(title)}$minutes</h2>\n")
-                    }
-                    append("<ol class=\"contents\" start=\"${index + 1}\">\n")
-                    for (article in section.articles) {
+                if (articles.isNotEmpty()) {
+                    append("<ol class=\"contents\" start=\"1\">\n")
+                    articles.forEachIndexed { index, article ->
                         val meta = listOfNotNull(article.sourceTitle.trim(), minutesLabel(article.minutes))
                             .filter { it.isNotEmpty() }.joinToString(" · ")
                         // On the item, not the link, so a right-to-left entry is aligned as one.
                         append("<li${languageAttributes(article.language, lang)}><a href=\"${articleHrefs[index]}\">${esc(articleTitle(index))}</a>")
                         append("<br/><span class=\"meta\">${esc(meta)}</span></li>\n")
-                        index++
                     }
                     append("</ol>\n")
                 }
@@ -232,11 +207,9 @@ object EpubWriter {
                 article.published?.let { BYLINE_DATE.format(it) },
                 minutesLabel(article.minutes)?.let { "$it read" },
             ).joinToString(" · ")
-            // The section goes in the kicker, since the book has no section pages to say where one starts.
-            val kicker = listOf(articleSections[index], source).filter { it.isNotEmpty() }.distinct().joinToString(" · ")
             val imageHrefs = article.images.map { it.href }.toSet()
             val body = buildString {
-                if (kicker.isNotEmpty()) append("<p class=\"kicker\">${esc(kicker)}</p>\n")
+                if (source.isNotEmpty()) append("<p class=\"kicker\">${esc(source)}</p>\n")
                 val langAttrs = languageAttributes(article.language, lang)
                 append("<h1 class=\"article-title\"$langAttrs>${esc(title)}</h1>\n")
                 if (byline.isNotEmpty()) append("<p class=\"byline\">${esc(byline)}</p>\n")
@@ -361,13 +334,10 @@ object EpubWriter {
         }
 
         fun nav(toc: List<TocEntry>): String {
-            fun list(entries: List<TocEntry>): String = entries.joinToString("\n", "<ol>\n", "\n</ol>") { entry ->
-                val link = "<a href=\"${esc(entry.href)}\">${esc(entry.label)}</a>"
-                if (entry.children.isEmpty()) "<li>$link</li>" else "<li>$link\n${list(entry.children)}\n</li>"
-            }
+            val list = toc.joinToString("\n", "<ol>\n", "\n</ol>") { "<li><a href=\"${esc(it.href)}\">${esc(it.label)}</a></li>" }
             val body = buildString {
                 append("<nav epub:type=\"toc\" role=\"doc-toc\" id=\"toc\">\n<h1>Contents</h1>\n")
-                append(list(toc))
+                append(list)
                 append("\n</nav>\n<nav epub:type=\"landmarks\" id=\"landmarks\" hidden=\"hidden\">\n<ol>\n")
                 append("<li><a epub:type=\"cover\" href=\"$COVER\">Cover</a></li>\n")
                 append("<li><a epub:type=\"toc\" href=\"$CONTENTS\">Contents</a></li>\n")
@@ -379,26 +349,19 @@ object EpubWriter {
         }
 
         fun ncx(toc: List<TocEntry>): String {
-            var id = 0
-            // A section and its first article point at the same page, and NCX requires entries
-            // with the same target to share a playOrder.
-            val playOrders = HashMap<String, Int>()
-            fun points(entries: List<TocEntry>): String = entries.joinToString("\n") { entry ->
-                val order = playOrders.getOrPut(entry.href) { playOrders.size + 1 }
-                val children = if (entry.children.isEmpty()) "" else "\n" + points(entry.children)
-                "<navPoint id=\"nav-${++id}\" playOrder=\"$order\">" +
+            val points = toc.withIndex().joinToString("\n") { (i, entry) ->
+                "<navPoint id=\"nav-${i + 1}\" playOrder=\"${i + 1}\">" +
                     "<navLabel><text>${esc(entry.label)}</text></navLabel>" +
-                    "<content src=\"${esc(entry.href)}\"/>$children</navPoint>"
+                    "<content src=\"${esc(entry.href)}\"/></navPoint>"
             }
-            val depth = if (toc.any { it.children.isNotEmpty() }) 2 else 1
             return buildString {
                 append("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n")
                 append("<ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\" version=\"2005-1\" xml:lang=\"${esc(lang)}\">\n")
                 append("<head>\n<meta name=\"dtb:uid\" content=\"${esc(doc.identifier)}\"/>\n")
-                append("<meta name=\"dtb:depth\" content=\"$depth\"/>\n")
+                append("<meta name=\"dtb:depth\" content=\"1\"/>\n")
                 append("<meta name=\"dtb:totalPageCount\" content=\"0\"/>\n<meta name=\"dtb:maxPageNumber\" content=\"0\"/>\n</head>\n")
                 append("<docTitle><text>${esc(doc.title)}</text></docTitle>\n<navMap>\n")
-                append(points(toc))
+                append(points)
                 append("\n</navMap>\n</ncx>\n")
             }
         }

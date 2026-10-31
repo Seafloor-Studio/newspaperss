@@ -20,6 +20,10 @@ import java.util.UUID
  * A folder is made only when a podcast is asked for, and once deleted (with its edition, or with
  * Kokoro) nothing writes into it again: a piece finishing after that is dropped. [write] is where
  * that's kept, and [keep] for the audio.
+ *
+ * Each page also notes its [saidKey]: what's said on it and in which voice. An article that comes
+ * back in a later edition (one not sent gives its articles back) has the same key, and [reuse]
+ * links the audio already made rather than Kokoro making it again.
  */
 class PodcastStore(val dir: File) {
     private val _changes = MutableStateFlow(0)
@@ -101,17 +105,25 @@ class PodcastStore(val dir: File) {
     /** The space [editionId]'s podcast's audio takes, in bytes: none until a piece is kept. */
     fun bytes(editionId: Long): Long = audioBytes(folder(editionId))
 
-    /** The space every podcast's audio takes, in bytes. */
-    fun bytes(): Long = audioBytes(dir)
+    /** The space every podcast's audio takes, in bytes: audio one edition reused from another counted once. */
+    fun bytes(): Long = audioBytes(dir, mutableSetOf())
 
     // Not File.walk(): it asserts a folder it entered is still one, and a delete on another thread
     // can take it away in between, as it can a file (whose length is then 0).
-    private fun audioBytes(folder: File): Long = (folder.listFiles() ?: emptyArray()).sumOf { file ->
+    private fun audioBytes(folder: File, seen: MutableSet<Any>? = null): Long = (folder.listFiles() ?: emptyArray()).sumOf { file ->
         when {
-            file.isDirectory -> audioBytes(file)
-            file.name.endsWith(".$AUDIO") -> file.length()
-            else -> 0L
+            file.isDirectory -> audioBytes(file, seen)
+            !file.name.endsWith(".$AUDIO") -> 0L
+            // A piece linked into two editions is one file: its inode says so, where the phone tells it.
+            seen != null && fileKey(file)?.let { !seen.add(it) } == true -> 0L
+            else -> file.length()
         }
+    }
+
+    private fun fileKey(file: File): Any? = try {
+        java.nio.file.Files.readAttributes(file.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java).fileKey()
+    } catch (_: Exception) {
+        null
     }
 
     fun voice(editionId: Long): PodcastVoice? =
@@ -230,6 +242,69 @@ class PodcastStore(val dir: File) {
         return File(dir, "$editionId$SEP$page$SEP$firstLine.$PART")
     }
 
+    /** Notes what's said on [page] and in which voice ([PodcastMaker.saidKey]), for a later edition to [reuse] its audio. */
+    @Synchronized
+    fun saidKey(editionId: Long, page: Int, key: String) {
+        write(editionId, "$page.$KEY", key)
+    }
+
+    fun saidKey(editionId: Long, page: Int): String? = read(editionId, "$page.$KEY")
+
+    /** A page made whole, in another edition than [except], whose audio says [key]: its edition and page. */
+    fun madeElsewhere(key: String, except: Long): Pair<Long, Int>? {
+        for (folder in dir.listFiles() ?: emptyArray()) {
+            val editionId = folder.name.toLongOrNull()?.takeIf { it != except } ?: continue
+            for (file in folder.listFiles() ?: emptyArray()) {
+                val page = file.name.takeIf { it.endsWith(".$KEY") }?.removeSuffix(".$KEY")?.toIntOrNull() ?: continue
+                if (made(editionId, page) && read(editionId, file.name) == key) return editionId to page
+            }
+        }
+        return null
+    }
+
+    /** Editions with pages made before keys were noted: [PodcastMaker] notes theirs from their books. */
+    fun unsaid(): Map<Long, List<Int>> = (dir.listFiles() ?: emptyArray()).mapNotNull { folder ->
+        val editionId = folder.name.toLongOrNull() ?: return@mapNotNull null
+        val pages = (folder.listFiles() ?: emptyArray())
+            .mapNotNull { it.name.takeIf { n -> n.endsWith(".$MADE") }?.removeSuffix(".$MADE")?.toIntOrNull() }
+            .filter { saidKey(editionId, it) == null }
+        (editionId to pages).takeIf { pages.isNotEmpty() }
+    }.toMap()
+
+    /**
+     * Makes [page] of [editionId] whole with the audio of [fromPage] of [from], which says the same:
+     * each piece hard-linked where the phone allows (no more space taken, and still there when the
+     * other edition is deleted), copied where it doesn't. False if either is gone.
+     */
+    @Synchronized
+    fun reuse(from: Long, fromPage: Int, editionId: Long, page: Int, asked: String?): Boolean {
+        val folder = folder(editionId)
+        val pieces = pieces(from, fromPage)
+        // Checked here, under the lock: deleted and asked for again (perhaps in another voice), it's another podcast.
+        if (!folder.exists() || read(editionId, ASKED) != asked || pieces.isEmpty() || !made(from, fromPage)) return false
+        for (piece in pieces) {
+            val name = "$page$SEP${piece.firstLine}"
+            val target = File(folder, "$name.$AUDIO")
+            if (target.exists()) continue
+            val part = scratch(editionId, page, piece.firstLine)
+            part.delete()
+            try {
+                java.nio.file.Files.createLink(part.toPath(), piece.audio.toPath())
+            } catch (_: Exception) {
+                piece.audio.copyTo(part, overwrite = true)
+            }
+            write(editionId, "$name.$STARTS", piece.starts.joinToString("\n", postfix = "\n") { "%.3f".format(Locale.ROOT, it) })
+            if (!part.renameTo(target)) {
+                part.delete()
+                throw IOException("Couldn't keep $name")
+            }
+        }
+        write(editionId, "$page.$MADE", "")
+        saidKey(from, fromPage)?.let { write(editionId, "$page.$KEY", it) }
+        changed()
+        return true
+    }
+
     /** Pieces left half-written by an app that died: only called with nothing being made. */
     fun dropScratch() {
         dir.listFiles { file -> file.name.endsWith(".$PART") }?.forEach { it.delete() }
@@ -261,21 +336,24 @@ class PodcastStore(val dir: File) {
         changed()
     }
 
-    private companion object {
-        const val SEP = "-"
-        const val VOICE = "voice"
-        const val FINISHED = "finished"
-        const val STOPPED = "stopped"
-        const val ASKED = "asked"
-        const val AUDIO = "m4a"
-        const val STARTS = "starts"
-        const val MADE = "made"
-        const val LIVE = "live"
-        const val SAYING = "saying"
-        const val FAILED = "failed"
-        const val COST = "cost"
-        const val LINES = "lines"
-        const val PART = "part"
+    companion object {
+        /** A page made before keys were, whose key couldn't be found from its book: not tried again. */
+        const val NO_KEY = "-"
+        private const val SEP = "-"
+        private const val VOICE = "voice"
+        private const val FINISHED = "finished"
+        private const val STOPPED = "stopped"
+        private const val ASKED = "asked"
+        private const val AUDIO = "m4a"
+        private const val STARTS = "starts"
+        private const val MADE = "made"
+        private const val LIVE = "live"
+        private const val SAYING = "saying"
+        private const val FAILED = "failed"
+        private const val COST = "cost"
+        private const val LINES = "lines"
+        private const val PART = "part"
+        private const val KEY = "said"
     }
 }
 

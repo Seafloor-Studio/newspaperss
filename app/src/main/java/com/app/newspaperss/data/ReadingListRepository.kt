@@ -60,7 +60,7 @@ class ReadingListRepository(
         val article = ArticleEntity(sourceId = sourceId(), guid = url, url = url, title = RowLimits.cut(title?.trim().orEmpty(), RowLimits.MAX_TITLE), discoveredAt = clock.instant())
         val articleId = db.articles().insertIgnoring(article)
         if (articleId == -1L) {
-            db.articles().allForSource(article.sourceId).firstOrNull { it.guid == url && it.unreadable != null && it.state == ArticleState.NEW }
+            db.articles().byGuid(article.sourceId, url)?.takeIf { it.unreadable != null && it.state == ArticleState.NEW }
                 ?.let { onUntitled(listOf(it.id)) }
             return false
         }

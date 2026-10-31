@@ -22,9 +22,6 @@ interface SourceDao {
     @Query("SELECT * FROM publications WHERE sourceId = :sourceId AND leftOut = 1")
     suspend fun leftOut(sourceId: Long): List<PublicationEntity>
 
-    @Query("SELECT * FROM publications WHERE leftOut = 1")
-    suspend fun allLeftOut(): List<PublicationEntity>
-
     /**
      * The feeds an aggregator's articles came from since [since], each with the name it was last
      * seen under (SQLite takes a bare column from the row that gave the MAX).
@@ -55,9 +52,6 @@ interface SourceDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(source: SourceEntity): Long
-
-    @Update
-    suspend fun update(source: SourceEntity)
 
     // Targeted updates: a sync holds a source row for up to a minute, and
     // writing the whole row back would undo a pause or rename made meanwhile.
@@ -221,11 +215,7 @@ interface ArticleDao {
      * Inserts articles not already known for their source; returns how many were new. One whose
      * link was already delivered (see [DeliveredUrlEntity]) is left out: stored, it would count as
      * new activity on the Sources screen. Each is cut to [RowLimits] first, or left out if it can't be.
-     */
-    suspend fun insertNew(articles: List<ArticleEntity>): Int = insertFetched(articles.map { it to it.url })
-
-    /**
-     * [insertNew], each article with the link it was fetched with. That link, and a link post's own
+     * Each comes with the link it was fetched with. That link, and a link post's own
      * page, count as delivered too: stored links have tracking removed and link posts point to
      * their story, while delivered_urls may hold the link as it went out before, or as a page
      * saved to the reading list.
@@ -283,13 +273,6 @@ interface ArticleDao {
     suspend fun insertIgnoring(article: ArticleEntity): Long
 
     /**
-     * Waiting articles, and starred ones in any state but already in an unsent edition; not the
-     * saved links that can never be read ([ArticleEntity.unreadable]).
-     */
-    @Query("SELECT * FROM articles WHERE (state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')) AND unreadable IS NULL")
-    suspend fun candidates(): List<ArticleEntity>
-
-    /**
      * Marks a saved link as one that can never be read, and why (see [ArticleEntity.unreadable]);
      * null clears it. Not one in an edition, which was read after all.
      */
@@ -297,9 +280,10 @@ interface ArticleDao {
     suspend fun setUnreadable(id: Long, why: String?)
 
     /**
-     * [candidates] without their feed text, which a build reads one article at a time with
-     * [feedHtml]: up to 500,000 characters each, for every waiting article, is more than a small
-     * e-reader has to spare.
+     * Waiting articles, and starred ones in any state but already in an unsent edition, not the
+     * saved links that can never be read ([ArticleEntity.unreadable]). Without their feed text,
+     * which a build reads one article at a time with [feedHtml]: up to 500,000 characters each,
+     * for every waiting article, is more than a small e-reader has to spare.
      */
     @Query(
         """SELECT id, sourceId, guid, url, title, author, published, NULL AS feedHtml, discoveredAt, state, starredAt,
@@ -485,20 +469,6 @@ interface ArticleDao {
     )
     suspend fun forgetDelivered(editionId: Long, deliveredAt: Instant)
 
-    /** Keeps the first star's time, so repeated taps don't move it back in line. Not while it's in an unsent edition. */
-    @Query("UPDATE articles SET starredAt = COALESCE(starredAt, :at) WHERE id = :id AND state != 'IN_EDITION'")
-    suspend fun star(id: Long, at: Instant): Int
-
-    /**
-     * Refused while an edition started after [buildingSince] is being made: it has taken the
-     * article as a candidate and may already have written it into the book.
-     */
-    @Query(
-        """UPDATE articles SET starredAt = NULL WHERE id = :id AND state != 'IN_EDITION'
-           AND NOT EXISTS (SELECT 1 FROM editions WHERE status = 'BUILDING' AND createdAt > :buildingSince)""",
-    )
-    suspend fun unstar(id: Long, buildingSince: Instant): Int
-
     /**
      * Stars a source's articles by guid, for stars taken from tt-rss. Not one already delivered:
      * starred there after it went out, it's being kept, not asked for again.
@@ -512,11 +482,14 @@ interface ArticleDao {
     @Query("SELECT guid FROM articles WHERE sourceId = :sourceId AND guid IN (:guids) AND state = 'IN_EDITION'")
     suspend fun inEditionAmong(sourceId: Long, guids: List<String>): List<String>
 
-    /** [star] for several articles at once. */
+    /** Keeps each first star's time, so repeated taps don't move it back in line. Not while it's in an unsent edition. */
     @Query("UPDATE articles SET starredAt = COALESCE(starredAt, :at) WHERE id IN (:ids) AND state != 'IN_EDITION'")
     suspend fun starAll(ids: Collection<Long>, at: Instant): Int
 
-    /** [unstar] for several articles at once, with the same hold during a build. */
+    /**
+     * Refused while an edition started after [buildingSince] is being made: it has taken the
+     * articles as candidates and may already have written them into the book.
+     */
     @Query(
         """UPDATE articles SET starredAt = NULL WHERE id IN (:ids) AND state != 'IN_EDITION'
            AND NOT EXISTS (SELECT 1 FROM editions WHERE status = 'BUILDING' AND createdAt > :buildingSince)""",
@@ -524,12 +497,12 @@ interface ArticleDao {
     suspend fun unstarAll(ids: Collection<Long>, buildingSince: Instant): Int
 
     suspend fun setStarred(id: Long, starred: Boolean, now: Instant): Boolean =
-        (if (starred) star(id, now) else unstar(id, now.minus(BUILD_HOLD))) > 0
+        (if (starred) starAll(listOf(id), now) else unstarAll(listOf(id), now.minus(BUILD_HOLD))) > 0
 
     /**
      * Waiting articles, and ones in an unsent edition: its book can't change, but the article
      * won't come back for another if it's never sent. Their stars go with them. Refused during a
-     * build, as for [unstar].
+     * build, as for [unstarAll].
      */
     @Query(
         """UPDATE articles SET state = 'SKIPPED', starredAt = NULL WHERE id IN (:ids) AND state IN ('NEW', 'IN_EDITION')
@@ -791,6 +764,11 @@ data class EditionContent(
     val episodeKind: EpisodeKind? = null,
     /** The post it pairs with ([ArticleEntity.episodePair]), if that is still stored. */
     @Embedded(prefix = "pair_") val pair: EpisodePair? = null,
+    /** Whether it has audio of its own ([ArticleEntity.audioUrl]), and its pair; how long each plays, if known. */
+    val hasAudio: Boolean = false,
+    val pairHasAudio: Boolean = false,
+    val audioSeconds: Int? = null,
+    val pairAudioSeconds: Int? = null,
 ) {
     /**
      * The page to open for where this article came from, or null when there is none to open: its
@@ -847,9 +825,6 @@ interface EditionDao {
     @Query("SELECT * FROM editions WHERE status = :status")
     suspend fun withStatus(status: EditionStatus): List<EditionEntity>
 
-    @Query("SELECT COUNT(*) FROM editions")
-    suspend fun count(): Int
-
     @Query("SELECT COUNT(*) FROM editions WHERE status = 'DELIVERED'")
     suspend fun countDelivered(): Int
 
@@ -901,6 +876,8 @@ interface EditionDao {
     @Query(
         """SELECT edition_articles.*, articles.state AS state, articles.starredAt AS starredAt, articles.episodeKind AS episodeKind,
                   pair.guid AS pair_guid, pair.title AS pair_title, pair.episodeKind AS pair_episodeKind,
+                  articles.audioUrl IS NOT NULL AS hasAudio, pair.audioUrl IS NOT NULL AS pairHasAudio,
+                  articles.audioSeconds AS audioSeconds, pair.audioSeconds AS pairAudioSeconds,
                   articles.sourceId AS sourceId, articles.originId AS originId,
                   sources.kind AS sourceKind, sources.title AS sourceName, sources.paused AS sourcePaused,
                   COALESCE(publications.title, articles.originTitle) AS publicationTitle FROM edition_articles

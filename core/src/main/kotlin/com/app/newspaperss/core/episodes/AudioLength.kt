@@ -56,6 +56,16 @@ object AudioLength {
         return audioSeconds >= read / 2 && audioSeconds <= read * 2
     }
 
+    /**
+     * Audio far too short to be the episode [words] transcribe: under a third of them read aloud,
+     * where [isEpisodeOf] turns away anything under half. Said from an estimate of the words, so
+     * it errs short: whatever it calls a preview, Listen won't play either.
+     */
+    fun isPreviewOf(audioSeconds: Int, words: Int): Boolean {
+        if (words <= 0 || audioSeconds <= 0) return false
+        return audioSeconds < words / WORDS_PER_MINUTE * 60 / 3
+    }
+
     /** How long [words] take read aloud, at Listen's 160 a minute. */
     fun readSeconds(words: Int): Int = (words / WORDS_PER_MINUTE * 60).toInt()
 

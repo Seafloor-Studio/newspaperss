@@ -1,7 +1,24 @@
 package com.app.newspaperss.ui
 
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Newspaper
+import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
+import com.app.newspaperss.listen.ListenState
+import com.app.newspaperss.listen.ListenPage
+import com.app.newspaperss.ui.listen.ListenBar
 import com.app.newspaperss.ui.components.EpisodeJudgement
 import com.app.newspaperss.listen.Reading
+import com.app.newspaperss.listen.Readings
 import com.app.newspaperss.listen.ReadingSpeaker
 import com.app.newspaperss.core.episodes.EpisodeKind
 import androidx.compose.material3.LocalRippleConfiguration
@@ -88,10 +105,8 @@ import com.app.newspaperss.listen.PodcastStore
 import com.app.newspaperss.listen.Podcasts
 import com.app.newspaperss.listen.StoredListenProgress
 import com.app.newspaperss.testutil.FakeSpeaker
-import com.app.newspaperss.ui.listen.ListenScreen
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
-import com.app.newspaperss.core.epub.EditionSection
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.ui.edition.EditionDetailViewModel
 import com.app.newspaperss.ui.onboarding.OnboardingScreen
@@ -105,6 +120,7 @@ import com.app.newspaperss.data.TtrssRepository
 import com.app.newspaperss.testutil.FakeTtrss
 import com.app.newspaperss.testutil.testCipher
 import com.app.newspaperss.ui.settings.FeedsFromViewModel
+import com.app.newspaperss.ui.settings.NaturalVoiceScreen
 import com.app.newspaperss.ui.settings.SettingsPage
 import com.app.newspaperss.ui.settings.SettingsPageScreen
 import com.app.newspaperss.ui.settings.SettingsScreen
@@ -121,6 +137,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import com.app.newspaperss.data.TtrssSubscriptions
 import com.app.newspaperss.data.FeedMoves
+import com.app.newspaperss.data.connect
+import com.app.newspaperss.data.insertNew
 import com.app.newspaperss.ui.sources.PhoneFeeds
 import kotlinx.coroutines.launch
 import com.app.newspaperss.ui.sources.AddState
@@ -475,6 +493,21 @@ class ScreenshotTest {
         if (compose.onAllNodes(menu).fetchSemanticsNodes().isNotEmpty()) compose.onNode(menu).performClick()
     }
 
+    /** The newest edition left is one released as not sent: Mark as sent, and making another. */
+    @Test
+    fun todayNotSent() {
+        val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
+        runBlocking {
+            val now = Instant.parse("2026-09-29T06:30:00Z")
+            db.editions().insert(EditionEntity(title = "Monday Morning Edition", createdAt = now.minusSeconds(86_400), status = EditionStatus.DELIVERED, articleCount = 7, minutes = 31.0))
+            db.editions().insert(
+                EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.FAILED, error = com.app.newspaperss.edition.EditionBuilder.NOT_SENT, fileName = "x.epub", articleCount = 8, minutes = 33.4),
+            ).also { db.editions().insertArticles(sampleArticles(it)) }
+        }
+        val vm = viewModels.add(TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {})
+        shoot("05l-today-not-sent", ready = { vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm) }
+    }
+
     @Test
     fun todaySentKindle() = todaySent("05d-today-sent-kindle", Device.KINDLE, kindleNote = true)
 
@@ -524,7 +557,19 @@ class ScreenshotTest {
     @Test
     fun editionDetailNotSent() {
         val vm = sentEdition(notSent = true)
-        shoot("05j-edition-detail-not-sent", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}) }
+        val listening = listening()
+        shoot("05j-edition-detail-not-sent", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}, listening = listening) }
+    }
+
+    /** Released as not sent while a newer edition is being made: Mark as sent waits, and says why. */
+    @Test
+    fun editionDetailNotSentWhileOneIsMade() {
+        val vm = sentEdition(notSent = true)
+        runBlocking { db.editions().insert(EditionEntity(title = "Wednesday Morning Edition", createdAt = clock.instant(), status = EditionStatus.BUILDING)) }
+        val listening = listening()
+        shoot("05j2-edition-detail-not-sent-while-one-is-made", ready = { vm.detail.value?.contents?.isNotEmpty() == true && vm.building.value }) {
+            EditionDetailScreen(vm, onBack = {}, listening = listening)
+        }
     }
 
     /** Kokoro in use, the first two of four articles made: the bar under Listen. */
@@ -550,16 +595,88 @@ class ScreenshotTest {
     }
 
     /** A player with a voice that says nothing, over [db]'s editions in [files]. */
-    private fun listenPlayer(files: File = tmp.newFolder()): Pair<ListenPlayer, FakeSpeaker> {
+    private fun listenPlayer(files: File = tmp.newFolder(), readings: Readings? = null): Pair<ListenPlayer, FakeSpeaker> {
         val repo = EditionRepository(db, files, clock)
         val speaker = FakeSpeaker()
         val progress = StoredListenProgress(ApplicationProvider.getApplicationContext())
-        return ListenPlayer(speaker, progress, open = { ListenBook.open(repo, it) }, kotlinx.coroutines.MainScope()) to speaker
+        return ListenPlayer(speaker, progress, open = { ListenBook.open(repo, it, readings) }, kotlinx.coroutines.MainScope()) to speaker
     }
 
     private fun listening(): Listening {
         val (player, _) = listenPlayer()
         return Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock)) {}
+    }
+
+    /** The app's tabs, with Listen's bar over them as MainActivity puts it, around [content]. */
+    @Composable
+    private fun WithListenBar(playing: Boolean, loading: Boolean = false, content: @Composable () -> Unit) {
+        val state = if (loading) ListenState(editionId = 1, loading = true, playing = true) else ListenState(
+            editionId = 1, editionTitle = "Thursday Morning Edition", playing = playing,
+            pages = listOf(ListenPage("The Mathematician Who Counted the Shapes of Knots", "Quanta Magazine", 8.0)),
+        )
+        Scaffold(
+            bottomBar = {
+                Column {
+                    ListenBar(state, onOpen = {}, onToggle = {}, onClose = {})
+                    NavigationBar {
+                        listOf("Today" to Icons.Default.Newspaper, "Sources" to Icons.AutoMirrored.Filled.List, "Settings" to Icons.Default.Settings).forEachIndexed { i, (label, icon) ->
+                            NavigationBarItem(selected = i == 0, onClick = {}, icon = { Icon(icon, contentDescription = null) }, label = { Text(label) })
+                        }
+                    }
+                }
+            },
+        ) { padding -> Box(Modifier.padding(padding)) { content() } }
+    }
+
+    private fun todayWithListenBar(name: String, playing: Boolean, loading: Boolean = false) {
+        runBlocking {
+            val now = Instant.parse("2026-09-29T06:30:00Z")
+            val latest = db.editions().insert(EditionEntity(title = "Thursday Morning Edition", createdAt = now, status = EditionStatus.READY, fileName = "x.epub", articleCount = 8, minutes = 33.4))
+            db.editions().insertArticles(sampleArticles(latest))
+        }
+        val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
+        val vm = viewModels.add(TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {})
+        shoot(name, ready = { vm.state.value.editions?.isNotEmpty() == true }) { WithListenBar(playing, loading) { TodayScreen(vm) } }
+    }
+
+    /** Today with Listen's bar over the tabs, while an edition plays. */
+    @Test
+    fun todayWithTheListenBar() = todayWithListenBar("11h-listen-bar", playing = true)
+
+    /** Paused: the bar stays, with Play, until it's stopped or heard to the end. */
+    @Test
+    fun todayWithTheListenBarPaused() = todayWithListenBar("11h2-listen-bar-paused", playing = false)
+
+    /** Opening an edition, as when switching to another: the bar stays, saying so. */
+    @Test
+    fun todayWithTheListenBarOpening() = todayWithListenBar("11h4-listen-bar-opening", playing = true, loading = true)
+
+    /** At twice the font size: one line each, cut short, the buttons still in reach. */
+    @Test
+    @Config(fontScale = 2f)
+    fun todayWithTheListenBarAtTwiceTheFontSize() = todayWithListenBar("11h3-listen-bar-font-200", playing = true)
+
+    /** One view: the article preview while Listen plays it, the quote being read and the player under the page. */
+    @Test
+    fun articlePreviewListening() {
+        val files = tmp.newFolder()
+        val article = FORMATTED
+        File(files, "f.epub").outputStream().use {
+            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000013", listOf(article)), it)
+        }
+        val id = runBlocking {
+            val id = db.editions().insert(EditionEntity(title = "Thursday Morning Edition", status = EditionStatus.DELIVERED, fileName = "f.epub", articleCount = 1, minutes = 3.0))
+            db.editions().insertArticles(listOf(EditionArticleEntity(editionId = id, articleId = null, position = 0, title = article.title, sourceTitle = article.sourceTitle, minutes = 3.0)))
+            id
+        }
+        val (player, speaker) = listenPlayer(files)
+        player.start(id, ListenPosition(0, 4))
+        idleUntil { player.state.value.script != null }
+        speaker.startNext()
+        val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock)) {}
+        shoot("05c3-article-preview-listening", ready = { player.state.value.at.line == 4 && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(loadFile = { File(files, "f.epub") }, position = 0, title = article.title, onBack = {}, onListen = {}, listen = listen, editionId = id)
+        }
     }
 
     /** Listening to an article, two sentences in, its picture just ahead. */
@@ -587,6 +704,48 @@ class ScreenshotTest {
     @Test
     fun listenPlayingEpisode() = shootListening("11f-listen-episode", voice = null, recording = true, episode = true)
 
+    /** Past the edition's end: a notes post's episode, playing on a page of its own. */
+    @Test
+    fun listenPlayingAnEpisodeAtTheEnd() = shootEditionWithEpisodes("11g-listen-episode-at-the-end", page = 4)
+
+    /** In the edition, with two notes posts' episodes waiting after it. */
+    @Test
+    fun listenPlayingAnEditionWithEpisodesAfterIt() = shootEditionWithEpisodes("11g2-listen-episodes-after", page = 1)
+
+    /** Three articles, two of them notes posts: the closing page is page 3, their episodes 4 and 5. */
+    private fun shootEditionWithEpisodes(name: String, page: Int) {
+        val files = tmp.newFolder()
+        val articles = listOf(
+            EditionArticle(title = "Episode 212: The ferry planner", sourceTitle = "The Example Show", url = "https://example.com/212", bodyHtml = "<p>This week, a ferry planner.</p>", minutes = 1.0),
+            EditionArticle(title = "What do octopuses dream about?", sourceTitle = "Nautilus", url = "https://example.com/o", bodyHtml = "<p>Text.</p>", minutes = 5.0),
+            EditionArticle(title = "Episode 48: Night trains", sourceTitle = "Rail Talk", url = "https://example.com/48", bodyHtml = "<p>Night trains are back.</p>", minutes = 1.0),
+        )
+        File(files, "e.epub").outputStream().use {
+            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000011", articles), it)
+        }
+        val id = runBlocking {
+            val show = db.sources().insert(SourceEntity(url = "https://example.com/show.xml", title = "The Example Show"))
+            val rail = db.sources().insert(SourceEntity(url = "https://example.com/rail.xml", title = "Rail Talk"))
+            fun notes(source: Long, guid: String, a: EditionArticle, seconds: Int) =
+                ArticleEntity(sourceId = source, guid = guid, url = a.url, title = a.title, episodeKind = EpisodeKind.NOTES, audioUrl = "https://cdn.example/$guid.mp3", audioSeconds = seconds)
+            val ids = listOf(db.articles().insertIgnoring(notes(show, "212", articles[0], 3_480)), null, db.articles().insertIgnoring(notes(rail, "48", articles[2], 2_700)))
+            val id = db.editions().insert(EditionEntity(title = "Thursday Morning Edition", status = EditionStatus.DELIVERED, fileName = "e.epub", articleCount = articles.size, minutes = 7.0))
+            db.editions().insertArticles(articles.mapIndexed { i, a -> EditionArticleEntity(editionId = id, articleId = ids[i], position = i, title = a.title, sourceTitle = a.sourceTitle, minutes = a.minutes) })
+            id
+        }
+        val readings = Readings(db, { Recordings() })
+        val (player, speaker) = listenPlayer(files, readings)
+        player.start(id, ListenPosition(page, 0))
+        idleUntil { player.state.value.script != null }
+        speaker.startNext()
+        val now = readings.at(id, page)?.let { ReadingSpeaker.Now(id, page, it, voiceInstead = false) }
+        val title = player.state.value.pages[page].title
+        val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock), reading = MutableStateFlow(now)) {}
+        shoot(name, ready = { player.state.value.at.page == page && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(loadFile = { File(files, "e.epub") }, position = page, title = title, onBack = {}, onListen = {}, listen = listen, editionId = id)
+        }
+    }
+
     private fun shootListening(name: String, voice: PodcastVoice?, instead: PodcastSpeaker.Instead? = null, textSize: PreviewTextSize = PreviewTextSize.DEFAULT, recording: Boolean = false, episode: Boolean = false) {
         val files = tmp.newFolder()
         val picture = Bitmap.createBitmap(600, 300, Bitmap.Config.ARGB_8888).apply {
@@ -611,7 +770,7 @@ class ScreenshotTest {
         ).map { (st, minutes) -> EditionArticle(title = st.second, sourceTitle = st.first, url = "https://example.com/x", bodyHtml = "<p>Text.</p>", minutes = minutes) }
         val articles = listOf(EditionArticle(title = "Flooding forces thousands from their homes in northern Italy", sourceTitle = "BBC News", url = "https://example.com/f", bodyHtml = "<p>Text.</p>", minutes = 3.0), knots) + others
         File(files, "l.epub").outputStream().use {
-            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000010", listOf(EditionSection(null, articles))), it)
+            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000010", articles), it)
         }
         val id = runBlocking {
             val id = db.editions().insert(EditionEntity(title = "Thursday Morning Edition", status = EditionStatus.DELIVERED, fileName = "l.epub", articleCount = articles.size, minutes = articles.sumOf { it.minutes }))
@@ -623,8 +782,13 @@ class ScreenshotTest {
         idleUntil { player.state.value.script != null }
         speaker.startNext()
         val now = ReadingSpeaker.Now(id, 1, Reading("https://example.com/knots.mp3", if (episode) 5_220 else 540, own = episode, bodyLine = 3, starts = listOf(0.0), episode = episode), voiceInstead = false).takeIf { recording }
-        shoot(name, ready = { player.state.value.at.line == 6 }) {
-            ListenScreen(player, onBack = {}, podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), textSize = textSize, reading = MutableStateFlow(now))
+        val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock), podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), reading = MutableStateFlow(now)) {}
+        shoot(name, ready = { player.state.value.at.line == 6 && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(
+                loadFile = { File(files, "l.epub") }, position = 1, title = knots.title, onBack = {}, onListen = {}, textSize = textSize,
+                listen = listen,
+                editionId = id,
+            )
         }
     }
 
@@ -677,9 +841,18 @@ class ScreenshotTest {
         val file = tmp.newFile("p.epub")
         val article = EditionArticle(title = "The quiet return of the night train", sourceTitle = "The Example Review", url = "https://example.com/night-train", bodyHtml = "<p>Sleeper services are coming back.</p>", minutes = 4.0)
         file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
-        // The page itself is a WebView, which Robolectric doesn't draw; this shoots the top bar.
         shoot("05c-article-preview", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
             ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {})
+        }
+    }
+
+    /** An article with its formatting: bold, a link, a quote, a numbered list, a table and code. */
+    @Test
+    fun articlePreviewFormatted() {
+        val file = tmp.newFile("pf.epub")
+        file.writeEpub(listOf(FORMATTED), title = "Tuesday Morning Edition")
+        shoot("05c2-article-preview-formatted", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = FORMATTED.title, onBack = {}, onListen = {})
         }
     }
 
@@ -803,7 +976,7 @@ class ScreenshotTest {
                 "The quiet return of the paperback",
             )
             db.articles().insertNew(titles.mapIndexed { i, t -> ArticleEntity(sourceId = id, guid = "$i", url = "https://www.theguardian.com/$i", title = t, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1))) })
-            val ids = db.articles().candidates().sortedBy { it.guid }.map { it.id }
+            val ids = db.articles().buildCandidates().sortedBy { it.guid }.map { it.id }
             repo.setStarred(ids[1], true)
             db.articles().setState(listOf(ids[2]), ArticleState.SKIPPED)
             db.articles().setState(listOf(ids[3]), ArticleState.IN_EDITION)
@@ -1374,16 +1547,27 @@ class ScreenshotTest {
         }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
     }
 
-    @Test
-    fun settingsPodcastInUse() {
-        // Two editions' podcasts made, 38 MB between them.
+    /** Two editions' podcasts made, 38 MB between them. */
+    private fun podcastInUse(): SettingsViewModel {
         val made = PodcastStore(tmp.newFolder())
         listOf(7L, 8L).forEach { id ->
             made.want(id, PodcastVoice.HEART)
             made.keep(id, 0, 0, made.scratch(id, 0, 0).apply { writeBytes(ByteArray(19_000_000)) }, listOf(0.0))
         }
-        val vm = podcastSettings(pace = 1.2f, inUse = true, podcasts = made)
+        return podcastSettings(pace = 1.2f, inUse = true, podcasts = made)
+    }
+
+    @Test
+    fun settingsPodcastInUse() {
+        val vm = podcastInUse()
         shoot("07s-settings-podcast-in-use", ready = { vm.kokoro.value is KokoroState.Ready && vm.podcastBytes.value != null }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
+    }
+
+    /** Settings › Listening › Voices and audio: the natural voice's own page. */
+    @Test
+    fun settingsPodcastVoicesAndAudio() {
+        val vm = podcastInUse()
+        shoot("07s2-settings-voices-and-audio", ready = { vm.kokoro.value is KokoroState.Ready && vm.podcastBytes.value != null }) { NaturalVoiceScreen(vm, onBack = {}) }
     }
 
     @Test
@@ -1409,7 +1593,7 @@ class ScreenshotTest {
                 idleUntil { compose.onAllNodes(hasText("Stopped: unplugged", substring = true)).fetchSemanticsNodes().isNotEmpty() }
             },
             dialog = true,
-        ) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
+        ) { NaturalVoiceScreen(vm, onBack = {}) }
     }
 
     /** Settings › Where your feeds live, signed in to a tt-rss account. */
@@ -1696,5 +1880,18 @@ class ScreenshotTest {
         ) {
             SettingsPageScreen(settingsVm, SettingsPage.FEEDS, onBack = {}, feedsFrom = feeds)
         }
+    }
+
+    private companion object {
+        /** An article with bold, a link, a quote, a numbered list, a table and code: for the article view, read and listened to. */
+        val FORMATTED = EditionArticle(
+            title = "How a Retired Teacher Counted the Knots", sourceTitle = "Quanta Magazine", url = "https://example.com/count",
+            bodyHtml = "<p>The count took <b>a week</b> of computer time, and the <a href=\"https://example.com/paper\">paper</a> ran to <em>forty pages</em>.</p>" +
+                "<blockquote><p>We thought it would take a century.</p></blockquote>" +
+                "<p>The method came in three steps:</p><ol><li>Draw every knot with few crossings.</li><li>Throw out the ones that are the same.</li><li>Check what's left by hand.</li></ol>" +
+                "<table><tr><th>Crossings</th><th>Knots</th></tr><tr><td>3</td><td>1</td></tr><tr><td>4</td><td>1</td></tr><tr><td>5</td><td>2</td></tr></table>" +
+                "<pre>for knot in knots:\n    if new(knot):\n        keep(knot)</pre>",
+            minutes = 3.0, author = "Erica Klarreich", published = LocalDate.of(2026, 9, 30),
+        )
     }
 }

@@ -3,6 +3,71 @@
 For the next cycle: what each one should do differently. What was built is in
 [DEVLOG.md](DEVLOG.md). Newest first; the last ten or so.
 
+### Cycle T3 (31 Oct) — build: code only tests kept alive goes
+
+See [DEVLOG.md](DEVLOG.md). The last of the Tech debt cycles.
+- **Moving tests onto what the app calls finds what the app really does.** Two tests failed when switched, both on real differences: the build's query leaves out feed text, and the app's sign-in reads the feed list. Each was the test assuming the test-only path.
+- **A test-side extension with the removed function's name keeps 32 call sites unchanged;** only the import moves.
+
+### Cycle T2 (31 Oct) — build: tt-rss sessions in one place
+
+See [DEVLOG.md](DEVLOG.md).
+- **An `inline` helper keeps a `try`'s early returns.** Wrapping ten try/finally blocks in a lambda would otherwise have needed each `return` rewritten; inline, they return from the caller as before.
+- **Not every simplification shrinks the code.** This one came out 7 lines shorter; say what it buys (the logout can't be forgotten) rather than count lines.
+
+### Cycle T1 (31 Oct) — build: the book writer's sections go
+
+See [DEVLOG.md](DEVLOG.md).
+- **For a change that should leave output alone, compare the output, not only the tests.** A throwaway test wrote four editions with main's code and the branch's; `diff -r` on the unzipped books showed the one file that changed and why.
+- **Measure the second half of a planned cut before doing it.** PNG and GIF looked like part of the same job; counted, it was 10 lines for 42 test edits and a lost check, so it stayed.
+
+### Cycle N12 (30 Oct) — audit: sync and the data layer
+
+See [DEVLOG.md](DEVLOG.md). The last of three architecture audits, and the run's stopping cycle.
+- **Prove a refactor's guard before trusting it.** No new tests for moving the settings copy into one function; taking two fields out of it turned four existing tests red, which is what showed they guard it.
+- **Weigh a gap's fix against what it prevents.** The over-long saved link breaks nothing, and its fix needed a new outcome through every caller; it went to the backlog with that reasoning rather than into the PR.
+- **Run the next audit's reading while the last PR's CI runs:** it only reads, so it needs no branch, and three audits fitted in about an hour.
+
+### Cycle N11 (30 Oct) — audit: making an edition
+
+See [DEVLOG.md](DEVLOG.md). The second of three architecture audits; N12 takes sync and the data layer.
+- **Grep for the wording, not only the function.** The audit found three formatters for an edition's length; a grep for "about \${" found a fourth (Today's next-edition line) that formatted a raw number.
+- **A removed field breaks every constructor, tests included:** compile the tests (`:core:test`) before believing a removal is done; two failed builds found two more.
+- **Branch the next cycle after the last one merges, or merge main in before the records:** N11 branched from a main without N10's records, and its records edit had nothing to anchor to.
+
+### Cycle N10 (30 Oct) — audit: the article view and Listen, after the merge
+
+See [DEVLOG.md](DEVLOG.md). The first of three architecture audits; the next two take other areas (the edition pipeline, then sync and the data layer).
+- **Audit right after a merge of two things.** The merged screens left dead parameters, a picture reader kept alive only by a test, and checks spelled three times; none showed in review, because each PR was correct on its own.
+- **Let the state settle in a test that toggles.** A pause then a play, back to back, reach a `StateFlow` collector as no change at all; wait until the app has seen the pause, as a real one is long.
+
+### Cycle N9 (30 Oct) — build: one view, step 3 — the playing screen goes
+
+See [DEVLOG.md](DEVLOG.md).
+- **A test's "is it on screen?" has to find the one thing it means.** The top bar carries the article's title, so a check for the title on the page passed with the fix taken out; the byline, which only the page draws, failed as it should. Falsify any visibility check.
+- **Commit before falsifying, again.** A `git checkout` of a file under falsification would have discarded the uncommitted feature in it; auto mode refused it. Commit, break, `git restore`.
+- **Don't merge or edit the tree under a running Gradle build.** The results are of neither version; stop it and run again.
+- **Reproduce a reviewer's finding before fixing it.** Two of N9's (the bar reusing another edition's page, the notification not turning back) read as certain from the code, and neither happened: Navigation's single-top gives the view fresh state for new arguments. The test written for each stayed green with the "fix" taken out, which is how that showed.
+
+### Cycles N7 and N8 (30 Oct) — build: one view, steps 1 and 2
+
+See [DEVLOG.md](DEVLOG.md).
+- **A stacked branch meets its base squashed.** Merging main (with the squash of the branch below) into the branch above conflicts on every file both touched; take the upper branch's side, which already holds the lower one's changes, and run the suite.
+- **When the new screen replaces the old, port the old screen's tests rather than keep both.** Each ported test showed what the new screen had to do differently (Next only moves the voice while playing).
+
+### Cycles N2–N6 (30 Oct) — build: the test audit's gaps
+
+See [DEVLOG.md](DEVLOG.md).
+- **Delete the test results before every run, above all a falsifying one.** A break that doesn't compile leaves the old XML, which reads as green; count failures from the XML, not from Gradle's quiet output.
+- **A test that stays green under its break is too weak, not proof.** Three did (the closing page against the last article's "Next" line, the old screen against the new in the bar test, a Today state that can't be reached); each was tightened or the code it guarded removed.
+- **A failure in a service the diff doesn't touch is still checked before re-running:** #413's Robolectric download and #416's save-copy pull were each said on the PR, then re-run once.
+
+### Cycle N1 (30 Oct) — build: a not-sent edition made the real way
+
+See [DEVLOG.md](DEVLOG.md).
+- **Run in the orchestrating session, not a fresh one.** A scheduled task that starts a fresh session gives it no repositories and no GitHub tools, so its first cycle could do nothing; this run's cycles fire into the session that has them.
+- **A fixture made by the real producer finds what hand-set state can't.** Setting the status and note by hand tested the screens against the constant they already read.
+
 ### Cycle H10 (22 Oct) — build: transcripts play their episode
 
 See [DEVLOG.md](DEVLOG.md).

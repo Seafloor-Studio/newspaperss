@@ -2,7 +2,6 @@ package com.app.newspaperss.core.listen
 
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
-import com.app.newspaperss.core.epub.EditionSection
 import com.app.newspaperss.core.epub.EpubImage
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.core.listen.ListenScript.Block
@@ -22,7 +21,7 @@ class ListenScriptTest {
         val out = ByteArrayOutputStream()
         val doc = EditionDoc(
             "Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000002",
-            listOf(EditionSection(null, articles.toList())), reflection = reflection,
+            articles.toList(), reflection = reflection,
         )
         EpubWriter.write(doc, out)
         val pages = mutableMapOf<String, String>()
@@ -37,7 +36,15 @@ class ListenScriptTest {
         bodyHtml = body, minutes = minutes, author = author, published = LocalDate.of(2026, 9, 30), images = images,
     )
 
-    private fun texts(script: ListenScript) = script.blocks.map { (it as? Block.Text)?.let { t -> t.kind to t.sentences.joinToString(" ") } ?: (null to (it as Block.Image).spoken) }
+    /** What's read of each block, a table a row at a time; not what's only shown. */
+    private fun texts(script: ListenScript) = script.blocks.filter { it.said.isNotEmpty() }.flatMap { block ->
+        when (block) {
+            is Block.Text -> listOf(block.kind to block.sentences.joinToString(" "))
+            is Block.Image -> listOf(null to block.spoken)
+            is Block.Table -> block.rows.map { Kind.PARAGRAPH to it.sentences.joinToString(" ") }
+            Block.Rule -> emptyList()
+        }
+    }
 
     @Test
     fun anArticleIsReadFromItsSourceAndTitleToItsLastSentenceAndNoFurther() {
@@ -95,7 +102,7 @@ class ListenScriptTest {
             ),
             body,
         )
-        assertEquals("images/knots.png", (script.blocks[4] as Block.Image).src)
+        assertEquals("images/knots.png", script.blocks.filterIsInstance<Block.Image>().first().src)
     }
 
     @Test
@@ -134,7 +141,7 @@ class ListenScriptTest {
     @Test
     fun withoutAnAuthorThereIsNoByline() {
         val script = ListenScript.parse(book(article("<p>Text.</p>", author = null)).getValue("article-001.xhtml"))
-        assertEquals(listOf(Kind.KICKER, Kind.TITLE, Kind.PARAGRAPH), script.blocks.map { (it as Block.Text).kind })
+        assertEquals(listOf(Kind.KICKER, Kind.TITLE, Kind.PARAGRAPH), script.blocks.filter { it.said.isNotEmpty() }.map { (it as Block.Text).kind })
     }
 
     @Test
@@ -147,6 +154,116 @@ class ListenScriptTest {
         assertTrue(spoken.toString(), "To think about" in spoken && "What surprised you?" in spoken)
         // Not the imprint: the masthead and date are for the page.
         assertTrue(spoken.none { it.contains("NewspapeRSS") })
+    }
+
+    private fun page(body: String, author: String? = "Erica Klarreich") = ListenScript.parse(book(article(body, author), article("<p>The second.</p>")).getValue("article-001.xhtml"))
+
+    private fun Block.Text.said(i: Int) = shown.substring(ranges[i].first, ranges[i].last + 1)
+
+    @Test
+    fun theWholePageIsShownThoughNotAllOfItIsSaid() {
+        val script = page("<p>Text.</p>")
+        val shown = script.blocks.map { block ->
+            when (block) {
+                is Block.Text -> block.kind to block.shown
+                Block.Rule -> null to "rule"
+                else -> null to block.toString()
+            }
+        }
+        assertEquals(
+            listOf(
+                Kind.KICKER to "Quanta Magazine",
+                Kind.TITLE to "The Mathematician Who Counted the Shapes of Knots",
+                Kind.BYLINE to "By Erica Klarreich · Sep 30, 2026 · 9 min read",
+                null to "rule",
+                Kind.PARAGRAPH to "Text.",
+                Kind.META to "■",
+                Kind.META to "Read the original at example.com",
+                Kind.META to "Next: The Mathematician Who Counted the Shapes of Knots · Quanta Magazine · 9 min",
+            ),
+            shown,
+        )
+        // The byline's author is said, from where it's shown; the rest of the furniture isn't.
+        val byline = script.blocks[2] as Block.Text
+        assertEquals(listOf("By Erica Klarreich"), byline.sentences)
+        assertEquals("By Erica Klarreich", byline.said(0))
+        assertTrue(script.blocks.filterIsInstance<Block.Text>().filter { it.kind == Kind.META }.all { it.sentences.isEmpty() })
+    }
+
+    @Test
+    fun boldItalicCodeAndLinksAreKeptOverTheirWords() {
+        val text = page("<p>Plain <b>bold</b>, <em>slanted <code>x = 1</code></em> and <a href=\"https://example.com/a\">a link</a>.</p>").blocks
+            .filterIsInstance<Block.Text>().single { it.kind == Kind.PARAGRAPH }
+        assertEquals("Plain bold, slanted x = 1 and a link.", text.shown)
+        fun over(kind: ListenScript.StyleKind) = text.styles.filter { it.kind == kind }.map { text.shown.substring(it.start, it.end) }
+        assertEquals(listOf("bold"), over(ListenScript.StyleKind.BOLD))
+        assertEquals(listOf("slanted x = 1"), over(ListenScript.StyleKind.ITALIC))
+        assertEquals(listOf("x = 1"), over(ListenScript.StyleKind.CODE))
+        assertEquals(listOf("a link"), over(ListenScript.StyleKind.LINK))
+        assertEquals("https://example.com/a", text.styles.single { it.kind == ListenScript.StyleKind.LINK }.href)
+    }
+
+    @Test
+    fun aLinkOrBoldAroundABlockCoversItsWordsInEachBlock() {
+        // As HTML allows: a link around whole blocks, not inside a paragraph (which the book's writer would split).
+        val texts = ListenScript.parse(
+            "<html><body><div class=\"article-body\"><div>Before <a href=\"https://example.com/u\">link words <b>bold start <div>a block</div> bold tail</b></a> end.</div></div></body></html>",
+        ).blocks.filterIsInstance<Block.Text>()
+        fun over(text: Block.Text, kind: ListenScript.StyleKind) = text.styles.filter { it.kind == kind }.map { text.shown.substring(it.start, it.end) }
+        assertEquals(listOf("Before link words bold start", "a block", "bold tail end."), texts.map { it.shown })
+        assertEquals(listOf(listOf("link words bold start"), listOf("a block"), listOf("bold tail")), texts.map { over(it, ListenScript.StyleKind.LINK) })
+        assertEquals(listOf(listOf("bold start"), listOf("a block"), listOf("bold tail")), texts.map { over(it, ListenScript.StyleKind.BOLD) })
+    }
+
+    @Test
+    fun listsAreNumberedFromTheirStartAndNestedInsideEachOther() {
+        val items = page("<ol start=\"3\"><li>Three</li><li>Four<ul><li>Inside</li></ul>still four</li></ol><dl><dt>Term</dt></dl>").blocks
+            .filterIsInstance<Block.Text>().filter { it.kind == Kind.ITEM }
+        assertEquals(
+            listOf(Triple("Three", "3.", 1), Triple("Four", "4.", 1), Triple("Inside", "•", 2), Triple("still four", null, 1), Triple("Term", null, 0)),
+            items.map { Triple(it.shown, it.marker, it.depth) },
+        )
+        fun markers(html: String) = page(html).blocks.filterIsInstance<Block.Text>().filter { it.kind == Kind.ITEM || it.kind == Kind.PARAGRAPH }.map { it.shown to it.marker }
+        // An item opening with a list gives that list's first item its number too.
+        assertEquals(listOf("in" to "1. •", "tail" to null, "two" to "2."), markers("<ol><li><ul><li>in</li></ul>tail</li><li>two</li></ol>"))
+        // An item with no text of its own leaves its bullet with it, not on what follows.
+        assertEquals(listOf("After." to null), markers("<ul><li><img src=\"a.png\" alt=\"x\"/></li></ul><p>After.</p>"))
+        assertEquals(listOf("Three" to "3.", "Two" to "2.", "Seven" to "7."), markers("<ol reversed=\"reversed\"><li>Three</li><li>Two</li><li value=\"7\">Seven</li></ol>"))
+    }
+
+    @Test
+    fun aFootnotesMarkerAndAQuotesMarksAreShownButNotSaid() {
+        val text = page("<p>A claim.<sup><a href=\"#fn1\">1</a></sup> She said <q>yes</q>, then\n left.<br/>Next line.</p><p id=\"fn1\">The source.</p>").blocks
+            .filterIsInstance<Block.Text>().first { it.kind == Kind.PARAGRAPH }
+        assertEquals("A claim.1 She said “yes”, then left.\nNext line.", text.shown)
+        assertEquals(listOf("A claim.", "She said yes, then left.", "Next line."), text.sentences)
+        // Each sentence is where it's shown, the marker and the marks inside or beside it.
+        assertEquals(listOf("A claim.", "She said “yes”, then left.", "Next line."), text.sentences.indices.map { text.said(it) })
+        assertEquals(listOf("1"), text.styles.filter { it.kind == ListenScript.StyleKind.SUP }.map { text.shown.substring(it.start, it.end) })
+    }
+
+    @Test
+    fun aCodeBlockKeepsItsSpacingThoughTheVoiceRunsItTogether() {
+        val text = page("<pre>\nfun main() {\n    println(1)\n}</pre>").blocks.filterIsInstance<Block.Text>().single { it.preformatted }
+        assertEquals("fun main() {\n    println(1)\n}", text.shown)
+        assertEquals(listOf("fun main() { println(1) }"), text.sentences)
+        // Only an opening line break is dropped, as a browser does; the first line's indent stays.
+        // (On a bare page: the book's writer already tidies a code block's opening.)
+        fun bare(pre: String) = ListenScript.parse("<html><body><div class=\"article-body\">$pre</div></body></html>").blocks.filterIsInstance<Block.Text>().single().shown
+        assertEquals("\n  x", bare("<pre>\n\n  x</pre>"))
+        assertEquals("    indented", bare("<pre>    indented</pre>"))
+        // Inside a quote it's still a quote's, as the playing screen draws it.
+        assertEquals(Kind.QUOTE, page("<blockquote><pre>code</pre></blockquote>").blocks.filterIsInstance<Block.Text>().single { it.preformatted }.kind)
+    }
+
+    @Test
+    fun aTableIsShownAsItsCellsAndSaidARowAtATime() {
+        val table = page("<table><caption>Knots by crossings</caption><tr><th>Crossings</th><th>Knots</th></tr><tr><td colspan=\"2\">none</td></tr></table>").blocks
+            .filterIsInstance<Block.Table>().single()
+        assertEquals("Knots by crossings", table.caption)
+        assertEquals(listOf(listOf("Crossings" to true, "Knots" to true), listOf("none" to false)), table.rows.map { row -> row.cells.map { it.shown to it.header } })
+        assertEquals(2, table.rows[1].cells.single().colspan)
+        assertEquals(listOf("Crossings, Knots", "none"), table.said)
     }
 
     @Test
@@ -162,5 +279,18 @@ class ListenScriptTest {
         // 161 words of body at 160 a minute, after the source, title and byline.
         assertEquals(60.0, script.lines.drop(3).sumOf { ListenTime.seconds(it.spoken) }, 2.0)
         assertTrue(script.seconds > 60.0)
+    }
+
+    /** Where each id is, for a footnote's link: in a paragraph, a table's cell or a figure. */
+    @Test
+    fun anIdIsFoundWhereverItIsOnThePage() {
+        val script = ListenScript.parse(
+            "<html><body><div class=\"article-body\"><p>First <a id=\"ref1\" href=\"#fn1\">1</a>.</p>" +
+                "<table><tr><td id=\"cell\">x</td></tr></table><figure><a id=\"pic\"><img src=\"a.png\" alt=\"\"/></a></figure>" +
+                "<p id=\"fn1\">The note.</p></div></body></html>",
+        )
+        val at = script.anchors.mapValues { (_, block) -> script.blocks[block]::class.simpleName }
+        assertEquals(mapOf("ref1" to "Text", "cell" to "Table", "pic" to "Image", "fn1" to "Text"), at)
+        assertEquals("The note.", (script.blocks[script.anchors.getValue("fn1")] as Block.Text).shown)
     }
 }

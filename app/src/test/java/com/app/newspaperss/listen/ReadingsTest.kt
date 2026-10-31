@@ -17,6 +17,7 @@ import com.app.newspaperss.testutil.TestApp
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -111,12 +112,12 @@ class ReadingsTest {
             "Readings: edition 3, recorded readings: page 0 (its own audio, 11 min), page 1 (its episode, its own audio, 87 min), " +
                 "page 2 (its episode, its notes post's, 100 min), page 7 (its episode, its notes post's, 90 min); read by the voice instead: " +
                 "page 3 (transcript: no audio), page 4 (transcript: its own audio, 5 min against 99 min read aloud), " +
-                "page 5 (transcript: its own audio, length unknown), page 6 (its recording plays on page 2)",
+                "page 5 (transcript: its own audio, length unknown), page 6 (its recording plays on page 2); episodes at the end: none",
             logged.single(),
         )
 
         readings.load(4, emptyList()) { null }
-        assertEquals("Readings: edition 4, recorded readings: none", logged.last())
+        assertEquals("Readings: edition 4, recorded readings: none; episodes at the end: none", logged.last())
     }
 
     @Test
@@ -139,7 +140,7 @@ class ReadingsTest {
         assertEquals("https://cdn.example/narrated.mp3", readings.at(3, 1)?.url)
         assertNull(readings.at(3, 2))
         assertEquals(
-            "Readings: edition 3, recorded readings: page 1 (its own audio, 11 min); read by the voice instead: page 0 (its page wouldn't read), page 2 (its page wouldn't read)",
+            "Readings: edition 3, recorded readings: page 1 (its own audio, 11 min); read by the voice instead: page 0 (its page wouldn't read), page 2 (its page wouldn't read); episodes at the end: none",
             logged.single(),
         )
     }
@@ -180,6 +181,65 @@ class ReadingsTest {
         )
     }
 
+    /**
+     * Notes posts' episodes play after the closing page, in book order: each once, none a
+     * transcript already plays in its place, none without audio, none when switched off.
+     */
+    @Test
+    fun notesPostsEpisodesPlayAfterTheClosingPageEachOnce() = runTest {
+        var choices = Recordings()
+        val readings = Readings(db, { choices }, logged::add)
+        val source = db.sources().insert(SourceEntity(url = "https://a.example/feed", title = "A"))
+        suspend fun post(guid: String, kind: EpisodeKind, audio: String? = null, seconds: Int? = null, pair: String? = null) = db.articles().insertIgnoring(
+            ArticleEntity(sourceId = source, guid = guid, url = "https://a.example/$guid", title = guid, episodeKind = kind, audioUrl = audio, audioSeconds = seconds, episodePair = pair),
+        )
+        val ids = listOf(
+            post("first-notes", EpisodeKind.NOTES, audio = "https://cdn.example/1.mp3", seconds = 2_280),
+            post("transcript", EpisodeKind.TRANSCRIPT, pair = "transcribed-notes"),
+            post("transcribed-notes", EpisodeKind.NOTES, audio = "https://cdn.example/2.mp3", seconds = 5_940, pair = "transcript"),
+            post("silent-notes", EpisodeKind.NOTES),
+            post("untimed-notes", EpisodeKind.NOTES, audio = "https://cdn.example/3.mp3"),
+            post("again-notes", EpisodeKind.NOTES, audio = "https://cdn.example/1.mp3", seconds = 2_280),
+        )
+        val contents = ids.mapIndexed { i, id -> EditionContent(EditionArticleEntity(editionId = 3, articleId = id, position = i, title = "Title $i", sourceTitle = "A", minutes = 2.0), state = null) }
+        // The transcript 15,840 words: 99 minutes, its episode's length.
+        val load: suspend () -> Unit = { readings.load(3, contents) { page(if (it == 1) 15_840 else 100) } }
+
+        load()
+        assertEquals("https://cdn.example/2.mp3", readings.at(3, 1)?.url)
+        val ending = readings.ending(3)
+        assertEquals(listOf(0, 4), ending.map { it.notesPage })
+        assertEquals(listOf("https://cdn.example/1.mp3", "https://cdn.example/3.mp3"), ending.map { it.reading.url })
+        // Their pages follow the closing page, which is page 6.
+        assertNull(readings.at(3, 6))
+        assertEquals(ending[0].reading, readings.at(3, 7))
+        assertEquals(ending[1].reading, readings.at(3, 8))
+        assertNull(readings.at(3, 9))
+        // Its page: the source and the title, then a mark every 30 seconds, which the episode plays over.
+        val lines = ending[0].script.lines.map { it.spoken }
+        assertEquals(listOf("A", "Title 0", "0:00", "0:30", "1:00"), lines.take(5))
+        assertEquals("37:30", lines.last())
+        assertEquals(2 + 76, lines.size)
+        assertEquals(2, ending[0].reading.bodyLine)
+        assertEquals(0.5, ending[0].reading.shareAt(2 + 38), 0.001)
+        assertTrue(ending[0].reading.episode && ending[0].reading.atTheEnd)
+        // Without a length, one line.
+        assertEquals(listOf("A", "Title 4", "The episode."), ending[1].script.lines.map { it.spoken })
+        assertEquals(2, ending[1].reading.bodyLine)
+        // Past the hour, marks say the hours.
+        assertEquals("1:00:30", EndEpisode.script("T", null, 3_660).lines.last().spoken)
+        assertEquals(
+            "Readings: edition 3, recorded readings: page 1 (its episode, its notes post's, 99 min); episodes at the end: page 0's, 38 min, page 4's, length unknown",
+            logged.last(),
+        )
+
+        choices = Recordings(atTheEnd = false)
+        load()
+        assertEquals(emptyList<EndEpisode>(), readings.ending(3))
+        assertNull(readings.at(3, 7))
+        assertTrue(logged.last(), logged.last().endsWith("; episodes at the end: switched off"))
+    }
+
     @Test
     fun theKindsSwitchedOffInSettingsAreReadByTheVoiceFromTheNextEditionOpened() = runTest {
         var choices = Recordings(readings = false)
@@ -196,7 +256,7 @@ class ReadingsTest {
         load()
         assertNull("readings are off", readings.at(3, 0))
         assertEquals("https://cdn.example/transcript.mp3", readings.at(3, 1)?.url)
-        assertEquals("Readings: edition 3, recorded readings: page 1 (its episode, its own audio, 11 min) (readings are switched off)", logged.last())
+        assertEquals("Readings: edition 3, recorded readings: page 1 (its episode, its own audio, 11 min) (readings are switched off); episodes at the end: none", logged.last())
 
         // A change waits for the edition to be opened again.
         choices = Recordings(episodes = false)
@@ -204,7 +264,7 @@ class ReadingsTest {
         load()
         assertEquals("https://cdn.example/narrated.mp3", readings.at(3, 0)?.url)
         assertNull("episodes are off", readings.at(3, 1))
-        assertEquals("Readings: edition 3, recorded readings: page 0 (its own audio, 11 min); read by the voice instead: page 1 (transcript: episodes are switched off)", logged.last())
+        assertEquals("Readings: edition 3, recorded readings: page 0 (its own audio, 11 min); read by the voice instead: page 1 (transcript: episodes are switched off); episodes at the end: none", logged.last())
 
         // Off, the kinds chosen under it don't count.
         choices = Recordings(on = false)

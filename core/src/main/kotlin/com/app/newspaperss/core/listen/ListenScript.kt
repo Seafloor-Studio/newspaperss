@@ -8,18 +8,19 @@ import org.jsoup.nodes.TextNode
 import org.jsoup.parser.Parser
 
 /**
- * A page of the edition, ready to read aloud: what the screen shows while listening, in blocks,
- * and what the voice says, one [Line] at a time. A line is a sentence, or an image's one-line
- * description, so going back a line is going back a sentence.
+ * A page of the edition: what the screen shows, in blocks, and what the voice says, one [Line] at
+ * a time. A line is a sentence, or an image's one-line description, so going back a line is going
+ * back a sentence.
+ *
+ * A block can show more than is said: the byline's date, a footnote's marker, the link to the
+ * original. Each spoken sentence is a stretch of what its block shows (see [Block.Text.ranges]).
  */
-data class ListenScript(val blocks: List<Block>, val language: String? = null) {
+/**
+ * @param anchors each `id` on the page and the block it's in: where a footnote's link goes.
+ */
+data class ListenScript(val blocks: List<Block>, val language: String? = null, val anchors: Map<String, Int> = emptyMap()) {
     /** Everything spoken, in order. */
-    val lines: List<Line> = blocks.flatMapIndexed { b, block ->
-        when (block) {
-            is Block.Text -> block.sentences.mapIndexed { s, sentence -> Line(b, s, sentence) }
-            is Block.Image -> listOf(Line(b, 0, block.spoken))
-        }
-    }
+    val lines: List<Line> = blocks.flatMapIndexed { b, block -> block.said.mapIndexed { s, sentence -> Line(b, s, sentence) } }
 
     // Each line's start in seconds, and the whole at the end: asked for at every sentence.
     private val starts: DoubleArray by lazy {
@@ -35,25 +36,80 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
     fun secondsBefore(line: Int): Double = starts[line.coerceIn(0, lines.size)]
 
     sealed interface Block {
-        data class Text(val kind: Kind, val sentences: List<String>) : Block
+        /** What the voice says of it, a line each; empty for what's only shown. */
+        val said: List<String>
 
-        /** @param description its caption or alt text, or null if the article gives neither. */
-        data class Image(val src: String, val description: String?) : Block {
+        /**
+         * A run of text: a paragraph, heading, list item and so on.
+         *
+         * @param shown the text as drawn: spaces run together, a line break as `\n`, a code block's
+         *   own spacing kept.
+         * @param ranges where each of [sentences] is in [shown].
+         * @param marker a list item's number ("3.") or bullet, drawn before it.
+         * @param depth how many lists it's inside.
+         * @param preformatted a code block's: [shown] keeps its own spacing and line breaks.
+         */
+        data class Text(
+            val kind: Kind,
+            val sentences: List<String>,
+            val shown: String = sentences.joinToString(" "),
+            val ranges: List<IntRange> = joinedRanges(sentences),
+            val styles: List<Style> = emptyList(),
+            val marker: String? = null,
+            val depth: Int = 0,
+            val preformatted: Boolean = false,
+        ) : Block {
+            override val said: List<String> get() = sentences
+        }
+
+        /**
+         * @param description its caption or alt text, or null if the article gives neither.
+         * @param caption the figure's caption, drawn under it.
+         * @param standalone alone in its figure, or the article's whole body: a large one fills the width.
+         */
+        data class Image(val src: String, val description: String?, val caption: String? = null, val standalone: Boolean = false) : Block {
             val spoken: String get() = description?.let { "Image: $it" } ?: "An image."
+            override val said: List<String> get() = listOf(spoken)
+        }
+
+        /**
+         * Read a row at a time, its cells run together: cell by cell, with a pause after each, is hard to follow.
+         *
+         * @param kind what it sits in: a quote's, a list item's, or a paragraph's.
+         */
+        data class Table(val rows: List<Row>, val caption: String? = null, val kind: Kind = Kind.PARAGRAPH) : Block {
+            override val said: List<String> get() = rows.flatMap { it.sentences }
+
+            /** @param sentences what's said of it, its cells joined by commas. */
+            data class Row(val cells: List<Cell>, val sentences: List<String>)
+
+            data class Cell(val shown: String, val header: Boolean, val colspan: Int = 1, val rowspan: Int = 1)
+        }
+
+        /** A horizontal rule. */
+        data object Rule : Block {
+            override val said: List<String> get() = emptyList()
         }
     }
 
-    enum class Kind { KICKER, TITLE, BYLINE, HEADING, PARAGRAPH, QUOTE, ITEM }
+    /** [kind] over [start] until [end] of a block's shown text; [href] for a link. */
+    data class Style(val start: Int, val end: Int, val kind: StyleKind, val href: String? = null)
 
-    /** One thing the voice says: the [index]th sentence of the [block]th block. */
+    enum class StyleKind { BOLD, ITALIC, UNDERLINE, STRIKE, CODE, SUB, SUP, SMALL, MARK, LINK }
+
+    /** [META] is page furniture, shown small and never read: the link to the original, the "Next" line. */
+    enum class Kind { KICKER, TITLE, BYLINE, HEADING, PARAGRAPH, QUOTE, ITEM, META }
+
+    /** One thing the voice says: the [index]th line of the [block]th block. */
     data class Line(val block: Int, val index: Int, val spoken: String)
 
     companion object {
         /**
-         * Reads a page of the book EpubWriter made: an article (kicker, title, the author from
-         * its byline, then the body; not the link to the original or the "Next" line), or the
-         * closing page. The body is anything an article's HTML can be, so it's walked generally:
-         * text that sits together is a paragraph, and every picture is a block of its own.
+         * Reads a page of the book EpubWriter made: an article or the closing page. The voice
+         * reads the kicker, title, the author from its byline, then the body; not the link to the
+         * original or the "Next" line, which are only shown. The body is anything an article's
+         * HTML can be, so it's walked generally: text that sits together is a paragraph, and every
+         * picture is a block of its own.
          */
         fun parse(xhtml: String): ListenScript {
             val doc = Jsoup.parse(xhtml, "", Parser.xmlParser())
@@ -65,99 +121,180 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
             val page = doc.selectFirst("body") ?: return ListenScript(emptyList(), language)
             for (element in page.children()) {
                 when {
-                    element.hasClass("kicker") -> out.text(Kind.KICKER, element.text())
-                    element.hasClass("article-title") || element.hasClass("end-title") -> out.text(Kind.TITLE, element.text())
+                    element.hasClass("kicker") -> out.body(element, Kind.KICKER)
+                    element.hasClass("article-title") || element.hasClass("end-title") -> out.body(element, Kind.TITLE)
                     // The date and reading time are for the page; spoken, they'd be noise.
-                    element.hasClass("byline") -> element.text().split(" · ").firstOrNull { it.startsWith("By ") }?.let { out.text(Kind.BYLINE, it) }
+                    element.hasClass("byline") -> out.byline(element.text())
                     element.hasClass("article-body") -> out.body(element, Kind.PARAGRAPH)
                     element.hasClass("reflection") -> out.body(element, Kind.PARAGRAPH)
-                    element.hasClass("note") || element.hasClass("end-summary") -> out.text(Kind.PARAGRAPH, element.text())
-                    // Left out: the rule, the end mark, the original's address, the "Next" line
-                    // and the end page's imprint.
+                    element.hasClass("note") || element.hasClass("end-summary") -> out.body(element, Kind.PARAGRAPH)
+                    element.normalName() == "hr" -> out.rule()
+                    // The end mark, the original's address, the "Next" line and the end page's imprint.
+                    else -> out.body(element, Kind.META, silent = true)
                 }
             }
-            return ListenScript(out.blocks, language)
+            return ListenScript(out.blocks, language, out.anchors)
+        }
+
+        /** Where each of [sentences] is once they're joined by spaces. */
+        fun joinedRanges(sentences: List<String>): List<IntRange> {
+            var at = 0
+            return sentences.map { sentence -> (at until at + sentence.length).also { at += sentence.length + 1 } }
         }
 
         private class Builder {
             val blocks = mutableListOf<Block>()
-            private val pending = StringBuilder()
+            val anchors = mutableMapOf<String, Int>()
 
-            fun text(kind: Kind, text: String) {
-                val sentences = Sentences.split(text)
-                if (sentences.isNotEmpty()) blocks += Block.Text(kind, sentences)
+            /** Notes where [element]'s id lands: in the block being built, or the next one. */
+            private fun anchor(element: Element) {
+                element.id().takeIf { it.isNotEmpty() }?.let { anchors.putIfAbsent(it, blocks.size) }
+            }
+            private val text = Inline()
+            private var marker: String? = null
+            private val lists = ArrayDeque<ListState>()
+            private var pre = 0
+
+            /** [step] is -1 for a list numbered down (`<ol reversed>`). */
+            private class ListState(val ordered: Boolean, var next: Int, val step: Int)
+
+            fun byline(byline: String) {
+                val parts = byline.split(" · ")
+                val author = parts.firstOrNull { it.startsWith("By ") }
+                parts.forEachIndexed { i, part ->
+                    if (i > 0) text.append(" · ", spoken = false)
+                    text.append(part, spoken = part === author)
+                }
+                flush(Kind.BYLINE)
             }
 
-            fun body(container: Element, kind: Kind) {
-                for (node in container.childNodes()) visit(node, kind)
+            fun rule() {
+                blocks += Block.Rule
+            }
+
+            fun body(container: Element, kind: Kind, silent: Boolean = false) {
+                for (node in container.childNodes()) visit(node, kind, silent)
                 flush(kind)
             }
 
             private fun flush(kind: Kind) {
-                text(kind, pending.toString())
-                pending.clear()
+                val taken = text.take()
+                if (taken.shown.isNotEmpty()) {
+                    blocks += Block.Text(kind, taken.sentences, taken.shown, taken.ranges, taken.styles, marker, lists.size, pre > 0)
+                    marker = null
+                }
             }
 
-            private fun visit(node: Node, kind: Kind) {
+            private fun visit(node: Node, kind: Kind, silent: Boolean) {
                 when (node) {
-                    is TextNode -> pending.append(node.wholeText)
-                    is Element -> when (val tag = node.normalName()) {
+                    is TextNode -> text.append(node.wholeText, spoken = !silent, keepSpacing = pre > 0)
+                    is Element -> when (val tag = node.normalName().also { if (it !in BLOCKS && it !in OWN_BLOCKS) anchor(node) }) {
                         in SKIPPED -> {}
                         // A footnote's marker or its link back, which would be read as a stray
-                        // number or arrow: a short link within the page, with no word in it.
-                        "a" -> if (!(node.attr("href").startsWith("#") || node.attr("href").contains(".xhtml#")) ||
-                            node.text().trim().length > FOOTNOTE_MARKER_MAX || node.text().any { it.isLetter() }
-                        ) {
-                            for (child in node.childNodes()) visit(child, kind)
+                        // number or arrow: a short link within the page, with no word in it. Shown, not said.
+                        "a" -> {
+                            val marker = (node.attr("href").startsWith("#") || node.attr("href").contains(".xhtml#")) &&
+                                node.text().trim().length <= FOOTNOTE_MARKER_MAX && node.text().none { it.isLetter() }
+                            text.styled(StyleKind.LINK, node.attr("href").ifEmpty { null }) { for (child in node.childNodes()) visit(child, kind, silent || marker) }
                         }
-                        "br" -> pending.append(' ')
+                        "br" -> text.lineBreak(spoken = !silent)
                         "img" -> {
                             flush(kind)
-                            image(node, null)
+                            anchor(node)
+                            image(node, null, standalone = node.parent()?.hasClass("article-body") == true)
                         }
                         "figure" -> {
                             flush(kind)
-                            figure(node, kind)
+                            anchor(node)
+                            figure(node, kind, silent)
                         }
                         "table" -> {
                             flush(kind)
-                            // A row at a time, its cells run together: a table read cell by
-                            // cell, with a pause after each, is hard to follow.
-                            for (row in node.select("tr")) text(kind, row.select("th, td").joinToString(", ") { it.text() })
+                            anchor(node)
+                            table(node, kind)
                         }
+                        "hr" -> {
+                            flush(kind)
+                            anchor(node)
+                            rule()
+                        }
+                        // Drawn with quotation marks, as a browser does; the voice says the words.
+                        "q" -> {
+                            text.append("“", spoken = false)
+                            for (child in node.childNodes()) visit(child, kind, silent)
+                            text.append("”", spoken = false)
+                        }
+                        in STYLES -> text.styled(STYLES.getValue(tag), null) { for (child in node.childNodes()) visit(child, kind, silent) }
                         in BLOCKS -> {
                             flush(kind)
+                            anchor(node)
                             val inner = when (tag) {
                                 "h1", "h2", "h3", "h4", "h5", "h6" -> Kind.HEADING
                                 "blockquote" -> Kind.QUOTE
                                 "li", "dd", "dt" -> if (kind == Kind.QUOTE) kind else Kind.ITEM
                                 else -> kind
                             }
-                            for (child in node.childNodes()) visit(child, inner)
+                            if (tag == "ul" || tag == "ol") {
+                                val down = tag == "ol" && node.hasAttr("reversed")
+                                val start = node.attr("start").toIntOrNull() ?: if (down) node.children().count { it.normalName() == "li" } else 1
+                                lists.addLast(ListState(tag == "ol", start, if (down) -1 else 1))
+                            }
+                            // The item's first block carries its number; one after a list inside it doesn't. An
+                            // item that opens with a list gives its number to that list's first item.
+                            if (tag == "li") {
+                                val own = lists.lastOrNull()?.let { list ->
+                                    node.attr("value").toIntOrNull()?.let { list.next = it }
+                                    if (list.ordered) "${list.next}.".also { list.next += list.step } else "•"
+                                }
+                                marker = listOfNotNull(marker, own).joinToString(" ").ifEmpty { null }
+                            }
+                            if (tag == "pre") pre++
+                            for (child in node.childNodes()) visit(child, inner, silent)
                             flush(inner)
+                            if (tag == "pre") pre--
+                            // Not left for what follows, when the item had no text of its own.
+                            if (tag == "li") marker = null
+                            if (tag == "ul" || tag == "ol") lists.removeLast()
                         }
-                        else -> for (child in node.childNodes()) visit(child, kind)
+                        else -> for (child in node.childNodes()) visit(child, kind, silent)
                     }
                     else -> {}
                 }
             }
 
-            private fun figure(figure: Element, kind: Kind) {
+            private fun figure(figure: Element, kind: Kind, silent: Boolean) {
+                figure.select("[id]").forEach { anchor(it) }
                 val caption = figure.selectFirst("figcaption")?.text()?.trim()?.ifEmpty { null }
                 val images = figure.select("img")
-                images.forEach { image(it, caption.takeIf { images.size == 1 }) }
-                if (images.size != 1 && caption != null) text(kind, caption)
+                images.forEach { image(it, caption.takeIf { images.size == 1 }, standalone = images.size == 1) }
+                if (images.size != 1 && caption != null) {
+                    text.append(caption, spoken = !silent)
+                    flush(kind)
+                }
                 // Anything else in the figure (a quote, a table) is read as text.
                 for (child in figure.childNodes()) {
                     if (child is Element && (child.normalName() == "figcaption" || child.normalName() == "img" || child.select("img").isNotEmpty())) continue
-                    visit(child, kind)
+                    visit(child, kind, silent)
                 }
                 flush(kind)
             }
 
-            private fun image(img: Element, caption: String?) {
+            private fun image(img: Element, caption: String?, standalone: Boolean) {
                 val description = caption ?: img.attr("alt").trim().ifEmpty { null }
-                blocks += Block.Image(img.attr("src"), description)
+                blocks += Block.Image(img.attr("src"), description, caption, standalone)
+            }
+
+            private fun table(table: Element, kind: Kind) {
+                // A footnote in a cell is read with its row: the table is where its link goes.
+                table.select("[id]").forEach { anchor(it) }
+                val rows = table.select("tr").map { row ->
+                    val cells = row.select("th, td")
+                    Block.Table.Row(
+                        cells.map { Block.Table.Cell(it.text(), it.normalName() == "th", it.attr("colspan").toIntOrNull() ?: 1, it.attr("rowspan").toIntOrNull() ?: 1) },
+                        Sentences.split(cells.joinToString(", ") { it.text() }),
+                    )
+                }
+                if (rows.isNotEmpty()) blocks += Block.Table(rows, table.selectFirst("caption")?.text()?.trim()?.ifEmpty { null }, kind)
             }
         }
 
@@ -165,8 +302,121 @@ data class ListenScript(val blocks: List<Block>, val language: String? = null) {
         private const val FOOTNOTE_MARKER_MAX = 4
         private val BLOCKS = setOf(
             "p", "div", "section", "article", "header", "footer", "main", "blockquote", "ul", "ol", "li", "dl", "dt", "dd",
-            "h1", "h2", "h3", "h4", "h5", "h6", "pre", "address", "details", "summary", "hr", "figcaption",
+            "h1", "h2", "h3", "h4", "h5", "h6", "pre", "address", "details", "summary", "figcaption",
         )
+        // Elements that flush to a block of their own, other than [BLOCKS]: their id is noted after.
+        private val OWN_BLOCKS = setOf("img", "figure", "table", "hr")
+        private val STYLES = mapOf(
+            "b" to StyleKind.BOLD, "strong" to StyleKind.BOLD,
+            "i" to StyleKind.ITALIC, "em" to StyleKind.ITALIC, "cite" to StyleKind.ITALIC, "var" to StyleKind.ITALIC,
+            "u" to StyleKind.UNDERLINE, "ins" to StyleKind.UNDERLINE,
+            "s" to StyleKind.STRIKE, "del" to StyleKind.STRIKE,
+            "code" to StyleKind.CODE, "kbd" to StyleKind.CODE, "samp" to StyleKind.CODE,
+            "sub" to StyleKind.SUB, "sup" to StyleKind.SUP, "small" to StyleKind.SMALL, "mark" to StyleKind.MARK,
+        )
+    }
+}
+
+/**
+ * One block's text as it's built: each character shown, and whether it's said. [take] makes the
+ * text shown and the sentences said, and where each sentence is in what's shown.
+ */
+internal class Inline {
+    class Taken(val shown: String, val sentences: List<String>, val ranges: List<IntRange>, val styles: List<ListenScript.Style>)
+
+    private val chars = StringBuilder()
+    private val said = java.util.BitSet()
+    private val kept = java.util.BitSet()
+    private val styles = mutableListOf<ListenScript.Style>()
+
+    /** A style still open: a link or bold around a paragraph runs across blocks, each taking its own part. */
+    private class Open(val kind: ListenScript.StyleKind, val href: String?, var start: Int)
+    private val open = ArrayDeque<Open>()
+
+    /** Outside a code block, any run of spaces, tabs and newlines is one space, as on a web page. */
+    fun append(text: String, spoken: Boolean, keepSpacing: Boolean = false) {
+        for (c in text) {
+            if (spoken) said.set(chars.length)
+            if (keepSpacing) kept.set(chars.length)
+            chars.append(if (!keepSpacing && c in SPACES) ' ' else c)
+        }
+    }
+
+    fun lineBreak(spoken: Boolean) {
+        if (spoken) said.set(chars.length)
+        chars.append(BREAK)
+    }
+
+    fun styled(kind: ListenScript.StyleKind, href: String?, inner: () -> Unit) {
+        val style = Open(kind, href, chars.length)
+        open.addLast(style)
+        inner()
+        open.removeLast()
+        if (chars.length > style.start) styles += ListenScript.Style(style.start, chars.length, kind, href)
+    }
+
+    fun take(): Taken {
+        // The open styles' part of this block; they go on from the start of the next.
+        for (style in open) {
+            if (chars.length > style.start) styles += ListenScript.Style(style.start, chars.length, style.kind, style.href)
+            style.start = 0
+        }
+        // Shown: runs of space are one (a line break wins), none at either end.
+        val shown = StringBuilder()
+        val shownSaid = java.util.BitSet()
+        val at = IntArray(chars.length + 1)
+        for (i in chars.indices) {
+            at[i] = shown.length
+            val c = chars[i]
+            val last = shown.lastOrNull()
+            when {
+                // A code block's own spacing, but not a line break opening it, as a browser drops.
+                kept[i] -> if (last != null || c != BREAK || i > 0 && kept[i - 1]) shown.append(c)
+                c != ' ' && c != BREAK -> shown.append(c)
+                last == null -> {}
+                last == ' ' || last == BREAK -> if (c == BREAK) shown.setCharAt(shown.length - 1, BREAK)
+                else -> shown.append(c)
+            }
+            if (said[i] && shown.isNotEmpty()) shownSaid.set(shown.length - 1)
+        }
+        at[chars.length] = shown.length
+        while (shown.isNotEmpty() && (shown.last() == ' ' || shown.last() == BREAK)) shown.setLength(shown.length - 1)
+        // Said: the shown characters that are said, spaces again run together, and where each is shown.
+        val spoken = StringBuilder()
+        val from = mutableListOf<Int>()
+        for (i in shown.indices) {
+            if (!shownSaid[i]) continue
+            val c = shown[i]
+            if (c in SPACES) {
+                if (spoken.isEmpty() || spoken.last() == ' ') continue
+                spoken.append(' ')
+            } else spoken.append(c)
+            from += i
+        }
+        while (spoken.isNotEmpty() && spoken.last() == ' ') { spoken.setLength(spoken.length - 1); from.removeAt(from.lastIndex) }
+        val sentences = Sentences.split(spoken.toString())
+        var cursor = 0
+        val ranges = sentences.map { sentence ->
+            val i = spoken.indexOf(sentence, cursor).takeIf { it >= 0 } ?: cursor
+            cursor = (i + sentence.length).coerceAtMost(spoken.length)
+            from[i.coerceAtMost(from.lastIndex)]..from[(cursor - 1).coerceIn(0, from.lastIndex)]
+        }
+        val mapped = styles.mapNotNull { s ->
+            val start = at[s.start]
+            var end = minOf(at[s.end], shown.length)
+            // Not over a space it ended on, which a line break after it may have taken the place of.
+            while (end > start && (shown[end - 1] == ' ' || shown[end - 1] == BREAK) && !kept[s.end - 1]) end--
+            if (end > start) s.copy(start = start, end = end) else null
+        }
+        val out = Taken(shown.toString(), sentences, ranges, mapped)
+        chars.clear(); said.clear(); kept.clear(); styles.clear()
+        return out
+    }
+
+    private companion object {
+        const val BREAK = '\n'
+        // As Sentences sees them (\s): not the no-break space, which keeps its words together.
+        const val SPACES = " \t\n\u000B\u000C\r"
     }
 }
 

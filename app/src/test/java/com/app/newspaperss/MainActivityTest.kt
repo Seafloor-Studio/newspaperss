@@ -46,6 +46,12 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
+import android.os.Build
+import androidx.compose.ui.test.isSelected
+import com.app.newspaperss.core.listen.KokoroFile
+import com.app.newspaperss.settings.ListenVoice
+import com.app.newspaperss.testutil.finishDownload
 
 @RunWith(AndroidJUnit4::class)
 @Config(application = TestApp::class)
@@ -68,15 +74,88 @@ class MainActivityTest {
     }
 
     @Test
-    fun thePlayersNotificationOpensThePlayingScreenAndSoDoesTappingItAgain() {
+    fun thePlayersNotificationOpensTheArticleBeingReadAndSoDoesTappingItAgain() {
         runBlocking { app.container.settings.update { it.copy(onboarded = true) } }
+        val id = listenedEdition()
+        app.container.listen.start(id)
+        idleUntil { app.container.listen.state.value.pages.isNotEmpty() }
         val open = android.content.Intent(app, MainActivity::class.java).putExtra(MainActivity.EXTRA_OPEN, MainActivity.OPEN_LISTENING)
         val scenario = ActivityScenario.launch<MainActivity>(open)
-        shows("Nothing is playing")
+        shows("1 min read")
+        compose.onNodeWithContentDescription("Text size").assertExists()
         compose.onNode(hasText("Back") or androidx.compose.ui.test.hasContentDescription("Back")).performClick()
-        shows("Sources")
+        shows("Listening · Rail Talk")
         scenario.onActivity { it.onNewIntent(open) }
-        shows("Nothing is playing")
+        shows("1 min read")
+        compose.onAllNodes(hasText("Listening · Rail Talk")).fetchSemanticsNodes().let { assertEquals(0, it.size) }
+    }
+
+    /** Play pressed anywhere binds Listen's service, not only the bar's: it may have gone while paused. */
+    @Test
+    fun playingFromThePlayerItselfBindsTheService() {
+        launchWith(onboarded = true)
+        val id = listenedEdition()
+        app.container.listen.start(id)
+        idleUntil { app.container.listen.state.value.pages.isNotEmpty() }
+        app.container.listen.pause()
+        // Paused for a while, as the service goes only some time after: the app has seen it.
+        idleUntil { app.container.listenNow.value?.playing == false }
+        app.listenConnects = 0
+        app.container.listen.play()
+        idleUntil { app.listenConnects > 0 }
+    }
+
+    /** An edition of one article, "The ferry planner" from Rail Talk, with its book; returns its id. */
+    private fun listenedEdition(): Long = runBlocking {
+        val dir = File(app.filesDir, "editions").apply { mkdirs() }
+        val article = EditionArticle("The ferry planner", "Rail Talk", "https://example.com/f", "<p>One. Two. Three.</p>", 1.0)
+        File(dir, "l.epub").outputStream().use {
+            com.app.newspaperss.core.epub.EpubWriter.write(
+                com.app.newspaperss.core.epub.EditionDoc("Edition", java.time.LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000031", listOf(article)), it,
+            )
+        }
+        app.container.db.editions().insert(EditionEntity(title = "Edition", status = EditionStatus.DELIVERED, fileName = "l.epub", articleCount = 1, minutes = 1.0)).also { id ->
+            app.container.db.editions().insertArticles(listOf(EditionArticleEntity(editionId = id, articleId = null, position = 0, title = article.title, sourceTitle = article.sourceTitle, minutes = 1.0)))
+        }
+    }
+
+    /** While an edition is open in Listen, a bar along the bottom of every screen shows it, pauses it and opens the player. */
+    @Test
+    fun aBarAlongTheBottomShowsWhatListenIsReadingAndOpensThePlayer() {
+        launchWith(onboarded = true)
+        shows("Sources")
+        // Not before Listen is used: showing it mustn't start the player either.
+        compose.onAllNodes(hasText("Listening ·", substring = true)).fetchSemanticsNodes().let { assertEquals(0, it.size) }
+        val id = listenedEdition()
+        app.container.listen.start(id)
+        shows("The ferry planner")
+        shows("Listening · Rail Talk")
+
+        compose.onNodeWithContentDescription("Pause").performClick()
+        idleUntil { !app.container.listen.state.value.playing }
+        shows("Paused · Rail Talk")
+        compose.onNodeWithContentDescription("Play").performClick()
+        idleUntil { app.container.listen.state.value.playing }
+
+        // On every tab, and it opens the article the voice is on, the player under it, where the bar
+        // isn't shown: the player is the same and more.
+        compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
+        shows("About 30 minutes")
+        compose.onNodeWithText("The ferry planner").performClick()
+        // The article's page, its byline at the top, with the preview's own Aa.
+        shows("1 min read")
+        compose.onNodeWithContentDescription("Text size").assertExists()
+        compose.onNodeWithContentDescription("Next article").assertExists()
+        compose.onAllNodes(hasText("Listening · Rail Talk")).fetchSemanticsNodes().let { assertEquals("not over the article being played", 0, it.size) }
+        // Opened from Settings, it's on Settings' stack: that tab stays lit.
+        compose.onAllNodes(hasText("Settings") and isSelected()).onFirst().assertExists()
+        compose.onAllNodes(hasText("Today") and hasClickAction()).onFirst().performClick()
+        shows("Listening · Rail Talk")
+
+        // Stopped from the bar: it goes, and the place is kept.
+        compose.onNodeWithContentDescription("Stop listening").performClick()
+        idleUntil { compose.onAllNodes(hasText("Listening · Rail Talk")).fetchSemanticsNodes().isEmpty() }
+        assertNull(app.container.listen.state.value.editionId)
     }
 
     @Test
@@ -121,6 +200,31 @@ class MainActivityTest {
         compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
         shows("About 30 minutes")
         compose.onNodeWithText("The quiet return of the night train").assertDoesNotExist()
+    }
+
+    /** Listening's own page, the natural voice's voices and audio, is still in the Settings tab. */
+    @Test
+    fun theNaturalVoicesPageIsInTheSettingsTabAndTheTabGoesBackToItsTop() = try {
+        // Kokoro is offered only on a 64-bit phone.
+        ReflectionHelpers.setStaticField(Build::class.java, "SUPPORTED_64_BIT_ABIS", arrayOf("x86_64"))
+        app.kokoroFiles = listOf(KokoroFile("tokens.txt", 6, "ce013625030ba8dba906f756967f9e9ca394464a"))
+        app.kokoroInstall.finishDownload()
+        runBlocking { app.container.settings.update { it.copy(podcastPace = 1.2f, listenVoice = ListenVoice.PODCAST) } }
+        launchWith(onboarded = true)
+        shows("Sources")
+        compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
+        shows("Listening")
+        compose.onNodeWithText("Listening").performScrollTo().performClick()
+        shows("Voices and audio")
+        compose.onNodeWithText("Voices and audio").performScrollTo().performClick()
+        shows("Emma")
+        compose.onAllNodes(hasText("Settings") and isSelected()).onFirst().assertExists()
+
+        compose.onAllNodes(hasText("Settings") and hasClickAction()).onFirst().performClick()
+        shows("About 30 minutes")
+        compose.onNodeWithText("Emma").assertDoesNotExist()
+    } finally {
+        ReflectionHelpers.setStaticField(Build::class.java, "SUPPORTED_64_BIT_ABIS", arrayOf<String>())
     }
 
     @Test

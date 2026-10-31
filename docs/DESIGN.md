@@ -200,8 +200,9 @@ module so it's all unit-tested without Android.
     at the whole footnote, so a Kindle's popup shows its text, and markers
     side by side are split with a comma ("3, 4"). Notes a page keeps in a
     `<footer>` or `<aside>` come along when the text links to them. Substack
-    Notes quoted where the post embeds them, and @-mentions keep the name
-    the page's script would have filled in. tt-rss strips both, so a
+    Notes quoted where the post embeds them, galleries as a figure of their
+    pictures and caption, and @-mentions keep the name the page's script
+    would have filled in. tt-rss strips all three, so a
     Substack post from tt-rss with an embed gone is read from the post's
     page, which carries the whole post in its data (one page fetch; not
     for a paid post, whose page has only the free part);
@@ -298,8 +299,10 @@ and its Ready notification comes down. Its page still offers **Mark as
 sent** while its file is here, for one sent some other way, and a send
 from a share sheet or Send left open counts too: its articles are used
 up, even any taken into the newer edition since. Neither counts while an
-edition is being made, which may be taking those articles; Mark as sent,
-hidden meanwhile, records it afterwards.
+edition is being made, which may be taking those articles: Mark as sent is
+greyed out meanwhile, saying "Unavailable while a new edition is being
+made", and records it afterwards. Editions released under the note's
+older wording are treated the same.
 
 **Send to Kindle is slow.** A book can take a few minutes to reach a
 Kindle, so for half an hour after a send the edition (on Today and its own
@@ -574,15 +577,20 @@ whose Kindle and KOReader answers ask for more on the same page).
   **Make an edition now** is the main button only before the first edition;
   after that it's a quiet **Make another edition**, since today's paper is
   done. A failed build or edition offers **Try again** after saying what
-  went wrong. Earlier editions are listed below.
+  went wrong. One released as not sent wasn't a failure: its card offers
+  **Mark as sent** while its book is here, as its page does, and **Make
+  another edition** below. Earlier editions are listed below.
 - **Edition:** the same button as Today's card, and its contents.
   Under them, **Listen · about 9 min** reads the edition aloud (see
   Listening, below). Its ⋮
   menu has the card's menu, then **Save a copy…** while the book is on the
   phone (Android's save dialog, to keep the EPUB itself where you pick; the
-  share sheet often has no Files), above **Delete edition**. Tap an article to preview it as the e-reader
-  will show it (read straight from the EPUB, with nothing fetched from the
-  network), on top of Android's own font size. **Aa** in the top bar sets
+  share sheet often has no Files), above **Delete edition**. Tap an article to preview it, read
+  straight from the EPUB with nothing fetched from the network, and drawn by
+  the app: bold, links, numbered lists,
+  tables, code and pictures, close to the e-reader's page (each e-reader sets
+  its own fonts and margins; `tools/render-epub.sh` draws the book itself).
+  Text is at **Aa**'s size, on top of Android's own font size. **Aa** in the top bar sets
   its text size (Small to Largest), the same size as Settings › Article
   text size, so changing either changes both. At Larger and up (or as large
   through Android's font size), paragraphs are left-aligned rather than
@@ -593,11 +601,18 @@ whose Kindle and KOReader answers ask for more on the same page).
   and the last in "That's all for today." The whole line is the link. It opens the next
   article in place; the title and **Share** follow the page on screen.
   The headphones in the top bar (**Listen from here**) start Listen at the
-  article on screen, from its beginning, and open the playing screen.
+  article on screen, from its beginning, in the same view: the player comes
+  up under the page. While Listen has this edition,
+  the sentence being read is tinted and underlined and the page follows it
+  (scrolling away stops that, until **Back to where it's reading**); a tap on
+  a sentence reads from it while it plays, and does nothing but links while
+  paused. The page and the voice stay on one article: the voice going on
+  turns the page, and "Next" or a link to another article moves the voice.
   **Share** in the top bar sends the article's original link to Android's share sheet;
   it's hidden when an article has no web link. Selected text shared from the
-  page carries that link too, on its own line under the quote, with the
-  article's title as the subject.
+  page (long-press, then **Share** in the selection menu) carries that link
+  too, on its own line under the quote, with the article's title as the
+  subject. A footnote's marker goes to its note.
   **Go to *Quanta Magazine*** in the top bar's ⋮ opens the page of where the
   article came from — a tt-rss feed's own page, the reading list, or the
   source's — which is where its cap, its article text, leaving it out and
@@ -618,8 +633,7 @@ whose Kindle and KOReader answers ask for more on the same page).
   to pick from. A wrong label opens "Episode label: *title*" with the post's
   address, the label it got and the one picked, so the post can become a case in
   the episode corpus. Large pictures that stand
-  alone fill the width (small ones keep their size), and the page can be
-  pinched to zoom into a comic.
+  alone fill the width (small ones keep their size).
   **Delete edition** is in the ⋮ menu, and asks by name, saying what happens
   to the articles (an unsent edition's go back for the next one). An article that went in because it was starred says
   "You starred it". On delivered editions each article has a trailing **☆** to
@@ -628,7 +642,13 @@ whose Kindle and KOReader answers ask for more on the same page).
   more than an article says so under its title, in an edition's contents and a
   source's newest articles: "Episode notes", "Transcript of …", "Audio version of
   “October 15”", or "Has an audio version" on the post a reading belongs to. The
-  article screen has the same as a line above the page, for the article on screen.
+  article screen has the same as a line above the page, for the article on screen,
+  saying what Listen does with it as Settings › Listening has it: "Episode notes.
+  Listen reads them, then plays the episode after the edition." (only with audio of
+  their own and Episodes at the end on), or that a transcript plays its episode in
+  its place when it can. A transcript whose only audio is far too short for it
+  (under a third of it read aloud) says "Its audio is a 5-min preview, so Listen
+  reads it." A pair's title is cut to about 45 characters, so the line fits.
   A source that posts episodes says how often, among its newest judged posts:
   "Posts episodes: 9 of the last 17 posts". Release builds never judge posts, so
   show none of this. See [episodes-design.md](research/episodes-design.md).
@@ -647,7 +667,8 @@ whose Kindle and KOReader answers ask for more on the same page).
     reads the source, title and author, says "Now its recorded reading,
     12 minutes.", and the recording plays the rest, streamed. Sentences are
     tinted as it reaches about their share of it, and a tap plays from about
-    there. Above the page: "Playing its recorded reading · 12 min" with
+    there. A pause, a call or a speed change plays on from where it got;
+    ↶ goes back to the sentence's start. Above the page: "Playing its recorded reading · 12 min" with
     **Have the voice read it instead**, kept for that article, and back with
     **Play its recorded reading**. The podcast log records each switch, how
     far each recording got when it stopped or ended, and, as an edition
@@ -657,7 +678,10 @@ whose Kindle and KOReader answers ask for more on the same page).
     [episodes-design.md](research/episodes-design.md).
   - **Which recordings play** (debug builds) is set in Settings ›
     Listening under Recordings: **Play a post's own recording**, on by
-    default, and under it two chips, **Readings** and **Episodes**. Off,
+    default, and under it three chips, **Readings**, **Episodes** and
+    **Episodes at the end**. The switch's line says a recording that needs a
+    subscription or a sign-in can't be reached, so the voice reads that post:
+    the app can't tell every such case, so it says the rule once. Off,
     the chips go away and the voice reads everything. A change is used
     from the next edition opened in Listen; one already open carries on
     as it started, so the voice doesn't change part way through.
@@ -677,6 +701,29 @@ whose Kindle and KOReader answers ask for more on the same page).
     times count the episode's length, not the transcript's. Each
     recording plays once an edition; a second post with the same one is
     read by the voice.
+  - **Episode notes** (debug builds) are read by the voice in their place,
+    and their episode plays once the edition is over: after "That's all
+    for today", each on a page of its own, in book order. The voice reads
+    the show and the episode's title, says "Now the episode itself, 38
+    minutes.", and the episode plays, streamed. An episode a transcript
+    already plays in its place isn't played again.
+    - The page shows a mark every 30 seconds ("0:00", "0:30"), tinted as
+      the episode reaches it: a pause, a call or a speed change plays on
+      from where it got, ↶ goes back to the last mark, ↷ skips 30 seconds,
+      and a tapped mark plays from there. An episode's length comes from its feed, or from its file's
+      first bytes when the edition is made; without one, a single line.
+    - They aren't the edition's: the contents list them as "Episode", the
+      player says "Episode 1 of 2", and the edition's times
+      leave them out. The edition's bar shows them after a gap, a short
+      piece each whatever their length, so an hour's episode doesn't
+      flatten the articles. In the edition, "Then 2 episodes ›" under the
+      bar goes to the first. On one, the times are its own ("Episode 1 of
+      2 · 12 min in · 46 min left"), and "Tap a time to play from there."
+      sits above the marks. Past "That's all for today" the edition
+      counts as heard, and where it got to in an episode isn't kept.
+    - There's no switch back to the voice, which has nothing to read for
+      them. One that won't play (offline, gone): "The episode won't play
+      right now.", and on to the next.
   - Between one article and the next, in either voice, a pause of about
     4 seconds: a moment's quiet, a soft breath of sound with a page
     turning, then the next article, so the listener can change contexts.
@@ -688,16 +735,35 @@ whose Kindle and KOReader answers ask for more on the same page).
     ⏮ ⏭ move by article (⏮ restarts the article after its first few
     sentences). Speed steps through 1×, 1.2×, 1.5× and 0.8×, and is kept:
     it's the same speed as Settings › Listening.
-  - The playing screen is the article's text, at Settings › Article
-    text size, the sentence being read tinted, following the voice.
-    Scrolling away stops it following, and "Back to where it's reading"
-    returns. Tapping a sentence reads from there. The bar under it is the
-    edition, one piece per article.
+  - There is no separate playing screen: Listen plays in the article view
+    (see the article preview above), the player under the page. Tables are
+    read a row at a time, the row being read tinted. The page moves a
+    screen at a time: a sentence already on screen leaves it where it is,
+    and one that isn't turns the page to put it near the top, as each
+    move redraws an e-ink screen. Heard to the end, the page says "You've
+    heard the whole edition." The bar under it is the edition, one piece
+    per article.
   - It keeps playing with the screen off, with Android's media controls on
-    the lock screen, headphones and in the car: there the skip buttons move
-    by article and the seek buttons by sentence. A call or another app's
+    the lock screen, headphones and in the car: there back and forward move
+    by a sentence, as a podcast app's skip a few seconds, and the media
+    notification's second pair of buttons by article. A call or another app's
     audio pauses it; after a short interruption it carries on. Unplugging
     headphones pauses it.
+  - While an edition is open in Listen, playing or paused and not yet
+    heard to its end, a bar along the bottom of every screen, over the
+    tabs, says what it's reading ("Listening · Quanta Magazine" and the
+    title) with play and pause, and ✕ to stop listening, which puts it
+    away and keeps the place. A tap opens the article the voice is on, the
+    player under it (see the article preview above), on the tab it was
+    tapped from; the bar isn't shown over that edition's articles. So do
+    the media notification and the edition's Listen. There the closing page
+    and the episodes after the edition are drawn too, and **Contents** in
+    the top bar lists the edition: picking one moves the page and the
+    voice. After an error the bar goes: the article view says what's wrong. While an edition opens, as when
+    switching to another, it stays and says "Opening the edition…" with a
+    still hourglass. No progress bar or spinner, as each redraw
+    flashes on e-ink. It appears once Listen has been used since the app
+    started: showing it never starts the voice.
   - It stops at "That's all for today", not running on into anything.
   - Where it stopped is kept for the ten most recent editions: the
     edition's button says **Resume · 3 min left**. Listening to a newer
@@ -941,11 +1007,13 @@ whose Kindle and KOReader answers ask for more on the same page).
     e-reader's own settings.
   - **Listening** (its row says "Your phone's voice · 1×", or "No voice on
     this phone", which isn't shown as a problem: many e-readers have none):
-    the phone's text-to-speech engine by name with **Hear it**, a sample line
+    the speed first, as one row of four buttons, 0.8× to 1.5×, the same one
+    the player's speed button sets; in debug builds, Recordings (see
+    Listening); then the voice, longest and least often changed: the phone's
+    text-to-speech engine by name with **Hear it**, a sample line
     at the chosen speed (it pauses an edition that's playing), and under it
     **Change the phone's voice ›**, which opens Android's text-to-speech
-    settings; then the speed as one row of four buttons, 0.8× to 1.5×, the
-    same one the player's speed button sets. A voice, language or engine
+    settings. A voice, language or engine
     changed there is heard from the next start or jump.
     A speed asked for by a car or watch becomes the nearest of these.
     Without an engine the page says so and offers Speech Services by Google.
@@ -957,10 +1025,12 @@ whose Kindle and KOReader answers ask for more on the same page).
     says what your paper would take to make: up to about an hour, "This
     phone can do it"; up to 2½ hours, "slow, but it can"; beyond, "Too
     slow", offering only Remove and the paper size that would fit. A 32-bit
-    phone sees the option greyed, with why. In use, it lists Heart,
+    phone sees the option greyed, with why. In use, a row under it,
+    **Voices and audio** (the voice picked and the space its audio takes),
+    opens a page of its own, so Listening stays one screen: Heart,
     Michael, Emma and George, each with a clip shipped in the app,
-    **Delete all audio** with the space it takes (Kokoro stays, so
-    it can be made again), **Remove Kokoro**, and **Audio log**: what the making and playing did,
+    what a paper takes to make here, **Delete all audio** with the space it takes (Kokoro stays, so
+    it can be made again), **Remove Kokoro** (back to Listening), and **Audio log**: what the making and playing did,
     newest first, with Share to send it to whoever's fixing it. While it's in use, each scheduled edition's audio
     is made after the book, only while the phone charges: unplugged, it
     stops and keeps what's made. It runs at low priority, so using
@@ -973,10 +1043,14 @@ whose Kindle and KOReader answers ask for more on the same page).
     Android 15 for 6 hours a day; otherwise it's made a few minutes at a
     time, slowly.
     English articles only; the rest are left
-    to the phone's voice. An edition's audio is deleted with its book, and
-    all of it with Kokoro. Listen plays an article in the natural voice once
+    to the phone's voice. An article that comes back in a later edition
+    (one not sent gives its articles back) isn't made again: if it says
+    exactly the same in the same voice, the audio already made is used,
+    taking no more space. An edition's audio is deleted with its book (an
+    article reused in a later one keeps its audio there), and all of it
+    with Kokoro. Listen plays an article in the natural voice once
     its audio is made, and in the phone's voice until then: from the next play or
-    jump once it's made, never mid-sentence. The playing screen shows the natural voice's name by
+    jump once it's made, never mid-sentence. The player shows the natural voice's name by
     the source, and a quiet line when an article of an edition with
     audio plays in the phone's voice (not made yet, or left out).
     Under Listen on the edition page, a bar of its articles fills as each

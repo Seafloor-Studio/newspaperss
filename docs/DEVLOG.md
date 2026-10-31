@@ -8,13 +8,87 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 ## Status
 
-- **Lately:** 22 Oct, cycle H10: a transcript plays its episode in its place in Listen (debug builds). Cycle H9: Gradle checks every dependency against its checksum, and a workflow writes the new ones on Dependabot's PRs. Cycle H8: CI's debug key is rotated from the shared one, so on Android 9+ testers' builds take it as an update and keep their data. Cycle H5: published debug builds are ready to be signed with a key of their own, and a build that meets one says on Today how to move to it. Cycle H6: Send again, Mark as not sent and Mark as sent, and an OPML file in and out, now run on CI's emulator (#378). Cycle H7, the architecture and test-health audit: one hostile feed title could stop every sync and edition, and Share › Both could put a story in twice; both fixed, and three Share tests that couldn't fail now can. Cycle H3: a feed keeps at most 1,000 items, its newest, and the check for nested entities can no longer be hidden behind a comment (#376). Cycle H2: a feed or page nested thousands deep, or full of empty blocks, is read in seconds, not minutes (#375). Cycle H1: the device job's accessibility walk no longer hangs at 200% text (#374); it had failed 10 of main's last 13 runs. 21 Oct: the self-update waits for a picker's answer, and a full phone no longer gives up on a build. Cycle G6: the security and supply-chain review. A feed nested thousands deep can no longer stop every edition (#364), and CI is tighter (#363); two signing questions wait for you on the morning page. Cycle G5: a backlog pass ticked five items already built and brought two measured ones up to date. Cycle G4: onboarding's website search tells TalkBack what it found, or why nothing. Cycle G3: deleting an edition that was never sent frees its title, so the remake isn't "(2)". Cycle G2: a right tt-rss password straight after a wrong one says to wait 5 seconds and try again, as tt-rss turns it away for that long. Cycle G1: sharing a link asks Save, Subscribe or Both, with Subscribe first for a site's front page (#356, #290). 20 Oct, four cycles: every saved link gets a reading time slowly (#335), a hostile feed can't make the app's lists unreadable (#336, database version 17), Save a copy… keeps an edition's book (#338), and two episode-audit tidies (#337). 19 Oct, **0.1.1 tagged** (Kokoro's native code out of release builds, a check that keeps it out); podcast episodes steps 1–3 in debug builds (#313, #320–#324): posts keep their audio and are labelled, wrong labels can be sent for a look, and Listen plays an article's recorded reading in its place.
+- **Lately:** 30 Oct, cycles N1–N12: the test audit's gaps are closed (#411–#416); reading and listening are one view, the playing screen gone (#417–#419); three architecture audits fixed a dock Play that didn't bind the service, table rows TalkBack offered as dead buttons, an edition's length said two ways, and about 100 lines of dead or doubled code (#420–#422). 22 Oct, cycle H10: a transcript plays its episode in its place in Listen (debug builds). Cycle H9: Gradle checks every dependency against its checksum, and a workflow writes the new ones on Dependabot's PRs. Cycle H8: CI's debug key is rotated from the shared one, so on Android 9+ testers' builds take it as an update and keep their data. Cycle H5: published debug builds are ready to be signed with a key of their own, and a build that meets one says on Today how to move to it. Cycle H6: Send again, Mark as not sent and Mark as sent, and an OPML file in and out, now run on CI's emulator (#378). Cycle H7, the architecture and test-health audit: one hostile feed title could stop every sync and edition, and Share › Both could put a story in twice; both fixed, and three Share tests that couldn't fail now can. Cycle H3: a feed keeps at most 1,000 items, its newest, and the check for nested entities can no longer be hidden behind a comment (#376). Cycle H2: a feed or page nested thousands deep, or full of empty blocks, is read in seconds, not minutes (#375). Cycle H1: the device job's accessibility walk no longer hangs at 200% text (#374); it had failed 10 of main's last 13 runs. 21 Oct: the self-update waits for a picker's answer, and a full phone no longer gives up on a build. Cycle G6: the security and supply-chain review. A feed nested thousands deep can no longer stop every edition (#364), and CI is tighter (#363); two signing questions wait for you on the morning page. Cycle G5: a backlog pass ticked five items already built and brought two measured ones up to date. Cycle G4: onboarding's website search tells TalkBack what it found, or why nothing. Cycle G3: deleting an edition that was never sent frees its title, so the remake isn't "(2)". Cycle G2: a right tt-rss password straight after a wrong one says to wait 5 seconds and try again, as tt-rss turns it away for that long. Cycle G1: sharing a link asks Save, Subscribe or Both, with Subscribe first for a site's front page (#356, #290). 20 Oct, four cycles: every saved link gets a reading time slowly (#335), a hostile feed can't make the app's lists unreadable (#336, database version 17), Save a copy… keeps an edition's book (#338), and two episode-audit tidies (#337). 19 Oct, **0.1.1 tagged** (Kokoro's native code out of release builds, a check that keeps it out); podcast episodes steps 1–3 in debug builds (#313, #320–#324): posts keep their audio and are labelled, wrong labels can be sent for a look, and Listen plays an article's recorded reading in its place.
 - **Watching:** the accessibility walk hung once more on the device job (22 Oct, 1 in about 14 runs since #374), passing on its re-run. `PodcastSettingsTest`'s timeout is fixed (#340: 4 failures in 20 runs before, 0 in 60 after). main's suite also timed out once in `KindleEmailScreensTest` (19 Oct), not seen since.
 - **Waiting on you, to get 0.1.1 to readers:**
   1. Install the arm64 APK from [0.1.1's draft release](https://github.com/Seafloor-Studio/newspaperss/releases) on a phone (onboarding, an edition, a send), then publish the draft: F-Droid can't see a draft, and readers can't find it. v0.1.0's release notes still carry the "wait for the next version" warning, to replace with a line pointing at 0.1.1.
   2. Start Google Play's closed test now: 12 testers opted in for 14 days in a row before production can be applied for. It's the longest wait in the project, and it runs alongside F-Droid's.
   3. Once it's published, tell people where readers are (r/rss, r/androidapps): F-Droid's only early exception is "proven to have some users".
 - **Also waiting on you:** on a phone, ⋮ › Save a copy… on a sent edition, saved to Downloads, then opened from Files in an e-reader app (#338). The F-Droid merge request now has a date on it: **not before late December 2026**, three months of active development from this repository's first commit (29 Sep) — the one exception in reach is "proven to have some users", so readers on the GitHub APK are what moves it earlier. `docs/RELEASING.md` has the template's requirements. Also: two weeks of episode labels in real use (report a wrong one with Send for a look), and how the recordings sound in Listen; an `episodes` label on the repo; whether the `handle-issues` skill learns about "Episode label:" issues (claude-playground). [#18](https://github.com/Seafloor-Studio/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
+
+## Sat 31 Oct
+
+A few cycles on BACKLOG's Tech debt (T1–T3), as you asked: the larger cuts the 30 Oct audits left.
+
+### L: the article view's Listen wiring, with its behaviour pinned first
+- **Why:** the article view took six Listen parameters, each wired by hand, and decided "this edition is in Listen" three ways. You asked for the cut with tests proving the experience unchanged.
+- **Tests first (#430):** an audit mapped 51 Listen behaviours of the article view to the tests that would catch them; eleven new tests fill the gaps the refactor touches, each broken on purpose to show it fails. All 116 screenshots come out byte for byte the same across two runs of the same code, so they could be compared too.
+- **Built:** the view takes one `Listening`, which now carries the natural voice's flows; "this edition is in Listen" is worked out once. After each step the Listen tests passed and all 116 screenshots matched main's exactly.
+- **Size:** about the same (−6 lines): the flows moved rather than went. The error stays drawn in two places, since one would move it on screen.
+
+### T3: code only tests kept alive goes
+- **Why:** seven functions in the app existed only for tests, and `connect` signed in differently from the app (it reset the category, and skipped the feed list).
+- **Built:** tests now sign in through `signIn`, read candidates with `buildCandidates` and pause with `setPaused`, as the app does; `insertNew` is a test helper. App code: about 40 lines shorter. One test of `connect`'s category reset went with it: no reader can do that.
+- **The Tech debt run, closing:** T1–T3 and the live check's fix are merged; app code is about 100 lines shorter. Left in BACKLOG's Tech debt: the article view's six Listen parameters, the Listen checks spelled three times, the three lists of an edition's articles, and a few smaller ones.
+
+### T2: tt-rss sessions in one place
+- **Why:** ten places opened a tt-rss session and logged out by hand, `subscribe` twice and not at all if its first call threw.
+- **Built:** `TtrssClient.session { }` logs out however the block ends; the three paging loops share one request and one id parser; the account source and "still in the account" are one function and one property each.
+- **Size:** about the same (−7 lines ignoring indentation). The gain is that a new tt-rss call can't forget to log out.
+
+### The daily tt-rss check, green again
+- **Why:** the live check against a real tt-rss had failed every day since 26 Oct, unnoticed. One test asked tt-rss to update a feed whose file it had deleted, and failed when tt-rss refused one of those updates; it only needed tt-rss to record the 404.
+- **Fixed:** that loop no longer insists each update succeeds, and a failing run prints the test's message, so the next surprise shows tt-rss's own answer.
+
+### T1: the book writer's sections go
+- **Why:** every edition is one untitled section, but `EpubWriter` still drew section headings, a nested contents and nested NCX entries.
+- **Built:** `EditionDoc` takes a flat list of articles. The same four editions written before and after (pictures, Arabic, an untitled article, thirty articles, none) differ only in `style.css`, which lost the two section rules.
+- **Left:** PNG and GIF in the writer, which no edition uses either: about 10 lines against an interface change and 42 test edits, and the check keeps a picture's media type honest.
+
+## Fri 30 Oct
+
+The 30 Oct cycle run (N1–N12, about every half hour): the test audit's gaps, then one view for reading and listening, then three architecture and simplification audits.
+
+### The run, closing
+- **Done:** all twelve cycles, each merged green: six on the test audit (one real bug, Today's card for a not-sent edition), three for one view, three audits (the article view and Listen, making an edition, sync and the data layer).
+- **What the audits found:** each area was mostly lean. The merge of two screens left the most behind; the data layer the least. Each left its larger cuts in BACKLOG's Tech debt rather than widen a PR.
+- **Waiting on you:** the recording chips' names and the Boox question, on the morning page.
+- **Next:** BACKLOG's Tech debt section, now with eleven measured items; "What one view left" (TalkBack's Read from here per paragraph).
+
+### N12: audit — sync and the data layer
+- **Why:** the last of three architecture audits, on getting articles in and keeping them.
+- **Fixed:** a feed's settings are copied by one function when it moves between the phone and tt-rss (two copies of eight fields, where a setting added later would have been dropped by one); one article's star goes through the same query as several; a saved link is found by its guid rather than by loading the whole reading list; six comments that described what the code no longer does.
+- **Left:** in BACKLOG's Tech debt.
+
+Earlier today, outside the run: a paused episode or reading plays on from where it got (#408), and older not-sent editions get Listen and Mark as sent back, greyed out while an edition is made (#410).
+
+### N11: audit — making an edition
+- **Why:** the second architecture audit, on the path from picking articles to the finished EPUB.
+- **Fixed:** an edition of an hour or more now reads the same everywhere: "about 1 hr 15 min" on Today's cards, the edition page and the next-edition line, as the cover and the notification already said, not "about 75 min". Dead code gone: the cover's title (never drawn), the extractor's reading time at the default pace (the builder uses the reader's), an ordering rule the planner never read, and a page class no page used.
+- **Left:** titled sections and non-JPEG pictures in the book writer, which no edition uses; in BACKLOG's Tech debt.
+
+### N10: audit — the article view and Listen
+- **Why:** three PRs merged the preview and the playing screen into one view; merges leave things behind.
+- **Fixed:** Play, Next or a seek from the article view's own player now binds Listen's service, as the bar always did, so after the service went while paused, playing again keeps its notification and audio focus. A table row is a "Read from here" button only while Listen plays (TalkBack offered one that did nothing). About 40 lines of dead or doubled code gone: a picture reader only a test used, a text size passed and never read, a scroll offset always 0, a link to the closing page no page has, the episode count worked out three times, each page parsed twice for its title.
+- **Left:** three larger simplifications, in BACKLOG's Tech debt.
+
+### N9: one view, step 3 — the playing screen goes
+- **Why:** after N7 and N8 the article view did everything the playing screen did, so two screens drew the same thing.
+- **Built:** the playing screen and its route are gone; the bar, the media notification and the edition's Listen open the article the voice is on. The article view says "You've heard the whole edition." at the end and "Tap a time to play from there." on an episode. The page moves a screen at a time: a sentence already on screen leaves it be, as each move redraws an e-ink screen. The playing screen's tests were ported to the article view.
+- **Left:** TalkBack's "Read from here" per paragraph, and Listen from here in the long-press menu (BACKLOG).
+
+### N8: one view, step 2 (#418)
+- **Built:** the bar, the notification and the edition's Listen open the article view; the closing page and the episodes after the edition are drawn there, and **Contents** in its top bar lists the edition.
+
+### N7: one view, step 1 (#417)
+- **Built:** the article preview listens in place: the player under the page, the sentence tinted and followed, a tap reading from a sentence while it plays.
+
+### N2–N6: the test audit's gaps (#412–#416)
+- **Built:** tests for the audio line on the edition page in every status and audio state (#412); an edition's book going while it's listened to, through the real wiring (#413); an edition released while its page is open keeping Listen (#414); Today's card for a not-sent edition offering Mark as sent, not only Try again (#415, a fix); and the emulator's two-editions journey opening the not-sent edition (#416).
+
+### N1: a not-sent edition made the real way
+- **Why:** every test gave an edition "not sent" by hand, with the same constant the screens read, so a reworded note would pass every test and lose Listen again, as it did before #410.
+- **Built:** a test that builds two editions with the real builder and checks the first one's page: Resume where it was left, Mark as sent, its articles open, Save a copy. Falsified by having the builder write a reworded note.
 
 ## Sat 24 Oct
 

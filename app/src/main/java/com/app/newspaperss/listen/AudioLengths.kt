@@ -20,7 +20,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * plays in the article's place only when the audio is about as long as the text read aloud, and
  * for the reading paired with an article, which it announces by its length. A transcript's episode
  * (its own audio, or its notes post's) is timed too: it plays only when its length rules out a
- * preview.
+ * preview. So is a notes post's, which plays after the edition and is placed by its length.
  */
 class AudioLengths(private val db: AppDatabase, private val http: HttpClient) {
     /** [measure]s an edition's articles once it's made, for at most [MEASURE_FOR]: they're for Listen, which reads an article whose length isn't known. */
@@ -38,7 +38,8 @@ class AudioLengths(private val db: AppDatabase, private val http: HttpClient) {
             .filter { it.episodeKind == EpisodeKind.AUDIO_VERSION }
         val episodes = transcripts.mapNotNull { t -> t.episodePair?.let { db.articles().byGuid(t.sourceId, it) } }
             .filter { it.episodeKind == EpisodeKind.NOTES }
-        val unknown = (articles.filter { it.episodePair == null } + readings + transcripts + episodes)
+        val notes = posts.filter { it.episodeKind == EpisodeKind.NOTES }
+        val unknown = (articles.filter { it.episodePair == null } + readings + transcripts + episodes + notes)
             .filter { it.audioUrl != null && it.audioSeconds == null && isMp3(it) }
             .distinctBy { it.id }
         // A few at a time: they're small requests, but an edition can hold twenty articles.

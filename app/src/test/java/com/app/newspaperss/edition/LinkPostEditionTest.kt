@@ -12,6 +12,7 @@ import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.SourceKind
 import com.app.newspaperss.data.FeedSync
 import com.app.newspaperss.data.SourceRepository
+import com.app.newspaperss.data.insertNew
 import com.app.newspaperss.testutil.DbRule
 import com.app.newspaperss.testutil.FakeHttp
 import com.app.newspaperss.testutil.TestApp

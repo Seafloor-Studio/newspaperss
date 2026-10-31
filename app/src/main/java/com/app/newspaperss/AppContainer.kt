@@ -36,6 +36,7 @@ import com.app.newspaperss.settings.SettingsStore
 import com.app.newspaperss.edition.ExtractorContentProvider
 import com.app.newspaperss.listen.ListenBook
 import com.app.newspaperss.listen.ListenPlayer
+import com.app.newspaperss.listen.ListenState
 import com.app.newspaperss.listen.ListenService
 import com.app.newspaperss.listen.Listening
 import com.app.newspaperss.listen.Speaker
@@ -87,6 +88,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import com.app.newspaperss.settings.ListenVoice
 import com.app.newspaperss.listen.Media3Audio
@@ -243,11 +245,28 @@ class AppContainer(
         ).also { player ->
             // A recording that won't play: on from where it got, in the voice.
             if (EPISODES) readingSpeaker.restart = { line -> if (player.state.value.editionId == line.editionId) player.seek(ListenPosition(line.page, line.line)) }
+            // Only from the page it's about: a skip asked for there mustn't skip the next one.
+            if (EPISODES) readingSpeaker.skip = { line -> player.state.value.takeIf { it.editionId == line.editionId && it.at.page == line.page }?.let { player.next() } }
+            appScope.launch { player.state.collect { _listenNow.value = it } }
+            // Whatever starts it (the bar, the article view's player, a seek), playing needs the
+            // service for its notification and focus, and the service may have gone while paused.
+            appScope.launch { player.state.map { it.playing }.distinctUntilChanged().collect { if (it) connectListening() } }
         }
     }
     val listen: ListenPlayer by listenMade
+
+    private val _listenNow = MutableStateFlow<ListenState?>(null)
+
+    /**
+     * What Listen is doing, once it has been used since the app started; null before. For the
+     * screens that only show it: reading [listen] makes the player, which starts the phone's voice.
+     */
+    val listenNow: StateFlow<ListenState?> = _listenNow.asStateFlow()
     val listening: Listening by lazy {
-        Listening(listen, listenProgress, editions, podcasts) { connectListening() }
+        Listening(
+            listen, listenProgress, editions, podcasts,
+            podcastVoice = podcastPlaying, instead = podcastInstead, reading = readingNow, voiceInstead = ::useVoiceInstead,
+        ) { connectListening() }
     }
 
     /** Getting the podcast's voice onto the phone. */

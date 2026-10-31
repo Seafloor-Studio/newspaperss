@@ -8,6 +8,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -233,22 +234,10 @@ class TtrssClient(
     suspend fun unreadStates(feedId: Int, sinceId: Long, pages: Int = 5): Map<Long, Boolean> {
         val states = mutableMapOf<Long, Boolean>()
         for (page in 0 until pages) {
-            val content = withSession { sid ->
-                post(buildJsonObject {
-                    put("sid", sid)
-                    put("op", "getHeadlines")
-                    put("feed_id", feedId)
-                    put("view_mode", "all_articles")
-                    put("show_content", false)
-                    put("limit", MAX_LIMIT)
-                    put("skip", page * MAX_LIMIT)
-                    put("since_id", sinceId)
-                })
-            }
-            val items = content as? JsonArray ?: throw TtrssException.NotTtrss()
+            val items = headlinesWithoutText(feedId, page) { put("since_id", sinceId) }
             for (item in items) {
                 val o = item as? JsonObject ?: continue
-                val id = (o["id"] as? JsonPrimitive)?.let { it.longOrNull ?: it.contentOrNull?.toLongOrNull() } ?: continue
+                val id = idOf(o) ?: continue
                 // A boolean, or "t"/"1" from older versions on PostgreSQL or MySQL.
                 val unread = (o["unread"] as? JsonPrimitive)?.contentOrNull ?: continue
                 states[id] = unread == "true" || unread == "t" || unread == "1"
@@ -270,28 +259,18 @@ class TtrssClient(
     suspend fun postedSince(sinceId: Long?, pages: Int): TtrssPosted {
         val posts = mutableListOf<TtrssPost>()
         for (page in 0 until pages) {
-            val content = withSession { sid ->
-                post(buildJsonObject {
-                    put("sid", sid)
-                    put("op", "getHeadlines")
-                    put("feed_id", ALL_ARTICLES)
-                    put("view_mode", "all_articles")
-                    put("show_content", false)
-                    put("limit", MAX_LIMIT)
-                    put("skip", page * MAX_LIMIT)
-                    if (sinceId != null) {
-                        put("since_id", sinceId)
-                        put("order_by", "date_reverse")
-                    } else {
-                        put("order_by", "feed_dates")
-                    }
-                })
+            val items = headlinesWithoutText(ALL_ARTICLES, page) {
+                if (sinceId != null) {
+                    put("since_id", sinceId)
+                    put("order_by", "date_reverse")
+                } else {
+                    put("order_by", "feed_dates")
+                }
             }
-            val items = content as? JsonArray ?: throw TtrssException.NotTtrss()
             for (item in items) {
                 val o = item as? JsonObject ?: continue
                 // Only what's needed, so an article without a link or title still counts.
-                val id = (o["id"] as? JsonPrimitive)?.let { it.longOrNull ?: it.contentOrNull?.toLongOrNull() } ?: continue
+                val id = idOf(o) ?: continue
                 val feed = (o["feed_id"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: continue
                 posts += TtrssPost(id, feed, (o["updated"] as? JsonPrimitive)?.longOrNull)
             }
@@ -306,19 +285,8 @@ class TtrssClient(
     suspend fun starredIds(pages: Int): TtrssStarred {
         val ids = mutableListOf<Long>()
         for (page in 0 until pages) {
-            val content = withSession { sid ->
-                post(buildJsonObject {
-                    put("sid", sid)
-                    put("op", "getHeadlines")
-                    put("feed_id", STARRED)
-                    put("view_mode", "all_articles")
-                    put("show_content", false)
-                    put("limit", MAX_LIMIT)
-                    put("skip", page * MAX_LIMIT)
-                })
-            }
-            val items = content as? JsonArray ?: throw TtrssException.NotTtrss()
-            items.mapNotNullTo(ids) { ((it as? JsonObject)?.get("id") as? JsonPrimitive)?.let { id -> id.longOrNull ?: id.contentOrNull?.toLongOrNull() } }
+            val items = headlinesWithoutText(STARRED, page)
+            items.mapNotNullTo(ids) { (it as? JsonObject)?.let(::idOf) }
             if (items.size < MAX_LIMIT) return TtrssStarred(ids, complete = true)
         }
         return TtrssStarred(ids, complete = false)
@@ -484,9 +452,32 @@ class TtrssClient(
 
     private class NotLoggedIn : Exception()
 
+    /**
+     * The [page]th page of [MAX_LIMIT] of [feedId]'s articles, read or not, without their text:
+     * cheap enough to look through many. [more] adds to the request.
+     */
+    private suspend fun headlinesWithoutText(feedId: Int, page: Int, more: JsonObjectBuilder.() -> Unit = {}): JsonArray {
+        val content = withSession { sid ->
+            post(buildJsonObject {
+                put("sid", sid)
+                put("op", "getHeadlines")
+                put("feed_id", feedId)
+                put("view_mode", "all_articles")
+                put("show_content", false)
+                put("limit", MAX_LIMIT)
+                put("skip", page * MAX_LIMIT)
+                more()
+            })
+        }
+        return content as? JsonArray ?: throw TtrssException.NotTtrss()
+    }
+
+    /** An article's id: a number, or one as a string from some versions. */
+    private fun idOf(o: JsonObject): Long? = (o["id"] as? JsonPrimitive)?.let { it.longOrNull ?: it.contentOrNull?.toLongOrNull() }
+
     private fun headline(o: JsonObject): TtrssHeadline? {
         fun text(key: String) = (o[key] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
-        val id = (o["id"] as? JsonPrimitive)?.let { it.longOrNull ?: it.contentOrNull?.toLongOrNull() } ?: return null
+        val id = idOf(o) ?: return null
         return TtrssHeadline(
             id = id,
             title = text("title") ?: "",

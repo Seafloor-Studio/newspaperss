@@ -144,7 +144,7 @@ The steps, with where they live:
    marks any edition left `BUILDING` by a dead process as failed, and
    releases editions still `READY` (never sent) so their articles go back.
    It then inserts the new edition as `BUILDING` and reads the candidates
-   (`ArticleDao.candidates`), dropping left-out publications' unless starred.
+   (`ArticleDao.buildCandidates`, without the feed text), dropping left-out publications' unless starred.
 3. **Order.** `EditionPlanner.order` (`core/edition/EditionPlanner.kt`)
    sorts candidates: stars first, then by turns across publications: a
    feed added here is one, and each of a tt-rss account's feeds is one. A
@@ -255,16 +255,22 @@ flowchart LR
     player -->|"a line, and the next"| speaker["Speaker: SystemSpeaker (TextToSpeech)"]
     speaker -->|"started, done"| player
     player --> state["state: StateFlow"]
-    state --> screen["ListenScreen, ListenButton"]
+    state --> screen["ArticlePreviewScreen, PlayerDock, ListenButton"]
     state --> session["SessionPlayer (Media3) in ListenService"]
     session -->|"lock screen, headphones"| player
     player --> progress["ListenProgress (SharedPreferences)"]
 ```
 
 - **`ListenScript`** (`core/listen/`) reads a book page into blocks (title,
-  paragraphs, quotes, list items, pictures) and splits them into lines:
-  one sentence each (`Sentences`), or a picture's one-line description.
-  A line is what ↶ goes back to and what the screen tints.
+  paragraphs, quotes, list items, tables, pictures) and splits them into
+  lines: one sentence each (`Sentences`), or a picture's one-line
+  description. A line is what ↶ goes back to and what the screen tints.
+  Each block also holds what's shown: its text with bold, links and the
+  like, a list item's number, and furniture that's never said (the
+  byline's date, a footnote's marker, the "Next" line). Each sentence
+  knows where it's shown, so one walk of the page serves both the eye
+  and the voice. `PlatformCorpusTest` checks every word of each corpus
+  page is held, in order.
 - **`ListenPlayer`** is the one player, in `AppContainer`, made on first
   use. It gives the voice the line being read and the next, so there's no
   gap, and moves the position when a line starts. Each line's id carries a
@@ -287,7 +293,7 @@ flowchart LR
   kept with each piece, so the player tints and saves sentences the same way. Line ids
   (`LineId`) carry the edition, page and line, and the page's line count:
   a podcast made from other lines isn't used. Its `voice` is the name the
-  playing screen shows, and `instead` why an article of an edition with a
+  player shows, and `instead` why an article of an edition with a
   podcast plays in the phone's voice.
 - **`Podcasts`** is how the rest of the app reaches podcasts. It shows
   the edition page which articles are made, followed through
@@ -650,8 +656,8 @@ On a PR that touches what they cover:
   every push to main), on an emulator:
   - `EditionReachesAnotherAppTest` hands an edition to `:epubsink` in
     another process.
-  - `ArticlePreviewRenderTest` renders the edition's own EPUB in a real
-    WebView, as the preview does.
+  - `ArticlePreviewRenderTest` draws the edition's own EPUB in the preview on
+    a real screen, with real fonts.
   - `AccessibilityChecksTest` runs Google's accessibility checks on every
     screen a new reader meets, then Today, Sources and Settings again at 200%
     text. Under Robolectric those checks check nothing, so they live here.
