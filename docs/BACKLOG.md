@@ -133,14 +133,14 @@ Whole-codebase passes for what a review of one PR can't see. Each follows the au
 
 ### Tech debt
 From the N12 audit of sync and the data layer (30 Oct). Mostly lean; no reader-facing bug.
-- [ ] **Every tt-rss call opens and logs out by hand,** ten times over (`TtrssRepository`, `FeedSync.syncTtrss`), `subscribe` twice on one path. One `TtrssAccount.session { client -> … }` would hold the try/finally.
+- [x] **Every tt-rss call opens and logs out by hand:** one `TtrssClient.session { }` now holds the logout, `subscribe`'s included (cycle T2).
 - [ ] **Code only tests keep alive:** `TtrssRepository.connect` (32 test calls; the app signs in with `signIn`, which keeps the category `connect` resets), `check(readCategories)`, `ArticleDao.candidates` (the same WHERE as `buildCandidates`), `insertNew`, `allLeftOut`, `EditionDao.count`, the whole-row `SourceDao.update` (whose writing back undoes a pause made meanwhile). Moving the tests onto what the app calls is mechanical but touches about 50 call sites.
-- [ ] **The same lookups spelled several times in `TtrssRepository`:** the tt-rss source (5), a source's publications (5), "still in the account" (5); and a login as both a `Pair` and `Login`. `TtrssClient`'s paging loop is copied three times.
+- [x] **The same lookups spelled several times in `TtrssRepository`:** `accountSource()`, `PublicationEntity.inAccount`, and one headline page request and id parser in `TtrssClient` (cycle T2). The `Pair`/`Login` double stays: small.
 - [ ] A link saved or shared over 4,000 characters isn't held to `RowLimits` as feed articles are. Nothing breaks (the row fits), and refusing it needs its own message ("already on your list" would be wrong), so left until a reader meets it.
 
 From the N11 audit of making an edition (30 Oct). The build flow itself (failure, cancellation, the commit, releasing unsent editions, the deadline) held up.
-- [ ] **Titled sections in the book are built for and never used:** every edition is one untitled section (`EditionBuilder` makes `EditionSection(null, …)`; DESIGN says no section headings), but `EpubWriter` still draws section headings, a nested contents and nested NCX entries. `EditionDoc(articles)` would cut about 35 lines with the book byte for byte the same; about 20 test call sites change, most through `testutil/Epubs.kt`. Do it with the next item.
-- [ ] **Only JPEG pictures are ever made** (`AndroidImageEncoder`, the cover), yet `ArticleImages`, `EpubWriter` and `EncodedImage.mediaType` allow PNG and GIF; tests are their only users. Drop with the sections, not alone: the check is cheap.
+- [x] **Titled sections in the book are built for and never used:** `EditionDoc` takes a flat list of articles; the book is byte for byte the same but for two unused CSS rules (cycle T1).
+- **Left as is (T1): only JPEG pictures are ever made, yet the writer allows PNG and GIF.** Dropping it would save about 10 lines and touch the encoder's interface and 42 test call sites, and lose the check that keeps a picture's media type honest in the book.
 - [ ] `Budget.Articles` and a null `maxPerSource` exist only for `EditionPlannerTest`; the app always budgets minutes with a cap.
 
 From the N10 audit of the article view and Listen (30 Oct). Read against the code; none is a bug a reader meets today.

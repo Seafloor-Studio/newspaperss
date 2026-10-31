@@ -314,7 +314,7 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
         val all = sources.all()
         val server = all.filter { it.kind == SourceKind.TTRSS }.flatMap { account ->
             sources.observePublicationsOf(account.id).first()
-                .filter { it.feedUrl != null && (it.listed || it.outsideCategory) }
+                .filter { it.feedUrl != null && it.inAccount }
                 .map { OpmlFeed(it.feedUrl!!, it.title, folder = it.category?.ifBlank { null }) }
         }
         val phone = all.filter { it.kind == SourceKind.FEED }.map { OpmlFeed(it.url, it.title, folder = null) }

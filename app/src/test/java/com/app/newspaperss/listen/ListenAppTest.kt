@@ -39,7 +39,6 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
-import com.app.newspaperss.core.epub.EditionSection
 import com.app.newspaperss.core.epub.EpubImage
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.data.AppDatabase
@@ -125,7 +124,7 @@ class ListenAppTest {
     private fun edition(title: String = "Thursday Morning Edition", vararg articles: EditionArticle = arrayOf(knots, lagos)): Long = runBlocking {
         val file = "${title.hashCode()}.epub"
         FileOutputStream(File(editionsDir, file)).use {
-            EpubWriter.write(EditionDoc(title, LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-00000000000${articles.size}", listOf(EditionSection(null, articles.toList()))), it)
+            EpubWriter.write(EditionDoc(title, LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-00000000000${articles.size}", articles.toList()), it)
         }
         val id = db.editions().insert(EditionEntity(title = title, status = EditionStatus.DELIVERED, fileName = file, articleCount = articles.size, minutes = articles.sumOf { it.minutes }))
         db.editions().insertArticles(articles.mapIndexed { i, a -> EditionArticleEntity(editionId = id, articleId = null, position = i, title = a.title, sourceTitle = a.sourceTitle, minutes = a.minutes) })
@@ -145,7 +144,7 @@ class ListenAppTest {
             bodyHtml = "<p>" + List(160) { (1..10).joinToString(" ") { "word" } + "." }.joinToString(" ") + "</p>", minutes = 8.0,
         )
         FileOutputStream(File(editionsDir, "f.epub")).use {
-            EpubWriter.write(EditionDoc("Friday Morning Edition", LocalDate.of(2026, 10, 2), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000020", listOf(EditionSection(null, listOf(transcript, lagos)))), it)
+            EpubWriter.write(EditionDoc("Friday Morning Edition", LocalDate.of(2026, 10, 2), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000020", listOf(transcript, lagos)), it)
         }
         val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Show"))
         val article = db.articles().insertIgnoring(
@@ -176,7 +175,7 @@ class ListenAppTest {
             bodyHtml = "<p>This week we talk to a ferry planner.</p>", minutes = 1.0,
         )
         FileOutputStream(File(editionsDir, "n.epub")).use {
-            EpubWriter.write(EditionDoc("Saturday Morning Edition", LocalDate.of(2026, 10, 3), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000030", listOf(EditionSection(null, listOf(notes, lagos)))), it)
+            EpubWriter.write(EditionDoc("Saturday Morning Edition", LocalDate.of(2026, 10, 3), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000030", listOf(notes, lagos)), it)
         }
         val id = runBlocking {
             val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Show"))
@@ -702,7 +701,7 @@ class ListenAppTest {
             bodyHtml = "<p>This week we talk to a ferry planner.</p>", minutes = 1.0,
         )
         FileOutputStream(File(editionsDir, "n.epub")).use {
-            EpubWriter.write(EditionDoc("Saturday Morning Edition", LocalDate.of(2026, 10, 3), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000030", listOf(EditionSection(null, listOf(notes, lagos)))), it)
+            EpubWriter.write(EditionDoc("Saturday Morning Edition", LocalDate.of(2026, 10, 3), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000030", listOf(notes, lagos)), it)
         }
         val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Show"))
         val article = db.articles().insertIgnoring(

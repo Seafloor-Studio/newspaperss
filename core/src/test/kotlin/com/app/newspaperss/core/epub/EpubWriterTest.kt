@@ -39,15 +39,13 @@ class EpubWriterTest {
         author = author, published = published, note = note, images = images, language = language,
     )
 
-    private fun doc(vararg sections: EditionSection, title: String = "Tuesday Morning Edition") = EditionDoc(
+    private fun doc(vararg articles: EditionArticle, title: String = "Tuesday Morning Edition") = EditionDoc(
         title = title,
         date = LocalDate.of(2026, 9, 29),
         identifier = "urn:uuid:5b1f3c8e-0000-4000-8000-000000000001",
-        sections = sections.toList(),
+        articles = articles.toList(),
         modified = Instant.parse("2026-09-29T06:30:12.345Z"),
     )
-
-    private fun unsectioned(vararg articles: EditionArticle) = doc(EditionSection(null, articles.toList()))
 
     private class Epub(val raw: ByteArray, val entries: List<Pair<ZipEntry, ByteArray>>) {
         val files: Map<String, ByteArray> = entries.associate { it.first.name to it.second }
@@ -124,7 +122,7 @@ class EpubWriterTest {
 
     @Test
     fun mimetypeIsTheFirstEntryStoredUncompressedWithNoExtraField() {
-        val epub = write(unsectioned(article()))
+        val epub = write(doc(article()))
         val raw = epub.raw
         // Readers sniff the file type from these fixed offsets of the first local file header.
         assertEquals("PK\u0003\u0004", String(raw, 0, 4, Charsets.ISO_8859_1))
@@ -140,7 +138,7 @@ class EpubWriterTest {
     fun picturesAreStoredAndTextIsDeflated() {
         val picture = ByteArray(5_000) { (it * 31).toByte() }
         val cover = EpubImage("images/cover.jpg", "image/jpeg", byteArrayOf(4, 5, 6))
-        val epub = write(unsectioned(article(images = listOf(EpubImage("images/a1-0.jpg", "image/jpeg", picture)))).copy(cover = cover))
+        val epub = write(doc(article(images = listOf(EpubImage("images/a1-0.jpg", "image/jpeg", picture)))).copy(cover = cover))
         val methods = epub.entries.associate { it.first.name to it.first.method }
 
         assertEquals(ZipEntry.STORED, methods["OEBPS/images/a1-0.jpg"])
@@ -152,7 +150,7 @@ class EpubWriterTest {
 
     @Test
     fun containerPointsAtThePackageDocument() {
-        val epub = write(unsectioned(article()))
+        val epub = write(doc(article()))
         val rootfile = epub.xml("META-INF/container.xml").elements("rootfile").single()
         assertEquals("OEBPS/content.opf", rootfile.getAttribute("full-path"))
         assertNotNull(epub.files["OEBPS/content.opf"])
@@ -163,8 +161,8 @@ class EpubWriterTest {
         val image = EpubImage("images/a1-0.jpg", "image/jpeg", byteArrayOf(1, 2, 3))
         val epub = write(
             doc(
-                EditionSection("World", listOf(article(body = "<p><img src=\"images/a1-0.jpg\" alt=\"\"></p>", images = listOf(image)))),
-                EditionSection(null, listOf(article(title = "Second"))),
+                article(body = "<p><img src=\"images/a1-0.jpg\" alt=\"\"></p>", images = listOf(image)),
+                article(title = "Second"),
             ),
         )
         val manifestFiles = epub.manifest().values.map { "OEBPS/" + it.getAttribute("href") }.toSet()
@@ -179,7 +177,7 @@ class EpubWriterTest {
             "<img src=\"https://imgs.xkcd.com/comics/sandwich.png\" title=\"Proper User Policy apparently means Simon Says.\" alt=\"Sandwich\" />",
             "https://xkcd.com/149/",
         ).html.replace("https://imgs.xkcd.com/comics/sandwich.png", "images/a1-0.png")
-        val epub = write(unsectioned(article(body = cleaned, images = listOf(EpubImage("images/a1-0.png", "image/png", byteArrayOf(1))))))
+        val epub = write(doc(article(body = cleaned, images = listOf(EpubImage("images/a1-0.png", "image/png", byteArrayOf(1))))))
 
         val page = epub.xml("OEBPS/" + epub.articleHrefs().single())
         val figure = page.documentElement.elements("figure").single()
@@ -189,7 +187,7 @@ class EpubWriterTest {
 
     @Test
     fun packageMetadataIsComplete() {
-        val epub = write(unsectioned(article()))
+        val epub = write(doc(article()))
         val opf = epub.opf()
         val pkg = opf.documentElement
         val uniqueId = pkg.getAttribute("unique-identifier")
@@ -211,7 +209,7 @@ class EpubWriterTest {
     /** EPUB Accessibility 1.1's discovery metadata: a text-only edition needs nothing but text. */
     @Test
     fun aTextOnlyEditionSaysItsTextIsEnough() {
-        val epub = write(unsectioned(article()))
+        val epub = write(doc(article()))
         assertEquals(listOf("textual"), epub.accessibility("accessMode"))
         assertEquals(listOf("textual"), epub.accessibility("accessModeSufficient"))
         assertEquals(listOf("tableOfContents", "readingOrder", "structuralNavigation"), epub.accessibility("accessibilityFeature"))
@@ -227,7 +225,7 @@ class EpubWriterTest {
         val described = article(body = "<p>Text.</p><figure><img src=\"images/a1-0.jpg\" alt=\"A heron on one leg\"></figure>", images = listOf(photo))
         val bare = article(title = "Second", body = "<p>Text.</p><figure><img src=\"images/a2-0.jpg\" alt=\"\"></figure>", images = listOf(chart))
 
-        val all = write(unsectioned(described))
+        val all = write(doc(described))
         assertEquals(listOf("textual", "visual"), all.accessibility("accessMode"))
         assertEquals(listOf("textual"), all.accessibility("accessModeSufficient"))
         assertTrue("alternativeText" in all.accessibility("accessibilityFeature"))
@@ -235,11 +233,11 @@ class EpubWriterTest {
 
         // Not an image, though its name starts like one.
         val zoom = article(title = "Third", body = "<p>Text.</p><img-zoom alt=\"\"></img-zoom>")
-        assertTrue("alternativeText" in write(unsectioned(described, zoom)).accessibility("accessibilityFeature"))
+        assertTrue("alternativeText" in write(doc(described, zoom)).accessibility("accessibilityFeature"))
         val spaced = article(title = "Fourth", body = "<p>Text.</p><figure><img src=\"images/a2-0.jpg\" alt=\"&nbsp;\"></figure>", images = listOf(chart))
-        assertFalse("a space describes nothing", "alternativeText" in write(unsectioned(described, spaced)).accessibility("accessibilityFeature"))
+        assertFalse("a space describes nothing", "alternativeText" in write(doc(described, spaced)).accessibility("accessibilityFeature"))
 
-        val some = write(unsectioned(described, bare))
+        val some = write(doc(described, bare))
         assertEquals(listOf("textual,visual"), some.accessibility("accessModeSufficient"))
         assertFalse("alternativeText" in some.accessibility("accessibilityFeature"))
         assertTrue(some.accessibility("accessibilitySummary").single().contains("Some pictures have no text description"))
@@ -252,7 +250,7 @@ class EpubWriterTest {
         val body = "<p><a href=\"https://x.com/someone/status/1\"><img src=\"images/a1-0.jpg\" alt=\"\"></a></p>" +
             "<p><a href=\"https://example.com/chart\"><img src=\"images/a1-1.jpg\" alt=\"A chart\"></a></p>" +
             "<p>Share <a href=\"https://example.com/share\"></a> it.</p>"
-        val epub = write(unsectioned(article(body = body, images = listOf(photo, chart))))
+        val epub = write(doc(article(body = body, images = listOf(photo, chart))))
         val page = epub.xml("OEBPS/${epub.articleHrefs().single()}")
         val links = page.elements("a").associateBy { it.getAttribute("href") }
         assertEquals("Linked picture, x.com", links.getValue("https://x.com/someone/status/1").getAttribute("aria-label"))
@@ -264,15 +262,15 @@ class EpubWriterTest {
     /** The cover is a picture too, with its own description; a GIF may move, so it isn't promised still. */
     @Test
     fun theCoverCountsAndOnlyStillPicturesAreSafe() {
-        val cover = write(doc(EditionSection(null, listOf(article()))).copy(cover = EpubImage("images/cover.jpg", "image/jpeg", byteArrayOf(1))))
+        val cover = write(doc(article()).copy(cover = EpubImage("images/cover.jpg", "image/jpeg", byteArrayOf(1))))
         assertEquals(listOf("textual", "visual"), cover.accessibility("accessMode"))
         assertTrue("alternativeText" in cover.accessibility("accessibilityFeature"))
         assertEquals(listOf("none"), cover.accessibility("accessibilityHazard"))
 
         val gif = EpubImage("images/a1-0.gif", "image/gif", byteArrayOf(7))
-        val moving = write(unsectioned(article(body = "<p><img src=\"images/a1-0.gif\" alt=\"A dancing cat\"></p>", images = listOf(gif))))
+        val moving = write(doc(article(body = "<p><img src=\"images/a1-0.gif\" alt=\"A dancing cat\"></p>", images = listOf(gif))))
         assertEquals(listOf("unknown"), moving.accessibility("accessibilityHazard"))
-        val gifCover = write(doc(EditionSection(null, listOf(article()))).copy(cover = EpubImage("images/cover.gif", "image/gif", byteArrayOf(1))))
+        val gifCover = write(doc(article()).copy(cover = EpubImage("images/cover.gif", "image/gif", byteArrayOf(1))))
         assertEquals(listOf("unknown"), gifCover.accessibility("accessibilityHazard"))
     }
 
@@ -280,7 +278,7 @@ class EpubWriterTest {
     @Test
     fun anArticlesHeadingsNeverSkipALevel() {
         val body = "<p>Intro.</p><h3>Tactic one</h3><p>a</p><h5>A detail</h5><p>b</p><h3>Tactic two</h3><p>c</p><h2>Coda</h2><p>d</p>"
-        val epub = write(unsectioned(article(body = body)))
+        val epub = write(doc(article(body = body)))
         val page = epub.xml("OEBPS/" + epub.articleHrefs().single())
         val headings = page.documentElement.elements("*").filter { it.localName.matches(Regex("h[1-6]")) }
         assertEquals(
@@ -291,7 +289,7 @@ class EpubWriterTest {
 
     @Test
     fun theContentsListHasItsRole() {
-        val nav = write(unsectioned(article())).xml("OEBPS/nav.xhtml").documentElement.elements("nav").single { it.getAttribute("id") == "toc" }
+        val nav = write(doc(article())).xml("OEBPS/nav.xhtml").documentElement.elements("nav").single { it.getAttribute("id") == "toc" }
         assertEquals("doc-toc", nav.getAttribute("role"))
     }
 
@@ -299,9 +297,8 @@ class EpubWriterTest {
     fun spineIsCoverContentsArticlesThenEndAllLinear() {
         val epub = write(
             doc(
-                EditionSection("World", listOf(article(title = "W1"), article(title = "W2"))),
-                EditionSection("Empty", emptyList()),
-                EditionSection("Science", listOf(article(title = "S1"))),
+                article(title = "W1"), article(title = "W2"),
+                article(title = "S1"),
             ),
         )
         val spine = epub.spineHrefs()
@@ -316,7 +313,7 @@ class EpubWriterTest {
 
     @Test
     fun guidePointsAtCoverAndContentsAndKindleOpensAtTheContents() {
-        val epub = write(unsectioned(article(), article()))
+        val epub = write(doc(article(), article()))
         val refs = epub.opf().elements("reference").associate { it.getAttribute("type") to it.getAttribute("href") }
         val spine = epub.spineHrefs()
         assertEquals(spine[0], refs["cover"])
@@ -328,53 +325,28 @@ class EpubWriterTest {
     fun navAndNcxListTheSameTargetsInTheSameOrder() {
         val epub = write(
             doc(
-                EditionSection(null, listOf(article(title = "Lead story"))),
-                EditionSection("World", listOf(article(title = "W1"), article(title = "W2"))),
-                EditionSection("Science", listOf(article(title = "S1"))),
+                article(title = "Lead story"),
+                article(title = "W1"), article(title = "W2"),
+                article(title = "S1"),
             ),
         )
         val nav = epub.navHrefs()
         assertEquals(nav, epub.ncxHrefs())
         val articleHrefs = epub.articleHrefs()
-        // Every entry after Contents is in reading order: a section opens at its first article, and the
-        // closing page is a chapter of its own, last.
+        // Every entry after Contents is in reading order, and the closing page is a chapter of its own, last.
         assertEquals(articleHrefs + "end.xhtml", nav.drop(1).distinct())
         assertEquals(nav.drop(1), nav.drop(1).sortedBy { (articleHrefs + "end.xhtml").indexOf(it) })
 
         val labels = epub.xml("OEBPS/toc.ncx").elements("text").drop(1).map { it.textContent } // skip docTitle
-        assertEquals(listOf("Contents", "Lead story", "World", "W1", "W2", "Science", "S1", "That's all for today"), labels)
-    }
-
-    @Test
-    fun sectionTitlesNestTheirArticlesOneLevelDeep() {
-        val epub = write(
-            doc(
-                EditionSection("World", listOf(article(title = "W1"), article(title = "W2"))),
-                EditionSection(" ", listOf(article(title = "Loose"))),
-            ),
-        )
-        val tocNav = epub.xml("OEBPS/nav.xhtml").elements("nav").first()
-        val topLevel = (tocNav.elements("ol").first().childNodes).let { nodes ->
-            (0 until nodes.length).map { nodes.item(it) }.filterIsInstance<Element>()
-        }
-        assertEquals(listOf("Contents", "World", "Loose", "That's all for today"), topLevel.map { it.elements("a").first().textContent })
-        assertEquals(listOf("World", "W1", "W2"), topLevel[1].elements("a").map { it.textContent })
-
-        val ncx = epub.xml("OEBPS/toc.ncx")
-        val world = ncx.elements("navPoint").single { it.elements("text").first().textContent == "World" }
-        assertEquals(listOf("W1", "W2"), world.elements("navPoint").drop(1).map { it.elements("text").first().textContent })
-        assertEquals("2", ncx.elements("meta").single { it.getAttribute("name") == "dtb:depth" }.getAttribute("content"))
-        // "World" and W1 open the same page, so they share a playOrder.
-        val playOrders = ncx.elements("navPoint").map { it.getAttribute("playOrder").toInt() }
-        assertEquals(listOf(1, 2, 2, 3, 4, 5), playOrders)
+        assertEquals(listOf("Contents", "Lead story", "W1", "W2", "S1", "That's all for today"), labels)
     }
 
     @Test
     fun everyLinkInsideTheBookResolves() {
         val epub = write(
             doc(
-                EditionSection("World", listOf(article(title = "W1", body = "<p id=\"x\"><a href=\"#x\">self</a></p>"), article(title = "W2"))),
-                EditionSection(null, listOf(article(title = "Loose"))),
+                article(title = "W1", body = "<p id=\"x\"><a href=\"#x\">self</a></p>"), article(title = "W2"),
+                article(title = "Loose"),
             ),
         )
         for (name in epub.xhtmlNames()) {
@@ -395,7 +367,7 @@ class EpubWriterTest {
     @Test
     fun coverSummarisesTheEdition() {
         val sources = listOf("Alpha", "Beta", "Alpha", "Gamma", "Delta", "Epsilon")
-        val epub = write(unsectioned(*sources.map { article(source = it, minutes = 4.4) }.toTypedArray()))
+        val epub = write(doc(*sources.map { article(source = it, minutes = 4.4) }.toTypedArray()))
         val cover = epub.xml("OEBPS/" + epub.spineHrefs().first()).documentElement.textContent
         assertTrue(cover.contains("NewspapeRSS"))
         assertTrue(cover.contains("Tuesday Morning Edition"))
@@ -407,7 +379,7 @@ class EpubWriterTest {
 
     @Test
     fun coverListsAllSourcesWhenThereAreFewAndUsesSingularForOneArticle() {
-        val epub = write(unsectioned(article(source = "Alpha", minutes = 0.3)))
+        val epub = write(doc(article(source = "Alpha", minutes = 0.3)))
         val cover = epub.xml("OEBPS/cover.xhtml").documentElement.textContent
         assertTrue(cover.contains("1 article · 1 min"))
         assertTrue(cover.contains("Alpha"))
@@ -417,7 +389,7 @@ class EpubWriterTest {
     @Test
     fun contentsPageListsEachArticleWithSourceAndMinutes() {
         val epub = write(
-            unsectioned(
+            doc(
                 article(title = "Short", source = "Alpha", minutes = 0.2),
                 article(title = "Long", source = "Beta", minutes = 61.6),
             ),
@@ -435,7 +407,7 @@ class EpubWriterTest {
     @Test
     fun articlePageHasBylineNoteOriginalLinkAndNextLink() {
         val epub = write(
-            unsectioned(
+            doc(
                 article(
                     title = "First", source = "Alpha", author = "Ada Lovelace", published = LocalDate.of(2026, 9, 28),
                     minutes = 6.6, note = "Couldn't fetch the full article; showing the feed's version",
@@ -464,7 +436,7 @@ class EpubWriterTest {
 
     @Test
     fun bylineLeavesOutMissingParts() {
-        val epub = write(unsectioned(article(source = "Alpha", minutes = 2.0)))
+        val epub = write(doc(article(source = "Alpha", minutes = 2.0)))
         val byline = epub.xml("OEBPS/" + epub.articleHrefs().single()).elements("p")
             .single { it.getAttribute("class") == "byline" }
         assertEquals("2 min read", byline.textContent)
@@ -472,7 +444,7 @@ class EpubWriterTest {
 
     @Test
     fun theKickerIsTheSourceAndTheOriginalLinkNamesTheSite() {
-        val epub = write(unsectioned(article(source = "", url = "https://www.example.com/a/very/long/path?with=tracking")))
+        val epub = write(doc(article(source = "", url = "https://www.example.com/a/very/long/path?with=tracking")))
         val paragraphs = epub.xml("OEBPS/" + epub.articleHrefs().single()).elements("p")
         assertTrue("no kicker without a source", paragraphs.none { it.getAttribute("class") == "kicker" })
         assertEquals("Read the original at example.com", paragraphs.single { it.getAttribute("class") == "source-link" }.textContent)
@@ -480,7 +452,7 @@ class EpubWriterTest {
 
     @Test
     fun blankTitlesGetAPlaceholder() {
-        val epub = write(unsectioned(article(title = "  ")))
+        val epub = write(doc(article(title = "  ")))
         assertEquals("Article 1", epub.xml("OEBPS/" + epub.articleHrefs().single()).elements("h1").single().textContent)
         assertEquals("Article 1", epub.xml("OEBPS/toc.ncx").elements("text").dropLast(1).last().textContent)
     }
@@ -497,7 +469,7 @@ class EpubWriterTest {
     @Test
     fun anInlineHoldingABlockIsUnwrappedAndOnlyThatOne() {
         val body = "<i><div><a href=\"https://example.com/p\">Picture</a></div>A caption.</i><p><b>Bold <em>and more</em></b>.</p>"
-        val epub = write(unsectioned(article(body = body)))
+        val epub = write(doc(article(body = body)))
         val page = epub.xml("OEBPS/${epub.articleHrefs().single()}")
         assertTrue(page.elements("i").isEmpty())
         assertTrue(page.documentElement.textContent.contains("PictureA caption."))
@@ -509,7 +481,7 @@ class EpubWriterTest {
     fun aHeadingHoldingBlocksStaysAHeadingAndAFootnotesIdStaysOnItsText() {
         val body = "<p>Text<a id=\"ref1\" href=\"#fn1\">1</a>.</p><h2><div>Part one</div><div>Of two</div></h2>" +
             "<span id=\"fn1\"><a href=\"#ref1\">1</a><p>The footnote.</p></span>"
-        val epub = write(unsectioned(article(body = body)))
+        val epub = write(doc(article(body = body)))
         val page = epub.xml("OEBPS/${epub.articleHrefs().single()}")
         val heading = page.elements("h2").single()
         assertTrue(heading.elements("div").isEmpty())
@@ -523,7 +495,7 @@ class EpubWriterTest {
         val nasty = "Tom & Jerry <3 \"quoted\" 'single' 🎉 é"
         val epub = write(
             doc(
-                EditionSection(nasty, listOf(article(title = nasty, source = nasty, author = nasty, note = nasty))),
+                article(title = nasty, source = nasty, author = nasty, note = nasty),
                 title = nasty,
             ),
         )
@@ -532,15 +504,15 @@ class EpubWriterTest {
         assertEquals(nasty, epub.xml("OEBPS/$articleHref").elements("h1").single().textContent)
         assertEquals(nasty, epub.xml("OEBPS/$articleHref").elements("title").single().textContent)
         assertTrue(epub.xml("OEBPS/$articleHref").elements("p").first().textContent.startsWith(nasty))
-        assertEquals(listOf("Contents", nasty, nasty, "That's all for today"), epub.xml("OEBPS/toc.ncx").elements("text").drop(1).map { it.textContent })
+        assertEquals(listOf("Contents", nasty, "That's all for today"), epub.xml("OEBPS/toc.ncx").elements("text").drop(1).map { it.textContent })
         assertTrue(epub.xml("OEBPS/nav.xhtml").elements("a").any { it.textContent == nasty })
         assertTrue(epub.xml("OEBPS/cover.xhtml").documentElement.textContent.contains(nasty))
-        assertTrue(epub.xml("OEBPS/contents.xhtml").elements("h2").single().textContent.startsWith(nasty))
+        assertTrue(epub.xml("OEBPS/contents.xhtml").elements("a").any { it.textContent == nasty })
     }
 
     @Test
     fun controlCharactersAreDroppedInsteadOfBreakingTheXml() {
-        val epub = write(unsectioned(article(title = "Bell\u0007 title", body = "<p>form\u000Cfeed &#1; ok</p>")))
+        val epub = write(doc(article(title = "Bell\u0007 title", body = "<p>form\u000Cfeed &#1; ok</p>")))
         val page = epub.xml("OEBPS/" + epub.articleHrefs().single())
         assertEquals("Bell title", page.elements("h1").single().textContent)
         assertTrue(page.documentElement.textContent.contains("formfeed  ok"))
@@ -565,7 +537,7 @@ class EpubWriterTest {
             <input type="checkbox" checked>
             <p hidden>hidden attr</p>
         """.trimIndent()
-        val epub = write(unsectioned(article(body = body)))
+        val epub = write(doc(article(body = body)))
         val name = "OEBPS/" + epub.articleHrefs().single()
         val page = epub.xml(name)
         val text = page.documentElement.textContent
@@ -596,8 +568,8 @@ class EpubWriterTest {
     fun everyXhtmlFileParsesAsNamespacedXhtml() {
         val epub = write(
             doc(
-                EditionSection("A & B", listOf(article(title = "<script>", body = "<p>x<br>y</p><hr><ul><li>a<li>b</ul>"))),
-                EditionSection(null, listOf(article(title = "Plain"))),
+                article(title = "<script>", body = "<p>x<br>y</p><hr><ul><li>a<li>b</ul>"),
+                article(title = "Plain"),
             ),
         )
         val names = epub.xhtmlNames()
@@ -617,7 +589,7 @@ class EpubWriterTest {
         val body = "<p>Some context.<a id=\"footnote-anchor-3\" href=\"#footnote-3\">3</a><a id=\"footnote-anchor-4\" href=\"#footnote-4\">4</a></p>" +
             "<div><a id=\"footnote-3\" href=\"#footnote-anchor-3\">3</a><div><p>Read the first one.</p></div></div>" +
             "<div><a id=\"footnote-4\" href=\"#footnote-anchor-4\">4</a><div><p>Read the second one.</p></div></div>"
-        val page = write(unsectioned(article(body = body))).let { it.xml("OEBPS/" + it.articleHrefs().single()) }
+        val page = write(doc(article(body = body))).let { it.xml("OEBPS/" + it.articleHrefs().single()) }
         val byId = page.elements("*").filter { it.getAttribute("id").isNotEmpty() }.associateBy { it.getAttribute("id") }
         val paragraph = page.elements("p").single { it.textContent.startsWith("Some context") }
         val markers = page.elements("a").filter { it.parentNode === paragraph }
@@ -637,7 +609,7 @@ class EpubWriterTest {
     fun onlyAFootnoteOnItsOwnTakesItsNumbersPlace() {
         val body = "<p><a id=\"r1\" href=\"#n1\">1</a> Starts a paragraph.<a id=\"r2\" href=\"#n2\">2</a></p>" +
             "<p><a id=\"n1\" href=\"#r1\">1</a> First.<br/><a id=\"n2\" href=\"#r2\">2</a> Second.</p>"
-        val page = write(unsectioned(article(body = body))).let { it.xml("OEBPS/" + it.articleHrefs().single()) }
+        val page = write(doc(article(body = body))).let { it.xml("OEBPS/" + it.articleHrefs().single()) }
         assertTrue(page.elements("p").none { it.getAttribute("id").isNotEmpty() })
     }
 
@@ -645,7 +617,7 @@ class EpubWriterTest {
     @Test
     fun aFootnoteWithItsIdOnTheBlockStaysAsItIs() {
         val body = "<p>Text<a id=\"fnref1\" href=\"#fn1\">1</a> and more.</p><ol><li id=\"fn1\"><p>The note. <a href=\"#fnref1\">↩</a></p></li></ol>"
-        val page = write(unsectioned(article(body = body))).let { it.xml("OEBPS/" + it.articleHrefs().single()) }
+        val page = write(doc(article(body = body))).let { it.xml("OEBPS/" + it.articleHrefs().single()) }
         val marker = page.elements("a").single { it.textContent == "1" }
         val target = page.elements("*").single { it.getAttribute("id") == marker.getAttribute("href").removePrefix("#") }
         assertEquals("li", target.localName)
@@ -657,7 +629,7 @@ class EpubWriterTest {
         val body = "<h2 id=\"intro\">Intro</h2><p id=\"intro\">dup</p><p><a href=\"#intro\">back to intro</a> <a href=\"#missing\">gone</a></p>"
         val epub = write(
             doc(
-                EditionSection("S", listOf(article(title = "One", body = body), article(title = "Two", body = body))),
+                article(title = "One", body = body), article(title = "Two", body = body),
             ),
         )
         val allIds = mutableListOf<String>()
@@ -679,7 +651,7 @@ class EpubWriterTest {
 
     @Test
     fun originalUrlThatIsNotAValidHrefIsShownAsText() {
-        val epub = write(unsectioned(article(url = "not a url <really>")))
+        val epub = write(doc(article(url = "not a url <really>")))
         val link = epub.xml("OEBPS/" + epub.articleHrefs().single()).elements("p")
             .single { it.getAttribute("class") == "source-link" }
         assertEquals("Original: not a url <really>", link.textContent)
@@ -692,7 +664,7 @@ class EpubWriterTest {
         val jpeg = EpubImage("images/a1-0.jpg", "image/jpeg", byteArrayOf(9, 8, 7))
         val png = EpubImage("images/a2-0.png", "image/png", byteArrayOf(1))
         val epub = write(
-            unsectioned(
+            doc(
                 article(
                     body = "<figure><img src=\"images/a1-0.jpg\" srcset=\"https://x/y.jpg 2x\" loading=\"lazy\"><figcaption>cap</figcaption></figure>" +
                         "<figure><img src=\"https://cdn.example.com/gone.jpg\"></figure>",
@@ -720,7 +692,7 @@ class EpubWriterTest {
     fun theSameImageSharedByTwoArticlesIsStoredOnce() {
         val shared = EpubImage("images/logo.png", "image/png", byteArrayOf(5))
         val body = "<p><img src=\"images/logo.png\"></p>"
-        val epub = write(unsectioned(article(body = body, images = listOf(shared)), article(body = body, images = listOf(EpubImage("images/logo.png", "image/png", byteArrayOf(5))))))
+        val epub = write(doc(article(body = body, images = listOf(shared)), article(body = body, images = listOf(EpubImage("images/logo.png", "image/png", byteArrayOf(5))))))
         assertEquals(1, epub.entries.count { it.first.name == "OEBPS/images/logo.png" })
         epub.articleHrefs().forEach { assertEquals(1, epub.xml("OEBPS/$it").elements("img").size) }
     }
@@ -730,7 +702,7 @@ class EpubWriterTest {
         val coverBytes = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 4, 2)
         val photo = EpubImage("images/a1-0.jpg", "image/jpeg", byteArrayOf(9))
         val epub = write(
-            unsectioned(article(body = "<p><img src=\"images/a1-0.jpg\"></p>", images = listOf(photo)))
+            doc(article(body = "<p><img src=\"images/a1-0.jpg\"></p>", images = listOf(photo)))
                 .copy(cover = EpubImage("images/cover.jpg", "image/jpeg", coverBytes)),
         )
 
@@ -759,7 +731,7 @@ class EpubWriterTest {
 
     @Test
     fun withoutACoverImageTheCoverPageIsTextAndNothingClaimsToBeTheCoverImage() {
-        val epub = write(unsectioned(article(source = "Alpha")))
+        val epub = write(doc(article(source = "Alpha")))
         assertTrue(epub.manifest().values.none { it.getAttribute("properties").contains("cover-image") })
         assertTrue(epub.opf().elements("meta").none { it.getAttribute("name") == "cover" })
         val coverPage = epub.xml("OEBPS/cover.xhtml")
@@ -778,7 +750,7 @@ class EpubWriterTest {
         for (cover in cases) {
             val out = ByteArrayOutputStream()
             assertThrows(cover.href, IllegalArgumentException::class.java) {
-                EpubWriter.write(unsectioned(article(images = listOf(articleImage))).copy(cover = cover), out)
+                EpubWriter.write(doc(article(images = listOf(articleImage))).copy(cover = cover), out)
             }
             assertEquals(0, out.size())
         }
@@ -796,11 +768,11 @@ class EpubWriterTest {
         for (image in cases) {
             val out = ByteArrayOutputStream()
             assertThrows(image.href, IllegalArgumentException::class.java) {
-                EpubWriter.write(unsectioned(article(images = listOf(image))), out)
+                EpubWriter.write(doc(article(images = listOf(image))), out)
             }
             assertEquals(0, out.size())
         }
-        val clash = unsectioned(
+        val clash = doc(
             article(images = listOf(EpubImage("images/x.jpg", "image/jpeg", byteArrayOf(1)))),
             article(images = listOf(EpubImage("images/x.jpg", "image/jpeg", byteArrayOf(2)))),
         )
@@ -810,7 +782,7 @@ class EpubWriterTest {
     @Test
     fun aLinkedFigureWhoseImageIsLeftOutGoesWithItsCaption() {
         val body = """<p>Text.</p><figure><a href="https://example.com/big"><img src="images/a1-0.jpg"/></a><figcaption>Orphan caption</figcaption></figure>"""
-        val epub = write(unsectioned(article(body = body)))
+        val epub = write(doc(article(body = body)))
         val page = epub.text(epub.articleHrefs().single().let { "OEBPS/$it" })
         assertFalse(page.contains("Orphan caption"))
         assertFalse(page.contains("https://example.com/big"))
@@ -818,7 +790,7 @@ class EpubWriterTest {
 
     @Test
     fun anArticleInAnotherLanguageIsTaggedSoTheReaderHyphenatesAndLaysItOutRight() {
-        val epub = write(unsectioned(
+        val epub = write(doc(
             article(title = "Le vélo en ville", language = "fr"),
             article(title = "الدراجات في المدينة", language = "ar"),
             article(title = "Cycling in town", language = "en"),
@@ -844,30 +816,29 @@ class EpubWriterTest {
     }
     @Test
     fun anArticleWithoutWordsShowsNoReadingTime() {
-        val epub = write(unsectioned(article(title = "Comic", source = "xkcd", minutes = 0.0), article(minutes = 2.0)))
+        val epub = write(doc(article(title = "Comic", source = "xkcd", minutes = 0.0), article(minutes = 2.0)))
         val (comic, _) = epub.articleHrefs()
         assertNull(epub.xml("OEBPS/$comic").elements("p").firstOrNull { it.getAttribute("class") == "byline" })
         assertEquals("xkcd", epub.xml("OEBPS/contents.xhtml").elements("span").first().textContent)
     }
 
     @Test
-    fun aSectionOrEditionOfOnlyComicsShowsNoZeroMinutes() {
-        val epub = write(doc(EditionSection("Fun", listOf(article(title = "Comic", source = "xkcd", minutes = 0.0)))))
+    fun anEditionOfOnlyComicsShowsNoZeroMinutes() {
+        val epub = write(doc(article(title = "Comic", source = "xkcd", minutes = 0.0)))
         val contents = epub.xml("OEBPS/contents.xhtml")
-        assertEquals("Fun", contents.elements("h2").single().textContent.trim())
         assertEquals("1 article", contents.elements("p").single { it.getAttribute("class") == "totals" }.textContent)
     }
 
     @Test
-    fun theKickerNamesTheSectionAndTheNextLinkTheSourceAndTime() {
+    fun theNextLinkNamesTheSourceAndTime() {
         val epub = write(
             doc(
-                EditionSection("Long reads", listOf(article(source = "Aeon", minutes = 12.0), article(title = "Second", source = "Quanta", minutes = 9.0))),
-                EditionSection(null, listOf(article(source = "Loose"))),
+                article(source = "Aeon", minutes = 12.0), article(title = "Second", source = "Quanta", minutes = 9.0),
+                article(source = "Loose"),
             ),
         )
         val pages = epub.articleHrefs().map { epub.xml("OEBPS/$it").elements("p").associateBy { p -> p.getAttribute("class") } }
-        assertEquals("Long reads · Aeon", pages[0].getValue("kicker").textContent)
+        assertEquals("Aeon", pages[0].getValue("kicker").textContent)
         assertEquals("Loose", pages[2].getValue("kicker").textContent)
         assertEquals("Next: Second · Quanta · 9 min", pages[0].getValue("article-nav").textContent)
         assertEquals("Second", pages[0].getValue("article-nav").elements("a").single().textContent)
@@ -877,7 +848,7 @@ class EpubWriterTest {
     @Test
     fun onlyALongReadIsFollowedByTheNextArticlesName() {
         val epub = write(
-            unsectioned(
+            doc(
                 article(title = "Short", minutes = EpubWriter.NEXT_AFTER_MINUTES - 0.5),
                 article(title = "Long", minutes = EpubWriter.NEXT_AFTER_MINUTES),
                 article(title = "After"),
@@ -891,7 +862,7 @@ class EpubWriterTest {
     /** The closing page is in the contents, so the wrap-up can be reached from it. */
     @Test
     fun theClosingPageIsAChapterAndABackmatterLandmark() {
-        val epub = write(unsectioned(article(title = "Only")))
+        val epub = write(doc(article(title = "Only")))
         assertEquals("end.xhtml", epub.navHrefs().last())
         val landmarks = epub.xml("OEBPS/nav.xhtml").elements("nav").single { it.getAttributeNS(EPUB_NS, "type") == "landmarks" }
         assertTrue(landmarks.elements("a").any { it.getAttributeNS(EPUB_NS, "type") == "backmatter" && it.getAttribute("href") == "end.xhtml" })
@@ -900,12 +871,12 @@ class EpubWriterTest {
     @Test
     fun theClosingPageSumsUpAndAsksTheReflectionOnlyWhenGiven() {
         val articles = listOf("A", "B", "C", "D", "E").map { article(source = it, minutes = 2.0) }
-        val plain = write(doc(EditionSection(null, articles)))
+        val plain = write(doc(*articles.toTypedArray()))
         val end = plain.text("OEBPS/end.xhtml")
         assertTrue(end.contains("5 articles · 10 min, from A, B, C and 2 more"))
         assertFalse(end.contains("reflection"))
 
-        val asked = write(doc(EditionSection(null, articles.take(2))).copy(reflection = "What stayed with you?"))
+        val asked = write(doc(*articles.take(2).toTypedArray()).copy(reflection = "What stayed with you?"))
         val text = asked.xml("OEBPS/end.xhtml").documentElement.textContent
         assertTrue(text.contains("2 articles · 4 min, from A and B"))
         assertTrue(text.contains("What stayed with you?"))
@@ -913,7 +884,7 @@ class EpubWriterTest {
 
     @Test
     fun anArticlesOwnClassesDoNotReachTheBook() {
-        val epub = write(unsectioned(article(body = "<p class=\"kicker\">Site kicker</p><p class=\"byline\">Site byline</p>")))
+        val epub = write(doc(article(body = "<p class=\"kicker\">Site kicker</p><p class=\"byline\">Site byline</p>")))
         val page = epub.xml("OEBPS/" + epub.articleHrefs().single())
         val body = page.documentElement.elements("div").single { it.getAttribute("class") == "article-body" }
         assertEquals(2, body.elements("p").size)
@@ -922,7 +893,7 @@ class EpubWriterTest {
 
     @Test
     fun theStylesheetUsesOnlySelectorsKindleKeeps() {
-        val css = write(unsectioned(article())).text("OEBPS/style.css")
+        val css = write(doc(article())).text("OEBPS/style.css")
         // Kindle's conversion drops a rule whose selector has a child or sibling combinator.
         val selectors = Regex("([^{}]+)\\{").findAll(css).map { it.groupValues[1] }.toList()
         assertTrue(selectors.isNotEmpty())
@@ -942,7 +913,7 @@ class EpubWriterTest {
 
     @Test
     fun anInternationalSitesOriginalLinkIsKeptAndNamedInItsOwnLetters() {
-        val epub = write(unsectioned(article(url = "https://bücher.example/buch")))
+        val epub = write(doc(article(url = "https://bücher.example/buch")))
         val page = epub.text("OEBPS/article-001.xhtml")
         assertTrue(page, page.contains("href=\"https://xn--bcher-kva.example/buch\""))
         assertTrue(page, page.contains(">bücher.example</a>"))

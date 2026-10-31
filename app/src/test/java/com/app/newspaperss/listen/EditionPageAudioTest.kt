@@ -13,7 +13,6 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
-import com.app.newspaperss.core.epub.EditionSection
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.data.AppDatabase
 import com.app.newspaperss.data.EditionArticleEntity
@@ -83,7 +82,7 @@ class EditionPageAudioTest {
         val file = "$name.epub"
         if (withFile) {
             FileOutputStream(File(editionsDir, file)).use {
-                EpubWriter.write(EditionDoc(name, LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-0000000000${name.length}0", listOf(EditionSection(null, listOf(article)))), it)
+                EpubWriter.write(EditionDoc(name, LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-0000000000${name.length}0", listOf(article)), it)
             }
         }
         val id = db.editions().insert(EditionEntity(title = name, status = status, error = error, fileName = file.takeIf { withFile }, articleCount = 1, minutes = article.minutes))
