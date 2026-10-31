@@ -11,6 +11,10 @@ Grouped by part of the app. The tag says where each item came from: *device* (yo
 *live* (building real editions), *a11y* (the accessibility audit), *ux* (the Day 3 UX pass),
 *audit* (the architecture audit, #163–#166).
 
+### First up *(you chose)*
+
+- [ ] **On a Boox, a not-sent edition offers Read,** as a ready edition does, since its book is still on the phone. Today it asks "Read it another way?" with no first way offered (no Read or Open). madCode chose this on the 31 Oct morning page, over rewording it as "Read it on your Boox?". *(from the 30 Oct test audit)*
+
 ### From the 16 Oct audit *(audit)*
 Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "checked" means read against the code, not yet reproduced.
 - [ ] Another tt-rss user, or another server, still meets the first one's delivered links: `delivered_urls` is shared, so a story the first user received is skipped for the second, and marked read on their server. Small, but partners often follow the same blogs. Forget the delivered links that came only from the old source when it goes? *(review, 16 Oct)*
@@ -50,14 +54,13 @@ Cycle G6. Fixed in #363 (CI) and #364 (nested JSON). Measured unless it says "re
 
 ### From the 30 Oct test audit *(audit)*
 
-What each screen offers by the edition's state wasn't tested past ready and sent editions, so a not-sent edition lost Listen (#401, #410). Robolectric unless it says otherwise. All built in cycles N2–N6 (#411–#416) but the Boox question.
+What each screen offers by the edition's state wasn't tested past ready and sent editions, so a not-sent edition lost Listen (#401, #410). Robolectric unless it says otherwise. All built in cycles N2–N6 (#411–#416); the Boox question is decided and leads Next.
 
 - [x] **The natural-voice audio line on the edition page, by status:** ready, sent and not sent, against audio asked for, part made and made. `PodcastLineTest` checks the line alone; only a screenshot shows it inside the page.
 - [x] **Deleting the edition you're listening to, or one that has audio:** through the real wiring in `AppContainer` (`listen.forget`, `podcastStore.delete`), and the clean-up after each run (`pruneFiles`). The bar should let go and the audio's space come back. The tests now check that a stand-in was called.
 - [x] **Today's card when the newest edition is a not-sent one** (after making another and deleting it): it offers only "Try again", while its page offers Mark as sent and Listen. Make the card match the page (EditionActions says they offer the same), with a test.
 - [x] **The status changing while the page is open or playing:** a ready edition released by the morning build keeps Listen and its audio line.
 - [x] **Emulator:** `journeys.sh two-editions` stops at Today's list; go on to open the not-sent edition and wait for "Listen ·" and "Mark as sent". *(device)*
-- [ ] **Your call: on a Boox, a not-sent edition asks "Read it another way?"** with no first way offered (no Read or Open). Offer Read there, or word it as "Read it on your Boox?" Recommended: offer Read, since its book is still here.
 
 ### Onboarding and setup
 
