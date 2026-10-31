@@ -16,6 +16,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
   3. Once it's published, tell people where readers are (r/rss, r/androidapps): F-Droid's only early exception is "proven to have some users".
 - **Also waiting on you:** on a phone, ⋮ › Save a copy… on a sent edition, saved to Downloads, then opened from Files in an e-reader app (#338). The F-Droid merge request now has a date on it: **not before late December 2026**, three months of active development from this repository's first commit (29 Sep) — the one exception in reach is "proven to have some users", so readers on the GitHub APK are what moves it earlier. `docs/RELEASING.md` has the template's requirements. Also: two weeks of episode labels in real use (report a wrong one with Send for a look), and how the recordings sound in Listen; an `episodes` label on the repo; whether the `handle-issues` skill learns about "Episode label:" issues (claude-playground). [#18](https://github.com/Seafloor-Studio/newspaperss/issues/18), a Dropbox app key (only matters for Kobo). Five rss-to-e-reader PRs (#24–#28) are open for your batch review.
 
+## Sat 31 Oct
+
+### #409: posts for subscribers
+- **Why:** a Substack post for free subscribers went in as its 40-word opening, as if that were the whole post, with no note.
+- **Fixed:** Substack's "Subscribe for free to continue reading" box marks such a post; its open part has its own note ("signing up is free"), and the box is taken out of the article. madCode chose option C: the skip switch covers these posts too, renamed **Skip posts with nothing free**.
+
 ## Fri 30 Oct
 
 The 30 Oct cycle run (N1–N12, about every half hour): the test audit's gaps, then one view for reading and listening, then three architecture and simplification audits.

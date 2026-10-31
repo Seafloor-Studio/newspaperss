@@ -100,13 +100,19 @@ module so it's all unit-tested without Android.
   however long, so the page is fetched; that link and the pitch over the
   paywall are removed. One with next to nothing free (under 50 words: a
   title and a picture) can be left out instead, per publication, with
-  **Skip paid posts with nothing free** on its page: a feed's or a curated
+  **Skip posts with nothing free** on its page: a feed's or a curated
   list's page, or each tt-rss feed's page. That switch shows once the
   publication has had one, is off until turned on, and says how many it
   has skipped. Only a first find is skipped: it counts as not picked
-  ("Skipped: a paid post") and isn't fetched again. Starring it or marking it unread asks for it, so it goes
+  ("Skipped: nothing free") and isn't fetched again. Starring it or marking it unread asks for it, so it goes
   in. An edition whose every new article was skipped is nothing new, not
   a failure.
+- **Posts for subscribers.** A Substack post for free subscribers, whose
+  rest opens with an email sign-up and no payment, is known by the
+  "Subscribe for free to continue reading" box in place of the rest. Its
+  open part goes in with a note of its own ("signing up is free"), not the
+  paid one, and the box is taken out of the article. Otherwise it's a paid
+  post: with next to nothing open, the same switch skips it.
 - **Embeds.** A player can't play in a book: a video's poster frame stands
   in for it, and a YouTube or Vimeo player becomes a link to the video
   (with YouTube's thumbnail). Any other audio or video, or a known audio
@@ -801,7 +807,7 @@ whose Kindle and KOReader answers ask for more on the same page).
       answering, the rest stop with it rather than each waiting in turn.
     - **What a move does:** each feed is subscribed in tt-rss (or found
       there), then its settings are carried onto its tt-rss feed: article
-      text, the cap, Skip paid posts, left out, and what the text check
+      text, the cap, Skip posts with nothing free, left out, and what the text check
       learned. A feed paused on the phone is left out in tt-rss. The phone
       feed stops fetching and leaves Sources at once, but it's only deleted
       when nothing starred, waiting or in an unsent edition is left in it:
@@ -821,7 +827,7 @@ whose Kindle and KOReader answers ask for more on the same page).
       tt-rss's own fetcher failed on, "Not fetched by tt-rss yet" for a feed
       just added, "Nothing new in 3 weeks" for one that has stopped posting
       (in months past two), or its own settings ("Feed's text", "Full page",
-      "At most 2", "Skips paid posts"). For the quiet line, each sync looks
+      "At most 2", "Skips posts with nothing free"). For the quiet line, each sync looks
       at every article in the account since the last one it saw, read or
       not, in one request (the first looks back over the newest thousand):
       a feed read on the laptop still counts as posting. tt-rss deletes old
@@ -887,7 +893,7 @@ whose Kindle and KOReader answers ask for more on the same page).
   links just say "Waiting"), "In your next edition" (starred; "Starred,
   source paused" while paused), "In Thursday's edition", "Sent Wednesday"
   (when its link last went out), "Read", "Not picked" (it waited a
-  week, or the list moved on), or "Skipped: a paid post".
+  week, or the list moved on), or "Skipped: nothing free".
   - **Select** (or pressing and holding a row) enters selection mode:
     checkboxes take the status marks' place, the top bar says "N
     selected", and a bar at the bottom has **☆ Next edition** and
