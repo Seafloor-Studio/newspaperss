@@ -384,12 +384,12 @@ private fun PaidPostsOption(skip: Boolean, skipped: Int, onChange: (Boolean) -> 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text("Skip paid posts with nothing free")
+            Text("Skip posts with nothing free")
             Text(
                 when {
-                    skip && skipped > 0 -> "${plural(skipped, "paid post")} skipped so far: a title and a picture, nothing to read."
+                    skip && skipped > 0 -> "${plural(skipped, "post")} skipped so far: a title and a picture, nothing to read."
                     skip -> "A post that's only a title and a picture won't take a place."
-                    else -> "Some of its posts are for paying subscribers, with only a title and a picture free."
+                    else -> "Some of its posts are for subscribers, with only a title and a picture free."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

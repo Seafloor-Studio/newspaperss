@@ -175,7 +175,7 @@ class TtrssFeedsTest {
         compose.onNode(isHeading("Uncategorized, 2 feeds")).assertExists()
         compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading) and hasText("Still on this phone")).assertExists()
         compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading) and hasText("Curated lists")).assertExists()
-        assertTrue("its own settings, and nothing about the phone feed with its address", visible("At most 2") && visible("Skips paid posts"))
+        assertTrue("its own settings, and nothing about the phone feed with its address", visible("At most 2") && visible("Skips posts with nothing free"))
         assertFalse(visible("Also"))
         assertFalse("a left-out feed is counted, not listed", visible("Press Office"))
         assertFalse("nothing splits tt-rss from the phone", visible("From your tt-rss") || visible("On this phone"))
@@ -332,9 +332,9 @@ class TtrssFeedsTest {
         runBlocking { repo.markPaidOnly(db.articles().allForSource(account).first { it.originId == "7" }.id, skip = false) }
         val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = "7"))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
-        idleUntil { compose.waitForIdle(); visible("Skip paid posts with nothing free") }
+        idleUntil { compose.waitForIdle(); visible("Skip posts with nothing free") }
 
-        compose.onNodeWithText("Skip paid posts with nothing free").performClick()
+        compose.onNodeWithText("Skip posts with nothing free").performClick()
         idleUntil { runBlocking { db.sources().publication(account, "7")!!.skipPaidPosts } }
         assertFalse(runBlocking { db.sources().publication(account, "8")!!.skipPaidPosts })
     }
@@ -347,7 +347,7 @@ class TtrssFeedsTest {
         val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = "42"))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
         idleUntil { compose.waitForIdle(); visible("Bring back") }
-        assertFalse(visible("Skip paid posts"))
+        assertFalse(visible("Skip posts with nothing free"))
     }
 
     @Test
@@ -388,7 +388,7 @@ class TtrssFeedsTest {
         assertNull(feedNote(now = Instant.EPOCH, feed = feed(null)))
         assertNull(feedNote(now = Instant.EPOCH, feed = feed(PublicationEntity(1, "7", title = "Q", listed = true))))
         assertEquals(
-            "Feed's text · At most 1 · Skips paid posts",
+            "Feed's text · At most 1 · Skips posts with nothing free",
             feedNote(now = Instant.EPOCH, feed = feed(PublicationEntity(1, "7", chosenMode = ContentMode.FEED, maxArticles = 1, skipPaidPosts = true))),
         )
         assertEquals("Full page", feedNote(now = Instant.EPOCH, feed = feed(PublicationEntity(1, "7", chosenMode = ContentMode.PAGE))))

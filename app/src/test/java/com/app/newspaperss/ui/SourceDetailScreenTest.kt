@@ -774,23 +774,23 @@ class SourceDetailScreenTest {
         assertEquals("Failing for 4 days, since Dec 30, 2026", failingLine(Instant.parse("2026-12-30T08:00:00Z"), Locale.US, Instant.parse("2027-01-03T10:00:00Z"), utc))
     }
 
-    /** The paid-posts switch only shows on a source that's had one, and says how many it left out. */
+    /** The switch for posts with nothing free only shows on a source that's had one, and says how many it left out. */
     @Test
     @Config(qualifiers = "w411dp-h1600dp")
     fun aSourceWithPaidPostsCanSkipTheOnesWithNothingFree() {
         val (id, ids) = sourceWithArticles()
         show(id)
-        assertFalse("not on a source that's never had one", visible("Skip paid posts"))
+        assertFalse("not on a source that's never had one", visible("Skip posts with nothing free"))
 
         runBlocking { repo.markPaidOnly(ids.getValue("delivered"), skip = false) }
-        idleUntil { compose.waitForIdle(); visible("Skip paid posts with nothing free") }
-        assertTrue(visible("Some of its posts are for paying subscribers"))
-        compose.onNodeWithText("Skip paid posts with nothing free").performClick()
+        idleUntil { compose.waitForIdle(); visible("Skip posts with nothing free") }
+        assertTrue(visible("Some of its posts are for subscribers"))
+        compose.onNodeWithText("Skip posts with nothing free").performClick()
         idleUntil { runBlocking { db.sources().publication(id, PublicationEntity.OWN)?.skipPaidPosts == true } }
 
         runBlocking { repo.markPaidOnly(ids.getValue("waiting"), skip = true) }
-        idleUntil { compose.waitForIdle(); visible("1 paid post skipped so far") }
-        assertTrue(visible("Skipped: a paid post"))
+        idleUntil { compose.waitForIdle(); visible("1 post skipped so far") }
+        assertTrue(visible("Skipped: nothing free"))
         assertEquals(ArticleState.EXPIRED, state(ids.getValue("waiting")))
     }
 }
