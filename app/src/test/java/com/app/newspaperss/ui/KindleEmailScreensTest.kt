@@ -5,7 +5,7 @@ import android.content.Intent
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -76,12 +76,12 @@ class KindleEmailScreensTest {
         id to article
     }
 
-    private fun waitFor(text: String) = idleUntil { compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty() }
+    private fun waitFor(text: String) = compose.idleUntil { compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty() }
 
     private fun statusOf(id: Long) = runBlocking { db.editions().byId(id) }?.status
 
     private fun assertMailAppOpened() {
-        idleUntil { shadowOf(app).peekNextStartedActivity() != null }
+        compose.idleUntil { shadowOf(app).peekNextStartedActivity() != null }
         val started = shadowOf(app).nextStartedActivity
         assertEquals(Intent.ACTION_SEND, started.action)
         assertEquals(MAIL_APP, started.`package`)
@@ -99,7 +99,7 @@ class KindleEmailScreensTest {
         compose.onNodeWithText("Send").performClick()
 
         assertMailAppOpened()
-        idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+        compose.idleUntil { statusOf(id) == EditionStatus.DELIVERED }
         assertEquals(ArticleState.DELIVERED, runBlocking { db.articles().byId(article) }?.state)
         waitFor(KINDLE_EMAIL_NOTE)
 
@@ -122,7 +122,7 @@ class KindleEmailScreensTest {
         compose.onNodeWithContentDescription("More options for Tuesday Morning Edition").performClick()
         compose.onNodeWithText("Send another way").performClick()
 
-        idleUntil { shadowOf(app).peekNextStartedActivity() != null }
+        compose.idleUntil { shadowOf(app).peekNextStartedActivity() != null }
         assertEquals(Intent.ACTION_CHOOSER, shadowOf(app).nextStartedActivity.action)
         compose.waitForIdle()
         assertEquals("counts once an app is chosen", EditionStatus.READY, statusOf(id))
@@ -139,7 +139,7 @@ class KindleEmailScreensTest {
 
         compose.onNodeWithText("Send").performClick()
 
-        idleUntil { shadowOf(app).peekNextStartedActivity() != null }
+        compose.idleUntil { shadowOf(app).peekNextStartedActivity() != null }
         assertEquals(Intent.ACTION_CHOOSER, shadowOf(app).nextStartedActivity.action)
         compose.waitForIdle()
         assertEquals(EditionStatus.READY, statusOf(id))
@@ -151,12 +151,12 @@ class KindleEmailScreensTest {
         val (id, _) = readyEdition()
         val vm = viewModels.add(EditionDetailViewModel(repo, id, sentToKindle = kindleSends.recent) {})
         compose.setContent { EditionDetailScreen(vm, onBack = {}, offerOpen = false, kindleEmail = KindleEmail("me_42@kindle.com", MAIL_APP)) }
-        idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
+        compose.idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
 
         compose.onNodeWithText("Send").performClick()
 
         assertMailAppOpened()
-        idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+        compose.idleUntil { statusOf(id) == EditionStatus.DELIVERED }
         waitFor(KINDLE_EMAIL_NOTE)
     }
 }

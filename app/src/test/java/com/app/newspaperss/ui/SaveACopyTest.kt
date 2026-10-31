@@ -4,7 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -48,14 +48,14 @@ class SaveACopyTest {
         }
         val vm = viewModels.add(EditionDetailViewModel(EditionRepository(dbRule.db, dir), id) {})
         compose.setContent { EditionDetailScreen(vm, onBack = {}) }
-        idleUntil { vm.detail.value?.file != null }
+        compose.idleUntil { vm.detail.value?.file != null }
         compose.onNodeWithContentDescription("More options").performClick()
         compose.onNodeWithText("Save a copy…").performClick()
         return shadowOf(compose.activity).nextStartedActivityForResult?.intent ?: Intent()
     }
 
     /** The toast comes from an effect, which runs on the Compose rule's own dispatcher: idle that as well as the looper. */
-    private fun waitForToast(text: String) = idleUntil { compose.waitForIdle(); ShadowToast.getTextOfLatestToast() == text }
+    private fun waitForToast(text: String) = compose.idleUntil { ShadowToast.getTextOfLatestToast() == text }
 
     private fun answer(asked: Intent, uri: Uri) =
         shadowOf(compose.activity).receiveResult(asked, Activity.RESULT_OK, Intent().setData(uri))
@@ -87,7 +87,7 @@ class SaveACopyTest {
         val picked = File(tmp.root, "picked.epub")
         vm.saveCopy(compose.activity.contentResolver, Uri.fromFile(picked))
 
-        idleUntil { vm.copied.value != null }
+        compose.idleUntil { vm.copied.value != null }
         assertEquals("Saved a copy.", vm.copied.value)
         assertEquals(book.toList(), picked.readBytes().toList())
     }

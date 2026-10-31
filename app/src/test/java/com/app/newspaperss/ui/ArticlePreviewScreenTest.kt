@@ -18,7 +18,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.StateRestorationTester
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -85,7 +85,7 @@ class ArticlePreviewScreenTest {
     }
 
     /** Waits for an article's page to be drawn: every one ends in the book's end mark. */
-    private fun pageShown() = idleUntil { compose.onAllNodes(hasText("■"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+    private fun pageShown() = compose.idleUntil { compose.onAllNodes(hasText("■"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
 
     /** Follows the "Next" line, as a tap on it or TalkBack's action does. */
     private fun next() {
@@ -95,7 +95,7 @@ class ArticlePreviewScreenTest {
     }
 
     /** Waits for the article titled [title]: in the top bar and at the head of the page. */
-    private fun onArticle(title: String) = idleUntil { compose.onAllNodesWithText(title).fetchSemanticsNodes().size == 2 }
+    private fun onArticle(title: String) = compose.idleUntil { compose.onAllNodesWithText(title).fetchSemanticsNodes().size == 2 }
 
     /** How the paragraph reading [text] is laid out. */
     private fun layoutOf(text: String): TextLayoutResult {
@@ -216,7 +216,7 @@ class ArticlePreviewScreenTest {
         var size by mutableStateOf<PreviewTextSize?>(null)
         compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "A story", onBack = {}, textSize = size) }
         // Share shows once the article has been read: from then on only the size is missing.
-        idleUntil { compose.onAllNodes(hasContentDescription("Share link")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("Share link")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Opening…").assertExists()
         compose.onNodeWithText("x").assertDoesNotExist()
 
@@ -267,12 +267,12 @@ class ArticlePreviewScreenTest {
         val filler = "<p>A paragraph that takes room on the page.</p>".repeat(40)
         file.writeEpub(listOf(EditionArticle(title = "A story", sourceTitle = "S", url = "https://a.example/", bodyHtml = "<p>A claim.<sup><a href=\"#fn1\">1</a></sup></p>$filler<p id=\"fn1\">The source of the claim.</p>", minutes = 1.0)))
         compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "A story", onBack = {}) }
-        idleUntil { compose.onAllNodesWithText("A claim.1").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("A claim.1").fetchSemanticsNodes().isNotEmpty() }
         assertFalse(compose.onNode(hasText("The source of the claim.")).isDisplayed())
 
         val actions = compose.onNodeWithText("A claim.1").fetchSemanticsNode().config[SemanticsActions.CustomActions]
         compose.runOnIdle { actions.single { it.label == "Go to note 1" }.action() }
-        idleUntil { compose.onAllNodesWithText("The source of the claim.").fetchSemanticsNodes().isNotEmpty() && compose.onNode(hasText("The source of the claim.")).isDisplayed() }
+        compose.idleUntil { compose.onAllNodesWithText("The source of the claim.").fetchSemanticsNodes().isNotEmpty() && compose.onNode(hasText("The source of the claim.")).isDisplayed() }
     }
 
     @Test
@@ -285,7 +285,7 @@ class ArticlePreviewScreenTest {
         onArticle("Two")
 
         restoration.emulateSavedInstanceStateRestore()
-        idleUntil { compose.onAllNodes(hasText("Two")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasText("Two")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("One").assertDoesNotExist()
     }
 
@@ -300,7 +300,7 @@ class ArticlePreviewScreenTest {
     }
 
     private fun askForALook() {
-        idleUntil { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("More").performClick()
         compose.onNodeWithText("Send for a look…").performClick()
     }
@@ -314,7 +314,7 @@ class ArticlePreviewScreenTest {
         }
         pageShown()
         next()
-        idleUntil { compose.onAllNodesWithText("Episode notes", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("Episode notes", substring = true).fetchSemanticsNodes().isNotEmpty() }
 
         restoration.emulateSavedInstanceStateRestore()
         askForALook()
@@ -333,7 +333,7 @@ class ArticlePreviewScreenTest {
         val file = twoArticleEdition()
         val asked = mutableListOf<Int>()
         compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "One", onBack = {}, onListen = { asked += it }) }
-        idleUntil { compose.onAllNodes(hasContentDescription("Listen from here")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("Listen from here")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("Listen from here").performClick()
 
         // Followed "Next" to the second article: Listen starts there, not where the preview opened.
@@ -372,7 +372,7 @@ class ArticlePreviewScreenTest {
         compose.setContent {
             ArticlePreviewScreen(loadFile = { file }, position = 0, title = "One", onBack = {}, sourceAt = { names.getOrNull(it) }, onOpenSource = { opened += it })
         }
-        idleUntil { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("More").performClick()
         compose.onNodeWithText("Go to Quanta Magazine").performClick()
         assertEquals(listOf(0), opened)
@@ -458,7 +458,7 @@ class ArticlePreviewScreenTest {
 
         restoration.emulateSavedInstanceStateRestore()
 
-        idleUntil { compose.onAllNodesWithText("A transcript").fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("A transcript").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("A transcript").assertIsSelected()
         compose.onNodeWithText("Open GitHub").assertIsEnabled()
     }
@@ -482,7 +482,7 @@ class ArticlePreviewScreenTest {
 
         restoration.emulateSavedInstanceStateRestore()
 
-        idleUntil { compose.onAllNodesWithText("public issue on GitHub", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("public issue on GitHub", substring = true).fetchSemanticsNodes().isNotEmpty() }
     }
 
     @Test
@@ -515,7 +515,7 @@ class ArticlePreviewScreenTest {
     fun shareSendsTheOriginalsLinkToTheShareSheet() {
         val file = oneArticleEdition(url = "https://www.a.example/2026/a-story?ref=feed")
         compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "Shown title", onBack = {}) }
-        idleUntil { compose.onAllNodes(hasContentDescription("Share link")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("Share link")).fetchSemanticsNodes().isNotEmpty() }
 
         compose.onNodeWithContentDescription("Share link").performClick()
 
@@ -539,7 +539,7 @@ class ArticlePreviewScreenTest {
         compose.onNodeWithText("file is gone", substring = true).assertDoesNotExist()
 
         file.complete(null)
-        idleUntil { compose.onAllNodesWithText("file is gone", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodesWithText("file is gone", substring = true).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("file is gone", substring = true).assertIsDisplayed()
     }
 
@@ -547,7 +547,7 @@ class ArticlePreviewScreenTest {
     fun withNoSourceToGoToTheMenuLeavesGoToOut() {
         val file = oneArticleEdition()
         compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "A story", onBack = {}, sourceAt = { null }, onOpenSource = {}) }
-        idleUntil { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("More").performClick()
 
         assertEquals(0, compose.onAllNodesWithText("Go to", substring = true).fetchSemanticsNodes().size)
@@ -564,7 +564,7 @@ class ArticlePreviewScreenTest {
         compose.setContent {
             ArticlePreviewScreen(loadFile = { file }, position = 0, title = "A story", onBack = {}, sourceAt = { "Quanta Magazine" }, onOpenSource = { opened += it })
         }
-        idleUntil { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }
         assertEquals("nothing to share", 0, compose.onAllNodes(hasContentDescription("Share link")).fetchSemanticsNodes().size)
 
         compose.onNodeWithContentDescription("More").performClick()

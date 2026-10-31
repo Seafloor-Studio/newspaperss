@@ -4,7 +4,7 @@ import android.app.Application
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.ui.test.assertHasNoClickAction
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.room.Room
@@ -55,7 +55,7 @@ class TodayNewerBuildTest {
                 tap
             })
         }
-        idleUntil { compose.waitForIdle(); vm.state.value.editions != null }
+        compose.idleUntil { vm.state.value.editions != null }
     }
 
     private fun browserOpened() = shadowOf(app).nextStartedActivity?.takeIf { it.action == Intent.ACTION_VIEW }?.data.toString()
@@ -101,7 +101,7 @@ class TodayNewerBuildTest {
         tap = InstallTap.Waiting("It installs once the edition is made.")
         today(SelfUpdate.Ready(465))
         compose.onNodeWithText("Test build 465 is ready. Install it").performClick()
-        idleUntil { ShadowToast.getTextOfLatestToast() != null }
+        compose.idleUntil { ShadowToast.getTextOfLatestToast() != null }
         assertEquals("It installs once the edition is made.", ShadowToast.getTextOfLatestToast())
     }
 

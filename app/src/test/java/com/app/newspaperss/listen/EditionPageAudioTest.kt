@@ -6,7 +6,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -119,9 +119,9 @@ class EditionPageAudioTest {
             val id = edition("Edition${n++}", case.status, case.error, case.withFile)
             make(id)
             vm = viewModels.add(EditionDetailViewModel(repo, id) {})
-            idleUntil { compose.waitForIdle(); shown("Contents") }
+            compose.idleUntil { shown("Contents") }
             if (case.line) {
-                idleUntil { shown(says) }
+                compose.idleUntil { shown(says) }
             } else {
                 compose.waitForIdle()
                 assertEquals(label, false, shown("audio"))
