@@ -2,7 +2,6 @@ package com.app.newspaperss.core.listen
 
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
-import com.app.newspaperss.core.epub.EditionSection
 import com.app.newspaperss.core.epub.EpubImage
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.core.listen.ListenScript.Block
@@ -22,7 +21,7 @@ class ListenScriptTest {
         val out = ByteArrayOutputStream()
         val doc = EditionDoc(
             "Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000002",
-            listOf(EditionSection(null, articles.toList())), reflection = reflection,
+            articles.toList(), reflection = reflection,
         )
         EpubWriter.write(doc, out)
         val pages = mutableMapOf<String, String>()

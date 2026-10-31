@@ -32,9 +32,8 @@ class EpubCheckTest {
     fun anEditionOfTheWholePlatformCorpusIsValid() {
         // Each post twice, from its feed and as tt-rss passes it on, which differ.
         val posts = PlatformCorpusTest.posts().map { it[0] as PlatformCorpusTest.Post }
-        val sections = posts.withIndex().groupBy({ "${it.value.platform} via ${it.value.via}" }) { (i, post) -> runBlocking { corpusArticle(i, post) } }
-            .map { (section, articles) -> EditionSection(section.replaceFirstChar(Char::uppercase), articles) }
-        assertValid("corpus-edition", edition(sections + EditionSection(null, madeUpArticles())))
+        val articles = posts.withIndex().map { (i, post) -> runBlocking { corpusArticle(i, post) } }
+        assertValid("corpus-edition", edition(articles + madeUpArticles()))
     }
 
     @Test
@@ -71,9 +70,9 @@ class EpubCheckTest {
         ),
     )
 
-    private fun edition(sections: List<EditionSection>, cover: EpubImage? = coverImage(), reflection: String? = "What surprised you?") = EditionDoc(
+    private fun edition(articles: List<EditionArticle>, cover: EpubImage? = coverImage(), reflection: String? = "What surprised you?") = EditionDoc(
         title = "Tuesday Morning Edition, Oct 20", date = LocalDate.of(2026, 10, 20),
-        identifier = "urn:uuid:5b1f3c8e-0000-4000-8000-000000000002", sections = sections,
+        identifier = "urn:uuid:5b1f3c8e-0000-4000-8000-000000000002", articles = articles,
         modified = Instant.parse("2026-10-20T06:30:00Z"), cover = cover, reflection = reflection,
     )
 
