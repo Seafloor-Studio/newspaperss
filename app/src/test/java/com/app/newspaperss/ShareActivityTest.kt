@@ -61,7 +61,7 @@ class ShareActivityTest {
             .sortedBy { compose.onNodeWithText(it).fetchSemanticsNode().boundsInRoot.top }
     }
 
-    private fun saved() = runBlocking { app.container.db.articles().candidates() }
+    private fun saved() = runBlocking { app.container.db.articles().buildCandidates() }
     // A choice is acted on in the app's scope after the screen has gone: waits for it to be done,
     // so a check that nothing happened isn't made before anything could.
     private fun settled() = idleUntil { app.container.appScope.coroutineContext[Job]!!.children.none { it.isActive } }

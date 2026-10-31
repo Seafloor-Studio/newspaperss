@@ -19,6 +19,7 @@ import com.app.newspaperss.data.AppDatabase
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.PublicationEntity
 import com.app.newspaperss.data.SourceRepository
+import com.app.newspaperss.data.insertNew
 import com.app.newspaperss.testutil.TestApp
 import com.app.newspaperss.testutil.ViewModels
 import com.app.newspaperss.testutil.closeAfter

@@ -45,7 +45,7 @@ class FeedSyncTest {
         http.page(url, rss("Example Blog", "2" to "Two", "3" to "Three"))
         assertEquals(1, sync.syncAll().newArticles)
 
-        assertEquals(setOf("One", "Two", "Three"), db.articles().candidates().map { it.title }.toSet())
+        assertEquals(setOf("One", "Two", "Three"), db.articles().buildCandidates().map { it.title }.toSet())
         assertEquals("Example Blog", db.sources().byId(id)!!.title)
     }
 
@@ -75,7 +75,7 @@ class FeedSyncTest {
         assertEquals(RowLimits.MAX_AUTHOR, stored.getValue("fine").author!!.length)
         assertNull("an attachment too long to keep loses only itself", stored.getValue("fine").audioUrl)
         assertEquals(RowLimits.MAX_TITLE, db.sources().byId(id)!!.title.length)
-        assertEquals(setOf("long", "fine"), db.articles().candidates().map { it.guid }.toSet())
+        assertEquals(setOf("long", "fine"), db.articles().buildCandidates().map { it.guid }.toSet())
     }
 
     @Test
@@ -142,7 +142,7 @@ class FeedSyncTest {
         fun item(guid: String, html: String) = "<item><guid>$guid</guid><title>$guid</title><link>https://example.com/$guid</link><description><![CDATA[$html]]></description></item>"
         http.page(url, "<rss version=\"2.0\"><channel><title>Blog</title>${item("pictured", words + picture)}${item("long", "<p>${"word ".repeat(150_000)}</p>")}</channel></rss>")
         sync.syncAll()
-        val stored = db.articles().candidates().associate { it.guid to it.feedHtml }
+        val stored = db.articles().buildCandidates().associate { it.guid to it.feedHtml }
         assertEquals("the inlined picture goes, the words stay", words + "<img src=\"\">", stored["pictured"])
         assertNull("too long even then: the page is fetched instead", stored["long"])
     }
@@ -156,7 +156,7 @@ class FeedSyncTest {
         http.cutShort += url
 
         assertEquals(SyncResult(newArticles = 2, failedSources = 0, sources = 1), sync.syncAll())
-        assertEquals(setOf("One", "Two"), db.articles().candidates().map { it.title }.toSet())
+        assertEquals(setOf("One", "Two"), db.articles().buildCandidates().map { it.title }.toSet())
         assertNull(db.sources().byId(id)!!.lastError)
     }
 
@@ -175,7 +175,7 @@ class FeedSyncTest {
     @Test
     fun pausedSourcesAreNotFetched() = runTest {
         val id = repo.addFeed(url, "Blog")
-        repo.update(db.sources().byId(id)!!.copy(paused = true))
+        repo.setPaused(id, true)
         http.page(url, rss("Blog", "1" to "One"))
         assertEquals(0, sync.syncAll().newArticles)
     }
@@ -185,14 +185,14 @@ class FeedSyncTest {
         repo.addFeed(url, "Blog")
         http.page(url, rss("Blog", "old" to "Old", "kept" to "Kept"))
         sync.syncAll()
-        val kept = db.articles().candidates().first { it.guid == "kept" }
+        val kept = db.articles().buildCandidates().first { it.guid == "kept" }
         repo.setStarred(kept.id, true)
 
         now = now.plus(Duration.ofDays(8))
         http.page(url, rss("Blog", "new" to "New"))
         sync.syncAll()
 
-        assertEquals(setOf("kept", "new"), db.articles().candidates().map { it.guid }.toSet())
+        assertEquals(setOf("kept", "new"), db.articles().buildCandidates().map { it.guid }.toSet())
     }
 
     @Test
@@ -218,7 +218,7 @@ class FeedSyncTest {
         val result = sync.syncAll()
 
         assertEquals(1, result.newArticles)
-        assertEquals(listOf("Two"), db.articles().candidates().map { it.title })
+        assertEquals(listOf("Two"), db.articles().buildCandidates().map { it.title })
     }
 
     private suspend fun deliver(vararg articles: ArticleEntity) {
@@ -238,14 +238,14 @@ class FeedSyncTest {
         // The same link under the other feed's own guid and title.
         http.page("https://other.example/feed", rss("Other", "1" to "One, reposted"))
         sync.syncAll()
-        deliver(db.articles().candidates().first { it.title == "One" })
-        assertEquals("a waiting copy is used up too", listOf("Two"), db.articles().candidates().map { it.title })
+        deliver(db.articles().buildCandidates().first { it.title == "One" })
+        assertEquals("a waiting copy is used up too", listOf("Two"), db.articles().buildCandidates().map { it.title })
 
         repo.remove(db.sources().byUrl(url)!!)
         repo.addFeed(url, "Blog")
 
         assertEquals(1, sync.syncAll().newArticles)
-        assertEquals(setOf("Two"), db.articles().candidates().map { it.title }.toSet())
+        assertEquals(setOf("Two"), db.articles().buildCandidates().map { it.title }.toSet())
     }
 
     /** Saving a link on purpose is the reader asking for it, whatever was delivered before. */
@@ -254,11 +254,11 @@ class FeedSyncTest {
         repo.addFeed(url, "Blog")
         http.page(url, rss("Blog", "1" to "One"))
         sync.syncAll()
-        deliver(db.articles().candidates().single())
+        deliver(db.articles().buildCandidates().single())
 
         ReadingListRepository(db).save("https://example.com/1", "One")
 
-        assertEquals(listOf("https://example.com/1"), db.articles().candidates().map { it.url })
+        assertEquals(listOf("https://example.com/1"), db.articles().buildCandidates().map { it.url })
     }
 
     @Test
@@ -266,7 +266,7 @@ class FeedSyncTest {
         repo.addFeed(url, "Blog")
         http.page(url, rss("Blog", "1" to "One"))
         sync.syncAll()
-        deliver(db.articles().candidates().single())
+        deliver(db.articles().buildCandidates().single())
         repo.remove(db.sources().byUrl(url)!!)
 
         now = now.plus(FeedSync.REMEMBER_DELIVERED).plusSeconds(60)
@@ -274,7 +274,7 @@ class FeedSyncTest {
         repo.addFeed(url, "Blog")
         sync.syncAll()
 
-        assertEquals(listOf("One"), db.articles().candidates().map { it.title })
+        assertEquals(listOf("One"), db.articles().buildCandidates().map { it.title })
     }
 
     @Test
@@ -360,7 +360,7 @@ class FeedSyncTest {
         )
         sync.syncAll()
 
-        val byTitle = db.articles().candidates().associateBy { it.title }
+        val byTitle = db.articles().buildCandidates().associateBy { it.title }
         with(byTitle.getValue("Episode 12")) {
             assertEquals("https://cdn.example/12.mp3", audioUrl)
             assertEquals(54321L, audioBytes)
@@ -389,7 +389,7 @@ class FeedSyncTest {
         )
         sync.syncAll()
 
-        val byGuid = db.articles().candidates().associateBy { it.guid }
+        val byGuid = db.articles().buildCandidates().associateBy { it.guid }
         assertEquals(EpisodeKind.AUDIO_VERSION, byGuid.getValue("reading").episodeKind)
         assertEquals("letter", byGuid.getValue("reading").episodePair)
         assertEquals("reading", byGuid.getValue("letter").episodePair)
@@ -421,7 +421,7 @@ class FeedSyncTest {
         // Nothing new in the feed: these are the only posts left to judge.
         assertEquals(0, sync.syncAll().newArticles)
 
-        val byGuid = db.articles().candidates().associateBy { it.guid }
+        val byGuid = db.articles().buildCandidates().associateBy { it.guid }
         with(byGuid.getValue("e12")) {
             assertEquals(EpisodeKind.NOTES, episodeKind)
             assertEquals("t12", episodePair)
@@ -442,7 +442,7 @@ class FeedSyncTest {
         http.page(url, show(episode(14), episode(13), episode(12)))
         assertEquals(1, sync.syncAll().newArticles)
 
-        var byGuid = db.articles().candidates().associateBy { it.guid }
+        var byGuid = db.articles().buildCandidates().associateBy { it.guid }
         assertNull("judged from its stored copy it'd be an article, which it isn't", byGuid.getValue("e11").episodeKind)
         assertEquals(EpisodeKind.NOTES, byGuid.getValue("e12").episodeKind)
         assertEquals("judged already, it keeps its kind", EpisodeKind.TRANSCRIPT, byGuid.getValue("e13").episodeKind)
@@ -451,7 +451,7 @@ class FeedSyncTest {
         // Episode 12 leaves the feed too, and is judged beside the next one from what was stored.
         http.page(url, show(episode(15), episode(14)))
         assertEquals(1, sync.syncAll().newArticles)
-        byGuid = db.articles().candidates().associateBy { it.guid }
+        byGuid = db.articles().buildCandidates().associateBy { it.guid }
         assertEquals(EpisodeKind.NOTES, byGuid.getValue("e12").episodeKind)
     }
 
@@ -466,7 +466,7 @@ class FeedSyncTest {
         )
         FeedSync(db, http, clock, keepFor = Duration.ofDays(7), episodesOn = false).syncAll()
 
-        val episode = db.articles().candidates().single()
+        val episode = db.articles().buildCandidates().single()
         assertNull(episode.audioUrl)
         assertNull(episode.episodeKind)
     }

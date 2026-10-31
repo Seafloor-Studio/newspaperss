@@ -181,10 +181,10 @@ class EditionDetailScreenTest {
         waitFor("Starred for your next edition")
         compose.onNodeWithContentDescription("Put Missed one in your next edition").assertIsOn()
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Starred"))
-        assertEquals(listOf(articles[1]), runBlocking { db.articles().candidates() }.map { it.id })
+        assertEquals(listOf(articles[1]), runBlocking { db.articles().buildCandidates() }.map { it.id })
 
         compose.onNodeWithContentDescription("Put Missed one in your next edition").performClick()
-        idleUntil { runBlocking { db.articles().candidates() }.isEmpty() }
+        idleUntil { runBlocking { db.articles().buildCandidates() }.isEmpty() }
         assertEquals("unstarred, it's delivered as before", ArticleState.DELIVERED, runBlocking { db.articles().byId(articles[1]) }?.state)
     }
 
