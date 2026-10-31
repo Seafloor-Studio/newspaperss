@@ -47,7 +47,7 @@ import java.util.concurrent.TimeUnit
  * "charging" or "full" as charging, so a phone holding its charge at 80% stops it the moment it
  * starts, every time, all night. Android's own scheduler counts that phone as charging.
  */
-class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+open class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     private val log get() = applicationContext.container.podcastLog
 
     /** Noted from the guard as the stop comes, and again as the run ends: once is enough. */
@@ -74,7 +74,7 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 val started = SystemClock.elapsedRealtime()
                 var checked = false
                 var cooling = false
-                val stopped = makeWhile(CHECK_MS, { applicationContext.container.podcastMaker.makeAll() }, ::noteTimeout) {
+                val stopped = makeWhile(CHECK_MS, { make() }, ::noteTimeout) {
                     val foreground = inForeground()
                     if (!checked) {
                         checked = true
@@ -106,6 +106,12 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         noteTimeout()
         log.add("Stopped by Android" + if (Build.VERSION.SDK_INT >= 31) ": ${stopReasonName(stopReason)} (reason $stopReason)" else "")
         throw e
+    } catch (e: PodcastMaker.PageFailed) {
+        // Only a run tries the page again, and nothing else asks for one overnight. A few
+        // minutes, so a phone short of memory has a moment to free some.
+        log.add("Run failed: ${e.cause?.javaClass?.name}; trying again in ${RETRY_MS / 60_000} min")
+        enqueue(applicationContext, RETRY_MS)
+        Result.success()
     } catch (e: Exception) {
         // Kokoro couldn't load (its files damaged since the check, say): asked again, it tries again.
         // The class only: a message could carry anything, and the log is shared.
@@ -115,6 +121,9 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         log.add("Kokoro's native code didn't load: ${e.javaClass.name}")
         Result.failure()
     }
+
+    /** Makes what's asked for; a test's worker fails here as the maker would. */
+    protected open suspend fun make() = applicationContext.container.podcastMaker.makeAll()
 
     /**
      * If the process before this one ended badly, say so once. A kill leaves no log of its own:
@@ -245,6 +254,9 @@ class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorke
 
         /** How long the phone is left alone after a run stopped, or didn't start, for heat. */
         private const val COOL_OFF_MS = 20 * 60_000L
+
+        /** How long after a page failed the run tries again. */
+        private const val RETRY_MS = 5 * 60_000L
 
         /** How far ahead Android forecasts the heat. Its own ceiling is a minute. */
         private const val HEADROOM_SECONDS = 30

@@ -299,7 +299,7 @@ class PodcastMaker(
             // the pages after it, and older podcasts, aren't held up for good.
             val failures = store.failed(editionId, page)
             log.add("Page $page failed ($failures of $FAILURES): ${e.javaClass.name}")
-            if (failures < FAILURES) throw e
+            if (failures < FAILURES) throw PageFailed(e)
             log.add("Page $page left to the phone's voice")
             store.leaveLive(editionId, page)
         } finally {
@@ -346,6 +346,9 @@ class PodcastMaker(
 
     /** Kokoro failed on a line, as opposed to the phone (a full disk, the encoder) failing around it. */
     private class Unsayable(cause: Exception) : Exception(cause)
+
+    /** A page failed, and counted against it: the next run tries it again, until [FAILURES]. */
+    class PageFailed(cause: Exception) : Exception(cause)
 
     companion object {
         /** Seconds of quiet between paragraphs, as a reader takes a breath. */

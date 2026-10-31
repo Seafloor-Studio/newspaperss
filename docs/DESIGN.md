@@ -648,7 +648,8 @@ whose Kindle and KOReader answers ask for more on the same page).
   their own and Episodes at the end on), or that a transcript plays its episode in
   its place when it can. A transcript whose only audio is far too short for it
   (under a third of it read aloud) says "Its audio is a 5-min preview, so Listen
-  reads it." A pair's title is cut to about 45 characters, so the line fits.
+  reads it." One with no audio of its own, and no notes post with audio, says "No
+  episode audio found, so Listen reads it." A pair's title is cut to about 45 characters, so the line fits.
   A source that posts episodes says how often, among its newest judged posts:
   "Posts episodes: 9 of the last 17 posts". Release builds never judge posts, so
   show none of this. See [episodes-design.md](research/episodes-design.md).
