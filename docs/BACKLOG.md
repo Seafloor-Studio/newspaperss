@@ -388,7 +388,7 @@ labelled corpus are [research/podcast-episodes.md](research/podcast-episodes.md)
 - [ ] **Readings for editions made before #322:** their audio was never timed, so an article's own audio isn't played. Time what's missing when Listen opens an edition
 - [x] **Step 4, transcripts:** a transcript plays its episode in its place, streamed
 - [x] **Switches for recordings** in Settings › Listening: all of them, or by kind (#384)
-- [ ] **A source's own switch for its recordings** (#384): madCode wants it, with a shorter source page; the layout is still being chosen on the issue
+- [x] **A source's own switch for its recordings**, in its settings sheet, with the source page's settings behind one row (#384)
 - [x] **Step 4, notes: their episode plays at the end**, after the closing page, streamed
 - [ ] **Keep the place in an episode after the edition:** paused there, it plays on while the app is running, but if Android ends the app the edition starts again from the top (it counts as heard) and the episode has to be found in the contents. Which episodes there are can change by the next opening, so it has to be kept by the episode's address, not its page
 - [ ] **Step 4, notes read without their furniture:** timestamps, sponsor blocks, link lists and subscribe lines left out when the voice reads notes

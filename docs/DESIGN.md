@@ -100,7 +100,7 @@ module so it's all unit-tested without Android.
   however long, so the page is fetched; that link and the pitch over the
   paywall are removed. One with next to nothing free (under 50 words: a
   title and a picture) can be left out instead, per publication, with
-  **Skip paid posts with nothing free** on its page: a feed's or a curated
+  **Skip paid posts with nothing free** in its page's settings: a feed's or a curated
   list's page, or each tt-rss feed's page. That switch shows once the
   publication has had one, is off until turned on, and says how many it
   has skipped. Only a first find is skipped: it counts as not picked
@@ -685,6 +685,13 @@ whose Kindle and KOReader answers ask for more on the same page).
     the chips go away and the voice reads everything. A change is used
     from the next edition opened in Listen; one already open carries on
     as it started, so the voice doesn't change part way through.
+  - **Its recordings in Listen**, a switch in a source's settings (debug
+    builds), shows on a source with a recent post that could play one (a
+    reading, its audio version, or a transcript with an episode), or while
+    it's off. Off, the voice reads that source's posts, readings and
+    episodes alike; on a tt-rss account it's each feed's own. It's read
+    each time an edition opens in Listen, so one already open carries on
+    as it started. The per-article choice above stays for "not this one".
   - **Transcripts** (debug builds) play their episode in their place the
     same way: its own audio, or else its notes post's. The voice says "Now
     the episode itself, 1 hour 27 minutes.", and the note above the page
@@ -801,8 +808,8 @@ whose Kindle and KOReader answers ask for more on the same page).
       answering, the rest stop with it rather than each waiting in turn.
     - **What a move does:** each feed is subscribed in tt-rss (or found
       there), then its settings are carried onto its tt-rss feed: article
-      text, the cap, Skip paid posts, left out, and what the text check
-      learned. A feed paused on the phone is left out in tt-rss. The phone
+      text, the cap, Skip paid posts, its recordings in Listen, left out,
+      and what the text check learned. A feed paused on the phone is left out in tt-rss. The phone
       feed stops fetching and leaves Sources at once, but it's only deleted
       when nothing starred, waiting or in an unsent edition is left in it:
       until then editions still take from it, so stars are kept, and for
@@ -854,10 +861,25 @@ whose Kindle and KOReader answers ask for more on the same page).
       serif in black like Settings' own (rust is for what you tap), and
       ends with a rule across the page. Shorter rules, starting at the
       text, divide the rows within one.
-  - A source's page shows its recent articles, pause, its cap and, for a
-    feed, the article-text setting; **Remove source** is in its ⋮ menu. A
-    tt-rss account has no page of its own: its settings, and leaving it,
-    are in Settings, and each of its feeds has a page.
+  - A source's page leads with how it's doing and its recent articles; its
+    settings are behind one row above the articles. **Remove source** is in
+    its ⋮ menu. A tt-rss account has no page of its own: its settings, and
+    leaving it, are in Settings, and each of its feeds has a page.
+  - **The settings row** is one line between two pale rules: a tune icon, what's
+    set differently for this site, and ›. Nothing changed, it says "Default
+    settings"; otherwise only the differences, in the sheet's order, joined
+    by " · ": "Paused · At most 2 articles", "Full page · Recordings off". Most sites keep the defaults, so most rows stay quiet. TalkBack
+    reads it as "This site's settings: Default settings, button" ("This
+    list's settings" on a curated list or the reading list).
+  - **Tapping it opens a sheet**, "This site's settings", fully open and
+    scrolling at large text. In order, where each applies: **Pause this
+    site** (a tt-rss feed has **Leave out of the paper**, or **Bring back**
+    while left out, instead), **Article text ›** (a chooser of
+    Automatic, the feed's text or the full page), the article limit with − and +, **Skip paid posts with nothing
+    free**, and **Its recordings in Listen**. A left-out tt-rss feed offers
+    only Bring back. The sheet stays open across a rotation.
+  - **Paused** also leads the page, in the status line: "Paused · nothing
+    new comes in".
   - A source's page opens with its site's address as an underlined link (↗), then
     how it's doing (red when there's a problem), then small grey details.
     When it's failing or has no articles yet, the details end with

@@ -1292,7 +1292,10 @@ class ScreenshotTest {
         val vm = feedPage("5")
         shoot(
             "08e-leave-out-dialog", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, dialog = true,
-            act = { compose.onNodeWithText("Leave out").performClick() },
+            act = {
+                openSiteSettings()
+                compose.onNodeWithText("Leave out of the paper").performClick()
+            },
         ) { SourceDetailScreen(vm, onBack = {}) }
     }
 
@@ -1301,7 +1304,10 @@ class ScreenshotTest {
         val vm = feedPage("5")
         shoot(
             "08g-article-text-dialog", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, dialog = true,
-            act = { compose.onNodeWithText("Article text: Automatic").performClick() },
+            act = {
+                openSiteSettings()
+                compose.onNodeWithText("Article text").performClick()
+            },
         ) { SourceDetailScreen(vm, onBack = {}) }
     }
 
@@ -1326,6 +1332,69 @@ class ScreenshotTest {
         }
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         shoot("06g-source-detail-failing", ready = { vm.detail.value?.source?.lastError != null }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** A newsletter that posts episodes and readings, set apart from the defaults with [change]. */
+    private fun letter(change: suspend (SourceRepository, Long) -> Unit = { _, _ -> }): SourceDetailViewModel {
+        val repo = SourceRepository(db, clock)
+        val id = runBlocking {
+            val id = repo.addFeed("https://example.com/feed", "The Example Letter")
+            val posts = listOf("How a ferry timetable is made", "The case for slower trains", "October 15", "What the harbour master saw")
+            db.articles().insertNew(
+                posts.mapIndexed { i, title ->
+                    ArticleEntity(
+                        sourceId = id, guid = title, url = "https://example.com/$i", title = title, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1)),
+                        audioUrl = "https://example.com/$i.mp3".takeIf { i == 0 || i == 2 },
+                    )
+                },
+            )
+            db.articles().setEpisodeKind(id, posts[0], EpisodeKind.NOTES)
+            posts.drop(1).forEach { db.articles().setEpisodeKind(id, it, EpisodeKind.ARTICLE) }
+            db.sources().recordSuccess(id, clock.instant(), null, "https://example.com", "")
+            change(repo, id)
+            id
+        }
+        return viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
+    }
+
+    /** Two settings changed: the row names only those, in the sheet's order. */
+    @Test
+    fun sourceDetailSettingsChanged() {
+        val vm = letter { repo, id ->
+            repo.setMaxArticles(id, PublicationEntity.OWN, 2)
+            repo.setRecordingsOff(id, PublicationEntity.OWN, true)
+        }
+        shoot("06h-source-detail-settings-changed", ready = { vm.detail.value?.text?.recordingsOff == true && vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** Paused: the status line says so first, as well as the settings row. */
+    @Test
+    fun sourceDetailPaused() {
+        val vm = letter { repo, id ->
+            repo.setMaxArticles(id, PublicationEntity.OWN, 2)
+            repo.setPaused(id, true)
+        }
+        shoot("06i-source-detail-paused", ready = { vm.detail.value?.source?.paused == true && vm.detail.value?.text?.maxArticles == 2 }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** The site's settings, opened from the row, with the switch for its recordings. */
+    @Test
+    fun sourceDetailSettingsSheet() {
+        val vm = letter()
+        shoot("06j-source-settings-sheet", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, act = ::openSiteSettings) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** The site's settings at twice the font size: the sheet scrolls, and the limit's buttons get their own line. */
+    @Test
+    @Config(fontScale = 2f)
+    fun sourceDetailSettingsSheetAtTwiceTheFontSize() {
+        val vm = letter()
+        shoot("06k-source-settings-sheet-200", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, act = ::openSiteSettings) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    private fun openSiteSettings() {
+        compose.onNode(hasContentDescription("This site's settings:", substring = true)).performClick()
+        compose.waitForIdle()
     }
 
     /** A phone feed's page from the top: its settings. */

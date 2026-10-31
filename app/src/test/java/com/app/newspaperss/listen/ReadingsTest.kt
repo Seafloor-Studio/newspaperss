@@ -8,7 +8,9 @@ import com.app.newspaperss.core.listen.ListenScript.Kind
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.EditionArticleEntity
 import com.app.newspaperss.data.EditionContent
+import com.app.newspaperss.data.PublicationEntity
 import com.app.newspaperss.data.SourceEntity
+import com.app.newspaperss.data.SourceKind
 import com.app.newspaperss.settings.Recordings
 import com.app.newspaperss.testutil.DbRule
 import com.app.newspaperss.testutil.TestApp
@@ -139,6 +141,42 @@ class ReadingsTest {
         assertNull(readings.at(3, 2))
         assertEquals(
             "Readings: edition 3, recorded readings: page 1 (its own audio, 11 min); read by the voice instead: page 0 (its page wouldn't read), page 2 (its page wouldn't read); episodes at the end: none",
+            logged.single(),
+        )
+    }
+
+    /** A source, or one tt-rss feed, whose recordings are off is read by the voice; the rest play as before. */
+    @Test
+    fun aSourceWithItsRecordingsOffIsReadByTheVoice() = runTest {
+        val off = db.sources().insert(SourceEntity(url = "https://off.example/feed", title = "Off"))
+        val on = db.sources().insert(SourceEntity(url = "https://on.example/feed", title = "On"))
+        val account = db.sources().insert(SourceEntity(kind = SourceKind.TTRSS, url = "https://rss.example/", title = "tt-rss"))
+        db.sources().savePublication(PublicationEntity(off, PublicationEntity.OWN, recordingsOff = true))
+        db.sources().savePublication(PublicationEntity(account, "7", recordingsOff = true))
+        suspend fun post(source: Long, guid: String, kind: EpisodeKind = EpisodeKind.ARTICLE, seconds: Int? = 640, origin: String? = null) = db.articles().insertIgnoring(
+            ArticleEntity(sourceId = source, guid = guid, url = "https://a.example/$guid", title = guid, episodeKind = kind, audioUrl = seconds?.let { "https://cdn.example/$guid.mp3" }, audioSeconds = seconds, originId = origin),
+        )
+        val ids = listOf(
+            post(off, "off-narrated"),
+            post(off, "off-transcript", EpisodeKind.TRANSCRIPT, seconds = 5_220),
+            post(on, "on-narrated"),
+            post(account, "feed-off", origin = "7"),
+            post(account, "feed-on", origin = "8"),
+            // Nothing to play, so nothing switched off: the log counts only recordings the switch kept out.
+            post(off, "off-plain", seconds = null),
+        )
+        val contents = ids.mapIndexed { i, id -> EditionContent(EditionArticleEntity(editionId = 3, articleId = id, position = i, title = "$i", sourceTitle = "A", minutes = 7.0), state = null) }
+
+        readings.load(3, contents) { page(if (it == 1) 15_840 else 1_600) }
+
+        assertNull(readings.at(3, 0))
+        assertNull("its episode too", readings.at(3, 1))
+        assertEquals("https://cdn.example/on-narrated.mp3", readings.at(3, 2)?.url)
+        assertNull("one tt-rss feed switched off", readings.at(3, 3))
+        assertEquals("the account's other feeds still play", "https://cdn.example/feed-on.mp3", readings.at(3, 4)?.url)
+        assertEquals(
+            "Readings: edition 3, recorded readings: page 2 (its own audio, 11 min), page 4 (its own audio, 11 min); read by the voice instead: " +
+                "page 0 (its source's recordings are switched off), page 1 (its source's recordings are switched off), page 3 (its source's recordings are switched off); episodes at the end: none",
             logged.single(),
         )
     }

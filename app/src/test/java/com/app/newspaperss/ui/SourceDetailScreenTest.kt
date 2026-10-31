@@ -126,11 +126,6 @@ class SourceDetailScreenTest {
         compose.idleUntil { visible("Couldn't reach the site.") }
 
         compose.onNodeWithText("Failing for 3 days", substring = true).assertExists()
-        compose.onNodeWithText("Pause").performClick()
-        compose.idleUntil { !visible("Failing for") }
-        assertNull("time spent paused isn't time spent failing", runBlocking { db.sources().byId(id)!!.failingSince })
-        compose.onNodeWithText("Resume").performClick()
-        compose.idleUntil { visible("Pause") }
         val list = compose.onNode(hasScrollAction())
         list.performScrollToNode(hasText("Went out"))
         compose.onNodeWithText("· Sent", substring = true).assertExists()
@@ -150,6 +145,95 @@ class SourceDetailScreenTest {
         compose.idleUntil { back }
 
         assertEquals(emptyList<Any>(), runBlocking { db.sources().all() })
+    }
+
+    /** One row says what's set differently for this site, in the sheet's order; paused also leads the page. */
+    @Test
+    fun theSettingsRowSaysOnlyWhatDiffersAndPausedLeadsThePage() {
+        val id = runBlocking {
+            val id = repo.addFeed("https://example.com/feed", "Example")
+            db.sources().recordFailure(id, clock.instant().minus(Duration.ofDays(3)), "Couldn't reach the site.")
+            db.sources().recordFailure(id, clock.instant(), "Couldn't reach the site.")
+            id
+        }
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
+        compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
+        compose.idleUntil { visible("Failing for 3 days") }
+
+        settingsRow("Default settings").assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)).performClick()
+        compose.idleUntil { visible("Pause this site") }
+        compose.onNodeWithText("Pause this site").assertIsOff().performClick()
+        settle { visible("Paused · nothing new comes in") && !visible("Failing for") && hasSettingsRow("Paused") }
+        assertNull("time spent paused isn't time spent failing", runBlocking { db.sources().byId(id)!!.failingSince })
+
+        compose.onNodeWithContentDescription("More articles from this site").performClick()
+        settle { hasSettingsRow("Paused · At most 2 articles") }
+        compose.onNodeWithText("Article text").performClick()
+        compose.onNodeWithText("Always fetch the full page").performClick()
+        settle { hasSettingsRow("Paused · Full page · At most 2 articles") }
+
+        compose.onNodeWithText("Pause this site").assertIsOn().performClick()
+        settle { hasSettingsRow("Full page · At most 2 articles") && !visible("Paused") }
+        compose.onNodeWithText("Use your edition setting").performClick()
+        settle { hasSettingsRow("Full page") }
+    }
+
+    /** Only a source that posts recordings has the switch; off, Listen's voice reads its posts instead. */
+    @Test
+    @Config(qualifiers = "w411dp-h1600dp")
+    fun aSourceThatPostsRecordingsCanKeepThemOutOfListen() {
+        val (id, _) = sourceWithArticles()
+        show(id)
+        openSettings()
+        assertFalse("not on a source that posts none", visible("Its recordings in Listen"))
+
+        // An episode's notes play nothing in place, so their audio alone doesn't bring the switch.
+        runBlocking {
+            db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "notes", url = "https://example.com/notes", title = "Article notes", audioUrl = "https://cdn.example/notes.mp3", episodeKind = EpisodeKind.NOTES)))
+        }
+        settle { visible("Article notes") }
+        assertFalse(visible("Its recordings in Listen"))
+
+        runBlocking {
+            db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "read", url = "https://example.com/read", title = "Article read aloud", audioUrl = "https://cdn.example/read.mp3", episodeKind = EpisodeKind.ARTICLE)))
+        }
+        settle { visible("Its recordings in Listen") }
+        compose.onNodeWithText("Its recordings in Listen").assertIsOn().performClick()
+        settle { runBlocking { db.sources().publication(id, PublicationEntity.OWN)?.recordingsOff } == true && hasSettingsRow("Recordings off") }
+        compose.onNodeWithText("Its recordings in Listen").assertIsOff()
+
+        compose.onNodeWithText("Its recordings in Listen").performClick()
+        settle { runBlocking { db.sources().publication(id, PublicationEntity.OWN)?.recordingsOff } == false && hasSettingsRow("Default settings") }
+    }
+
+    /** Release builds play no recordings, so a source there has no switch for them. */
+    @Test
+    fun withoutRecordingsInTheBuildThereIsNoSwitch() {
+        val id = runBlocking {
+            val id = repo.addFeed("https://example.com/feed", "Example")
+            db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "read", url = "https://example.com/read", title = "Article read aloud", audioUrl = "https://cdn.example/read.mp3", episodeKind = EpisodeKind.ARTICLE)))
+            id
+        }
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1), recordings = false))
+        compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
+        compose.idleUntil { visible("Article read aloud") }
+        openSettings()
+        assertFalse(visible("Its recordings in Listen"))
+    }
+
+    /** An open sheet is open again after a rotation or the app coming back. */
+    @Test
+    fun theSettingsSheetSurvivesTheScreenBeingRecreated() {
+        val (id, _) = sourceWithArticles()
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
+        compose.idleUntil { visible("Article waiting") }
+        openSettings()
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        settle { visible("Pause this site") }
     }
 
     @Test
@@ -189,6 +273,7 @@ class SourceDetailScreenTest {
         val defaultMax = MutableStateFlow(2)
         val vm = viewModels.add(SourceDetailViewModel(repo, id, defaultMax))
         compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
+        openSettings()
         compose.idleUntil { visible("2 articles from this site, then more if there's room") }
 
         compose.onNodeWithContentDescription("More articles from this site").performClick()
@@ -205,17 +290,18 @@ class SourceDetailScreenTest {
         assertNull(runBlocking { db.sources().publication(id, PublicationEntity.OWN)?.maxArticles })
     }
 
-    /** The button says what it sets: the reader's choice, or Automatic when the check decides. */
+    /** The row says what it sets: the reader's choice, or Automatic when the check decides. */
     @Test
-    fun theArticleTextButtonNamesTheSetting() {
+    fun theArticleTextRowNamesTheSetting() {
         val id = runBlocking { repo.addFeed("https://example.com/feed", "Example") }
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
-        compose.idleUntil { visible("Article text: Automatic") }
+        openSettings()
+        compose.idleUntil { compose.onAllNodes(hasText("Article text") and hasText("Automatic")).fetchSemanticsNodes().isNotEmpty() }
 
         runBlocking { repo.chooseContentMode(id, PublicationEntity.OWN, ContentMode.PAGE) }
 
-        compose.idleUntil { visible("Article text: Full page") }
+        compose.idleUntil { compose.onAllNodes(hasText("Article text") and hasText("Full page")).fetchSemanticsNodes().isNotEmpty() }
     }
 
     /** At the default of 1, the edition's number is soft; a noisy site can still be held to 1 for good. */
@@ -224,6 +310,7 @@ class SourceDetailScreenTest {
         val id = runBlocking { repo.addFeed("https://example.com/feed", "Example") }
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
+        openSettings()
         compose.idleUntil { visible("1 article from this site, then more if there's room") }
 
         compose.onNodeWithContentDescription("Fewer articles from this site").performClick()
@@ -243,6 +330,7 @@ class SourceDetailScreenTest {
         val (id, _) = sourceWithArticles()
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
+        openSettings()
         compose.idleUntil { visible("from this site") }
         val words = compose.onNodeWithText("from this site", substring = true).fetchSemanticsNode().boundsInRoot
         val more = compose.onNodeWithContentDescription("More articles from this site").fetchSemanticsNode().boundsInRoot
@@ -293,6 +381,17 @@ class SourceDetailScreenTest {
     private fun state(id: Long) = runBlocking { db.articles().byId(id)!!.state }
 
     private fun settle(condition: () -> Boolean) = compose.idleUntil { condition() }
+
+    /** The row that opens the site's settings, as TalkBack reads it. */
+    private fun settingsRow(summary: String) = compose.onNodeWithContentDescription("This site's settings: $summary")
+
+    private fun hasSettingsRow(summary: String) = compose.onAllNodes(hasContentDescription("This site's settings: $summary")).fetchSemanticsNodes().isNotEmpty()
+
+    private fun openSettings() {
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("This site's settings:", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(hasContentDescription("This site's settings:", substring = true)).performClick()
+        compose.idleUntil { visible("This site's settings") }
+    }
 
     @Test
     @Config(qualifiers = "w411dp-h1600dp")
@@ -781,6 +880,7 @@ class SourceDetailScreenTest {
     fun aSourceWithPaidPostsCanSkipTheOnesWithNothingFree() {
         val (id, ids) = sourceWithArticles()
         show(id)
+        openSettings()
         assertFalse("not on a source that's never had one", visible("Skip paid posts"))
 
         runBlocking { repo.markPaidOnly(ids.getValue("delivered"), skip = false) }
