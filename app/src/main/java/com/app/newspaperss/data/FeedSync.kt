@@ -197,50 +197,49 @@ class FeedSync(
         val error = if (account == null || account.apiUrl != source.url) {
             SIGN_IN_AGAIN
         } else {
-            val client = account.client(http)
-            try {
-                val category = source.ttrssCategoryId
-                // A few from each feed rather than the newest 200 overall: busy news feeds would
-                // fill those 200, and a feed that posts monthly would never reach the paper.
-                val leftOut = db.sources().leftOut(source.id).map { it.key }.toSet()
-                val withUnread = client.unreadFeeds(category).filter { it.unread > 0 }
-                // A feed with articles has been fetched, without waiting for tomorrow's feed list to say so,
-                // and its fetching error is current: one fixed in tt-rss stops showing as soon as it has posts.
-                db.sources().fetchedByServer(source.id, withUnread.map { it.id.toString() })
-                db.withTransaction { withUnread.forEach { db.sources().setServerError(source.id, it.id.toString(), it.lastError) } }
-                val unreadFeeds = withUnread.filter { it.id.toString() !in leftOut }
-                val headlines = fromEachFeed(client, unreadFeeds)
-                val episodes = judged(source, headlines, now)
-                val articles = headlines.map { it to article(source, it, now).episode(it.attachments, episodes["$TTRSS_GUID_PREFIX${it.id}"]) }
-                if (source.markReadOnServer) syncReadState(client, source, articles, now)
-                val guids = articles.map { it.second.guid }
-                val known = guids.chunked(500).flatMap { db.articles().knownGuids(source.id, it) }.toSet()
-                val added = db.articles().insertFetched(articles.map { (h, a) -> a to h.link })
-                if (source.markReadOnServer && source.markExpiredRead) {
-                    (guids - known).chunked(500).forEach { db.articles().readOnArrival(source.id, it, now.minus(keepFor)) }
+            account.client(http).session { client ->
+                try {
+                    val category = source.ttrssCategoryId
+                    // A few from each feed rather than the newest 200 overall: busy news feeds would
+                    // fill those 200, and a feed that posts monthly would never reach the paper.
+                    val leftOut = db.sources().leftOut(source.id).map { it.key }.toSet()
+                    val withUnread = client.unreadFeeds(category).filter { it.unread > 0 }
+                    // A feed with articles has been fetched, without waiting for tomorrow's feed list to say so,
+                    // and its fetching error is current: one fixed in tt-rss stops showing as soon as it has posts.
+                    db.sources().fetchedByServer(source.id, withUnread.map { it.id.toString() })
+                    db.withTransaction { withUnread.forEach { db.sources().setServerError(source.id, it.id.toString(), it.lastError) } }
+                    val unreadFeeds = withUnread.filter { it.id.toString() !in leftOut }
+                    val headlines = fromEachFeed(client, unreadFeeds)
+                    val episodes = judged(source, headlines, now)
+                    val articles = headlines.map { it to article(source, it, now).episode(it.attachments, episodes["$TTRSS_GUID_PREFIX${it.id}"]) }
+                    if (source.markReadOnServer) syncReadState(client, source, articles, now)
+                    val guids = articles.map { it.second.guid }
+                    val known = guids.chunked(500).flatMap { db.articles().knownGuids(source.id, it) }.toSet()
+                    val added = db.articles().insertFetched(articles.map { (h, a) -> a to h.link })
+                    if (source.markReadOnServer && source.markExpiredRead) {
+                        (guids - known).chunked(500).forEach { db.articles().readOnArrival(source.id, it, now.minus(keepFor)) }
+                    }
+                    // tt-rss answers a deleted (or another user's) category with no articles and no error.
+                    if (headlines.isEmpty() && category != null && client.categories().none { it.id == category }) {
+                        CATEGORY_GONE
+                    } else {
+                        db.sources().recordSuccess(source.id, now, null, null, source.title)
+                        listFeeds(client, source, now)
+                        watchPosts(client, source, now)
+                        return added + if (source.takeTtrssStars) takeStars(client, source, now) else 0
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: TtrssException) {
+                    e.reason
+                } catch (e: IOException) {
+                    // The periodic sync, and every edition, tries again.
+                    ttrssUnreachable(e) + if (tooSlow(e)) " It'll be tried again at the next sync." else ""
+                } catch (e: SQLiteConstraintException) {
+                    return null
+                } catch (e: Exception) {
+                    "Something went wrong reading from tt-rss."
                 }
-                // tt-rss answers a deleted (or another user's) category with no articles and no error.
-                if (headlines.isEmpty() && category != null && client.categories().none { it.id == category }) {
-                    CATEGORY_GONE
-                } else {
-                    db.sources().recordSuccess(source.id, now, null, null, source.title)
-                    listFeeds(client, source, now)
-                    watchPosts(client, source, now)
-                    return added + if (source.takeTtrssStars) takeStars(client, source, now) else 0
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: TtrssException) {
-                e.reason
-            } catch (e: IOException) {
-                // The periodic sync, and every edition, tries again.
-                ttrssUnreachable(e) + if (tooSlow(e)) " It'll be tried again at the next sync." else ""
-            } catch (e: SQLiteConstraintException) {
-                return null
-            } catch (e: Exception) {
-                "Something went wrong reading from tt-rss."
-            } finally {
-                logOut(client)
             }
         }
         db.sources().recordFailure(source.id, now, error)
@@ -629,6 +628,16 @@ internal fun ArticleEntity.withEpisode(enclosures: List<Enclosure>, verdict: Ver
 internal fun ArticleEntity.linkedToStory(siteUrl: String?): ArticleEntity {
     val story = LinkPosts.storyUrl(url, feedHtml, siteUrl)
     return if (story != null) copy(url = story, viaUrl = url) else copy(url = withoutTracking(url, LinkPosts.siteNames(url, siteUrl)))
+}
+
+/**
+ * A tt-rss session for [block], logged out however it ends. Inline, so a `return` in [block]
+ * returns from the caller, as it would from the `try` this stands for.
+ */
+internal suspend inline fun <T> TtrssClient.session(block: (TtrssClient) -> T): T = try {
+    block(this)
+} finally {
+    logOut(this)
 }
 
 /**

@@ -55,6 +55,7 @@ import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleState
 import com.app.newspaperss.data.SourceRepository
+import com.app.newspaperss.data.insertNew
 import com.app.newspaperss.testutil.TestApp
 import com.app.newspaperss.testutil.ViewModels
 import com.app.newspaperss.testutil.closeAfter
@@ -114,7 +115,7 @@ class SourceDetailScreenTest {
                     ArticleEntity(sourceId = id, guid = "2", url = "https://example.com/2", title = "Still waiting"),
                 ),
             )
-            db.articles().setState(listOf(db.articles().candidates().first { it.guid == "1" }.id), ArticleState.DELIVERED)
+            db.articles().setState(listOf(db.articles().buildCandidates().first { it.guid == "1" }.id), ArticleState.DELIVERED)
             db.sources().recordFailure(id, clock.instant().minus(Duration.ofDays(3)), "Couldn't reach the site.")
             db.sources().recordFailure(id, clock.instant(), "Couldn't reach the site.")
             id
@@ -319,7 +320,7 @@ class SourceDetailScreenTest {
         star("Article delivered").assertIsOn().assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Starred"))
         val delivered = runBlocking { db.articles().byId(ids.getValue("delivered"))!! }
         assertEquals("a star is a flag, not a state", ArticleState.DELIVERED, delivered.state)
-        assertTrue(runBlocking { db.articles().candidates() }.any { it.id == delivered.id })
+        assertTrue(runBlocking { db.articles().buildCandidates() }.any { it.id == delivered.id })
 
         star("Article delivered").performClick()
         settle { runBlocking { db.articles().byId(ids.getValue("delivered"))!!.starredAt } == null }
@@ -402,7 +403,7 @@ class SourceDetailScreenTest {
 
         settle { state(delivered) == ArticleState.NEW }
         assertNull("not starred: it waits its turn", runBlocking { db.articles().byId(delivered)!!.starredAt })
-        assertTrue(runBlocking { db.articles().candidates() }.any { it.id == delivered })
+        assertTrue(runBlocking { db.articles().buildCandidates() }.any { it.id == delivered })
         settle { compose.onAllNodes(hasContentDescription("Mark Article delivered as read")).fetchSemanticsNodes().isNotEmpty() }
 
         markRead("Article delivered").performClick()
@@ -475,7 +476,7 @@ class SourceDetailScreenTest {
 
         compose.onNodeWithText("Undo").performClick()
 
-        settle { runBlocking { db.articles().candidates() }.none { it.starredAt != null } }
+        settle { runBlocking { db.articles().buildCandidates() }.none { it.starredAt != null } }
     }
 
     @Test

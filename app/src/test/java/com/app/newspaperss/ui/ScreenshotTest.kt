@@ -137,6 +137,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import com.app.newspaperss.data.TtrssSubscriptions
 import com.app.newspaperss.data.FeedMoves
+import com.app.newspaperss.data.connect
+import com.app.newspaperss.data.insertNew
 import com.app.newspaperss.ui.sources.PhoneFeeds
 import kotlinx.coroutines.launch
 import com.app.newspaperss.ui.sources.AddState
@@ -671,8 +673,9 @@ class ScreenshotTest {
         player.start(id, ListenPosition(0, 4))
         compose.idleUntil { player.state.value.script != null }
         speaker.startNext()
+        val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock)) {}
         shoot("05c3-article-preview-listening", ready = { player.state.value.at.line == 4 && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
-            ArticlePreviewScreen(loadFile = { File(files, "f.epub") }, position = 0, title = article.title, onBack = {}, onListen = {}, player = player, editionId = id)
+            ArticlePreviewScreen(loadFile = { File(files, "f.epub") }, position = 0, title = article.title, onBack = {}, onListen = {}, listen = listen, editionId = id)
         }
     }
 
@@ -737,8 +740,9 @@ class ScreenshotTest {
         speaker.startNext()
         val now = readings.at(id, page)?.let { ReadingSpeaker.Now(id, page, it, voiceInstead = false) }
         val title = player.state.value.pages[page].title
+        val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock), reading = MutableStateFlow(now)) {}
         shoot(name, ready = { player.state.value.at.page == page && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
-            ArticlePreviewScreen(loadFile = { File(files, "e.epub") }, position = page, title = title, onBack = {}, onListen = {}, player = player, editionId = id, reading = MutableStateFlow(now))
+            ArticlePreviewScreen(loadFile = { File(files, "e.epub") }, position = page, title = title, onBack = {}, onListen = {}, listen = listen, editionId = id)
         }
     }
 
@@ -778,10 +782,12 @@ class ScreenshotTest {
         compose.idleUntil { player.state.value.script != null }
         speaker.startNext()
         val now = ReadingSpeaker.Now(id, 1, Reading("https://example.com/knots.mp3", if (episode) 5_220 else 540, own = episode, bodyLine = 3, starts = listOf(0.0), episode = episode), voiceInstead = false).takeIf { recording }
+        val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock), podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), reading = MutableStateFlow(now)) {}
         shoot(name, ready = { player.state.value.at.line == 6 && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
             ArticlePreviewScreen(
                 loadFile = { File(files, "l.epub") }, position = 1, title = knots.title, onBack = {}, onListen = {}, textSize = textSize,
-                player = player, editionId = id, podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), reading = MutableStateFlow(now),
+                listen = listen,
+                editionId = id,
             )
         }
     }
@@ -970,7 +976,7 @@ class ScreenshotTest {
                 "The quiet return of the paperback",
             )
             db.articles().insertNew(titles.mapIndexed { i, t -> ArticleEntity(sourceId = id, guid = "$i", url = "https://www.theguardian.com/$i", title = t, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1))) })
-            val ids = db.articles().candidates().sortedBy { it.guid }.map { it.id }
+            val ids = db.articles().buildCandidates().sortedBy { it.guid }.map { it.id }
             repo.setStarred(ids[1], true)
             db.articles().setState(listOf(ids[2]), ArticleState.SKIPPED)
             db.articles().setState(listOf(ids[3]), ArticleState.IN_EDITION)

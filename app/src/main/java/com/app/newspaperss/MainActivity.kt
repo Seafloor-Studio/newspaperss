@@ -325,12 +325,8 @@ private fun App(
                         goTo(contents, moving, position)?.let { nav.navigate(sourceRoute(it)) { launchSingleTop = true } }
                     },
                     episodeFor = { article -> contents.getOrNull(article)?.let { episodeJudgement(it, recordings) } },
-                    player = container.listen,
+                    listen = container.listening,
                     editionId = id,
-                    podcastVoice = container.podcastPlaying,
-                    instead = container.podcastInstead,
-                    reading = container.readingNow,
-                    onVoiceInstead = container::useVoiceInstead,
                 )
             }
             composable(Tab.SOURCES.route) {

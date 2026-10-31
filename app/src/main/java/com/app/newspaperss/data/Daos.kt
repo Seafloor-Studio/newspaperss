@@ -22,9 +22,6 @@ interface SourceDao {
     @Query("SELECT * FROM publications WHERE sourceId = :sourceId AND leftOut = 1")
     suspend fun leftOut(sourceId: Long): List<PublicationEntity>
 
-    @Query("SELECT * FROM publications WHERE leftOut = 1")
-    suspend fun allLeftOut(): List<PublicationEntity>
-
     /**
      * The feeds an aggregator's articles came from since [since], each with the name it was last
      * seen under (SQLite takes a bare column from the row that gave the MAX).
@@ -55,9 +52,6 @@ interface SourceDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(source: SourceEntity): Long
-
-    @Update
-    suspend fun update(source: SourceEntity)
 
     // Targeted updates: a sync holds a source row for up to a minute, and
     // writing the whole row back would undo a pause or rename made meanwhile.
@@ -221,11 +215,7 @@ interface ArticleDao {
      * Inserts articles not already known for their source; returns how many were new. One whose
      * link was already delivered (see [DeliveredUrlEntity]) is left out: stored, it would count as
      * new activity on the Sources screen. Each is cut to [RowLimits] first, or left out if it can't be.
-     */
-    suspend fun insertNew(articles: List<ArticleEntity>): Int = insertFetched(articles.map { it to it.url })
-
-    /**
-     * [insertNew], each article with the link it was fetched with. That link, and a link post's own
+     * Each comes with the link it was fetched with. That link, and a link post's own
      * page, count as delivered too: stored links have tracking removed and link posts point to
      * their story, while delivered_urls may hold the link as it went out before, or as a page
      * saved to the reading list.
@@ -283,13 +273,6 @@ interface ArticleDao {
     suspend fun insertIgnoring(article: ArticleEntity): Long
 
     /**
-     * Waiting articles, and starred ones in any state but already in an unsent edition; not the
-     * saved links that can never be read ([ArticleEntity.unreadable]).
-     */
-    @Query("SELECT * FROM articles WHERE (state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')) AND unreadable IS NULL")
-    suspend fun candidates(): List<ArticleEntity>
-
-    /**
      * Marks a saved link as one that can never be read, and why (see [ArticleEntity.unreadable]);
      * null clears it. Not one in an edition, which was read after all.
      */
@@ -297,9 +280,10 @@ interface ArticleDao {
     suspend fun setUnreadable(id: Long, why: String?)
 
     /**
-     * [candidates] without their feed text, which a build reads one article at a time with
-     * [feedHtml]: up to 500,000 characters each, for every waiting article, is more than a small
-     * e-reader has to spare.
+     * Waiting articles, and starred ones in any state but already in an unsent edition, not the
+     * saved links that can never be read ([ArticleEntity.unreadable]). Without their feed text,
+     * which a build reads one article at a time with [feedHtml]: up to 500,000 characters each,
+     * for every waiting article, is more than a small e-reader has to spare.
      */
     @Query(
         """SELECT id, sourceId, guid, url, title, author, published, NULL AS feedHtml, discoveredAt, state, starredAt,
@@ -840,9 +824,6 @@ interface EditionDao {
 
     @Query("SELECT * FROM editions WHERE status = :status")
     suspend fun withStatus(status: EditionStatus): List<EditionEntity>
-
-    @Query("SELECT COUNT(*) FROM editions")
-    suspend fun count(): Int
 
     @Query("SELECT COUNT(*) FROM editions WHERE status = 'DELIVERED'")
     suspend fun countDelivered(): Int

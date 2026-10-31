@@ -133,9 +133,9 @@ Whole-codebase passes for what a review of one PR can't see. Each follows the au
 
 ### Tech debt
 From the N12 audit of sync and the data layer (30 Oct). Mostly lean; no reader-facing bug.
-- [ ] **Every tt-rss call opens and logs out by hand,** ten times over (`TtrssRepository`, `FeedSync.syncTtrss`), `subscribe` twice on one path. One `TtrssAccount.session { client -> … }` would hold the try/finally.
-- [ ] **Code only tests keep alive:** `TtrssRepository.connect` (32 test calls; the app signs in with `signIn`, which keeps the category `connect` resets), `check(readCategories)`, `ArticleDao.candidates` (the same WHERE as `buildCandidates`), `insertNew`, `allLeftOut`, `EditionDao.count`, the whole-row `SourceDao.update` (whose writing back undoes a pause made meanwhile). Moving the tests onto what the app calls is mechanical but touches about 50 call sites.
-- [ ] **The same lookups spelled several times in `TtrssRepository`:** the tt-rss source (5), a source's publications (5), "still in the account" (5); and a login as both a `Pair` and `Login`. `TtrssClient`'s paging loop is copied three times.
+- [x] **Every tt-rss call opens and logs out by hand:** one `TtrssClient.session { }` now holds the logout, `subscribe`'s included (cycle T2).
+- [x] **Code only tests keep alive:** `connect`, `check`'s category reading, `candidates`, `insertNew` (now a test helper), `allLeftOut`, `EditionDao.count` and the whole-row `SourceDao.update` are gone; tests use what the app calls (cycle T3). `markRead`/`markUnread` stay public: private, seven tests would go through `syncRead` for no lines saved.
+- [x] **The same lookups spelled several times in `TtrssRepository`:** `accountSource()`, `PublicationEntity.inAccount`, and one headline page request and id parser in `TtrssClient` (cycle T2). The `Pair`/`Login` double stays: small.
 - [ ] A link saved or shared over 4,000 characters isn't held to `RowLimits` as feed articles are. Nothing breaks (the row fits), and refusing it needs its own message ("already on your list" would be wrong), so left until a reader meets it.
 
 From the N11 audit of making an edition (30 Oct). The build flow itself (failure, cancellation, the commit, releasing unsent editions, the deadline) held up.
@@ -144,8 +144,8 @@ From the N11 audit of making an edition (30 Oct). The build flow itself (failure
 - [ ] `Budget.Articles` and a null `maxPerSource` exist only for `EditionPlannerTest`; the app always budgets minutes with a cap.
 
 From the N10 audit of the article view and Listen (30 Oct). Read against the code; none is a bug a reader meets today.
-- [ ] **The article view takes six Listen parameters** (`player`, `editionId`, `podcastVoice`, `instead`, `reading`, `onVoiceInstead`), each defaulted for tests and wired one by one in `MainActivity`; the edition page takes one `Listening`. Pass `Listening?` with those flows on it: five fewer parameters, and the dock's buttons go through the same object as the bar's. Touches every `ArticlePreviewScreen(…)` in `ListenAppTest` and `ScreenshotTest`.
-- [ ] **"Listen has this edition" is worked out three times in `ArticlePreviewScreen`**, and its error is drawn in two places (above the page when nothing is open, in `ListenNotes` otherwise). Compute it once and draw the error in one place; the error then sits above a recording's note rather than below. Add a test that drives an error into the article view: none does.
+- [x] **The article view takes six Listen parameters:** it takes one `Listening`, which carries the voice's flows; the bar and the article route hand over the same object (cycle L).
+- [x] **"Listen has this edition" is worked out once** in `ArticlePreviewScreen` (cycle L). Its error stays drawn in two places on purpose: one place would move it on screen, above a recording's note or with other spacing, for about 3 lines. The test this item asked for exists (`anEditionWhoseBookIsGoneSaysSoAboveThePageOnce`, `aVoiceThatStopsWorkingSaysSoOnce…`).
 - [ ] **The view reads the edition's articles from three places:** the EPUB's article files (how many, which decides where the closing page starts), its contents page (the "Next" line) and the database (title, episodes, Listen's pages). They agree while positions run 0 to n-1, which every edition so far does; one list would remove the guess at the closing page's boundary.
 - [ ] Listen sometimes stops at the paragraph instead of scrolling down to the sentence being read: its fine scroll needs the paragraph's text layout, which may not be recorded yet when the scroll runs. Seen as `11d-listen-larger-text` differing between two renders; likely on a phone too *(today B7)*
 

@@ -112,7 +112,7 @@ class MigrationTest {
                 assertTrue(EditionRepository(room, File("unused")).delete(2))
                 assertEquals(ArticleState.DELIVERED, room.articles().byId(4)!!.state)
                 assertEquals(ArticleState.NEW, room.articles().byId(5)!!.state)
-                assertTrue("still first in line", room.articles().candidates().any { it.id == 4L && it.starredAt != null })
+                assertTrue("still first in line", room.articles().buildCandidates().any { it.id == 4L && it.starredAt != null })
             }
         } finally {
             room.close()
