@@ -999,6 +999,17 @@ class ScreenshotTest {
         shoot("06b-source-detail", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, act = ::scrollToArticles) { SourceDetailScreen(vm, onBack = {}) }
     }
 
+    /** The top of a source's page with Skip posts with nothing free switched on. */
+    @Test
+    fun sourceDetailSkippingPostsWithNothingFree() {
+        val vm = sourceWithArticles()
+        runBlocking {
+            val id = db.sources().all().single().id
+            db.sources().savePublication(PublicationEntity(id, PublicationEntity.OWN, ContentMode.PAGE, FullTextEvidence.PAGE_LONGER, 3, skipPaidPosts = true))
+        }
+        shoot("06h-source-detail-skip-nothing-free", ready = { vm.detail.value?.text?.skipPaidPosts == true && vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
     /** A newsletter that posts episodes: how often, and each one's label. */
     @Test
     fun sourceDetailEpisodes() {
