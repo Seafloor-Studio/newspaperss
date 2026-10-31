@@ -128,10 +128,11 @@ class TtrssLiveTest {
         assertEquals(feedUrl("errors"), client.allFeeds().single { it.id == feedId }.feedUrl)
         written.single { it.name.contains("errors") }.delete()
         // tt-rss reuses a feed it fetched in the last 30 seconds, so it may take a few updates.
+        // An update can itself be refused once the feed is failing; only the error it records counts.
         val deadline = System.nanoTime() + 60_000_000_000
         var error: String? = null
         while (error == null && System.nanoTime() < deadline) {
-            raw("updateFeed", "\"feed_id\":$feedId")
+            raw("updateFeed", "\"feed_id\":$feedId", mustSucceed = false)
             error = client.allFeeds().single { it.id == feedId }.lastError ?: run { Thread.sleep(2_000); null }
         }
         assertTrue("got $error", error != null && "404" in error)
@@ -160,12 +161,12 @@ class TtrssLiveTest {
         return feedId
     }
 
-    /** An API call [TtrssClient] doesn't make, on a session of its own. */
-    private suspend fun raw(op: String, fields: String) {
+    /** An API call [TtrssClient] doesn't make, on a session of its own; checked unless [mustSucceed] is false. */
+    private suspend fun raw(op: String, fields: String, mustSucceed: Boolean = true) {
         val login = Json.parseToJsonElement(http.postJson(api, """{"op":"login","user":"$USER","password":"$PASSWORD"}""").body)
         val sid = login.jsonObject.getValue("content").jsonObject.getValue("session_id").jsonPrimitive.content
         val answer = Json.parseToJsonElement(http.postJson(api, """{"sid":"$sid","op":"$op",$fields}""").body).jsonObject
-        assertEquals("$op: $answer", "0", answer.getValue("status").jsonPrimitive.content)
+        if (mustSucceed) assertEquals("$op: $answer", "0", answer.getValue("status").jsonPrimitive.content)
     }
 
     private fun feedUrl(name: String) = "http://web/feeds/$run-$name.xml"

@@ -36,6 +36,10 @@ jobs:
         env:
           TTRSS_LIVE: '1'
         run: ./gradlew :core:test --tests '*TtrssLiveTest*' --rerun
+      # Gradle's console names a failed assertion, not its message: tt-rss's answer is in the report.
+      - name: What failed, when it fails
+        if: failure()
+        run: grep -h -A4 '<failure' core/build/test-results/test/*.xml || true
       - name: tt-rss's logs, when it fails
         if: failure()
         run: docker compose -f tools/ttrss-live/compose.yml logs --no-color --tail 200
