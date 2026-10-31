@@ -47,6 +47,49 @@ class PageExtractorTest {
         assertTrue(sentence.trim() in cleaned)
     }
 
+    /**
+     * Shaped like an ASP.NET WebForms site (news-medical.net): the whole page is one `<form>`, with
+     * share buttons, ads and a sidebar inside it, and only a "you might also like" strip outside.
+     */
+    @Test
+    fun anArticleInsideAFormWrappingThePageIsKept() {
+        val paragraphs = (1..12).joinToString("") { "<p>$sentence</p>" }
+        val links = (1..30).joinToString("") { "<li><a href=\"/news/$it\">Another health story number $it</a></li>" }
+        val html = """<html><head><title>Story</title></head><body>
+            <form method="post" action="./story.aspx" id="aspnetForm">
+              <input type="hidden" name="__VIEWSTATE" value="abc">
+              <nav><ul>$links</ul></nav>
+              <main><ul class="share-box"><li><a href="#">Download PDF</a></li><li><a href="#">Email</a></li></ul>
+                <div class="item-body"><h1>Story</h1><div class="content"><div itemprop="articleBody">
+                  <p><em>A head-to-head trial, in a sentence.</em></p>$paragraphs
+                  <div class="related-content-embed"><a href="/news/1">Related story</a></div>$paragraphs
+                </div></div></div></main>
+              <aside><ul>$links</ul></aside>
+            </form>
+            <div id="suggested-content-slider"><p>You might also like...</p><a href="/news/2">A story to suggest</a></div>
+            </body></html>"""
+
+        val page = PageExtractor.extract(html, url)
+
+        assertEquals("readability", page.extractor)
+        assertTrue(page.wordCount >= 24 * 16)
+        assertFalse("You might also like" in page.html)
+    }
+
+    /** A form within the article, such as a newsletter sign-up, is still the form Readability drops. */
+    @Test
+    fun aSmallFormInTheArticleStillGoes() {
+        val paragraphs = (1..12).joinToString("") { "<p>$sentence</p>" }
+        val html = """<html><head><title>Story</title></head><body><article><h1>Story</h1>$paragraphs
+            <form action="/subscribe"><label>Get our newsletter every morning</label><input type="email" name="e"><button>Sign up</button></form>
+            $paragraphs</article></body></html>"""
+
+        val page = PageExtractor.extract(html, url)
+
+        assertTrue(sentence.trim() in page.html)
+        assertFalse("Get our newsletter" in page.html)
+    }
+
     /** Some paywalls hide the article body with a screen-reader class; on a page heavy with navigation it's a small share of the page. */
     @Test
     fun aHiddenArticleBodyOnABusyPageIsKept() {
