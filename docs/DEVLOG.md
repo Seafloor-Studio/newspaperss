@@ -20,6 +20,12 @@ caught, and what got in the way. Newest first. Times are Pacific.
 
 A few cycles on BACKLOG's Tech debt (T1–T3), as you asked: the larger cuts the 30 Oct audits left.
 
+### L: the article view's Listen wiring, with its behaviour pinned first
+- **Why:** the article view took six Listen parameters, each wired by hand, and decided "this edition is in Listen" three ways. You asked for the cut with tests proving the experience unchanged.
+- **Tests first (#430):** an audit mapped 51 Listen behaviours of the article view to the tests that would catch them; eleven new tests fill the gaps the refactor touches, each broken on purpose to show it fails. All 116 screenshots come out byte for byte the same across two runs of the same code, so they could be compared too.
+- **Built:** the view takes one `Listening`, which now carries the natural voice's flows; "this edition is in Listen" is worked out once. After each step the Listen tests passed and all 116 screenshots matched main's exactly.
+- **Size:** about the same (−6 lines): the flows moved rather than went. The error stays drawn in two places, since one would move it on screen.
+
 ### T3: code only tests kept alive goes
 - **Why:** seven functions in the app existed only for tests, and `connect` signed in differently from the app (it reset the category, and skipped the feed list).
 - **Built:** tests now sign in through `signIn`, read candidates with `buildCandidates` and pause with `setPaused`, as the app does; `insertNew` is a test helper. App code: about 40 lines shorter. One test of `connect`'s category reset went with it: no reader can do that.
