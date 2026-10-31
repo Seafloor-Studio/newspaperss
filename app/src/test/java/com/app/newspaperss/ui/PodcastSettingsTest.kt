@@ -282,7 +282,7 @@ class PodcastSettingsTest {
         waitFor("Run started (try 1)")
 
         compose.onNodeWithText("Share").performClick()
-        idleUntil { shadowOf(context).peekNextStartedActivity() != null }
+        idleUntil { compose.waitForIdle(); shadowOf(context).peekNextStartedActivity() != null }
 
         val chooser = shadowOf(context).peekNextStartedActivity()!!
         val send = chooser.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!

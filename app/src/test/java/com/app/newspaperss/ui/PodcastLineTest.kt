@@ -56,7 +56,7 @@ class PodcastLineTest {
         show()
         waitFor("No audio for this edition yet")
         compose.onNodeWithText("Make the audio", substring = true).performClick()
-        idleUntil { started > 0 }
+        idleUntil { compose.waitForIdle(); started > 0 }
         assertEquals(1, started)
         assertNotNull(store.voice(7))
         // Asked for, it says how it's made.

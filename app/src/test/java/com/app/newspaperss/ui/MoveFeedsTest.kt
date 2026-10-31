@@ -272,12 +272,12 @@ class MoveFeedsTest {
         val vm = showFeedsFrom()
         server.user = "partner"
         server.password = "theirs"
-        idleUntil { vm.state.value?.ttrss?.source != null }
+        idleUntil { compose.waitForIdle(); vm.state.value?.ttrss?.source != null }
         vm.openSignIn()
         vm.editSignIn(vm.form.value!!.copy(user = "partner", password = "theirs"))
         vm.signIn()
 
         // A phone feed again, which the banner offers to move into this account.
-        idleUntil { runBlocking { !db.sources().byId(aeon)!!.paused && moves.current().retiring.isEmpty() } }
+        idleUntil { compose.waitForIdle(); runBlocking { !db.sources().byId(aeon)!!.paused && moves.current().retiring.isEmpty() } }
     }
 }

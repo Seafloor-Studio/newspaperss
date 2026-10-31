@@ -456,9 +456,11 @@ class EditionDetailScreenTest {
         val vm = viewModels.add(TodayViewModel(repo, work) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
         idleUntil { vm.state.value.build == BuildState.Syncing }
+        compose.waitForIdle()
 
         work.value = work(WorkInfo.State.FAILED, output = workDataOf(EditionWorker.ERROR to "Couldn't reach any of your sources."))
         idleUntil { vm.state.value.build is BuildState.Failed }
+        compose.waitForIdle()
         compose.onNode(hasText("Couldn't reach any of your sources.") and SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion)).assertExists()
     }
 
