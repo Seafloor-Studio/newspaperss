@@ -6,6 +6,7 @@ import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
 import com.app.newspaperss.core.ttrss.TtrssCategory
 import com.app.newspaperss.data.SourceKind
+import com.app.newspaperss.data.connect
 import com.app.newspaperss.testutil.idleUntilYielding
 import com.app.newspaperss.testutil.FakeTtrss
 import com.app.newspaperss.testutil.TestApp

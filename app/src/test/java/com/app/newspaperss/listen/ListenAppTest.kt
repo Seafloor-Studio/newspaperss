@@ -52,6 +52,7 @@ import com.app.newspaperss.data.EditionRepository
 import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.edition.EditionBuilder
 import com.app.newspaperss.data.SourceRepository
+import com.app.newspaperss.data.insertNew
 import com.app.newspaperss.edition.ArticleContent
 import com.app.newspaperss.edition.ArticleContentProvider
 import com.app.newspaperss.edition.BuildResult

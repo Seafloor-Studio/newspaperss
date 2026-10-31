@@ -134,7 +134,7 @@ Whole-codebase passes for what a review of one PR can't see. Each follows the au
 ### Tech debt
 From the N12 audit of sync and the data layer (30 Oct). Mostly lean; no reader-facing bug.
 - [x] **Every tt-rss call opens and logs out by hand:** one `TtrssClient.session { }` now holds the logout, `subscribe`'s included (cycle T2).
-- [ ] **Code only tests keep alive:** `TtrssRepository.connect` (32 test calls; the app signs in with `signIn`, which keeps the category `connect` resets), `check(readCategories)`, `ArticleDao.candidates` (the same WHERE as `buildCandidates`), `insertNew`, `allLeftOut`, `EditionDao.count`, the whole-row `SourceDao.update` (whose writing back undoes a pause made meanwhile). Moving the tests onto what the app calls is mechanical but touches about 50 call sites.
+- [x] **Code only tests keep alive:** `connect`, `check`'s category reading, `candidates`, `insertNew` (now a test helper), `allLeftOut`, `EditionDao.count` and the whole-row `SourceDao.update` are gone; tests use what the app calls (cycle T3). `markRead`/`markUnread` stay public: private, seven tests would go through `syncRead` for no lines saved.
 - [x] **The same lookups spelled several times in `TtrssRepository`:** `accountSource()`, `PublicationEntity.inAccount`, and one headline page request and id parser in `TtrssClient` (cycle T2). The `Pair`/`Login` double stays: small.
 - [ ] A link saved or shared over 4,000 characters isn't held to `RowLimits` as feed articles are. Nothing breaks (the row fits), and refusing it needs its own message ("already on your list" would be wrong), so left until a reader meets it.
 

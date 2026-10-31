@@ -53,31 +53,26 @@ class TtrssRepository(
 
     sealed interface Check {
         data class Failed(val message: String) : Check
-        /**
-         * The login works; [categories] is empty if they couldn't be read, and [feeds] null if
-         * they weren't asked for or couldn't be read.
-         */
-        data class Passed(val categories: List<TtrssCategory>, val feeds: List<TtrssFeed>? = null) : Check
+        /** The login works; [feeds] is null if they couldn't be read. */
+        data class Passed(val feeds: List<TtrssFeed>?) : Check
     }
 
-    /** Logs in to check the account and reads its categories and feeds if asked, saving nothing. */
-    suspend fun check(address: String, user: String, password: String, readCategories: Boolean = true, readFeeds: Boolean = false): Check {
+    /** Logs in to check the account and reads its feeds, saving nothing. */
+    private suspend fun check(address: String, user: String, password: String): Check {
         val account = TtrssAccount(TtrssClient.apiUrl(address), user.trim(), password)
         val started = clock.instant()
         account.client(http).session { client ->
             try {
                 client.login()
-                // Either is only shown to the reader; failing to read one isn't failing to sign in.
-                suspend fun <T> optional(read: suspend () -> T): T? = try {
-                    read()
+                // Only shown to the reader: failing to read them isn't failing to sign in.
+                val feeds = try {
+                    client.allFeeds()
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     null
                 }
-                val categories = if (!readCategories) emptyList() else optional { client.categories() }.orEmpty()
-                val feeds = if (!readFeeds) null else optional { client.allFeeds() }
-                return Check.Passed(categories, feeds)
+                return Check.Passed(feeds)
             } catch (e: TtrssException) {
                 if (e !is TtrssException.LoginFailed) return Check.Failed(e.reason)
                 val who = account.apiUrl to account.user.lowercase()
@@ -91,16 +86,6 @@ class TtrssRepository(
                 )
             }
         }
-    }
-
-    /**
-     * Logs in to check the account and, if that works, saves it and adds its source.
-     * Returns an error to show the reader, or null on success.
-     */
-    suspend fun connect(address: String, user: String, password: String): String? {
-        val check = check(address, user, password, readCategories = false)
-        if (check is Check.Failed) return check.message
-        return add(address, user, password, category = null)
     }
 
     /** What a sign-in found in the account: [feeds] in [categories] (the ones that have feeds). */
@@ -121,11 +106,11 @@ class TtrssRepository(
      *   would be there with nothing saying it was chosen.
      */
     suspend fun signIn(address: String, user: String, password: String, saved: suspend () -> Unit = {}): SignIn {
-        val check = check(address, user, password, readCategories = false, readFeeds = true)
+        val check = check(address, user, password)
         if (check is Check.Failed) return SignIn.Failed(check.message)
         val feeds = (check as Check.Passed).feeds
         withContext(NonCancellable) {
-            add(address, user, password, category = null, keepCategory = true)?.let { return@withContext it }
+            add(address, user, password)?.let { return@withContext it }
             saved()
             null
         }?.let { return SignIn.Failed(it) }
@@ -220,11 +205,11 @@ class TtrssRepository(
     }
 
     /**
-     * Saves an account that [check] passed and adds its source, taking articles from [category]
-     * (null for all unread) from the first sync; with [keepCategory], the same login signing in
-     * again keeps the one it had. Returns an error to show the reader, or null.
+     * Saves an account that [check] passed and adds its source. The same login signing in again
+     * keeps the category it had; another starts from all unread. Returns an error to show the
+     * reader, or null.
      */
-    suspend fun add(address: String, user: String, password: String, category: TtrssCategory?, keepCategory: Boolean = false): String? {
+    private suspend fun add(address: String, user: String, password: String): String? {
         val account = TtrssAccount(TtrssClient.apiUrl(address), user.trim(), password)
         val previous = try {
             accounts.login()
@@ -241,7 +226,7 @@ class TtrssRepository(
             return "Couldn't store the password securely on this phone."
         }
         // Category and feed ids belong to each tt-rss user, and this may be another user on the same
-        // server. Another login starts from the category asked for (all, unless chosen); its feeds' publications (left out, what the
+        // server. Another login starts from all unread; its feeds' publications (left out, what the
         // text check learned) aren't, so they're kept for the same user signing in again, after a
         // lost Keystore key say, and go only when the login is another one or was forgotten.
         val sameLogin = previous == (account.apiUrl to account.user)
@@ -251,12 +236,8 @@ class TtrssRepository(
         if (previous != null && !sameLogin) db.sources().ofKind(SourceKind.TTRSS).forEach { sources.remove(it) }
         val sourceId = sources.addTtrss(account.apiUrl)
         db.withTransaction {
-            val kept = if (keepCategory && sameLogin) db.sources().byId(sourceId) else null
-            if (kept != null) {
-                db.sources().setTtrssCategory(sourceId, kept.ttrssCategoryId, kept.ttrssCategoryTitle)
-            } else {
-                db.sources().setTtrssCategory(sourceId, category?.id, category?.title)
-            }
+            val kept = if (sameLogin) db.sources().byId(sourceId) else null
+            db.sources().setTtrssCategory(sourceId, kept?.ttrssCategoryId, kept?.ttrssCategoryTitle)
             if (!sameLogin) db.sources().clearPublications(sourceId)
         }
         return null

@@ -137,6 +137,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import com.app.newspaperss.data.TtrssSubscriptions
 import com.app.newspaperss.data.FeedMoves
+import com.app.newspaperss.data.connect
+import com.app.newspaperss.data.insertNew
 import com.app.newspaperss.ui.sources.PhoneFeeds
 import kotlinx.coroutines.launch
 import com.app.newspaperss.ui.sources.AddState
@@ -970,7 +972,7 @@ class ScreenshotTest {
                 "The quiet return of the paperback",
             )
             db.articles().insertNew(titles.mapIndexed { i, t -> ArticleEntity(sourceId = id, guid = "$i", url = "https://www.theguardian.com/$i", title = t, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1))) })
-            val ids = db.articles().candidates().sortedBy { it.guid }.map { it.id }
+            val ids = db.articles().buildCandidates().sortedBy { it.guid }.map { it.id }
             repo.setStarred(ids[1], true)
             db.articles().setState(listOf(ids[2]), ArticleState.SKIPPED)
             db.articles().setState(listOf(ids[3]), ArticleState.IN_EDITION)

@@ -26,6 +26,7 @@ import com.app.newspaperss.ui.sources.NotInPaperScreen
 import com.app.newspaperss.ui.sources.accountProblem
 import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.SourceKind
+import com.app.newspaperss.data.insertNew
 import com.app.newspaperss.settings.FeedsFrom
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
