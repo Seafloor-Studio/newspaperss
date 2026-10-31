@@ -45,7 +45,7 @@ This document describes how the app works today. What's planned is in
 | Concept | What it is |
 |---|---|
 | **Source** | Where articles come from: an RSS, Atom or JSON feed; the **reading list** (links you shared or saved); a tt-rss account; or a **curated list**, a page that picks a few links a day (Arts & Letters Daily). |
-| **Publication** | Who wrote a source's articles, as against how they arrive: a feed added here is one, each feed inside a tt-rss account is one, and the reading list is one (your picks). Takes turns in the paper and holds the settings about the writing: article text, cap, left out, paid posts. |
+| **Publication** | Who wrote a source's articles, as against how they arrive: a feed added here is one, each feed inside a tt-rss account is one, and the reading list is one (your picks). Takes turns in the paper and holds the settings about the writing: article text, cap, left out, skipping posts with nothing free. |
 | **Edition settings** | One recipe: size (minutes), per-source cap, order (take turns / in order / shuffle), and the time and days it should be ready. |
 | **Edition** | One built issue: a dated title ("Tuesday Morning Edition, Sep 29"), its articles, the EPUB and its status: building, ready, delivered, failed or deleted. |
 | **Article state** | `NEW`, then `IN_EDITION`, then `DELIVERED`; or `SKIPPED` (you marked it as read), or `EXPIRED` (older than the source keeps articles). |
@@ -1071,7 +1071,7 @@ whose Kindle and KOReader answers ask for more on the same page).
     7 categories. Move your 8 phone feeds to tt-rss?", **Move 8** (the same
     sheet as Sources) or **Not now** (the banner on Sources stays). **I pick my own sites** asks first ("Pick your own sites instead?"), saying
     what happens: the feeds in the paper come along as phone feeds, with
-    their settings (article text, cap, paid posts), left-out ones paused;
+    their settings (article text, cap, skipping posts with nothing free), left-out ones paused;
     NewspapeRSS signs out and deletes its tt-rss articles and stars; past
     editions stay; nothing changes in tt-rss. Not a feed outside the
     paper's category, one already on the phone (by address, give or take
