@@ -45,7 +45,7 @@ This document describes how the app works today. What's planned is in
 | Concept | What it is |
 |---|---|
 | **Source** | Where articles come from: an RSS, Atom or JSON feed; the **reading list** (links you shared or saved); a tt-rss account; or a **curated list**, a page that picks a few links a day (Arts & Letters Daily). |
-| **Publication** | Who wrote a source's articles, as against how they arrive: a feed added here is one, each feed inside a tt-rss account is one, and the reading list is one (your picks). Takes turns in the paper and holds the settings about the writing: article text, cap, left out, paid posts. |
+| **Publication** | Who wrote a source's articles, as against how they arrive: a feed added here is one, each feed inside a tt-rss account is one, and the reading list is one (your picks). Takes turns in the paper and holds the settings about the writing: article text, cap, left out, skipping posts with nothing free. |
 | **Edition settings** | One recipe: size (minutes), per-source cap, order (take turns / in order / shuffle), and the time and days it should be ready. |
 | **Edition** | One built issue: a dated title ("Tuesday Morning Edition, Sep 29"), its articles, the EPUB and its status: building, ready, delivered, failed or deleted. |
 | **Article state** | `NEW`, then `IN_EDITION`, then `DELIVERED`; or `SKIPPED` (you marked it as read), or `EXPIRED` (older than the source keeps articles). |
@@ -100,13 +100,19 @@ module so it's all unit-tested without Android.
   however long, so the page is fetched; that link and the pitch over the
   paywall are removed. One with next to nothing free (under 50 words: a
   title and a picture) can be left out instead, per publication, with
-  **Skip paid posts with nothing free** in its page's settings: a feed's or a curated
+  **Skip posts with nothing free** in its page's settings: a feed's or a curated
   list's page, or each tt-rss feed's page. That switch shows once the
   publication has had one, is off until turned on, and says how many it
   has skipped. Only a first find is skipped: it counts as not picked
-  ("Skipped: a paid post") and isn't fetched again. Starring it or marking it unread asks for it, so it goes
+  ("Skipped: nothing free") and isn't fetched again. Starring it or marking it unread asks for it, so it goes
   in. An edition whose every new article was skipped is nothing new, not
   a failure.
+- **Posts for subscribers.** A Substack post for free subscribers, whose
+  rest opens with an email sign-up and no payment, is known by the
+  "Subscribe for free to continue reading" box in place of the rest. Its
+  open part goes in with a note of its own ("signing up is free"), not the
+  paid one, and the box is taken out of the article. Otherwise it's a paid
+  post: with next to nothing open, the same switch skips it.
 - **Embeds.** A player can't play in a book: a video's poster frame stands
   in for it, and a YouTube or Vimeo player becomes a link to the video
   (with YouTube's thumbnail). Any other audio or video, or a known audio
@@ -808,7 +814,7 @@ whose Kindle and KOReader answers ask for more on the same page).
       answering, the rest stop with it rather than each waiting in turn.
     - **What a move does:** each feed is subscribed in tt-rss (or found
       there), then its settings are carried onto its tt-rss feed: article
-      text, the cap, Skip paid posts, its recordings in Listen, left out,
+      text, the cap, Skip posts with nothing free, its recordings in Listen, left out,
       and what the text check learned. A feed paused on the phone is left out in tt-rss. The phone
       feed stops fetching and leaves Sources at once, but it's only deleted
       when nothing starred, waiting or in an unsent edition is left in it:
@@ -828,7 +834,7 @@ whose Kindle and KOReader answers ask for more on the same page).
       tt-rss's own fetcher failed on, "Not fetched by tt-rss yet" for a feed
       just added, "Nothing new in 3 weeks" for one that has stopped posting
       (in months past two), or its own settings ("Feed's text", "Full page",
-      "At most 2", "Skips paid posts"). For the quiet line, each sync looks
+      "At most 2", "Skips posts with nothing free"). For the quiet line, each sync looks
       at every article in the account since the last one it saw, read or
       not, in one request (the first looks back over the newest thousand):
       a feed read on the laptop still counts as posting. tt-rss deletes old
@@ -875,7 +881,7 @@ whose Kindle and KOReader answers ask for more on the same page).
     scrolling at large text. In order, where each applies: **Pause this
     site** (a tt-rss feed has **Leave out of the paper**, or **Bring back**
     while left out, instead), **Article text ›** (a chooser of
-    Automatic, the feed's text or the full page), the article limit with − and +, **Skip paid posts with nothing
+    Automatic, the feed's text or the full page), the article limit with − and +, **Skip posts with nothing
     free**, and **Its recordings in Listen**. A left-out tt-rss feed offers
     only Bring back. The sheet stays open across a rotation.
   - **Paused** also leads the page, in the status line: "Paused · nothing
@@ -909,7 +915,7 @@ whose Kindle and KOReader answers ask for more on the same page).
   links just say "Waiting"), "In your next edition" (starred; "Starred,
   source paused" while paused), "In Thursday's edition", "Sent Wednesday"
   (when its link last went out), "Read", "Not picked" (it waited a
-  week, or the list moved on), or "Skipped: a paid post".
+  week, or the list moved on), or "Skipped: nothing free".
   - **Select** (or pressing and holding a row) enters selection mode:
     checkboxes take the status marks' place, the top bar says "N
     selected", and a bar at the bottom has **☆ Next edition** and
@@ -1087,7 +1093,7 @@ whose Kindle and KOReader answers ask for more on the same page).
     7 categories. Move your 8 phone feeds to tt-rss?", **Move 8** (the same
     sheet as Sources) or **Not now** (the banner on Sources stays). **I pick my own sites** asks first ("Pick your own sites instead?"), saying
     what happens: the feeds in the paper come along as phone feeds, with
-    their settings (article text, cap, paid posts), left-out ones paused;
+    their settings (article text, cap, skipping posts with nothing free), left-out ones paused;
     NewspapeRSS signs out and deletes its tt-rss articles and stars; past
     editions stay; nothing changes in tt-rss. Not a feed outside the
     paper's category, one already on the phone (by address, give or take

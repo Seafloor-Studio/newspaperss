@@ -1386,6 +1386,28 @@ class EditionBuilderTest {
         assertEquals("no failed edition left behind", 0, EditionStatus.entries.sumOf { db.editions().withStatus(it).size })
     }
 
+    /** A post for subscribers who sign up for free is skipped as a paid one is: only when next to nothing is open. */
+    @Test
+    fun signUpPostsWithNothingFreeAreSkippedToo() = runTest {
+        val http = FakeHttp()
+        val provider = ExtractorContentProvider(ArticleExtractor(http), http, AndroidImageEncoder(), onPaidOnly = sources::markPaidOnly, onEvidence = { sourceId, originId, e, text -> sources.recordFullText(sourceId, originId, e, text.check) })
+        val id = sources.addFeed("https://letter.example/feed", "Letter")
+        sources.setSkipPaidPosts(id, PublicationEntity.OWN, true)
+        val freewall = """<div data-testid="freewall"><h2>Subscribe for free to continue reading</h2></div>"""
+        val opening = (1..80).joinToString(" ") { "word$it" }
+        fun post(g: String, text: String) = ArticleEntity(sourceId = id, guid = g, url = "https://letter.example/$g", title = "Post $g", feedHtml = "<p>A line.</p>").also {
+            http.page(it.url, "<html><body><article><h1>Post $g</h1><p>$text</p>$freewall</article></body></html>")
+        }
+        db.articles().insertNew(listOf(post("bare", "A line."), post("open", opening)))
+
+        val built = EditionBuilder(db, provider, tmp.root, clock, { ZoneOffset.UTC }).build(EditionSettings(minutes = 600, maxPerSource = 10)) as BuildResult.Built
+
+        assertEquals(listOf("Post open"), editions.observeArticles(built.editionId).first().map { it.title })
+        val skipped = db.articles().byId(idOf("bare"))!!
+        assertEquals(ArticleState.EXPIRED, skipped.state)
+        assertTrue(skipped.paidSkipped)
+    }
+
     private suspend fun paidSource(): Triple<EditionBuilder, Long, (String, Boolean) -> ArticleEntity> {
         val http = FakeHttp()
         val provider = ExtractorContentProvider(ArticleExtractor(http), http, AndroidImageEncoder(), onPaidOnly = sources::markPaidOnly, onEvidence = { sourceId, originId, e, text -> sources.recordFullText(sourceId, originId, e, text.check) })

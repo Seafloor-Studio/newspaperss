@@ -431,7 +431,7 @@ internal fun settingsSummary(offered: SiteSettings, source: SourceEntity?, publi
         "Left out".takeIf { offered.leaveOut && publication?.leftOut == true },
         publication?.chosenMode?.takeIf { offered.mode && it != ContentMode.AUTO }?.let { modeName(publication) },
         publication?.maxArticles?.takeIf { offered.cap }?.let { "At most ${plural(it, "article")}" },
-        "Skips paid posts".takeIf { offered.paidPosts && publication?.skipPaidPosts == true },
+        "Skips posts with nothing free".takeIf { offered.paidPosts && publication?.skipPaidPosts == true },
         "Recordings off".takeIf { offered.recordings && publication?.recordingsOff == true },
     ).joinToString(" · ").ifEmpty { "Default settings" }
 
@@ -555,11 +555,11 @@ private fun ChoiceRow(title: String, detail: String, onClick: () -> Unit, chevro
 @Composable
 private fun PaidPostsOption(skip: Boolean, skipped: Int, onChange: (Boolean) -> Unit) {
     SwitchRow(
-        "Skip paid posts with nothing free",
+        "Skip posts with nothing free",
         when {
-            skip && skipped > 0 -> "${plural(skipped, "paid post")} skipped so far: a title and a picture, nothing to read."
+            skip && skipped > 0 -> "${plural(skipped, "post")} skipped so far: a title and a picture, nothing to read."
             skip -> "A post that's only a title and a picture won't take a place."
-            else -> "Some of its posts are for paying subscribers, with only a title and a picture free."
+            else -> "Some of its posts are for subscribers, with only a title and a picture free."
         },
         skip,
         onChange,

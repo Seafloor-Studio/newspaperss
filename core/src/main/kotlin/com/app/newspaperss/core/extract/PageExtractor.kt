@@ -31,8 +31,10 @@ internal data class PageContent(
     val language: String? = null,
     /** The site's own name (`og:site_name`, else the JSON-LD publisher). */
     val siteName: String? = null,
-    /** The page says the post is for paying subscribers, so what's on it is only the free part. */
+    /** The page says the post is for subscribers, so what's on it is only the free part. */
     val paywalled: Boolean = false,
+    /** [paywalled] by a free sign-up, not a payment: Substack's posts for subscribers only. */
+    val freeSignUp: Boolean = false,
 )
 
 /**
@@ -60,6 +62,8 @@ internal object PageExtractor {
     // {{content}} helper, so every theme has it), Substack's paywall, and the sales pitches of
     // MemberPress (a WordPress membership plugin) and Passport (Stratechery's).
     private const val PAYWALL = ".gh-post-upgrade-cta, [data-testid=paywall], $PAYWALL_PITCH"
+    // Substack's box over the rest of a post for subscribers only, who sign up for free.
+    private const val FREEWALL = "[data-testid=freewall]"
     // A sign-in form in the article itself, where a site with its own paywall (a magazine's) puts it
     // after the free part. Only in a lone <article>: a site's header or a modal can hold one anywhere.
     private const val SIGN_IN_IN_ARTICLE = "input[type=password]"
@@ -82,7 +86,8 @@ internal object PageExtractor {
         removeOverlays(doc)
         // Not schema.org's isAccessibleForFree: metered sites set it false and serve the whole story.
         // After the overlays go, so a sign-in dialog inside the article doesn't count.
-        val paywalled = doc.selectFirst(PAYWALL) != null || signInPaywall(doc)
+        val paidWall = doc.selectFirst(PAYWALL) != null || signInPaywall(doc)
+        val freeSignUp = !paidWall && doc.selectFirst(FREEWALL) != null
         HtmlCleaner.removeScreenReaderOnly(doc.body())
         // Readability drops every <footer> and <aside>, footnotes and quotes' credits too.
         HtmlCleaner.keepFootnoteContainers(doc.body())
@@ -112,6 +117,9 @@ internal object PageExtractor {
         // Readability wraps its result in <div id="readability-page-1">, an id every article would share.
         val fromReadability = candidate("readability", readability?.articleContent?.let { content ->
             content.select("[id^=readability-]").removeAttr("id")
+            // Not before Readability: without Substack's box it reaches past a short open part for
+            // the post's header. The box keeps its data-testid through Readability.
+            content.select(FREEWALL).remove()
             content.html()
         })
         val fromJsonLd = candidate("json-ld", jsonLdBody(jsonLd))
@@ -140,7 +148,8 @@ internal object PageExtractor {
             language = doc.selectFirst("html")?.let { html -> html.attr("lang").ifBlank { html.attr("xml:lang") } }?.ifBlank { null }
                 ?: doc.metaContent("og:locale"),
             siteName = siteName?.trim()?.ifBlank { null },
-            paywalled = paywalled,
+            paywalled = paidWall || freeSignUp,
+            freeSignUp = freeSignUp,
         )
     }
 
