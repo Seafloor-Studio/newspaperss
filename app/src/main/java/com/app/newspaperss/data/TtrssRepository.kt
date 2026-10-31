@@ -440,10 +440,10 @@ class TtrssRepository(
     /** The login the account's source can be used with now, or null. */
     suspend fun login(): Login? = usableAccount()?.let { (account, _) -> Login(account.apiUrl, account.user) }
 
-    /** The account's feeds as last listed, by key: what a move compares with to find a new feed. */
     /** The tt-rss account's source, if there is one. */
     private suspend fun accountSource(): SourceEntity? = db.sources().ofKind(SourceKind.TTRSS).firstOrNull()
 
+    /** The account's feeds as last listed, by key: what a move compares with to find a new feed. */
     suspend fun listedKeys(): Set<String> = accountSource()?.let { listedKeys(it.id) }.orEmpty()
 
     /** What asking tt-rss to take a phone feed came to. */
