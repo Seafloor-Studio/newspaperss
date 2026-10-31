@@ -327,15 +327,15 @@ internal object PageExtractor {
     private val PARAGRAPH_TAG = Regex("<\\s*p[\\s>]", RegexOption.IGNORE_CASE)
 
     /**
-     * Unwraps a `<form>` holding much of the page, as ASP.NET WebForms sites put the whole page in
-     * one. Readability drops forms with too many links or images in them, and such a form has the
-     * site's navigation too, so the article inside would go with it, leaving only what sits outside.
+     * Unwraps the `<form>` an ASP.NET WebForms site puts its whole page in. Readability drops forms
+     * with many links in them, so the article inside would go with it, leaving only what sits
+     * outside. Known by holding the page's headline and much of its text: a sign-in box after a
+     * paywalled teaser, or a comments form, can be as long but holds no headline, and stays a form.
      */
     private fun unwrapPageForms(doc: Document) {
+        val headline = doc.body().selectFirst("h1") ?: return
         val total = HtmlCleaner.countWords(doc.body()).coerceAtLeast(1)
-        for (form in doc.body().select("form")) {
-            if (!HtmlCleaner.isSmallPart(form, total)) form.unwrap()
-        }
+        headline.parents().filter { it.normalName() == "form" && !HtmlCleaner.isSmallPart(it, total) }.forEach { it.unwrap() }
     }
 
     /**

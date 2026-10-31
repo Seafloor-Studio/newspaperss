@@ -90,6 +90,31 @@ class PageExtractorTest {
         assertFalse("Get our newsletter" in page.html)
     }
 
+    /** A sign-in box after a short paywalled teaser is much of the page, but not the page's wrapper. */
+    @Test
+    fun aLongSignInFormAfterATeaserStaysOut() {
+        val terms = (1..9).joinToString("") { "<p>By signing in you agree to our terms of service and privacy policy, number $it.</p>" }
+        val html = """<html><head><title>Story</title></head><body><article><h1>Story</h1><p>$sentence</p>
+            <form action="/login"><h2>Sign in to keep reading</h2><input type="email"><input type="password">$terms
+            <p>Not a member? Subscribe for full access.</p></form></article></body></html>"""
+
+        assertFalse("terms of service" in PageExtractor.extract(html, url).html)
+    }
+
+    /** Some comment engines put the comments in the reply form; they aren't the article. */
+    @Test
+    fun commentsInsideTheirFormStayOut() {
+        val paragraphs = (1..12).joinToString("") { "<p>$sentence</p>" }
+        val comments = (1..25).joinToString("") { "<div><p><b>Reader $it</b> wrote:</p><p>I enjoyed this piece and shared it with my whole family this week.</p></div>" }
+        val html = """<html><head><title>Story</title></head><body><article><h1>Story</h1>$paragraphs</article>
+            <form action="/comment" method="post">$comments<textarea name="c"></textarea><button>Reply</button></form></body></html>"""
+
+        val page = PageExtractor.extract(html, url)
+
+        assertTrue(sentence.trim() in page.html)
+        assertFalse("Reader 3" in page.html)
+    }
+
     /** Some paywalls hide the article body with a screen-reader class; on a page heavy with navigation it's a small share of the page. */
     @Test
     fun aHiddenArticleBodyOnABusyPageIsKept() {
