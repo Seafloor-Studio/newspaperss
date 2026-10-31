@@ -176,7 +176,7 @@ class ReadingsTest {
         assertEquals("the account's other feeds still play", "https://cdn.example/feed-on.mp3", readings.at(3, 4)?.url)
         assertEquals(
             "Readings: edition 3, recorded readings: page 2 (its own audio, 11 min), page 4 (its own audio, 11 min); read by the voice instead: " +
-                "page 0 (its source's recordings are switched off), page 1 (its source's recordings are switched off), page 3 (its source's recordings are switched off)",
+                "page 0 (its source's recordings are switched off), page 1 (its source's recordings are switched off), page 3 (its source's recordings are switched off); episodes at the end: none",
             logged.single(),
         )
     }
