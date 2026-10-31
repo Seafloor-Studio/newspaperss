@@ -31,7 +31,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
-import com.app.newspaperss.core.epub.EditionSection
 import com.app.newspaperss.core.epub.EpubImage
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.core.listen.ListenScript
@@ -586,7 +585,7 @@ class ArticlePreviewScreenTest {
             EditionArticle(title = "Untimed", sourceTitle = "", url = "", bodyHtml = "<p>x</p>", minutes = 0.0),
         )
         file.outputStream().use {
-            EpubWriter.write(EditionDoc("T", LocalDate.of(2026, 9, 29), "urn:uuid:5", listOf(EditionSection("One", first), EditionSection("Two", second))), it)
+            EpubWriter.write(EditionDoc("T", LocalDate.of(2026, 9, 29), "urn:uuid:5", first + second), it)
         }
         EpubPages(file).use { pages ->
             fun served(position: Int) = withNextLine(pages.article(position)!!, EpubPages.articleHref(position), pages)

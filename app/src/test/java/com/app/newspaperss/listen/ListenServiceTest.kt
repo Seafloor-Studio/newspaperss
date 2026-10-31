@@ -11,7 +11,6 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
-import com.app.newspaperss.core.epub.EditionSection
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.data.EditionArticleEntity
 import com.app.newspaperss.data.EditionEntity
@@ -44,7 +43,7 @@ class ListenServiceTest {
         val dir = File(app.filesDir, "editions").apply { mkdirs() }
         val article = EditionArticle("Knots", "Quanta", "https://example.com/k", "<p>One. Two. Three.</p>", 1.0)
         File(dir, "e.epub").outputStream().use {
-            EpubWriter.write(EditionDoc("Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000009", listOf(EditionSection(null, listOf(article)))), it)
+            EpubWriter.write(EditionDoc("Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000009", listOf(article)), it)
         }
         val id = app.container.db.editions().insert(EditionEntity(title = "Edition", status = EditionStatus.DELIVERED, fileName = "e.epub", articleCount = 1, minutes = 1.0))
         app.container.db.editions().insertArticles(listOf(EditionArticleEntity(editionId = id, articleId = null, position = 0, title = "Knots", sourceTitle = "Quanta", minutes = 1.0)))
