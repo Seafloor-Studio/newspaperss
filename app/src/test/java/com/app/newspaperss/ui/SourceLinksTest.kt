@@ -73,7 +73,7 @@ class SourceLinksTest {
 
     @Test
     fun aHealthySourceLinksItsSiteAndNotItsFeed() {
-        show(feed(), until = "Pause")
+        show(feed(), until = "Last checked")
 
         compose.onNodeWithText("Feed:", substring = true).assertDoesNotExist()
         compose.onNodeWithText("example.com").performClick()
@@ -95,7 +95,7 @@ class SourceLinksTest {
 
     @Test
     fun withoutASiteTheHostOpensTheFeed() {
-        show(feed(siteUrl = null), until = "Pause")
+        show(feed(siteUrl = null), until = "Last checked")
 
         compose.onNodeWithText("example.com").performClick()
         assertEquals("https://example.com/weekly/rss.xml", opened())
@@ -103,7 +103,7 @@ class SourceLinksTest {
 
     @Test
     fun aSiteAddressThatIsNotTheWebIsNeverOpened() {
-        show(feed(siteUrl = "intent://scan/#Intent;scheme=zxing;end"), until = "Pause")
+        show(feed(siteUrl = "intent://scan/#Intent;scheme=zxing;end"), until = "Last checked")
 
         compose.onNodeWithText("example.com").performClick()
         assertEquals("the feed's address stands in", "https://example.com/weekly/rss.xml", opened())
@@ -138,14 +138,14 @@ class SourceLinksTest {
     @Test
     fun aSiteAddressShowsWhatItOpensEvenWithHiddenLineBreaks() {
         // Browsers drop the line breaks, so this opens google.com.evil.example.
-        show(feed(siteUrl = "https://google.com\n\n\n.evil.example/"), until = "Pause")
+        show(feed(siteUrl = "https://google.com\n\n\n.evil.example/"), until = "Last checked")
 
         compose.onNodeWithText("google.com.evil.example").assertExists()
     }
 
     @Test
     fun aLongPressCopiesInsteadOfOpening() {
-        show(feed(), until = "Pause")
+        show(feed(), until = "Last checked")
 
         compose.onNodeWithText("example.com").performTouchInput { longClick() }
 

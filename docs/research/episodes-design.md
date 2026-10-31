@@ -120,8 +120,10 @@ public feeds it hadn't seen and on one reader's own list of 91 feeds:
      audio is made again.
    - **The podcast log records each switch**: the post, its kind, the recording, and how far in.
      That shows which recordings people turn off, and whether some source's always are.
-   - **A per-source switch can come later**, if the log shows one source switched off again and
-     again.
+   - **A per-source switch** ("Its recordings in Listen", in a source's settings) is for a show
+     whose audio you never want. madCode asked for it with the Settings switches
+     ([#384](https://github.com/Seafloor-Studio/newspaperss/issues/384)) rather than waiting for
+     the log.
 
 ### Streaming and downloading
 

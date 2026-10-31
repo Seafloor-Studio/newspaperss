@@ -233,6 +233,11 @@ data class PublicationEntity(
      * [com.app.newspaperss.core.extract.ExtractedArticle.nothingFree]) instead of giving them a place.
      */
     @ColumnInfo(defaultValue = "0") val skipPaidPosts: Boolean = false,
+    /**
+     * Listen's voice reads its posts even where they have a recording to play in their place
+     * (see [com.app.newspaperss.listen.Readings]).
+     */
+    @ColumnInfo(defaultValue = "0") val recordingsOff: Boolean = false,
     /** tt-rss only: the feed's own address, from the account's feed list. */
     val feedUrl: String? = null,
     /** tt-rss only: the category it's in there. */
@@ -279,6 +284,7 @@ data class PublicationEntity(
         chosenMode = other.chosenMode,
         maxArticles = other.maxArticles,
         skipPaidPosts = other.skipPaidPosts,
+        recordingsOff = other.recordingsOff,
     )
 
     companion object {
