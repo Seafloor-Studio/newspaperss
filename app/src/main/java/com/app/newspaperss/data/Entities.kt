@@ -263,6 +263,9 @@ data class PublicationEntity(
     /** tt-rss only: when the app started watching the feed post, for one with no post seen since. */
     val watchedSince: Instant? = null,
 ) {
+    /** tt-rss only: still in the account, in the paper's category or outside it. */
+    val inAccount: Boolean get() = listed || outsideCategory
+
     /**
      * This feed with [other]'s settings: what moving a feed between the phone and tt-rss keeps.
      * A setting added to the feed belongs here, or a move drops it.
