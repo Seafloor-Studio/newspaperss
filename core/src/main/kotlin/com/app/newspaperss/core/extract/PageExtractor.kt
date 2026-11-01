@@ -97,6 +97,7 @@ internal object PageExtractor {
         }
         pitches.remove()
         removeEmptyBlocks(doc)
+        unwrapPageForms(doc)
 
         val readability = runCatching { Readability4JExtended(url, doc.clone()).parse() }.getOrNull()
         val author = listOfNotNull(
@@ -324,6 +325,18 @@ internal object PageExtractor {
     private val NON_ALNUM = Regex("[^a-z0-9]")
     private val BY_PREFIX = Regex("^\\s*by\\s+", RegexOption.IGNORE_CASE)
     private val PARAGRAPH_TAG = Regex("<\\s*p[\\s>]", RegexOption.IGNORE_CASE)
+
+    /**
+     * Unwraps the `<form>` an ASP.NET WebForms site puts its whole page in. Readability drops forms
+     * with many links in them, so the article inside would go with it, leaving only what sits
+     * outside. Known by holding the page's headline and much of its text: a sign-in box after a
+     * paywalled teaser, or a comments form, can be as long but holds no headline, and stays a form.
+     */
+    private fun unwrapPageForms(doc: Document) {
+        val headline = doc.body().selectFirst("h1") ?: return
+        val total = HtmlCleaner.countWords(doc.body()).coerceAtLeast(1)
+        headline.parents().filter { it.normalName() == "form" && !HtmlCleaner.isSmallPart(it, total) }.forEach { it.unwrap() }
+    }
 
     /**
      * Empty blocks Readability would remove (its `isElementWithoutContent`, on the same tags: no
