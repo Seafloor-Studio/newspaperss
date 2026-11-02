@@ -147,20 +147,35 @@ class EditionPlannerTest {
         assertTrue("a source waited $longestWait editions; a cycle is 8", longestWait <= 12)
     }
 
-    /**
-     * Ten sources, each last featured on a different day, room for one: whatever the mixing, the
-     * source whose turn it is goes in when its article would otherwise expire unpicked.
-     */
-    @Test
-    fun aSourceWithAnArticleOnItsLastDayKeepsItsTurn() = runTest {
+    /** Ten sources, each last featured on a different day, room for one, over fifty different draws. */
+    private suspend fun firstPicks(candidates: List<Candidate>, ordering: Ordering = Ordering.TAKE_TURNS): Set<String> {
         val sources = (0 until 10).map { "src$it" }
         val featured = sources.withIndex().associate { (i, s) -> s to day(i + 1) }
-        val candidates = sources.map { c("$it-new", it, 20) } + c("src0-old", "src0", 2).copy(lastChance = true)
-        val firsts = (0 until 50).map { seed ->
-            val ordered = EditionPlanner.order(candidates, sources, Ordering.TAKE_TURNS, lastFeatured = featured, random = Random(seed))
+        return (0 until 50).map { seed ->
+            val ordered = EditionPlanner.order(candidates, sources, ordering, lastFeatured = featured, random = Random(seed))
             EditionPlanner.fill<Candidate>(ordered, PlanRules(Budget.Articles(1), maxPerSource = 1), { 1.0 }) { it }.single().id
-        }
-        assertEquals(setOf("src0-old"), firsts.toSet())
+        }.toSet()
+    }
+
+    /** Whatever the mixing, the source whose turn it is goes in when it would otherwise lose all it has. */
+    @Test
+    fun aSourceWhoseArticlesAllExpireBeforeTheNextEditionKeepsItsTurn() = runTest {
+        val others = (1 until 10).map { c("src$it-new", "src$it", 20) }
+        assertEquals(setOf("src0-old"), firstPicks(others + c("src0-old", "src0", 2).copy(lastChance = true)))
+    }
+
+    /** With a newer article to wait for its next turn, it's put off like any other; when it goes in, its newest goes. */
+    @Test
+    fun aSourceWithNewerArticlesTooIsMixedAsUsual() = runTest {
+        val others = (1 until 10).map { c("src$it-new", "src$it", 20) }
+        val picks = firstPicks(others + c("src0-old", "src0", 2).copy(lastChance = true) + c("src0-new", "src0", 20))
+        assertTrue(picks.toString(), picks.size > 1 && "src0-old" !in picks)
+    }
+
+    @Test
+    fun inOrderKeepsStrictlyToTurns() = runTest {
+        val all = (0 until 10).map { c("src$it-new", "src$it", 20) }
+        assertEquals(setOf("src0-new"), firstPicks(all, Ordering.IN_ORDER))
     }
 
     @Test

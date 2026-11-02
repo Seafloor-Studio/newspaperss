@@ -14,8 +14,8 @@ data class Candidate(
      */
     val starredAt: Instant? = null,
     /**
-     * Not picked this time, it expires before the next edition. It goes first in its source,
-     * and its source isn't moved back from its turn (see [EditionPlanner.order]).
+     * Not picked this time, it expires before the next edition. A source whose waiting articles
+     * all are keeps its turn (see [EditionPlanner.order]).
      */
     val lastChance: Boolean = false,
 )
@@ -64,7 +64,7 @@ object EditionPlanner {
      * @param rotation breaks ties between sources featured at the same time (pass the edition count).
      *   All of one edition's sources tie, and without it the first of them in the reader's order
      *   would go in every time whenever most sources fit.
-     * @param random moves each source's turn back by a few editions (see [sourcesInTurn]).
+     * @param random moves each source's turn later by a few editions when taking turns (see [sourcesInTurn]).
      */
     fun order(
         candidates: List<Candidate>,
@@ -75,10 +75,9 @@ object EditionPlanner {
         random: Random = Random.Default,
     ): List<Candidate> {
         val (starred, rest) = candidates.partition { it.starredAt != null }
-        val sources = sourcesInTurn(candidates, sourceOrder, lastFeatured, rotation, random)
+        val sources = sourcesInTurn(candidates, sourceOrder, lastFeatured, rotation, if (ordering == Ordering.TAKE_TURNS) random else null)
         val oldestStarFirst = compareBy<Candidate> { it.starredAt }
-        // One about to expire ahead of newer ones, which have editions to come.
-        val newestFirst = compareByDescending<Candidate> { it.lastChance }.thenByDescending { it.published ?: Instant.MIN }
+        val newestFirst = compareByDescending<Candidate> { it.published ?: Instant.MIN }
         return arrange(starred, sources, oldestStarFirst, ordering, random) + arrange(rest, sources, newestFirst, ordering, random)
     }
 
@@ -86,14 +85,16 @@ object EditionPlanner {
      * Sources by how many editions ago they were last featured, the longest first, and never
      * featured before them all. Strictly by that, the sources of one edition would come back
      * together, in the same edition, every time: with more sources than fit, the paper would be
-     * the same few groups in turn. So each source's turn comes early by up to half as many
-     * editions as the sources' turns span, at random, which mixes the groups within a cycle or
-     * two. Turns that span only an edition or two stay in strict order: there, bringing one a
-     * whole edition early would let it in ahead of one that has waited a whole cycle longer. A
-     * source with an article on its [Candidate.lastChance] comes as early as any can, and ahead
-     * of those that come as early, so none whose turn is after its own goes ahead of it.
+     * the same few groups in turn. So when taking turns ([random] given), each source's turn
+     * comes later by up to half as many editions as the turns span, at random, which mixes the
+     * groups within a cycle or two. Turns that span only an edition or two stay strict: there,
+     * a whole edition later would let in one that has waited a whole cycle less.
+     *
+     * A source whose waiting articles would all expire before the next edition keeps its strict
+     * turn: put off, it would lose them all. One with newer articles too is put off like any
+     * other, as they wait for its next turn.
      */
-    private fun sourcesInTurn(candidates: List<Candidate>, sourceOrder: List<String>, lastFeatured: Map<String, Instant>, rotation: Int, random: Random): List<String> {
+    private fun sourcesInTurn(candidates: List<Candidate>, sourceOrder: List<String>, lastFeatured: Map<String, Instant>, rotation: Int, random: Random?): List<String> {
         val present = candidates.map { it.sourceId }.toSet()
         val known = sourceOrder.filter { it in present }
         val sources = known + (present - known.toSet()).sorted()
@@ -103,10 +104,10 @@ object EditionPlanner {
         val times = rotated.mapNotNull { lastFeatured[it] }.distinct().sortedDescending()
         val editionsAgo = times.withIndex().associate { (i, time) -> time to i }
         val nudge = (times.size - 1) / 2
-        val keepsTurn = candidates.filter { it.lastChance && it.starredAt == null }.map { it.sourceId }.toSet()
+        val keepsTurn = candidates.filter { it.starredAt == null }.groupBy { it.sourceId }.filterValues { its -> its.all { it.lastChance } }.keys
         val turn = rotated.associateWith { s ->
-            val early = if (s in keepsTurn) nudge + 0.5 else random.nextInt(nudge + 1).toDouble()
-            lastFeatured[s]?.let { editionsAgo.getValue(it) + early } ?: Double.MAX_VALUE
+            val later = if (random == null || s in keepsTurn) 0 else random.nextInt(nudge + 1)
+            lastFeatured[s]?.let { editionsAgo.getValue(it) - later } ?: Int.MAX_VALUE
         }
         // A stable sort, so sources with the same turn keep the rotated order.
         return rotated.sortedByDescending { turn.getValue(it) }
