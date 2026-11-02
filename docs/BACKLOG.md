@@ -93,6 +93,11 @@ What each screen offers by the edition's state wasn't tested past ready and sent
 
 ### From the UX pass *(ux)*
 - [ ] Boox: consider turning off ripples on e-ink (they cause partial refreshes); Boox's own refresh modes may make it moot
+- [ ] **The player under an article shrinks while you scroll** *(you asked)*. Scrolling the page yourself shrinks the full player to the slim listening bar, which gives the page back while Listen plays on. Tapping the bar brings the full player back and jumps to the sentence being read, as **Back to where it's reading** does now. To settle when building it:
+  - Only a scroll you make shrinks it, not the page following the voice.
+  - It shrinks once, with no grow-back while you scroll up, so the page doesn't jump about, and e-ink isn't redrawn on every scroll.
+  - While it's shrunk, the page stops following the voice, but the sentence being read stays tinted.
+  - **Back to where it's reading** and the bar's tap become one control.
 
 ### Today
 - [ ] Boox: tell the app on the Boox from the app on a phone (Android's maker is Onyx). Today choosing Boox means **Read** wherever the app runs, so a reader sending with BooxDrop from a phone would read it on the phone, and that counts as sent *(you asked)*
