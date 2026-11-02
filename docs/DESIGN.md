@@ -71,7 +71,11 @@ module so it's all unit-tested without Android.
   pass leaves time unfilled, a second pass adds more from sources whose own
   cap allows it. Turns start with the source featured longest ago (a tt-rss
   feed counts as a source), so with more sources than fit, the next edition
-  picks up the ones the last one left out.
+  picks up the ones the last one left out. Each source's turn comes early by
+  a random few editions (up to half as many as the turns span), so the
+  sources of one edition don't come back together as a group every cycle.
+  An article on its last day before it would expire unpicked goes first in
+  its source, and its source keeps its turn without being overtaken.
 - **Extract.** Use the feed's own text when it's the full article;
   otherwise fetch the page, remove cookie banners and run Readability4J
   (Firefox's Reader View). schema.org JSON-LD is used instead when it has
