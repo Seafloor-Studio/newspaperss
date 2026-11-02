@@ -94,6 +94,7 @@ class TtrssLiveTest {
         assertEquals("A. N. Other", plain.author)
         assertTrue(plain.content!!.contains("<b>world</b>"))
         assertEquals(feedId.toString(), plain.feedId)
+        assertEquals("the feed's <link>, for its page on Sources", "http://web/", plain.siteUrl)
         assertNotNull(plain.updated)
         val audio = headlines.getValue("Episode 12").attachments.single()
         assertEquals("http://web/feeds/ep12.mp3", audio.url)
