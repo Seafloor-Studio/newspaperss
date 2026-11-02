@@ -225,6 +225,7 @@ class SourceLinksTest {
             db.sources().savePublication(
                 PublicationEntity(account, "5", title = "Quanta Magazine", feedUrl = "https://www.quantamagazine.org/feed/", listed = true, awaitingFirstFetch = true, watchedSince = Instant.now().minusSeconds(3 * 86_400L)),
             )
+            db.sources().setFeedsListed(account, Instant.now())
             account
         }
         show(account, key = "5", until = "Never fetched by tt-rss")
@@ -239,6 +240,7 @@ class SourceLinksTest {
         val account = runBlocking {
             val account = repo.addTtrss("https://rss.example.org/tt-rss/api/")
             db.sources().savePublication(PublicationEntity(account, "5", title = "Quanta Magazine", feedUrl = "https://www.quantamagazine.org/feed/", listed = true, awaitingFirstFetch = true, watchedSince = Instant.now()))
+            db.sources().setFeedsListed(account, Instant.now())
             account
         }
         show(account, key = "5", until = "usually within the hour")

@@ -1270,6 +1270,7 @@ class ScreenshotTest {
             val account = db.sources().ofKind(com.app.newspaperss.data.SourceKind.TTRSS).single().id
             val p = db.sources().publication(account, "3")!!
             db.sources().savePublication(p.copy(awaitingFirstFetch = true, watchedSince = clock.instant().minusSeconds(3 * 86_400L)))
+            db.sources().setFeedsListed(account, clock.instant())
         }
         shoot("08s-ttrss-feed-never-fetched", ready = { vm.detail.value?.text?.awaitingFirstFetch == true }) { SourceDetailScreen(vm, onBack = {}) }
     }
