@@ -832,7 +832,11 @@ whose Kindle and KOReader answers ask for more on the same page).
       no category go under **Uncategorized**, last. A line under a feed only
       when it says something: "tt-rss couldn't fetch it last time" for a feed
       tt-rss's own fetcher failed on, "Not fetched by tt-rss yet" for a feed
-      just added, "Nothing new in 3 weeks" for one that has stopped posting
+      just added, "Never fetched by tt-rss" once that has lasted a day (tt-rss
+      records a failed fetch as an error, so a feed never tried most likely has
+      its updates turned off; its page says so, with **Its settings in tt-rss ↗**
+      opening the feed's settings in tt-rss's preferences), "Nothing new in 3
+      weeks" for one that has stopped posting
       (in months past two), or its own settings ("Feed's text", "Full page",
       "At most 2", "Skips paid posts"). For the quiet line, each sync looks
       at every article in the account since the last one it saw, read or
