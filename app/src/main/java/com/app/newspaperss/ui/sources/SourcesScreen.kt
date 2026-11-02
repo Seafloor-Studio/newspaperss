@@ -395,7 +395,7 @@ private fun LazyListScope.serverCategories(
                 if (i > 0) RowDivider()
                 ListItem(
                     headlineContent = { Text(feed.title) },
-                    supportingContent = feedNote(feed, LocalClock.current.instant())?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
+                    supportingContent = feedNote(feed, LocalClock.current.instant(), server.account?.feedsListedAt)?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
                     modifier = Modifier.clickable(onClickLabel = "Open ${feed.title}") { onOpenFeed(accountId, feed.originId) },
                 )
                 if (i == category.feeds.lastIndex) GroupEnd()
@@ -544,6 +544,32 @@ internal fun quietLine(newestPost: Instant, now: Instant): String? {
 internal const val WAITING_FOR_FIRST_FETCH = "Not fetched by tt-rss yet"
 
 /**
+ * A feed tt-rss still hadn't fetched by a listing of the account's feeds ([listedAt], what
+ * [PublicationEntity.awaitingFirstFetch] is as of) made a day or more after the app first saw
+ * it. tt-rss records a failed fetch as an error, so one never tried isn't waiting for its
+ * schedule: its updates are most likely turned off there ("Disable updates"). Not by the clock:
+ * a feed fetched since the last listing would read as never fetched until the next.
+ */
+internal const val NEVER_FETCHED = "Never fetched by tt-rss"
+
+internal fun neverFetched(p: PublicationEntity?, listedAt: Instant?): Boolean {
+    val seen = p?.watchedSince ?: return false
+    return p.awaitingFirstFetch && p.serverError == null && listedAt != null && Duration.between(seen, listedAt) >= Duration.ofDays(1)
+}
+
+/**
+ * tt-rss's preferences with the feed's own settings open, its update interval among them, for
+ * the account whose API is at [apiUrl]; null unless that ends in tt-rss's usual `/api/`. Signed
+ * out of tt-rss in the browser, its sign-in goes to the main page instead, and a second tap opens it.
+ */
+internal fun ttrssFeedSettings(apiUrl: String, feedKey: String): String? {
+    val id = feedKey.toIntOrNull() ?: return null
+    val api = apiUrl.trimEnd('/')
+    if (!api.endsWith("/api")) return null
+    return "${api.removeSuffix("/api")}/prefs.php?tab=feeds&method=editfeed&methodparam=$id"
+}
+
+/**
  * A feed tt-rss's own fetcher failed on the last time it tried: dead, moved, turning the server
  * away, or just a timeout that the next try gets past. "Last time": tt-rss reports even a one-off.
  */
@@ -554,11 +580,11 @@ internal const val SERVER_CANT_FETCH = "tt-rss couldn't fetch it last time"
  * fetch still to come, nothing new for weeks, or its own settings. A line under all of them would
  * be noise.
  */
-internal fun feedNote(feed: FeedChoice, now: Instant): String? {
+internal fun feedNote(feed: FeedChoice, now: Instant, listedAt: Instant? = null): String? {
     val p = feed.publication
     return listOfNotNull(
         SERVER_CANT_FETCH.takeIf { p?.serverError != null },
-        WAITING_FOR_FIRST_FETCH.takeIf { p?.awaitingFirstFetch == true && p.serverError == null },
+        (if (neverFetched(p, listedAt)) NEVER_FETCHED else WAITING_FOR_FIRST_FETCH).takeIf { p?.awaitingFirstFetch == true && p.serverError == null },
         // Not when tt-rss can't fetch it or hasn't yet: that line says why already. With no post
         // seen, from when the app started watching: tt-rss may have deleted the last one.
         (p?.newestPostAt ?: p?.watchedSince)?.takeIf { p?.serverError == null && p?.awaitingFirstFetch != true }?.let { quietLine(it, now) },

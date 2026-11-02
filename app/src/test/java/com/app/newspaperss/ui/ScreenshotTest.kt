@@ -1262,6 +1262,19 @@ class ScreenshotTest {
         shoot("08c-ttrss-feed-page", ready = { vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
+    /** A day on, a feed tt-rss has never tried: its updates are most likely off there. */
+    @Test
+    fun ttrssFeedPageNeverFetched() {
+        val vm = feedPage("3")
+        runBlocking {
+            val account = db.sources().ofKind(com.app.newspaperss.data.SourceKind.TTRSS).single().id
+            val p = db.sources().publication(account, "3")!!
+            db.sources().savePublication(p.copy(awaitingFirstFetch = true, watchedSince = clock.instant().minusSeconds(3 * 86_400L)))
+            db.sources().setFeedsListed(account, clock.instant())
+        }
+        shoot("08s-ttrss-feed-never-fetched", ready = { vm.detail.value?.text?.awaitingFirstFetch == true }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
     @Test
     fun ttrssFeedPageTtrssCantFetch() {
         val vm = feedPage("6")

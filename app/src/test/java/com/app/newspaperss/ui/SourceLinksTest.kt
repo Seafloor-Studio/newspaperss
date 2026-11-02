@@ -217,6 +217,37 @@ class SourceLinksTest {
         assertEquals("https://www.quantamagazine.org/feed/", opened())
     }
 
+    /** A day on, a feed tt-rss has never tried: its updates are most likely off, and its settings there are a tap away. */
+    @Test
+    fun aFeedTtrssNeverFetchedLinksToItsSettingsThere() {
+        val account = runBlocking {
+            val account = repo.addTtrss("https://rss.example.org/tt-rss/api/")
+            db.sources().savePublication(
+                PublicationEntity(account, "5", title = "Quanta Magazine", feedUrl = "https://www.quantamagazine.org/feed/", listed = true, awaitingFirstFetch = true, watchedSince = Instant.now().minusSeconds(3 * 86_400L)),
+            )
+            db.sources().setFeedsListed(account, Instant.now())
+            account
+        }
+        show(account, key = "5", until = "Never fetched by tt-rss")
+
+        assertTrue(visible("set its update interval to Default"))
+        compose.onNodeWithText("Its settings in tt-rss").performClick()
+        assertEquals("https://rss.example.org/tt-rss/prefs.php?tab=feeds&method=editfeed&methodparam=5", opened())
+    }
+
+    @Test
+    fun aFeedJustAddedInTtrssWaitsForItsFirstFetchWithoutTheLink() {
+        val account = runBlocking {
+            val account = repo.addTtrss("https://rss.example.org/tt-rss/api/")
+            db.sources().savePublication(PublicationEntity(account, "5", title = "Quanta Magazine", feedUrl = "https://www.quantamagazine.org/feed/", listed = true, awaitingFirstFetch = true, watchedSince = Instant.now()))
+            db.sources().setFeedsListed(account, Instant.now())
+            account
+        }
+        show(account, key = "5", until = "usually within the hour")
+
+        compose.onNodeWithText("Its settings in tt-rss").assertDoesNotExist()
+    }
+
     @Test
     fun anAddressReadsWithoutItsSchemeOrHiddenReordering() {
         assertEquals("example.org", shownAddress("https://example.org/"))
