@@ -91,8 +91,8 @@ interface SourceDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun savePublication(publication: PublicationEntity)
 
-    /** A tt-rss feed's site; a feed not listed yet gets it at a later sync. */
-    @Query("UPDATE publications SET siteUrl = :siteUrl WHERE sourceId = :sourceId AND `key` = :key")
+    /** A tt-rss feed's site; a feed not listed yet gets it at a later sync. Unchanged, it's left alone, so nothing watching redraws. */
+    @Query("UPDATE publications SET siteUrl = :siteUrl WHERE sourceId = :sourceId AND `key` = :key AND siteUrl IS NOT :siteUrl")
     suspend fun setSiteUrl(sourceId: Long, key: String, siteUrl: String)
 
     @Query("DELETE FROM publications WHERE sourceId = :sourceId")

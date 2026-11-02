@@ -307,8 +307,8 @@ private fun FeedHeader(publication: PublicationEntity?, episodes: String?, onCop
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val details = MaterialTheme.typography.bodySmall
     Column(Modifier.padding(16.dp)) {
-        // Not one that isn't a web address, as a hostile feed's may not be.
-        val site = publication?.siteUrl?.takeIf(::isWebAddress)
+        // Not one that isn't a web address, as a hostile feed's may not be, nor the feed itself again.
+        val site = publication?.siteUrl?.takeIf { isWebAddress(it) && it != publication.feedUrl }
         (site ?: publication?.feedUrl)?.let { url ->
             AddressLink(url, SourceRepository.hostOf(url), MaterialTheme.typography.bodyMedium, onCopied, Modifier.padding(bottom = 12.dp))
         }

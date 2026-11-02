@@ -886,9 +886,10 @@ whose Kindle and KOReader answers ask for more on the same page).
     how it's doing (red when there's a problem), then small grey details.
     The details end with **Feed: <address> ↗**, the feed's own address.
     A tt-rss feed's page does the same, with the site as its articles name
-    it in tt-rss. Until the app knows the site (no site in the feed, or a
-    tt-rss feed with no articles yet), the feed's address is the link at the
-    top and there is no Feed line.
+    it in tt-rss. The app learns a tt-rss feed's site from the unread
+    articles it fetches, so a feed left out, or one with nothing unread
+    since, may not have one yet. Until the app knows the site, the feed's
+    address is the link at the top and there is no Feed line.
   - These links open only web addresses. With no browser to take one, or
     on a long press, the address is copied and a snackbar says so.
   On a source's or feed's page, each article row is a status mark (`●` waiting, `✓` delivered, `○` read or not

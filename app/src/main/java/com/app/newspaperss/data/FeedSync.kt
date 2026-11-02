@@ -247,13 +247,13 @@ class FeedSync(
         return null
     }
 
-    /** Lists the account's feeds once a day (see [listTtrssFeeds]). */
     /** Each feed's site, as its articles name it, for its page on Sources. */
     private suspend fun noteSites(source: SourceEntity, headlines: List<TtrssHeadline>) {
         val sites = headlines.groupBy { it.feedId }.mapNotNull { (feed, its) -> its.firstNotNullOfOrNull { RowLimits.link(it.siteUrl) }?.let { feed to it } }
         if (sites.isNotEmpty()) db.withTransaction { sites.forEach { (feed, url) -> db.sources().setSiteUrl(source.id, feed, url) } }
     }
 
+    /** Lists the account's feeds once a day (see [listTtrssFeeds]). */
     private suspend fun listFeeds(client: TtrssClient, source: SourceEntity, now: Instant) {
         if (source.feedsListedAt?.let { Duration.between(it, now) < LIST_FEEDS_EVERY } == true) return
         listTtrssFeeds(db, client, source, now)
