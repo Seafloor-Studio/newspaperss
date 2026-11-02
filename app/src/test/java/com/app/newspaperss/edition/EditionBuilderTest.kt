@@ -11,6 +11,7 @@ import com.app.newspaperss.core.edition.Reflection
 import com.app.newspaperss.testutil.FakeHttp
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleState
+import com.app.newspaperss.data.EditionArticleEntity
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionRepository
 import com.app.newspaperss.data.EditionStatus
@@ -46,6 +47,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import kotlin.random.Random
 import java.util.zip.ZipFile
 
 @RunWith(AndroidJUnit4::class)
@@ -219,6 +221,37 @@ class EditionBuilderTest {
         assertEquals("Tuesday Morning Edition, Sep 29.epub", edition.fileName)
         assertEquals(ArticleState.IN_EDITION, stateOf("a2"))
         assertEquals("the second article of a capped source waits", ArticleState.NEW, stateOf("a1"))
+    }
+
+    /**
+     * Six sources last featured on six different days, room for one: the one featured longest ago
+     * has only an article that waits out its week before the next scheduled edition. Across draws
+     * it always goes in; with the next edition only a day away its article would still wait, so
+     * it's mixed like the rest.
+     */
+    @Test
+    fun anArticleThatWouldExpireBeforeTheNextEditionKeepsItsSourcesTurn() = runTest {
+        val ids = (0 until 6).map { i ->
+            val id = sources.addFeed("https://s$i.example/feed", "s$i")
+            db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "s$i-before", url = "https://s$i.example/before", title = "s$i before", discoveredAt = clock.instant().minus(Duration.ofDays(30)))))
+            val article = db.articles().allForSource(id).single()
+            val edition = db.editions().insert(EditionEntity(title = "Edition $i", createdAt = clock.instant().minus(Duration.ofDays(10L - i)), status = EditionStatus.DELIVERED))
+            db.editions().insertArticles(listOf(EditionArticleEntity(editionId = edition, articleId = article.id, position = 0, title = article.title, sourceTitle = "s$i", minutes = 1.0)))
+            db.articles().setState(listOf(article.id), ArticleState.DELIVERED)
+            id
+        }
+        ids.forEachIndexed { i, id ->
+            val found = if (i == 0) clock.instant().minus(Duration.ofDays(4)) else clock.instant().minus(Duration.ofHours(1))
+            db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "s$i-now", url = "https://s$i.example/now", title = "s$i now", discoveredAt = found)))
+        }
+        suspend fun firsts(nextEdition: Instant) = (0 until 20).map { seed ->
+            val built = EditionBuilder(db, content, tmp.root, clock, { ZoneOffset.UTC }, random = Random(seed))
+                .build(EditionSettings(minutes = 1), nextEdition = nextEdition) as BuildResult.Built
+            editions.observeArticles(built.editionId).first().map { it.title }.single()
+        }.toSet()
+
+        assertEquals("next edition in four days: its article would be gone", setOf("s0 now"), firsts(clock.instant().plus(Duration.ofDays(4))))
+        assertTrue("next edition tomorrow: it can wait, and is mixed", firsts(clock.instant().plus(Duration.ofDays(1))).size > 1)
     }
 
     @Test
