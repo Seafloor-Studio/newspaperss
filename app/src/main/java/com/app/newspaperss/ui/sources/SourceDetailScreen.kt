@@ -298,15 +298,18 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
 }
 
 /**
- * A tt-rss feed's address, then whether it's left out, failing or waiting, then the details: its account
- * and category, and where its article text comes from.
+ * A tt-rss feed's site, then whether it's left out, failing or waiting, then the details: its account
+ * and category, where its article text comes from, and the feed's own address. Until the feed's
+ * articles have named its site, the feed's address is the link at the top.
  */
 @Composable
 private fun FeedHeader(publication: PublicationEntity?, episodes: String?, onCopied: (String) -> Unit) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val details = MaterialTheme.typography.bodySmall
     Column(Modifier.padding(16.dp)) {
-        publication?.feedUrl?.let { url ->
+        // Not one that isn't a web address, as a hostile feed's may not be, nor the feed itself again.
+        val site = publication?.siteUrl?.takeIf { isWebAddress(it) && it != publication.feedUrl }
+        (site ?: publication?.feedUrl)?.let { url ->
             AddressLink(url, SourceRepository.hostOf(url), MaterialTheme.typography.bodyMedium, onCopied, Modifier.padding(bottom = 12.dp))
         }
         // Not for a feed left out: it isn't fetched for the paper, so its fetching doesn't matter here.
@@ -329,6 +332,7 @@ private fun FeedHeader(publication: PublicationEntity?, episodes: String?, onCop
             Text(listOfNotNull("In your tt-rss", publication?.category?.let { "category $it" }).joinToString(" · "), style = details, color = muted)
             if (!leftOut) Text(textLine(publication), style = details, color = muted)
             episodes?.let { Text(it, style = details, color = muted) }
+            if (site != null) publication?.feedUrl?.let { AddressLink(it, shownAddress(it), details, onCopied, label = "Feed:") }
         }
     }
 }
@@ -346,10 +350,7 @@ private fun LeaveOutDialog(title: String, onConfirm: () -> Unit, onDismiss: () -
     )
 }
 
-/**
- * A source's site, then how it's doing, then the details. A feed that's failing or has sent
- * nothing yet also shows its own address, since that's what to check, not the site's front page.
- */
+/** A source's site, then how it's doing, then the details, with a feed's own address last. */
 @Composable
 private fun Health(source: SourceEntity, learned: PublicationEntity?, lastNew: Instant?, episodes: String?, locale: Locale, is24Hour: Boolean, onCopied: (String) -> Unit) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
@@ -369,7 +370,8 @@ private fun Health(source: SourceEntity, learned: PublicationEntity?, lastNew: I
             lastCheckedLine(source.lastFetchedAt, locale, is24Hour, clock.instant(), clock.zone)?.let { Text(it, style = details, color = muted) }
             if (source.kind == SourceKind.FEED) {
                 Text(textLine(learned), style = details, color = muted)
-                if (hasProblem(source) || lastNew == null) AddressLink(source.url, shownAddress(source.url), details, onCopied, label = "Feed:")
+                // Unless the site's link at the top is already the feed's.
+                if (site != source.url) AddressLink(source.url, shownAddress(source.url), details, onCopied, label = "Feed:")
             }
             episodes?.let { Text(it, style = details, color = muted) }
         }

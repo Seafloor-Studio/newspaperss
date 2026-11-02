@@ -225,6 +225,7 @@ class FeedSync(
                     } else {
                         db.sources().recordSuccess(source.id, now, null, null, source.title)
                         listFeeds(client, source, now)
+                        noteSites(source, headlines)
                         watchPosts(client, source, now)
                         return added + if (source.takeTtrssStars) takeStars(client, source, now) else 0
                     }
@@ -244,6 +245,12 @@ class FeedSync(
         }
         db.sources().recordFailure(source.id, now, error)
         return null
+    }
+
+    /** Each feed's site, as its articles name it, for its page on Sources. */
+    private suspend fun noteSites(source: SourceEntity, headlines: List<TtrssHeadline>) {
+        val sites = headlines.groupBy { it.feedId }.mapNotNull { (feed, its) -> its.firstNotNullOfOrNull { RowLimits.link(it.siteUrl) }?.let { feed to it } }
+        if (sites.isNotEmpty()) db.withTransaction { sites.forEach { (feed, url) -> db.sources().setSiteUrl(source.id, feed, url) } }
     }
 
     /** Lists the account's feeds once a day (see [listTtrssFeeds]). */

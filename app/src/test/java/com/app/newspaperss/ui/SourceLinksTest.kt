@@ -72,12 +72,13 @@ class SourceLinksTest {
     }
 
     @Test
-    fun aHealthySourceLinksItsSiteAndNotItsFeed() {
+    fun aSourceLinksItsSiteAndItsFeed() {
         show(feed(), until = "Last checked")
 
-        compose.onNodeWithText("Feed:", substring = true).assertDoesNotExist()
         compose.onNodeWithText("example.com").performClick()
         assertEquals("https://example.com/", opened())
+        compose.onNodeWithText("Feed: example.com/weekly/rss.xml").performClick()
+        assertEquals("https://example.com/weekly/rss.xml", opened())
     }
 
     @Test
@@ -99,6 +100,7 @@ class SourceLinksTest {
 
         compose.onNodeWithText("example.com").performClick()
         assertEquals("https://example.com/weekly/rss.xml", opened())
+        compose.onNodeWithText("Feed:", substring = true).assertDoesNotExist()
     }
 
     @Test
@@ -165,6 +167,40 @@ class SourceLinksTest {
 
         compose.onNodeWithText("quantamagazine.org").performClick()
         assertEquals("https://www.quantamagazine.org/feed/", opened())
+        compose.onNodeWithText("Feed:", substring = true).assertDoesNotExist()
+    }
+
+    /** Once its articles have named its site, the feed's page links the site, and the feed below. */
+    @Test
+    fun aTtrssFeedsPageLinksItsSiteAndItsFeed() {
+        val account = runBlocking {
+            val account = repo.addTtrss("https://rss.example.org/tt-rss/api/")
+            db.sources().savePublication(
+                PublicationEntity(account, "5", title = "Quanta Magazine", feedUrl = "https://api.quantamagazine.org/feed/", siteUrl = "https://www.quantamagazine.org/", listed = true),
+            )
+            account
+        }
+        show(account, key = "5", until = "Feed: api.quantamagazine.org/feed/")
+
+        compose.onNodeWithText("quantamagazine.org").performClick()
+        assertEquals("https://www.quantamagazine.org/", opened())
+        compose.onNodeWithText("Feed: api.quantamagazine.org/feed/").performClick()
+        assertEquals("https://api.quantamagazine.org/feed/", opened())
+    }
+
+    @Test
+    fun aTtrssFeedsSiteThatIsNotTheWebIsNeverOpened() {
+        val account = runBlocking {
+            val account = repo.addTtrss("https://rss.example.org/tt-rss/api/")
+            db.sources().savePublication(
+                PublicationEntity(account, "5", title = "Quanta Magazine", feedUrl = "https://www.quantamagazine.org/feed/", siteUrl = "intent://scan/#Intent;scheme=zxing;end", listed = true),
+            )
+            account
+        }
+        show(account, key = "5", until = "quantamagazine.org")
+
+        compose.onNodeWithText("quantamagazine.org").performClick()
+        assertEquals("the feed's address stands in", "https://www.quantamagazine.org/feed/", opened())
     }
 
     @Test

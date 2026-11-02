@@ -104,7 +104,7 @@ class MigrationTest {
 
         helper.runMigrationsAndValidate(DB, 3, true, AppDatabase.MIGRATION_2_3).close()
         val room = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), AppDatabase::class.java, DB)
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16, AppDatabase.MIGRATION_16_17, AppDatabase.MIGRATION_17_18).allowMainThreadQueries().build()
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13, AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16, AppDatabase.MIGRATION_16_17, AppDatabase.MIGRATION_17_18, AppDatabase.MIGRATION_18_19).allowMainThreadQueries().build()
         try {
             runBlocking {
                 assertEquals(7000L, room.articles().byId(4)!!.starredAt?.toEpochMilli())
@@ -473,6 +473,26 @@ class MigrationTest {
             db.query("SELECT maxArticles, skipPaidPosts, recordingsOff FROM publications WHERE sourceId = 1").use { c ->
                 c.moveToFirst()
                 assertEquals(listOf(2, 1, 0), listOf(c.getInt(0), c.getInt(1), c.getInt(2)))
+            }
+        }
+    }
+
+    /** A tt-rss feed's settings carry over, and its site is learned at the next sync. */
+    @Test
+    fun version19KeepsEachPublicationAndLeavesItsSiteToBeLearned() {
+        helper.createDatabase(DB, 18).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, kind, url, title, position, contentMode, contentModeChosen, fullTextStreak, paused, markReadOnServer, addedAt) " +
+                    "VALUES (1, 'TTRSS', 'https://rss.example/tt-rss', 'tt-rss', 0, 'AUTO', 0, 0, 0, 1, 0)",
+            )
+            db.execSQL("INSERT INTO publications (sourceId, `key`, contentMode, fullTextStreak, feedUrl, leftOut) VALUES (1, '7', 'AUTO', 0, 'https://a.example/feed', 1)")
+        }
+        helper.runMigrationsAndValidate(DB, 19, true, AppDatabase.MIGRATION_18_19).use { db ->
+            db.query("SELECT feedUrl, leftOut, siteUrl FROM publications WHERE sourceId = 1").use { c ->
+                c.moveToFirst()
+                assertEquals("https://a.example/feed", c.getString(0))
+                assertEquals(1, c.getInt(1))
+                assertTrue(c.isNull(2))
             }
         }
     }

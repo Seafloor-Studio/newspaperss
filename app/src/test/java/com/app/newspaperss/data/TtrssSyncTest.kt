@@ -247,6 +247,21 @@ class TtrssSyncTest {
         assertEquals("unsubscribed in tt-rss", listOf("Quarterly Review", "Subscribed Today"), sources.observeFeeds(source.id).first().map { it.title })
     }
 
+    /** A feed's site comes with its articles, for its page on Sources; a feed with none has its address only. */
+    @Test
+    fun aFeedsSiteIsLearnedFromItsArticles() = runTest {
+        server.feeds[7] = FakeTtrss.Feed("Quarterly Review", "https://quarterly.example/feed", 0)
+        server.feeds[9] = FakeTtrss.Feed("Quiet Blog", "https://quiet.example/rss", 0)
+        server.add(1, "An essay", feedId = 7, feedTitle = "Quarterly Review", siteUrl = "https://quarterly.example/")
+        val source = connect()
+
+        sync.syncAll()
+
+        val feeds = sources.observeFeeds(source.id).first().associate { it.title to it.publication!! }
+        assertEquals("https://quarterly.example/", feeds.getValue("Quarterly Review").siteUrl)
+        assertNull(feeds.getValue("Quiet Blog").siteUrl)
+    }
+
     /** tt-rss fetches its feeds itself: one it can't is said so, until it's fetched again. */
     @Test
     fun aFeedTtrssCantFetchSaysSoUntilItsArticlesComeAgain() = runTest {
