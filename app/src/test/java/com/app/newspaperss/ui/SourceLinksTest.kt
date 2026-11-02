@@ -180,11 +180,11 @@ class SourceLinksTest {
             )
             account
         }
-        show(account, key = "5", until = "Feed: api.quantamagazine.org/feed")
+        show(account, key = "5", until = "Feed: api.quantamagazine.org/feed/")
 
         compose.onNodeWithText("quantamagazine.org").performClick()
         assertEquals("https://www.quantamagazine.org/", opened())
-        compose.onNodeWithText("Feed: api.quantamagazine.org/feed").performClick()
+        compose.onNodeWithText("Feed: api.quantamagazine.org/feed/").performClick()
         assertEquals("https://api.quantamagazine.org/feed/", opened())
     }
 
