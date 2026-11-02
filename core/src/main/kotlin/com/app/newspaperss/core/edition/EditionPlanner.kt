@@ -86,11 +86,12 @@ object EditionPlanner {
      * Sources by how many editions ago they were last featured, the longest first, and never
      * featured before them all. Strictly by that, the sources of one edition would come back
      * together, in the same edition, every time: with more sources than fit, the paper would be
-     * the same few groups in turn. So each source's turn moves back by up to half as many
+     * the same few groups in turn. So each source's turn comes early by up to half as many
      * editions as the sources' turns span, at random, which mixes the groups within a cycle or
-     * two. Turns that span only an edition or two stay in strict order: there, moving one by a
-     * whole edition would let it in ahead of one that has waited a whole cycle longer. A source
-     * with an article on its [Candidate.lastChance] keeps its turn too.
+     * two. Turns that span only an edition or two stay in strict order: there, bringing one a
+     * whole edition early would let it in ahead of one that has waited a whole cycle longer. A
+     * source with an article on its [Candidate.lastChance] comes as early as any can, and ahead
+     * of those that come as early, so none whose turn is after its own goes ahead of it.
      */
     private fun sourcesInTurn(candidates: List<Candidate>, sourceOrder: List<String>, lastFeatured: Map<String, Instant>, rotation: Int, random: Random): List<String> {
         val present = candidates.map { it.sourceId }.toSet()
@@ -104,8 +105,8 @@ object EditionPlanner {
         val nudge = (times.size - 1) / 2
         val keepsTurn = candidates.filter { it.lastChance && it.starredAt == null }.map { it.sourceId }.toSet()
         val turn = rotated.associateWith { s ->
-            val moved = if (s in keepsTurn) 0 else random.nextInt(nudge + 1)
-            lastFeatured[s]?.let { editionsAgo.getValue(it) + moved } ?: Int.MAX_VALUE
+            val early = if (s in keepsTurn) nudge + 0.5 else random.nextInt(nudge + 1).toDouble()
+            lastFeatured[s]?.let { editionsAgo.getValue(it) + early } ?: Double.MAX_VALUE
         }
         // A stable sort, so sources with the same turn keep the rotated order.
         return rotated.sortedByDescending { turn.getValue(it) }
