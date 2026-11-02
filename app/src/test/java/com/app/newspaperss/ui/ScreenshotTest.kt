@@ -1125,7 +1125,7 @@ class ScreenshotTest {
             feed("2", "BBC News", "https://feeds.bbci.co.uk/news/rss.xml", "News").copy(maxArticles = 1),
             feed("3", "Aeon", "https://aeon.co/feed.rss", "Essays"),
             feed("4", "Longreads", "https://longreads.com/feed/", "Essays").copy(chosenMode = ContentMode.PAGE),
-            feed("5", "Quanta Magazine", "https://www.quantamagazine.org/feed/", "Science"),
+            feed("5", "Quanta Magazine", "https://www.quantamagazine.org/feed/", "Science").copy(siteUrl = "https://www.quantamagazine.org/"),
             feed("6", "The Marginalian", "https://www.themarginalian.org/feed/", "Essays"),
             feed("7", "Hacker News", "https://news.ycombinator.com/rss", "Tech").copy(leftOut = true),
             feed("8", "Slashdot", "https://rss.slashdot.org/Slashdot/slashdotMain", "Tech").copy(leftOut = true),
