@@ -1196,6 +1196,27 @@ class ListenAppTest {
         compose.idleUntil { shown("The drivers met in a car park.") > 0 }
     }
 
+    /**
+     * The article view has the player in the listening bar's place, so its ✕ with it: stopped, the
+     * page stays to be read, Listen is offered again, and where it was left is kept.
+     */
+    @Test
+    fun listenStopsFromTheArticleViewAndThePageStays() {
+        val id = edition()
+        startAndWait(id)
+        player.seek(ListenPosition(1, 0))
+        compose.idleUntil { player.state.value.at.page == 1 && player.state.value.script != null }
+        compose.setContent(playing(id))
+        compose.idleUntil { shown("The drivers met in a car park.") > 0 }
+
+        compose.onNodeWithContentDescription("Stop listening").performClick()
+
+        compose.idleUntil { player.state.value.editionId == null && compose.onAllNodesWithContentDescription("Listen from here").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals("the player goes with it", 0, compose.onAllNodesWithContentDescription("Next article").fetchSemanticsNodes().size)
+        assertTrue(shown("The drivers met in a car park.") > 0)
+        assertEquals(1, listening.saved(id)?.page)
+    }
+
     /** Heard to the end, Play starts it again from the start, and says so. */
     @Test
     fun heardToTheEndPlaySaysItStartsFromTheStart() {
