@@ -93,6 +93,10 @@ What each screen offers by the edition's state wasn't tested past ready and sent
 
 ### From the UX pass *(ux)*
 - [ ] Boox: consider turning off ripples on e-ink (they cause partial refreshes); Boox's own refresh modes may make it moot
+- [ ] **How long an unpicked article waits, for editions that aren't daily** *(you asked; wait for feedback)*. Articles wait 7 days, and expire at the sync just before an edition. A weekly edition's gap is the same 7 days, so whatever arrives in the hours after one edition is gone just before the next. Two ways, not exclusive:
+  - Wait at least two editions' gap: two weeks for a weekly paper, still 7 days for a daily one.
+  - Keep each feed's newest 4 waiting past the week, whichever is later, so a quiet feed always has something for its turn.
+  - The countdown under a waiting article ("3 days left") would follow the same rule.
 - [ ] **The player under an article shrinks while you scroll** *(you asked)*. Scrolling the page yourself shrinks the full player to the slim listening bar, which gives the page back while Listen plays on. Tapping the bar brings the full player back and jumps to the sentence being read, as **Back to where it's reading** does now. To settle when building it:
   - Only a scroll you make shrinks it, not the page following the voice.
   - It shrinks once, with no grow-back while you scroll up, so the page doesn't jump about, and e-ink isn't redrawn on every scroll.
