@@ -36,11 +36,13 @@ import com.app.newspaperss.ui.components.openInBrowser
  * muted text, so a hostile feed's `intent:` link is neither opened nor offered.
  *
  * @param label muted words before the address, such as "Feed:".
+ * @param words [shownAs] is the app's own words for the link, not an address, so it keeps its spaces.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun AddressLink(url: String, shownAs: String, textStyle: TextStyle, onCopied: (String) -> Unit, modifier: Modifier = Modifier, label: String? = null) {
-    val shown = readable(shownAs)
+internal fun AddressLink(url: String, shownAs: String, textStyle: TextStyle, onCopied: (String) -> Unit, modifier: Modifier = Modifier, label: String? = null, words: Boolean = false) {
+    val shown = if (words) shownAs else readable(shownAs)
+    val copiedAs = if (words) shownAddress(url) else shown
     // An address reads left to right even when it starts with a right-to-left letter.
     val style = textStyle.copy(textDirection = TextDirection.Ltr)
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
@@ -54,7 +56,7 @@ internal fun AddressLink(url: String, shownAs: String, textStyle: TextStyle, onC
     val ink = MaterialTheme.colorScheme.onSurface
     val copy = { noBrowser: Boolean ->
         context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Address", url.trim()))
-        onCopied(if (noBrowser) "No browser here. Copied $shown" else "Copied $shown")
+        onCopied(if (noBrowser) "No browser here. Copied $copiedAs" else "Copied $copiedAs")
     }
     // No padding for a 48dp target: Compose already gives a smaller clickable a 48dp touch area,
     // one that loses to a direct hit, so the lines around it keep their own taps.

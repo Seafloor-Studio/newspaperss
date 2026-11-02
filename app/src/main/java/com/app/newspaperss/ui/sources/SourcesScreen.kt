@@ -544,6 +544,28 @@ internal fun quietLine(newestPost: Instant, now: Instant): String? {
 internal const val WAITING_FOR_FIRST_FETCH = "Not fetched by tt-rss yet"
 
 /**
+ * A feed tt-rss still hasn't fetched a day after the app first saw it. tt-rss records a failed
+ * fetch as an error, so one never tried isn't waiting for its schedule: its updates are most
+ * likely turned off there ("Disable updates" in its update interval).
+ */
+internal const val NEVER_FETCHED = "Never fetched by tt-rss"
+
+internal fun neverFetched(p: PublicationEntity?, now: Instant): Boolean =
+    p?.awaitingFirstFetch == true && p.serverError == null && p.watchedSince?.let { Duration.between(it, now) >= Duration.ofDays(1) } == true
+
+/**
+ * tt-rss's preferences with the feed's own settings open, its update interval among them, for
+ * the account whose API is at [apiUrl]; null unless that ends in tt-rss's usual `/api/`. Signed
+ * out of tt-rss in the browser, its sign-in goes to the main page instead, and a second tap opens it.
+ */
+internal fun ttrssFeedSettings(apiUrl: String, feedKey: String): String? {
+    val id = feedKey.toIntOrNull() ?: return null
+    val api = apiUrl.trimEnd('/')
+    if (!api.endsWith("/api")) return null
+    return "${api.removeSuffix("/api")}/prefs.php?tab=feeds&method=editfeed&methodparam=$id"
+}
+
+/**
  * A feed tt-rss's own fetcher failed on the last time it tried: dead, moved, turning the server
  * away, or just a timeout that the next try gets past. "Last time": tt-rss reports even a one-off.
  */
@@ -558,7 +580,7 @@ internal fun feedNote(feed: FeedChoice, now: Instant): String? {
     val p = feed.publication
     return listOfNotNull(
         SERVER_CANT_FETCH.takeIf { p?.serverError != null },
-        WAITING_FOR_FIRST_FETCH.takeIf { p?.awaitingFirstFetch == true && p.serverError == null },
+        (if (neverFetched(p, now)) NEVER_FETCHED else WAITING_FOR_FIRST_FETCH).takeIf { p?.awaitingFirstFetch == true && p.serverError == null },
         // Not when tt-rss can't fetch it or hasn't yet: that line says why already. With no post
         // seen, from when the app started watching: tt-rss may have deleted the last one.
         (p?.newestPostAt ?: p?.watchedSince)?.takeIf { p?.serverError == null && p?.awaitingFirstFetch != true }?.let { quietLine(it, now) },

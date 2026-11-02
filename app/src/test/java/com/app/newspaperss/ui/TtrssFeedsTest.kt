@@ -45,6 +45,7 @@ import com.app.newspaperss.ui.sources.SourcesScreen
 import com.app.newspaperss.ui.sources.SourcesViewModel
 import com.app.newspaperss.ui.sources.cantFetchLine
 import com.app.newspaperss.ui.sources.feedNote
+import com.app.newspaperss.ui.sources.ttrssFeedSettings
 import com.app.newspaperss.data.sameFeed
 import com.app.newspaperss.core.extract.ContentMode
 import kotlinx.coroutines.flow.first
@@ -427,8 +428,15 @@ class TtrssFeedsTest {
         assertEquals("Nothing new in 4 weeks", feedNote(feed(PublicationEntity(1, "7", watchedSince = now.minus(Duration.ofDays(28)))), now))
         // A post seen counts, however recent the watching.
         assertNull(feedNote(feed(PublicationEntity(1, "7", newestPostAt = now.minus(Duration.ofDays(2)), watchedSince = now.minus(Duration.ofDays(60)))), now))
-        // A feed tt-rss hasn't fetched yet has its own line.
-        assertEquals("Not fetched by tt-rss yet", feedNote(feed(PublicationEntity(1, "7", awaitingFirstFetch = true, watchedSince = now.minus(Duration.ofDays(28)))), now))
+        // A feed tt-rss hasn't fetched yet has its own line; a day on, one it has never tried, which a failure would have shown.
+        assertEquals("Not fetched by tt-rss yet", feedNote(feed(PublicationEntity(1, "7", awaitingFirstFetch = true, watchedSince = now.minus(Duration.ofHours(2)))), now))
+        assertEquals("Not fetched by tt-rss yet", feedNote(feed(PublicationEntity(1, "7", awaitingFirstFetch = true)), now))
+        assertEquals("Never fetched by tt-rss", feedNote(feed(PublicationEntity(1, "7", awaitingFirstFetch = true, watchedSince = now.minus(Duration.ofDays(28)))), now))
+        // tt-rss's own page for the feed's settings, from the account's API address.
+        assertEquals("https://rss.example.org/tt-rss/prefs.php?tab=feeds&method=editfeed&methodparam=7", ttrssFeedSettings("https://rss.example.org/tt-rss/api/", "7"))
+        assertEquals("https://rss.example.org/prefs.php?tab=feeds&method=editfeed&methodparam=7", ttrssFeedSettings("https://rss.example.org/api", "7"))
+        assertNull("not the API's usual address: no guess", ttrssFeedSettings("https://rss.example.org/tt-rss/", "7"))
+        assertNull("not a feed id", ttrssFeedSettings("https://rss.example.org/tt-rss/api/", "7&tab=users"))
         assertTrue(sameFeed("https://www.Example.com/feed/", "http://example.com/feed"))
         assertFalse(sameFeed("https://example.com/feed", "https://example.com/rss"))
     }

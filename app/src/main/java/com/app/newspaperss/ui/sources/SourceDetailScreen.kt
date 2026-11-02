@@ -214,7 +214,7 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp + barRoom)) {
                 item {
                     if (viewModel.isFeed) {
-                        FeedHeader(publication, episodes, onCopied)
+                        FeedHeader(publication, source?.url, episodes, onCopied)
                     } else {
                         Health(source, publication, articles.maxOfOrNull { it.discoveredAt }, episodes, locale, is24Hour, onCopied)
                     }
@@ -303,7 +303,7 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
  * articles have named its site, the feed's address is the link at the top.
  */
 @Composable
-private fun FeedHeader(publication: PublicationEntity?, episodes: String?, onCopied: (String) -> Unit) {
+private fun FeedHeader(publication: PublicationEntity?, accountUrl: String?, episodes: String?, onCopied: (String) -> Unit) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val details = MaterialTheme.typography.bodySmall
     Column(Modifier.padding(16.dp)) {
@@ -323,6 +323,12 @@ private fun FeedHeader(publication: PublicationEntity?, episodes: String?, onCop
                     // tt-rss's own words, which can be technical ("HTTP Code: 404"): what to do comes first.
                     Text("$SERVER_CANT_FETCH. If this stays, nothing new comes from it: the feed may have moved or closed, so check its address in tt-rss.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
                     Text("tt-rss says: $serverError", style = MaterialTheme.typography.bodyMedium, color = muted)
+                }
+                neverFetched(publication, LocalClock.current.instant()) -> {
+                    Text("$NEVER_FETCHED, so nothing comes from it. Its updates are probably turned off there: set its update interval to Default.", style = MaterialTheme.typography.bodyLarge)
+                    accountUrl?.let { ttrssFeedSettings(it, publication!!.key) }?.let { url ->
+                        AddressLink(url, "Its settings in tt-rss", MaterialTheme.typography.bodyMedium, onCopied, Modifier.padding(top = 8.dp), words = true)
+                    }
                 }
                 else ->
                     Text("$WAITING_FOR_FIRST_FETCH. Its first articles come once tt-rss has fetched it, usually within the hour.", style = MaterialTheme.typography.bodyLarge)
