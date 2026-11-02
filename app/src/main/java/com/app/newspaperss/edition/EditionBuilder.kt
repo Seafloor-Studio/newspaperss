@@ -30,6 +30,7 @@ import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.data.PublicationEntity
 import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.SourceKind
+import com.app.newspaperss.data.FeedSync
 import com.app.newspaperss.delivery.FolderDelivery
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +38,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -153,7 +155,7 @@ class EditionBuilder(
             else listOf(s.id.toString())
         }
         val ordered = EditionPlanner.order(
-            candidates = articles.map { Candidate(it.id.toString(), publicationOf(it), it.published ?: it.discoveredAt, it.starredAt) },
+            candidates = articles.map { Candidate(it.id.toString(), publicationOf(it), it.published ?: it.discoveredAt, it.starredAt, lastChance = lastChance(it, sourcesById[it.sourceId])) },
             sourceOrder = publicationOrder,
             ordering = settings.ordering,
             lastFeatured = db.editions().lastFeatured().associate { publicationOf(it.sourceId, it.originId ?: PublicationEntity.OWN) to it.createdAt },
@@ -343,6 +345,14 @@ class EditionBuilder(
     )
 
     /** The planner's source for [a]: the publication it came from. */
+    /**
+     * In the last day of its wait ([FeedSync.KEEP_WAITING]): the next edition, a day away, would
+     * find it expired. A reading-list link waits for good.
+     */
+    private fun lastChance(a: ArticleEntity, source: SourceEntity?) =
+        a.state == ArticleState.NEW && source != null && source.kind != SourceKind.READING_LIST &&
+            a.discoveredAt.isBefore(clock.instant().minus(FeedSync.KEEP_WAITING).plus(Duration.ofDays(1)))
+
     private fun publicationOf(a: ArticleEntity) = publicationOf(a.sourceId, PublicationEntity.keyOf(a))
 
     private fun publicationOf(sourceId: Long, key: String) = if (key == PublicationEntity.OWN) sourceId.toString() else "$sourceId/$key"

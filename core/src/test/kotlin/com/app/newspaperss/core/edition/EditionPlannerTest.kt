@@ -123,6 +123,46 @@ class EditionPlannerTest {
         assertTrue(count.toString(), count.values.max() - count.values.min() <= 1)
     }
 
+    /**
+     * Forty sources, room for five: strictly by turn, the five of one edition come back together
+     * eight editions later, every time, and the paper is the same eight groups in turn. Mixed,
+     * no edition repeats an earlier one's set, and no source waits much over a cycle.
+     */
+    @Test
+    fun theSourcesOfOneEditionDontComeBackAsAGroup() = runTest {
+        val sources = (0 until 40).map { "src$it" }
+        val featured = mutableMapOf<String, Instant>()
+        val random = Random(7)
+        val editions = (1..80).map { edition ->
+            val candidates = sources.map { c("$it-$edition", it, 1) }
+            val ordered = EditionPlanner.order(candidates, sources, Ordering.TAKE_TURNS, lastFeatured = featured, rotation = edition, random = random)
+            val picked = EditionPlanner.fill<Candidate>(ordered, PlanRules(Budget.Articles(5), maxPerSource = 1), { 1.0 }) { it }
+            picked.forEach { featured[it.sourceId] = day(1).plusSeconds(edition * 86_400L) }
+            picked.map { it.sourceId }.toSet()
+        }
+        val later = editions.drop(16)
+        val repeats = later.withIndex().count { (i, set) -> set in editions.take(16 + i) }
+        assertTrue("$repeats of ${later.size} editions repeat an earlier one's sources", repeats <= later.size / 10)
+        val longestWait = sources.maxOf { s -> editions.withIndex().filter { s in it.value }.map { it.index }.zipWithNext { a, b -> b - a }.maxOrNull() ?: 0 }
+        assertTrue("a source waited $longestWait editions; a cycle is 8", longestWait <= 12)
+    }
+
+    /**
+     * Ten sources, each last featured on a different day, room for one: whatever the mixing, the
+     * source whose turn it is goes in when its article would otherwise expire unpicked.
+     */
+    @Test
+    fun aSourceWithAnArticleOnItsLastDayKeepsItsTurn() = runTest {
+        val sources = (0 until 10).map { "src$it" }
+        val featured = sources.withIndex().associate { (i, s) -> s to day(i + 1) }
+        val candidates = sources.map { c("$it-new", it, 20) } + c("src0-old", "src0", 2).copy(lastChance = true)
+        val firsts = (0 until 50).map { seed ->
+            val ordered = EditionPlanner.order(candidates, sources, Ordering.TAKE_TURNS, lastFeatured = featured, random = Random(seed))
+            EditionPlanner.fill<Candidate>(ordered, PlanRules(Budget.Articles(1), maxPerSource = 1), { 1.0 }) { it }.single().id
+        }
+        assertEquals(setOf("src0-old"), firsts.toSet())
+    }
+
     @Test
     fun inOrderAndShuffle() {
         assertEquals(listOf("a3", "a2", "a1", "b1", "c2", "c1"), ids(EditionPlanner.order(pool, abc, Ordering.IN_ORDER)))

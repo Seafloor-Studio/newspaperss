@@ -221,6 +221,20 @@ class EditionBuilderTest {
         assertEquals("the second article of a capped source waits", ArticleState.NEW, stateOf("a1"))
     }
 
+    /** One more day and it would expire as "Not picked": its source's turn goes to it, not to its newest. */
+    @Test
+    fun anArticleOnItsLastDayGoesAheadOfItsSourcesNewerOnes() = runTest {
+        val id = sources.addFeed("https://a.example/feed", "a")
+        fun found(guid: String, ago: Duration) =
+            ArticleEntity(sourceId = id, guid = guid, url = "https://a.example/$guid", title = "a $guid", published = clock.instant().minus(ago), discoveredAt = clock.instant().minus(ago))
+        db.articles().insertNew(listOf(found("old", Duration.ofHours(6 * 24 + 12)), found("week-old", Duration.ofDays(5)), found("new", Duration.ofHours(1))))
+
+        val result = builder.build(EditionSettings(minutes = 1, maxPerSource = 1)) as BuildResult.Built
+
+        assertEquals(listOf("a old"), editions.observeArticles(result.editionId).first().map { it.title })
+        assertEquals("not on its last day: the newest goes first, as before", ArticleState.NEW, stateOf("new"))
+    }
+
     @Test
     fun theClosingPageAsksTheEditionsQuestion() = runTest {
         source("a", "a1")
