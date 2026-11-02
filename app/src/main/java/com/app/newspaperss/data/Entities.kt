@@ -240,6 +240,8 @@ data class PublicationEntity(
     @ColumnInfo(defaultValue = "0") val recordingsOff: Boolean = false,
     /** tt-rss only: the feed's own address, from the account's feed list. */
     val feedUrl: String? = null,
+    /** tt-rss only: the feed's site, as its articles name it. */
+    val siteUrl: String? = null,
     /** tt-rss only: the category it's in there. */
     val category: String? = null,
     /**

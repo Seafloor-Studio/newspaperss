@@ -477,6 +477,26 @@ class MigrationTest {
         }
     }
 
+    /** A tt-rss feed's settings carry over, and its site is learned at the next sync. */
+    @Test
+    fun version19KeepsEachPublicationAndLeavesItsSiteToBeLearned() {
+        helper.createDatabase(DB, 18).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, kind, url, title, position, contentMode, contentModeChosen, fullTextStreak, paused, markReadOnServer, addedAt) " +
+                    "VALUES (1, 'TTRSS', 'https://rss.example/tt-rss', 'tt-rss', 0, 'AUTO', 0, 0, 0, 1, 0)",
+            )
+            db.execSQL("INSERT INTO publications (sourceId, `key`, contentMode, fullTextStreak, feedUrl, leftOut) VALUES (1, '7', 'AUTO', 0, 'https://a.example/feed', 1)")
+        }
+        helper.runMigrationsAndValidate(DB, 19, true, AppDatabase.MIGRATION_18_19).use { db ->
+            db.query("SELECT feedUrl, leftOut, siteUrl FROM publications WHERE sourceId = 1").use { c ->
+                c.moveToFirst()
+                assertEquals("https://a.example/feed", c.getString(0))
+                assertEquals(1, c.getInt(1))
+                assertTrue(c.isNull(2))
+            }
+        }
+    }
+
     /** A feed's text over the 2 MB window Android reads a row through failed every query loading it. */
     @Test
     fun version17CutsWhatAFeedMadeTooBigToReadBack() {

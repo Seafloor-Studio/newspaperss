@@ -41,6 +41,8 @@ data class TtrssHeadline(
      * size in a field it calls "duration"; the audio's real length it doesn't keep.
      */
     val attachments: List<Enclosure> = emptyList(),
+    /** The feed's site, as the feed names it; older tt-rss versions don't send it. */
+    val siteUrl: String? = null,
 )
 
 /**
@@ -493,6 +495,7 @@ class TtrssClient(
                 val url = field("content_url")?.takeIf(::isWebAddress) ?: return@mapNotNull null
                 Enclosure(url, field("content_type").orEmpty().lowercase(), field("duration")?.toLongOrNull()?.coerceAtLeast(0) ?: 0)
             },
+            siteUrl = text("site_url"),
         )
     }
 
