@@ -602,7 +602,8 @@ whose Kindle and KOReader answers ask for more on the same page).
   article in place; the title and **Share** follow the page on screen.
   The headphones in the top bar (**Listen from here**) start Listen at the
   article on screen, from its beginning, in the same view: the player comes
-  up under the page. While Listen has this edition,
+  up under the page, with ✕ (**Stop listening**) at its bottom right, which
+  takes the player away and leaves the page to read. While Listen has this edition,
   the sentence being read is tinted and underlined and the page follows it
   (scrolling away stops that, until **Back to where it's reading**); a tap on
   a sentence reads from it while it plays, and does nothing but links while
