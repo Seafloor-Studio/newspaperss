@@ -296,7 +296,7 @@ private fun App(
                     onOpenPlayer = { openPlayer(id) },
                     // Straight to the episode's page, which follows Listen once it's open.
                     onPlayEpisode = { episode ->
-                        container.listening.start(id, ListenPosition(episode.page, episode.line))
+                        container.listening.start(id, episode = episode.audio)
                         nav.navigate("edition/$id/article/${episode.page}") { launchSingleTop = true }
                     },
                     onBack = { nav.navigateUp() },

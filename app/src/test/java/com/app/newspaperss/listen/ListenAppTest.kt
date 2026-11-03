@@ -1228,16 +1228,33 @@ class ListenAppTest {
         assertEquals(EpisodePlace(0, finished = true), progress.episode(id, "https://cdn.example/12.mp3"))
         assertEquals("the edition's place stays where it was", ListenPosition(1, 0), listening.saved(id))
 
-        // ⏭ past the second isn't hearing it.
+        // ⏭ past the second isn't hearing it, and the end of the last episode isn't the edition's.
         player.next()
         compose.idleUntil { player.state.value.finished }
         assertEquals(EpisodePlace(12), progress.episode(id, "https://cdn.example/48.mp3"))
+        assertFalse(progress.finished(id))
+        assertEquals(ListenPosition(1, 0), listening.saved(id))
 
         val episodes = runBlocking { listed.of(id).first() }
         assertEquals(listOf(4, 5), episodes.map { it.page })
+        assertEquals(listOf("https://cdn.example/12.mp3", "https://cdn.example/48.mp3"), episodes.map { it.audio })
         assertEquals(listOf(true, false), episodes.map { it.finished })
         assertEquals("ten marks in, five minutes", listOf(null, 300), episodes.map { it.heardSeconds })
-        assertEquals("played from its start once heard, from its place before that", listOf(0, 12), episodes.map { it.line })
+
+        // Picked from the list, an episode is found by its audio and plays from its own place.
+        player.start(id, episode = "https://cdn.example/48.mp3")
+        compose.idleUntil { player.state.value.at == ListenPosition(5, 12) && player.state.value.script != null }
+
+        // ⏮ from an episode back to the closing page, and on: the edition still wasn't heard.
+        player.seek(ListenPosition(4, 0))
+        compose.idleUntil { player.state.value.at == ListenPosition(4, 0) && player.state.value.script != null }
+        player.previous()
+        compose.idleUntil { player.state.value.at.page == 3 && player.state.value.script != null }
+        player.next()
+        compose.idleUntil { player.state.value.at.page == 4 && player.state.value.script != null }
+        assertFalse(progress.finished(id))
+        assertEquals(ListenPosition(1, 0), listening.saved(id))
+        assertEquals("a visit to its heading isn't a start", null, runBlocking { listed.of(id).first() }[0].heardSeconds)
         player.stop()
     }
 

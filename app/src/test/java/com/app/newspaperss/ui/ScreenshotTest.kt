@@ -568,9 +568,9 @@ class ScreenshotTest {
             edition
         }
         val episodes = listOf(
-            EpisodeAfter(4, "Episode 212: The ferry planner", "The Example Show", 3_480, heardSeconds = 1_380),
-            EpisodeAfter(5, "Episode 48: Night trains", "Rail Talk", 2_700),
-            EpisodeAfter(6, "Episode 11: Lighthouses", "Coastlines", 2_160, finished = true),
+            EpisodeAfter(4, "https://cdn.example/12.mp3", "Episode 212: The ferry planner", "The Example Show", 3_480, heardSeconds = 1_380),
+            EpisodeAfter(5, "https://cdn.example/48.mp3", "Episode 48: Night trains", "Rail Talk", 2_700),
+            EpisodeAfter(6, "https://cdn.example/11.mp3", "Episode 11: Lighthouses", "Coastlines", 2_160, finished = true),
         )
         val vm = viewModels.add(EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id, episodesAfter = { kotlinx.coroutines.flow.flowOf(episodes) }) {})
         val listening = listening()

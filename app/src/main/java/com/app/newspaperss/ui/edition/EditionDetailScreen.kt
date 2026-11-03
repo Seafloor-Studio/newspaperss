@@ -367,7 +367,8 @@ private fun EpisodeRow(episode: EpisodeAfter, onPlay: () -> Unit) {
                 progress?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
             }
         },
-        trailing = { IconButton(onClick = onPlay) { Icon(Icons.Default.PlayArrow, contentDescription = "Play ${episode.title}") } },
+        // The whole row plays it: a button of its own would be a second stop for TalkBack.
+        trailing = { Icon(Icons.Default.PlayArrow, contentDescription = null) },
         reserveTrailing = true,
     )
 }

@@ -14,17 +14,17 @@ import kotlinx.coroutines.flow.flowOn
  * An episode Listen plays after the edition (a notes post's), for the edition's page.
  *
  * @param page its page in Listen, past the closing page.
- * @param heardSeconds how far into it Listen got, or null if it was never started (or was heard).
- * @param line where Listen plays it from: its own place, or its start once heard.
+ * @param audio its recording's address, by which Listen finds it.
+ * @param heardSeconds how far into it Listen got, or null if its audio never played (or it was heard).
  */
 data class EpisodeAfter(
     val page: Int,
+    val audio: String,
     val title: String,
     val source: String?,
     val seconds: Int?,
     val heardSeconds: Int? = null,
     val finished: Boolean = false,
-    val line: Int = 0,
 )
 
 /**
@@ -51,12 +51,13 @@ class EpisodesAfter(
         }.flowOn(Dispatchers.IO)
         return combine(found, moves.distinctUntilChanged()) { episodes, _ ->
             episodes.map { (page, end) ->
-                val place = progress.episode(editionId, end.reading.url)?.takeUnless { it.finished }
+                val place = progress.episode(editionId, end.reading.url)
+                // Its heading lines are said, not played: a visit or a ⏭ past it started nothing.
+                val started = place?.takeUnless { it.finished || it.line <= end.reading.bodyLine }
                 EpisodeAfter(
-                    page, end.title, end.source, end.reading.seconds,
-                    heardSeconds = place?.let { maxOf(0, it.line - end.reading.bodyLine) * EndEpisode.MARK_SECONDS },
-                    finished = progress.episode(editionId, end.reading.url)?.finished == true,
-                    line = place?.line ?: 0,
+                    page, end.reading.url, end.title, end.source, end.reading.seconds,
+                    heardSeconds = started?.let { (it.line - end.reading.bodyLine) * EndEpisode.MARK_SECONDS },
+                    finished = place?.finished == true,
                 )
             }
         }.distinctUntilChanged()

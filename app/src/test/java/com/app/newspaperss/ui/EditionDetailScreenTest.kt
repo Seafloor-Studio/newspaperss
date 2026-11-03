@@ -145,8 +145,8 @@ class EditionDetailScreenTest {
     fun theEpisodesAfterTheEditionAreListedAndPlayFromTheList() {
         val (id, _) = edition(EditionStatus.DELIVERED, listOf("Episode 12", "An essay"))
         val episodes = listOf(
-            EpisodeAfter(3, "Episode 12: The ferry planner", "The Example Show", 3_480, heardSeconds = 1_380, line = 48),
-            EpisodeAfter(4, "Episode 48: Night trains", "Rail Talk", 2_700, finished = true),
+            EpisodeAfter(3, "https://cdn.example/12.mp3", "Episode 12: The ferry planner", "The Example Show", 3_480, heardSeconds = 1_380),
+            EpisodeAfter(4, "https://cdn.example/48.mp3", "Episode 48: Night trains", "Rail Talk", 2_700, finished = true),
         )
         val app = ApplicationProvider.getApplicationContext<android.app.Application>()
         val player = ListenPlayer(FakeSpeaker(), StoredListenProgress(app), open = { null }, scope = kotlinx.coroutines.MainScope())
@@ -163,7 +163,7 @@ class EditionDetailScreenTest {
         compose.onNodeWithText("After the edition").performScrollTo().assertExists()
         compose.onNodeWithText("23 min of 58 min heard").assertExists()
         compose.onNodeWithText("Heard").assertExists()
-        compose.onNodeWithContentDescription("Play Episode 12: The ferry planner").performScrollTo().performClick()
+        compose.onNodeWithText("Episode 12: The ferry planner").performScrollTo().performClick()
         assertEquals(episodes[0], played)
     }
 
@@ -171,7 +171,7 @@ class EditionDetailScreenTest {
     @Test
     fun withoutListenTheEpisodesArentListed() {
         val (id, _) = edition(EditionStatus.DELIVERED, listOf("Episode 12"))
-        val vm = viewModels.add(EditionDetailViewModel(repo, id, episodesAfter = { flowOf(listOf(EpisodeAfter(2, "Episode 12", null, 60))) }) {})
+        val vm = viewModels.add(EditionDetailViewModel(repo, id, episodesAfter = { flowOf(listOf(EpisodeAfter(2, "https://cdn.example/12.mp3", "Episode 12", null, 60))) }) {})
         compose.setContent { EditionDetailScreen(vm, onBack = {}) }
         compose.idleUntil { vm.detail.value?.contents?.isNotEmpty() == true && vm.episodes.value.isNotEmpty() }
         compose.onNodeWithText("After the edition").assertDoesNotExist()

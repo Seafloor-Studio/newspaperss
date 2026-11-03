@@ -270,7 +270,7 @@ class AppContainer(
 
     /** The episodes Listen plays after an edition (debug builds), for its page. */
     private val episodesAfter by lazy {
-        EpisodesAfter(editions, db, listenProgress, choices = { settings.current().recordings }, moves = _listenNow.map { it?.at })
+        EpisodesAfter(editions, db, listenProgress, choices = { settings.current().recordings }, moves = _listenNow.map { it?.at to it?.finished })
     }
 
     fun episodesAfter(editionId: Long): Flow<List<EpisodeAfter>> = if (EPISODES) episodesAfter.of(editionId) else flowOf(emptyList())
