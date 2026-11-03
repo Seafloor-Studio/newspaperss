@@ -12,6 +12,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.text.font.FontWeight
@@ -1181,6 +1182,29 @@ class ListenAppTest {
         compose.idleUntil { !player.state.value.playing }
         compose.waitForIdle()
         assertEquals(0, shown("recorded reading", substring = true))
+    }
+
+    /** Heard to its closing page on the phone, the edition can be marked sent there, so its articles don't come back. */
+    @Test
+    fun theClosingPageOffersMarkAsSent() {
+        val id = edition()
+        runBlocking { db.editions().update(db.editions().byId(id)!!.copy(status = EditionStatus.READY)) }
+        startAndWait(id)
+        compose.setContent {
+            ArticlePreviewScreen(
+                loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = 0, title = "An article", onBack = {},
+                onListen = { listening.start(id, ListenPosition(it, 0)) }, editionId = id, listen = listenOf(player),
+                onMarkSent = { runBlocking { repo.markSentByHand(id) } },
+            )
+        }
+        compose.idleUntil { shown("Nobody could say", substring = true) > 0 }
+        assertEquals("not on an article", 0, compose.onAllNodesWithText("Mark as sent").fetchSemanticsNodes().size)
+
+        player.seek(ListenPosition(2, 0))
+        compose.idleUntil { shown(EpubWriter.END_TITLE, substring = true) > 0 && shown("Mark as sent") > 0 }
+        compose.onNodeWithText("Mark as sent").performScrollTo().performClick()
+
+        compose.idleUntil { runBlocking { db.editions().byId(id)!!.status } == EditionStatus.DELIVERED }
     }
 
     /** Listen stopped on the closing page, the view goes back to the last article. */

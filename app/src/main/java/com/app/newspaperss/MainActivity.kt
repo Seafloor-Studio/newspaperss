@@ -1,6 +1,7 @@
 package com.app.newspaperss
 
 import androidx.navigation.NavBackStackEntry
+import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.data.ArticleSource
 import com.app.newspaperss.data.EditionContent
 import com.app.newspaperss.data.FeedMoves
@@ -309,6 +310,7 @@ private fun App(
                 // Resume that starts it fetching beside the tt-rss feed it became.
                 val moving by remember { container.feedMoves.state }.collectAsStateWithLifecycle(initialValue = FeedMoves.State())
                 val editionTitle by produceState<String?>(null, id) { value = container.editions.byId(id)?.title }
+                val edition by remember(id) { container.editions.observe(id) }.collectAsStateWithLifecycle(initialValue = null)
                 val textSize by remember { container.settings.settings.map { it.previewTextSize } }.collectAsStateWithLifecycle(initialValue = null)
                 val recordings by remember { container.settings.settings.map { it.recordings } }.collectAsStateWithLifecycle(initialValue = com.app.newspaperss.settings.Recordings())
                 ArticlePreviewScreen(
@@ -327,6 +329,8 @@ private fun App(
                     episodeFor = { article -> contents.getOrNull(article)?.let { episodeJudgement(it, recordings) } },
                     listen = container.listening,
                     editionId = id,
+                    onMarkSent = edition?.takeIf { it.status == EditionStatus.READY || container.editions.notSent(it) }
+                        ?.let { { container.appScope.launch { container.editions.markSentByHand(id) } } },
                 )
             }
             composable(Tab.SOURCES.route) {
