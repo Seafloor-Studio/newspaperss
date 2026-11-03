@@ -24,6 +24,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -52,6 +53,7 @@ import com.app.newspaperss.delivery.EditionIntents
 import com.app.newspaperss.delivery.FolderDelivery
 import com.app.newspaperss.delivery.KindleSend
 import com.app.newspaperss.edition.EditionBuilder
+import com.app.newspaperss.listen.EpisodeAfter
 import com.app.newspaperss.listen.Listening
 import com.app.newspaperss.settings.KindleEmail
 import com.app.newspaperss.ui.components.ArticleRowFrame
@@ -87,8 +89,11 @@ fun EditionDetailScreen(
     kindleEmail: KindleEmail? = null,
     listening: Listening? = null,
     onOpenPlayer: () -> Unit = {},
+    /** Plays an episode after the edition, from where it was left. */
+    onPlayEpisode: (EpisodeAfter) -> Unit = {},
 ) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
+    val episodes by viewModel.episodes.collectAsStateWithLifecycle()
     val building by viewModel.building.collectAsStateWithLifecycle()
     val sentToKindle by viewModel.sentToKindle.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -279,6 +284,21 @@ fun EditionDetailScreen(
                 )
                 HorizontalDivider()
             }
+            if (episodes.isNotEmpty() && listenable != null) {
+                item {
+                    Text("After the edition", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp).semantics { heading() })
+                    Text(
+                        "Episodes Listen plays once the edition is over. Tap one to play it now; each keeps its own place.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+                items(episodes, key = { "episode-${it.page}" }) { episode ->
+                    EpisodeRow(episode, onPlay = { onPlayEpisode(episode) })
+                    HorizontalDivider()
+                }
+            }
         }
     }
 }
@@ -326,6 +346,31 @@ private fun Header(
         }
         listen?.invoke(Modifier.padding(top = 8.dp))
     }
+}
+
+/** An episode after the edition: a tap plays it from where it was left. */
+@Composable
+private fun EpisodeRow(episode: EpisodeAfter, onPlay: () -> Unit) {
+    val length = episode.seconds?.let { minutesLabel(it / 60.0) }
+    val progress = when {
+        episode.finished -> "Heard"
+        episode.heardSeconds != null && episode.seconds != null -> "${minutesLabel(episode.heardSeconds / 60.0)} of ${minutesLabel(episode.seconds / 60.0)} heard"
+        episode.heardSeconds != null -> "${minutesLabel(episode.heardSeconds / 60.0)} heard"
+        else -> null
+    }
+    ArticleRowFrame(
+        modifier = Modifier.clickable(onClickLabel = "Play", onClick = onPlay),
+        title = { Text(episode.title, style = MaterialTheme.typography.bodyLarge, maxLines = 3, overflow = TextOverflow.Ellipsis) },
+        details = {
+            Column {
+                Text(listOfNotNull(episode.source, length.takeIf { progress == null }).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                progress?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
+            }
+        },
+        // The whole row plays it: a button of its own would be a second stop for TalkBack.
+        trailing = { Icon(Icons.Default.PlayArrow, contentDescription = null) },
+        reserveTrailing = true,
+    )
 }
 
 /** @param reserveStar keeps the star's slot on a row without one, so titles line up with those that have it. */

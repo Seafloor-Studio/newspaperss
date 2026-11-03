@@ -285,7 +285,7 @@ private fun App(
             }
             composable(EDITION, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
                 val id = entry.idArg
-                val vm = viewModel { EditionDetailViewModel(container.editions, id, container.kindleSends.recent, container.notifier::dismissFor) }
+                val vm = viewModel { EditionDetailViewModel(container.editions, id, container.kindleSends.recent, container::episodesAfter, container.notifier::dismissFor) }
                 EditionDetailScreen(
                     vm,
                     preferOpen = preferOpen,
@@ -294,6 +294,11 @@ private fun App(
                     kindleEmail = kindleEmail,
                     listening = container.listening,
                     onOpenPlayer = { openPlayer(id) },
+                    // Straight to the episode's page, which follows Listen once it's open.
+                    onPlayEpisode = { episode ->
+                        container.listening.start(id, episode = episode.audio)
+                        nav.navigate("edition/$id/article/${episode.page}") { launchSingleTop = true }
+                    },
                     onBack = { nav.navigateUp() },
                     onReadArticle = { position -> nav.navigate("edition/$id/article/$position") { launchSingleTop = true } },
                 )

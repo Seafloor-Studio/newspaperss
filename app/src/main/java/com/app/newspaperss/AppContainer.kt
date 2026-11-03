@@ -84,6 +84,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import com.app.newspaperss.listen.EpisodeAfter
+import com.app.newspaperss.listen.EpisodesAfter
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.stateIn
@@ -263,6 +267,13 @@ class AppContainer(
     val listen: ListenPlayer by listenMade
 
     private val _listenNow = MutableStateFlow<ListenState?>(null)
+
+    /** The episodes Listen plays after an edition (debug builds), for its page. */
+    private val episodesAfter by lazy {
+        EpisodesAfter(editions, db, listenProgress, choices = { settings.current().recordings }, moves = _listenNow.map { it?.at to it?.finished })
+    }
+
+    fun episodesAfter(editionId: Long): Flow<List<EpisodeAfter>> = if (EPISODES) episodesAfter.of(editionId) else flowOf(emptyList())
 
     /**
      * What Listen is doing, once it has been used since the app started; null before. For the
