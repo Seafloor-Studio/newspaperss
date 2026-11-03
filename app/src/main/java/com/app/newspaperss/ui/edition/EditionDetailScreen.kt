@@ -88,8 +88,8 @@ fun EditionDetailScreen(
     kindleEmail: KindleEmail? = null,
     listening: Listening? = null,
     onOpenPlayer: () -> Unit = {},
-    /** Plays the episode at this page of Listen's, from where it was left. */
-    onPlayEpisode: (page: Int) -> Unit = {},
+    /** Plays an episode after the edition, from where it was left. */
+    onPlayEpisode: (EpisodeAfter) -> Unit = {},
 ) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
     val episodes by viewModel.episodes.collectAsStateWithLifecycle()
@@ -294,7 +294,7 @@ fun EditionDetailScreen(
                     )
                 }
                 items(episodes, key = { "episode-${it.page}" }) { episode ->
-                    EpisodeRow(episode, onPlay = { onPlayEpisode(episode.page) })
+                    EpisodeRow(episode, onPlay = { onPlayEpisode(episode) })
                     HorizontalDivider()
                 }
             }

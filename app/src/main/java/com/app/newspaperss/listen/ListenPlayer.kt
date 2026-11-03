@@ -260,7 +260,12 @@ class ListenPlayer(
         // Past its closing page, into the episodes after it, the edition is heard: Resume and
         // "Finish it first?" are about the paper, not an hour's episode left part way.
         if (current.pages.getOrNull(current.at.page)?.end == true) current.editionId?.let(progress::finish)
-        if (current.at.page < current.pages.lastIndex) move(ListenPosition(current.at.page + 1, 0), play, chimeFirst) else finish()
+        // Run to its end, not skipped with ⏭: heard.
+        if (chimeFirst) heardEpisode()
+        // An episode carries on from its own place, played part way on its own before.
+        val next = current.at.page + 1
+        val from = current.pages.getOrNull(next)?.audio?.let { audio -> current.editionId?.let { progress.episode(it, audio) } }?.takeUnless { it.finished }?.line ?: 0
+        if (current.at.page < current.pages.lastIndex) move(ListenPosition(next, from), play, chimeFirst) else finish()
     }
 
     private fun goToLine(line: Int, script: ListenScript) {
@@ -323,6 +328,13 @@ class ListenPlayer(
         }
     }
 
+    /** The episode playing was heard to its end: listed as heard, and played again from its start. */
+    private fun heardEpisode() {
+        val current = _state.value
+        val audio = current.pages.getOrNull(current.at.page)?.audio ?: return
+        progress.setEpisode(current.editionId ?: return, audio, EpisodePlace(0, finished = true))
+    }
+
     private fun finish() {
         silence()
         val current = _state.value
@@ -364,14 +376,19 @@ class ListenPlayer(
     }
 
     /**
-     * Not on an episode after the edition: which episodes there are can change by the next time
-     * it's opened. Nor on the closing page once the edition is heard, as ⏮ from an episode gets
-     * there: it would make it unfinished again.
+     * An episode after the edition keeps its own place (see [ListenProgress.episode]), not the
+     * edition's: which episodes there are can change by the next time it's opened. Nor on the
+     * closing page once the edition is heard, as ⏮ from an episode gets there: it would make it
+     * unfinished again.
      */
     private fun save(at: ListenPosition) {
         val id = _state.value.editionId ?: return
         val page = _state.value.pages.getOrNull(at.page)
-        if (page?.episode == true || (page?.end == true && progress.finished(id))) return
+        if (page?.episode == true) {
+            page.audio?.let { progress.setEpisode(id, it, EpisodePlace(at.line)) }
+            return
+        }
+        if (page?.end == true && progress.finished(id)) return
         progress.set(id, at)
     }
 

@@ -572,7 +572,7 @@ class ScreenshotTest {
             EpisodeAfter(5, "Episode 48: Night trains", "Rail Talk", 2_700),
             EpisodeAfter(6, "Episode 11: Lighthouses", "Coastlines", 2_160, finished = true),
         )
-        val vm = viewModels.add(EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id, episodesAfter = { episodes }) {})
+        val vm = viewModels.add(EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id, episodesAfter = { kotlinx.coroutines.flow.flowOf(episodes) }) {})
         val listening = listening()
         shoot("05k2-edition-detail-episodes-after", ready = { vm.detail.value?.contents?.isNotEmpty() == true && vm.episodes.value.isNotEmpty() }, act = {
             compose.onNode(hasScrollAction()).performScrollToNode(hasText("Episode 11: Lighthouses"))

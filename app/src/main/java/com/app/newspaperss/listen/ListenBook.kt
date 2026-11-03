@@ -61,7 +61,7 @@ class ListenBook(
                 val recording = readings?.at(editionId, i)?.seconds?.let { s -> s / 60.0 }
                 ListenPage(it.entry.title, it.entry.sourceTitle, recording ?: ListenTime.fromReading(it.entry.minutes))
             } + ListenPage(EpubWriter.END_TITLE, null, 0.0, end = true) +
-                ending.map { ListenPage(it.title, it.source, (it.reading.seconds ?: 0) / 60.0, episode = true) }
+                ending.map { ListenPage(it.title, it.source, (it.reading.seconds ?: 0) / 60.0, episode = true, audio = it.reading.url) }
             return ListenBook(editionId, edition.title, pages, read = read, onClose = book::close)
         }
     }
@@ -72,4 +72,4 @@ class ListenBook(
  * @param end the closing page, "That's all for today".
  * @param episode an episode played after the closing page, not part of the edition's own length.
  */
-data class ListenPage(val title: String, val source: String?, val minutes: Double, val end: Boolean = false, val episode: Boolean = false)
+data class ListenPage(val title: String, val source: String?, val minutes: Double, val end: Boolean = false, val episode: Boolean = false, val audio: String? = null)
