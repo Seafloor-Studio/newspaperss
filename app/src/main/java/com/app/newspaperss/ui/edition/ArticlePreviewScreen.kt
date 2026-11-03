@@ -48,6 +48,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -193,6 +194,8 @@ fun ArticlePreviewScreen(
     /** Listen; while its player has [editionId] open, its controls sit under the page and the page follows the voice. */
     listen: Listening? = null,
     editionId: Long? = null,
+    /** Marks the edition sent, offered on the closing page; null once it's sent, or for one that can't be. */
+    onMarkSent: (() -> Unit)? = null,
 ) {
     val player = listen?.player
     // Read in the background so the screen shows at once: reading a large edition during
@@ -374,6 +377,9 @@ fun ArticlePreviewScreen(
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         voice = listening?.takeIf { it.at.page == onScreen.article },
                         onReadFrom = { line -> player?.seek(ListenPosition(onScreen.article, line)) },
+                        // Heard to the end on the phone, it's as good as sent: its articles shouldn't
+                        // come back for the next edition.
+                        footer = onMarkSent?.takeIf { listening?.pages?.getOrNull(onScreen.article)?.end == true }?.let { mark -> { MarkSentAtTheEnd(mark) } },
                     )
                 }
             }
@@ -408,6 +414,8 @@ private fun PreviewPageView(
     /** Listen on this article: its sentence is tinted and followed, and while it plays a tap reads from a sentence. */
     voice: ListenState? = null,
     onReadFrom: (line: Int) -> Unit = {},
+    /** Under the page's last block. */
+    footer: (@Composable () -> Unit)? = null,
 ) {
     val script = page.script
     // Where the reader was in this article, across rotation and coming back to it.
@@ -475,6 +483,7 @@ private fun PreviewPageView(
                     ListenScript.Block.Rule -> RuleBlock()
                 }
             }
+            footer?.let { item { it() } }
         }
     }
         if (voice != null && !following) {
@@ -484,6 +493,19 @@ private fun PreviewPageView(
                     .background(MaterialTheme.colorScheme.inverseSurface, CircleShape),
             ) { Text("Back to where it's reading", color = MaterialTheme.colorScheme.inverseOnSurface) }
         }
+    }
+}
+
+/** On Listen's closing page: done with the edition here, so it needn't go to the e-reader. */
+@Composable
+private fun MarkSentAtTheEnd(onMarkSent: () -> Unit) {
+    Column(Modifier.padding(top = 24.dp)) {
+        Text(
+            "Heard it all here? Mark it as sent, and its articles won't come back in the next edition.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedButton(onClick = onMarkSent, modifier = Modifier.padding(top = 8.dp)) { Text("Mark as sent") }
     }
 }
 

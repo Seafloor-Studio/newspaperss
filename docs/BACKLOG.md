@@ -79,7 +79,7 @@ What each screen offers by the edition's state wasn't tested past ready and sent
 - [ ] Boox: offer folder delivery into the Books folder, so editions stay in the library *(personas)*
 - [ ] Folder delivery: tt-rss marks articles read as soon as the file is saved, before Syncthing has synced; old editions pile up in the folder *(personas)*
 - [ ] Verify folder delivery and the chooser from the notification on a real device
-- [ ] **Your call: an edition listened to the end counts as read?** *(you asked)* Today finishing Listen only notes the edition as finished: it stays "Ready to send", so when the next edition is made it's marked not sent and its articles come back for the next paper. **Read** on a Boox already counts as sent. Options: mark it sent on reaching the closing page; or ask there once, "Finished. Count this edition as read?" (Yes / Not now), and never for one already sent or marked. Recommended: ask, since some listen and then send it to the e-reader too, and marking it sent also marks its articles read in tt-rss
+- [x] **An edition listened to the end counts as read** *(you asked)*: the closing page offers **Mark as sent**.
 - [ ] If lead time isn't enough on a real device, wake timed editions with an exact alarm (Doze defers WorkManager; expedited work can silently restart a long build). Measured on the emulator (#352, `doze.sh timed`): in deep sleep the timer is held until the next maintenance window, about a minute late there because the emulator grants one at once. On a phone overnight it's however long the next window takes, which the 30-minute lead may or may not cover; a phone's overnight run is what decides this
 
 ### tt-rss, for a returning reader *(personas)*
