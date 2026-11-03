@@ -712,8 +712,12 @@ class ScreenshotTest {
     @Test
     fun listenPlayingAnEditionWithEpisodesAfterIt() = shootEditionWithEpisodes("11g2-listen-episodes-after", page = 1)
 
+    /** The closing page of an edition not sent yet: Mark as sent under it. */
+    @Test
+    fun listenOnTheClosingPage() = shootEditionWithEpisodes("11g3-listen-closing-page", page = 3, unsent = true)
+
     /** Three articles, two of them notes posts: the closing page is page 3, their episodes 4 and 5. */
-    private fun shootEditionWithEpisodes(name: String, page: Int) {
+    private fun shootEditionWithEpisodes(name: String, page: Int, unsent: Boolean = false) {
         val files = tmp.newFolder()
         val articles = listOf(
             EditionArticle(title = "Episode 212: The ferry planner", sourceTitle = "The Example Show", url = "https://example.com/212", bodyHtml = "<p>This week, a ferry planner.</p>", minutes = 1.0),
@@ -742,7 +746,7 @@ class ScreenshotTest {
         val title = player.state.value.pages[page].title
         val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock), reading = MutableStateFlow(now)) {}
         shoot(name, ready = { player.state.value.at.page == page && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
-            ArticlePreviewScreen(loadFile = { File(files, "e.epub") }, position = page, title = title, onBack = {}, onListen = {}, listen = listen, editionId = id)
+            ArticlePreviewScreen(loadFile = { File(files, "e.epub") }, position = page, title = title, onBack = {}, onListen = {}, listen = listen, editionId = id, onMarkSent = if (unsent) ({}) else null)
         }
     }
 

@@ -763,7 +763,9 @@ whose Kindle and KOReader answers ask for more on the same page).
     player under it (see the article preview above), on the tab it was
     tapped from; the bar isn't shown over that edition's articles. So do
     the media notification and the edition's Listen. There the closing page
-    and the episodes after the edition are drawn too, and **Contents** in
+    and the episodes after the edition are drawn too, the closing page with
+    **Mark as sent** under it while the edition is still to send (heard or
+    read on the phone, it's as good as sent), and **Contents** in
     the top bar lists the edition: picking one moves the page and the
     voice. After an error the bar goes: the article view says what's wrong. While an edition opens, as when
     switching to another, it stays and says "Opening the edition…" with a
