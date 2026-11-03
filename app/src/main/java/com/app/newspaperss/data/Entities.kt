@@ -229,7 +229,7 @@ data class PublicationEntity(
     /** At most this many articles per edition; null follows the edition setting. */
     val maxArticles: Int? = null,
     /**
-     * Leave out paid posts with next to nothing free (see
+     * Leave out posts with next to nothing free, paid or for subscribers (see
      * [com.app.newspaperss.core.extract.ExtractedArticle.nothingFree]) instead of giving them a place.
      */
     @ColumnInfo(defaultValue = "0") val skipPaidPosts: Boolean = false,
