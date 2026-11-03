@@ -44,7 +44,6 @@ import androidx.compose.ui.unit.min
 import com.app.newspaperss.core.plural
 import com.app.newspaperss.listen.LISTEN_SPEEDS
 import com.app.newspaperss.listen.ListenPlayer
-import com.app.newspaperss.listen.ListenPosition
 import com.app.newspaperss.listen.ListenState
 import com.app.newspaperss.settings.PodcastVoice
 import androidx.compose.foundation.gestures.scrollBy
@@ -84,7 +83,7 @@ fun PlayerDock(state: ListenState, player: ListenPlayer, voice: PodcastVoice?) {
             // In the edition, the way to the episodes after it, which only Contents showed.
             if (episodes.isNotEmpty() && page?.episode != true) {
                 TextButton(
-                    onClick = { player.seek(ListenPosition(episodes.first(), 0)) },
+                    onClick = { player.playPage(episodes.first()) },
                     modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp)
                         .semantics { contentDescription = "Go to the ${plural(episodes.size, "episode")} after the edition" },
                     contentPadding = PaddingValues(horizontal = 8.dp),
