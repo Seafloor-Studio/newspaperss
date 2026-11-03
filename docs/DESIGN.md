@@ -732,14 +732,16 @@ whose Kindle and KOReader answers ask for more on the same page).
       flatten the articles. In the edition, "Then 2 episodes ›" under the
       bar goes to the first. On one, the times are its own ("Episode 1 of
       2 · 12 min in · 46 min left"), and "Tap a time to play from there."
-      sits above the marks. Past "That's all for today" the edition
-      counts as heard.
+      sits above the marks. Past "That's all for today", reached from the
+      last article, the edition counts as heard; an episode played on its
+      own, or ⏮ back from one, leaves the edition's place alone.
     - Each episode keeps its own place (by its audio's address), apart
       from the edition's: run on into from the one before, it carries on
       from there, and heard to its end it's marked heard (⏭ past it
       isn't hearing it). The edition's page lists them under **After the
       edition**, with how far each got ("23 min of 58 min heard",
-      "Heard"); a tap plays one from its place, straight from the page.
+      "Heard", nothing until its audio has played); a tap on the row
+      plays one from its place, straight from the page.
     - There's no switch back to the voice, which has nothing to read for
       them. One that won't play (offline, gone): "The episode won't play
       right now.", and on to the next.
