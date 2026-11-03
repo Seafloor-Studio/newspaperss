@@ -34,6 +34,7 @@ import com.app.newspaperss.delivery.KindleSends
 import com.app.newspaperss.notify.Notifier
 import com.app.newspaperss.settings.SettingsStore
 import com.app.newspaperss.edition.ExtractorContentProvider
+import com.app.newspaperss.listen.ClipSpeaker
 import com.app.newspaperss.listen.ListenBook
 import com.app.newspaperss.listen.ListenPlayer
 import com.app.newspaperss.listen.ListenState
@@ -168,9 +169,10 @@ class AppContainer(
     val editionRun = EditionRun(settings, feedSync, editionBuilder, editions, folderDelivery, notifier,
         // Scheduled editions only: one made by hand gets its podcast when asked.
         onBuilt = { id, scheduled ->
-            if (scheduled) podcasts.request(id)
-            // After delivery: the paper doesn't wait for something only Listen uses.
+            // After delivery: the paper doesn't wait for something only Listen uses. Before the
+            // podcast: what's said before an episode says its length, which its clip must match.
             if (EPISODES) audioLengths.measureEdition(id)
+            if (scheduled) podcasts.request(id)
         },
     )
 
@@ -193,7 +195,9 @@ class AppContainer(
 
     /** Listen's voice, with an article's recording in its place where it has one. */
     private val readingSpeaker by lazy {
-        ReadingSpeaker(listenSpeaker, StreamAudio(readingPlayer), readings::at, readingChoices, log = logPlaying)
+        // What's said around a recording in the natural voice too, where it's made.
+        val voice = ClipSpeaker(listenSpeaker, Media3Audio(podcastPlayer)) { editionId, text -> podcastStore.clip(editionId, text)?.takeIf { podcastInUse() } }
+        ReadingSpeaker(voice, StreamAudio(readingPlayer), readings::at, readingChoices, log = logPlaying)
     }
 
     /**
@@ -214,11 +218,14 @@ class AppContainer(
 
     /** Listen's voice: a made podcast where there is one, the phone's elsewhere. */
     private val listenSpeaker by lazy {
-        PodcastSpeaker(speaker(), podcastStore, Media3Audio(podcastPlayer), log = logPlaying) {
-            // Just after the app starts, before the store's first value: read it, or a made
-            // article would play in the phone's voice.
-            (listenSettings.value ?: runCatching { runBlocking { settings.current() } }.getOrNull())?.listenVoice == ListenVoice.PODCAST
-        }
+        PodcastSpeaker(speaker(), podcastStore, Media3Audio(podcastPlayer), log = logPlaying, inUse = podcastInUse)
+    }
+
+    /** Listen is to play the natural voice's audio where it's made. */
+    private val podcastInUse: () -> Boolean = {
+        // Just after the app starts, before the store's first value: read it, or a made article
+        // would play in the phone's voice.
+        (listenSettings.value ?: runCatching { runBlocking { settings.current() } }.getOrNull())?.listenVoice == ListenVoice.PODCAST
     }
 
     /** Plays a podcast's pieces as speech. Focus is [ListenService]'s, as for the phone's voice. */
@@ -304,6 +311,11 @@ class AppContainer(
             // Release builds never get here: their kokoroEngine() throws rather than making anything.
             threads = KokoroTrial::threadsFor,
             log = podcastLog,
+            spokenAround = { editionId ->
+                // Its own Readings: Listen's has the edition being heard, which may be another.
+                val around = Readings(db, choices = { settings.current().recordings })
+                if (!EPISODES) emptyList() else ListenBook.open(editions, editionId, around)?.use { book -> around.spokenAround(editionId) { book.script(it) } }.orEmpty()
+            },
         )
     }
 

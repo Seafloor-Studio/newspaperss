@@ -709,10 +709,17 @@ whose Kindle and KOReader answers ask for more on the same page).
     read by the voice.
   - **Episode notes** (debug builds) are read by the voice in their place,
     and their episode plays once the edition is over: after "That's all
-    for today", each on a page of its own, in book order. The voice reads
-    the show and the episode's title, says "Now the episode itself, 38
-    minutes.", and the episode plays, streamed. An episode a transcript
-    already plays in its place isn't played again.
+    for today", each on a page of its own, in book order. The first starts
+    with "After the edition, 2 episodes." (the closing page sounds like the
+    end). The voice reads the show and the episode's title, says "Now the
+    episode itself, 38 minutes.", and the episode plays, streamed. An
+    episode a transcript already plays in its place isn't played again.
+  - **In the natural voice**, what's said around a recording (its heading,
+    "Now the episode itself…", "After the edition…") isn't a line of a page,
+    so Kokoro makes it as short clips once an edition's pages are made, and
+    Listen plays a clip wherever there is one. Without one (not made yet,
+    not English, or one that took the app down while made), the phone's
+    voice says it.
     - The page shows a mark every 30 seconds ("0:00", "0:30"), tinted as
       the episode reaches it: a pause, a call or a speed change plays on
       from where it got, ↶ goes back to the last mark, ↷ skips 30 seconds,
