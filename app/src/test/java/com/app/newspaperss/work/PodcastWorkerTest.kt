@@ -223,7 +223,6 @@ class PodcastWorkerTest {
         assertEquals("status 99", PodcastWorker.thermalName(99))
     }
 
-    /** The number alone sent a session guessing at reason 6; reason 4 is the one that means heat. */
     @Test
     fun theBatteryIsSaidAsAndroidReportsIt() {
         fun battery(plugged: Int, status: Int, level: Int) = app.sendStickyBroadcast(
@@ -238,6 +237,7 @@ class PodcastWorkerTest {
         assertEquals("on battery, 41%", PodcastWorker.batteryNow(app))
     }
 
+    /** The number alone sent a session guessing at reason 6; reason 4 is the one that means heat. */
     @Test
     fun androidsStopReasonsAreNamed() {
         val reasons = listOf(

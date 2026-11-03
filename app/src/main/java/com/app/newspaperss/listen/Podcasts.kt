@@ -75,7 +75,7 @@ class Podcasts(
         withContext(Dispatchers.IO) { store.want(editionId, s.podcastVoice) }
         // While it waits for the charger, Android holds the work and nothing is logged: a morning
         // with no run says nothing of why, unless the battery as it was asked for is here.
-        log.add("Edition $editionId's audio asked for, in ${s.podcastVoice.label}; made once the phone charges" + (battery()?.let { " (now $it)" } ?: ""))
+        log.add("Edition $editionId's audio asked for, in ${s.podcastVoice.label}; made once the phone charges" + (runCatching { battery() }.getOrNull()?.let { " (now $it)" } ?: ""))
         start()
     }
 
