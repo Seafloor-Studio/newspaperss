@@ -84,12 +84,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import com.app.newspaperss.ui.edition.EpisodeAfter
-import com.app.newspaperss.listen.EndEpisode
-import kotlinx.coroutines.flow.flowOn
+import com.app.newspaperss.listen.EpisodeAfter
+import com.app.newspaperss.listen.EpisodesAfter
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -271,29 +268,12 @@ class AppContainer(
 
     private val _listenNow = MutableStateFlow<ListenState?>(null)
 
-    /**
-     * The episodes Listen plays after [editionId] (debug builds), found as Listen finds them, with
-     * how far each was heard: read again as Listen moves, so the edition's page keeps up with it.
-     */
-    fun episodesAfter(editionId: Long): Flow<List<EpisodeAfter>> {
-        if (!EPISODES) return flowOf(emptyList())
-        val found = flow {
-            // Its own Readings: Listen's has the edition being heard, which may be another.
-            val readings = Readings(db, choices = { settings.current().recordings })
-            val episodes = ListenBook.open(editions, editionId, readings)?.use { book ->
-                val first = book.pages.indexOfFirst { it.episode }
-                readings.ending(editionId).mapIndexed { i, end -> first + i to end }
-            }.orEmpty()
-            emit(episodes)
-        }.flowOn(Dispatchers.IO)
-        return combine(found, _listenNow.map { it?.at }.distinctUntilChanged()) { episodes, _ ->
-            episodes.map { (page, end) ->
-                val place = listenProgress.episode(editionId, end.reading.url)
-                val heard = place?.takeUnless { it.finished }?.let { maxOf(0, it.line - end.reading.bodyLine) * EndEpisode.MARK_SECONDS }
-                EpisodeAfter(page, end.title, end.source, end.reading.seconds, heardSeconds = heard, finished = place?.finished == true, line = place?.takeUnless { it.finished }?.line ?: 0)
-            }
-        }.distinctUntilChanged()
+    /** The episodes Listen plays after an edition (debug builds), for its page. */
+    private val episodesAfter by lazy {
+        EpisodesAfter(editions, db, listenProgress, choices = { settings.current().recordings }, moves = _listenNow.map { it?.at })
     }
+
+    fun episodesAfter(editionId: Long): Flow<List<EpisodeAfter>> = if (EPISODES) episodesAfter.of(editionId) else flowOf(emptyList())
 
     /**
      * What Listen is doing, once it has been used since the app started; null before. For the
