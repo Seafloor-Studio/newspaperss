@@ -1218,6 +1218,7 @@ class ListenAppTest {
         val lastMark = 2 + 3
         player.seek(ListenPosition(4, lastMark))
         compose.idleUntil { player.state.value.at == ListenPosition(4, lastMark) && speaker.queue.isNotEmpty() }
+        assertEquals("where it is in it is its own", EpisodePlace(lastMark), progress.episode(id, "https://cdn.example/12.mp3"))
         while (player.state.value.at.page == 4) {
             speaker.sayNext()
             compose.idleUntil { speaker.queue.isNotEmpty() || player.state.value.at.page != 4 }
