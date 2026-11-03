@@ -154,10 +154,21 @@ class PodcastStore(val dir: File) {
     /** Where a clip of [text] is written, before [keepClip]. */
     fun clipScratch(editionId: Long, text: String): File = File(dir, "$editionId$SEP$CLIP$SEP${hash(text)}.$PART")
 
-    /** Keeps a clip of [text] written to [made]; with the podcast deleted since, it's dropped. */
+    /**
+     * Marks a clip of [text] being made, and unmarks it once it's made or failed: a mark left behind
+     * means making it took the app down.
+     */
+    fun tryingClip(editionId: Long, text: String, trying: Boolean) {
+        val mark = File(folder(editionId), "$CLIP$SEP${hash(text)}.$SAYING")
+        if (trying) write(editionId, mark.name, "") else mark.delete()
+    }
+
+    fun clipTried(editionId: Long, text: String): Boolean = File(folder(editionId), "$CLIP$SEP${hash(text)}.$SAYING").exists()
+
+    /** Keeps a clip of [text] written to [made]; with the podcast deleted, or asked for again, since [asked], it's dropped. */
     @Synchronized
-    fun keepClip(editionId: Long, text: String, made: File) {
-        if (!folder(editionId).exists()) {
+    fun keepClip(editionId: Long, asked: String?, text: String, made: File) {
+        if (!folder(editionId).exists() || asked(editionId) != asked) {
             made.delete()
             return
         }

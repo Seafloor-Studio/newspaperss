@@ -161,6 +161,22 @@ class PodcastMakerTest {
         assertNull("only what it was asked for", store.clip(id, "Counting Knots"))
     }
 
+    /** One that took the app down while it was made, as a line can, isn't tried again: the phone's voice says it. */
+    @Test
+    fun aClipThatTookTheAppDownIsntTriedAgain() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        around = listOf("Rail Talk.", "After the edition, an episode.")
+        store.tryingClip(id, "Rail Talk.", true)
+        make()
+
+        assertTrue(store.finished(id))
+        assertNull(store.clip(id, "Rail Talk."))
+        assertTrue("Rail Talk." !in said)
+        assertTrue(store.clip(id, "After the edition, an episode.") != null)
+    }
+
     /** One the encoder can't finish is left to the phone's voice; the podcast still finishes. */
     @Test
     fun aClipThatFailsLeavesItToThePhonesVoice() {

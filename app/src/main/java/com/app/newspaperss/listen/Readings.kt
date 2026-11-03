@@ -131,7 +131,8 @@ class Readings(
         val pages = l.readings.entries.map { (page, reading) -> page to reading } +
             l.ending.mapIndexed { i, end -> l.articles + 1 + i to end.reading }
         return pages.flatMap { (page, reading) ->
-            val heading = script(page)?.lines?.take(reading.bodyLine)?.map { it.spoken }.orEmpty()
+            // Kokoro speaks English: a heading in another language stays the phone's.
+            val heading = script(page)?.takeIf { PodcastMaker.english(it.language) }?.lines?.take(reading.bodyLine)?.map { it.spoken }.orEmpty()
             listOfNotNull(reading.prelude) + heading + announcement(reading)
         }.distinct()
     }

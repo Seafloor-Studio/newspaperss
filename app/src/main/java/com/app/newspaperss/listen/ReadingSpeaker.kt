@@ -109,7 +109,8 @@ class ReadingSpeaker(
             }
 
             override fun onDone(id: String) {
-                if (id.startsWith(PRELUDE)) return
+                // Said: not again. One stopped part way is said again from the page's start.
+                if (id.startsWith(PRELUDE)) return LineId.parse(id.removePrefix(PRELUDE))?.let { preluded += it.editionId to it.page } ?: Unit
                 if (id.startsWith(HANDOVER)) return handedOver(id)
                 if (id.startsWith(SKIPPING)) return skipped(id)
                 val own = id.removePrefix(HEADING)
@@ -153,7 +154,6 @@ class ReadingSpeaker(
             // Once, before the first episode after the edition: the closing page sounds like the end.
             val prelude = reading.prelude?.takeIf { line.line == 0 && here !in preluded }
             if (prelude != null) {
-                preluded += here
                 voice.speak("$PRELUDE$id", prelude, null, rate, flush)
                 return voice.speak("$HEADING$id", text, language, rate, flush = false)
             }

@@ -169,9 +169,10 @@ class AppContainer(
     val editionRun = EditionRun(settings, feedSync, editionBuilder, editions, folderDelivery, notifier,
         // Scheduled editions only: one made by hand gets its podcast when asked.
         onBuilt = { id, scheduled ->
-            if (scheduled) podcasts.request(id)
-            // After delivery: the paper doesn't wait for something only Listen uses.
+            // After delivery: the paper doesn't wait for something only Listen uses. Before the
+            // podcast: what's said before an episode says its length, which its clip must match.
             if (EPISODES) audioLengths.measureEdition(id)
+            if (scheduled) podcasts.request(id)
         },
     )
 

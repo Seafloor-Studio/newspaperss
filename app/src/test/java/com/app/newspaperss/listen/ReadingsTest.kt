@@ -230,6 +230,9 @@ class ReadingsTest {
         val around = readings.spokenAround(3) { p -> if (p >= 7) ending[p - 7].script else page(100) }
         assertTrue(around.toString(), around.containsAll(listOf("After the edition, 2 episodes.", "A", "Title 0", "Now the episode itself, 38 minutes.", "Title 4", "Now the episode itself.")))
         assertTrue("the episode's marks are the recording's, not said", "0:00" !in around)
+        // Kokoro speaks English: a heading in another language is left to the phone's voice.
+        val french = readings.spokenAround(3) { p -> if (p >= 7) ending[p - 7].script.copy(language = "fr") else page(100) }
+        assertTrue("Title 0" !in french && "Now the episode itself, 38 minutes." in french)
         // Without a length, one line.
         assertEquals(listOf("A", "Title 4", "The episode."), ending[1].script.lines.map { it.spoken })
         assertEquals(2, ending[1].reading.bodyLine)

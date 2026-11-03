@@ -31,6 +31,9 @@ class ClipSpeaker(
 
     private var playing: Item? = null
 
+    /** Whether [playing]'s start has been reported: once its audio is under way, not when it's asked for. */
+    private var started = false
+
     init {
         voice.listener = object : Speaker.Listener {
             override fun onStart(id: String) {
@@ -50,19 +53,26 @@ class ClipSpeaker(
             }
         }
         audio.listener = object : PodcastAudio.Listener {
-            override fun onPosition(index: Int, ms: Long) {}
+            override fun onPosition(index: Int, ms: Long) {
+                val item = playing ?: return
+                if (!started) {
+                    started = true
+                    listener?.onStart(item.id)
+                }
+            }
 
             override fun onEnded() {
                 val item = playing ?: return
-                playing = null
+                if (!started) listener?.onStart(item.id)
+                stopClip()
                 listener?.onDone(item.id)
                 next()
             }
 
             override fun onError(index: Int, code: String) {
                 val item = playing ?: return
-                playing = null
-                // Its start was reported already: the voice says it, and its end is the voice's.
+                stopClip()
+                // The voice says it instead, and reports its start and end.
                 pending += item.id
                 voice.speak(item.id, item.text, item.language, item.rate, flush = false)
             }
@@ -98,7 +108,7 @@ class ClipSpeaker(
             if (pending.isNotEmpty()) return
             queue.removeFirst()
             playing = item
-            listener?.onStart(item.id)
+            started = false
             audio.play(listOf(item.clip), 0, 0L, item.rate)
         }
     }

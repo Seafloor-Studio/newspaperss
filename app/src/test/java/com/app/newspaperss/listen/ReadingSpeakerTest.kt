@@ -85,6 +85,9 @@ class ReadingSpeakerTest {
     fun theFirstEpisodeAfterTheEditionIsAnnouncedBeforeItsHeading() {
         val first = Reading("https://cdn.example/12.mp3", 3_480, own = true, bodyLine = 2, starts = listOf(0.0), episode = true, atTheEnd = true, prelude = "After the edition, 2 episodes.")
         val ending = ReadingSpeaker(voice, audio, { _, p -> first.takeIf { p == 4 } }, choices)
+        // Paused before the prelude was over: it's said again.
+        ending.speak(id(0, page = 4), "Rail Talk.", null, 1f, flush = true)
+        voice.stop()
         ending.speak(id(0, page = 4), "Rail Talk.", null, 1f, flush = true)
         ending.speak(id(1, page = 4), "Episode 48: Night trains.", null, 1f, flush = false)
         assertEquals(listOf("After the edition, 2 episodes.", "Rail Talk.", "Episode 48: Night trains."), voice.queue.map { it.text })

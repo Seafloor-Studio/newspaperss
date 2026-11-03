@@ -144,8 +144,7 @@ class PodcastMaker(
     private suspend fun makeUnderLock() {
         // Loaded once, and again only for a podcast in another voice: loading takes seconds.
         var kokoro: Triple<PodcastVoice, Int, PodcastEngine>? = null
-        fun kokoroFor(editionId: Long): PodcastEngine {
-            val voice = store.voice(editionId) ?: throw IllegalStateException("No voice")
+        fun kokoroFor(editionId: Long, voice: PodcastVoice): PodcastEngine {
             val threads = threads(editionId)
             if (kokoro?.first != voice || kokoro?.second != threads) {
                 kokoro?.third?.release()
@@ -189,7 +188,7 @@ class PodcastMaker(
                         if (store.waiting().firstOrNull() != editionId || !store.wanted(editionId, asked)) return@use
                         val script = script(book, page)
                         if (reused(editionId, asked, page, script, voice)) continue
-                        makePage(editionId, asked, page, script, kokoroFor(editionId))
+                        makePage(editionId, asked, page, script, kokoroFor(editionId, voice))
                     }
                     // Best effort: without its clips, what's said around a recording is the phone's voice.
                     val around = try {
@@ -201,10 +200,11 @@ class PodcastMaker(
                         emptyList()
                     }
                     for (text in around) {
-                        if (store.clip(editionId, text) != null) continue
+                        // One that took the app down, as a line can, is the phone's from then on.
+                        if (store.clip(editionId, text) != null || store.clipTried(editionId, text)) continue
                         currentCoroutineContext().ensureActive()
                         if (!inUse() || !store.wanted(editionId, asked)) return@use
-                        makeClip(editionId, text, kokoroFor(editionId))
+                        makeClip(editionId, asked, text, kokoroFor(editionId, voice))
                     }
                     // Stopped during its last page: not finished, so Make the rest can carry on.
                     if (!store.wanted(editionId, asked)) return@use
@@ -236,18 +236,24 @@ class PodcastMaker(
     }
 
     /** A clip of [text], in one go: a sentence or two, so nothing to keep part way. A failure leaves it to the phone's voice. */
-    private fun makeClip(editionId: Long, text: String, kokoro: PodcastEngine) {
+    private fun makeClip(editionId: Long, asked: String?, text: String, kokoro: PodcastEngine) {
         val file = store.clipScratch(editionId, text)
+        store.tryingClip(editionId, text, true)
         try {
             val speech = kokoro.speak(text)
             val sink = encoder.open(file, speech.sampleRate)
-            // An encoder given no audio at all can't finish its file.
-            sink.write(speech.samples.takeIf { it.isNotEmpty() } ?: FloatArray(speech.sampleRate / 10))
-            sink.close()
-            store.keepClip(editionId, text, file)
+            try {
+                // An encoder given no audio at all can't finish its file.
+                sink.write(speech.samples.takeIf { it.isNotEmpty() } ?: FloatArray(speech.sampleRate / 10))
+            } finally {
+                sink.close()
+            }
+            store.keepClip(editionId, asked, text, file)
         } catch (e: Exception) {
             file.delete()
             log.add("A clip wasn't made: ${e.javaClass.name}")
+        } finally {
+            store.tryingClip(editionId, text, false)
         }
     }
 

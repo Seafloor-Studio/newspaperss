@@ -57,6 +57,7 @@ class ClipSpeakerTest {
         assertEquals(listOf("rail.m4a"), played)
         assertTrue("what follows waits for the clip", voice.queue.isEmpty())
         audio.listener!!.onEnded()
+        assertEquals("its audio stopped, not left ticking", 1, stopped)
         assertEquals(listOf("Night trains."), voice.queue.map { it.text })
         voice.sayNext()
         assertEquals(
@@ -77,7 +78,7 @@ class ClipSpeakerTest {
         audio.listener!!.onError(0, "decoder")
         assertEquals(listOf("Now the episode itself."), voice.queue.map { it.text })
         voice.sayNext()
-        assertEquals(listOf("start reading:${line(2)}", "start reading:${line(2)}", "done reading:${line(2)}"), heard)
+        assertEquals("its start is the voice's, not reported twice", listOf("start reading:${line(2)}", "done reading:${line(2)}"), heard)
     }
 
     /** A line read from a page is never a clip, whatever it says; a new place stops a clip playing. */
@@ -89,6 +90,9 @@ class ClipSpeakerTest {
 
         speaker.speak("heading:${line(0)}", "Rail Talk.", null, 1f, flush = true)
         assertEquals(listOf("rail.m4a"), played)
+        assertTrue("started once its audio is", heard.isEmpty())
+        audio.listener!!.onPosition(0, 50)
+        assertEquals(listOf("start heading:${line(0)}"), heard)
         speaker.speak(line(3), "0:00", null, 1f, flush = true)
         assertEquals(1, stopped)
         assertEquals(listOf("0:00"), voice.queue.map { it.text })
