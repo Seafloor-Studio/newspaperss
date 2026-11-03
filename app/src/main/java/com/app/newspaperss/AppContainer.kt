@@ -299,7 +299,7 @@ class AppContainer(
     /** The maker's, taking the thread count too, so [KokoroTrial] can try two against four. */
     private val podcastMakerEngine = { voice: PodcastVoice, threads: Int -> kokoroEngine(kokoroInstall, voice, threads) }
     internal val podcastStore = PodcastStore(File(context.filesDir, "podcasts"))
-    private val podcasts = Podcasts(podcastStore, settings, kokoroInstall, start = { PodcastWorker.enqueue(context) }, log = podcastLog)
+    private val podcasts = Podcasts(podcastStore, settings, kokoroInstall, log = podcastLog, battery = { PodcastWorker.batteryNow(context) }, start = { PodcastWorker.enqueue(context) })
 
     /** The notification's Stop: no more podcasts are made, until one is asked for. */
     fun stopMakingPodcasts() = podcasts.stopAll()

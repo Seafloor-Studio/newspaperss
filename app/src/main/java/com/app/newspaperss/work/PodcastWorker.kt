@@ -346,6 +346,21 @@ open class PodcastWorker(context: Context, params: WorkerParameters) : Coroutine
             }
         }
 
+        /** The battery as Android last reported it: plugged in or not, charging or holding, and its level. */
+        fun batteryNow(context: Context): String? {
+            val battery = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return null
+            val level = battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+            val scale = battery.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+            val percent = if (level >= 0 && scale > 0) "${level * 100 / scale}%" else null
+            val charging = when (battery.getIntExtra(BatteryManager.EXTRA_STATUS, -1)) {
+                BatteryManager.BATTERY_STATUS_CHARGING -> "charging"
+                BatteryManager.BATTERY_STATUS_FULL -> "full"
+                else -> "not charging"
+            }
+            val plugged = if (battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0) "plugged in, $charging" else "on battery"
+            return listOfNotNull(plugged, percent).joinToString(", ")
+        }
+
         /** Android's stop reasons by name: the number alone sent a session guessing. */
         internal fun stopReasonName(reason: Int) = when (reason) {
             WorkInfo.STOP_REASON_CANCELLED_BY_APP -> "cancelled by the app"

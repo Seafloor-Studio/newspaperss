@@ -223,6 +223,20 @@ class PodcastWorkerTest {
         assertEquals("status 99", PodcastWorker.thermalName(99))
     }
 
+    @Test
+    fun theBatteryIsSaidAsAndroidReportsIt() {
+        fun battery(plugged: Int, status: Int, level: Int) = app.sendStickyBroadcast(
+            Intent(Intent.ACTION_BATTERY_CHANGED).putExtra(BatteryManager.EXTRA_PLUGGED, plugged).putExtra(BatteryManager.EXTRA_STATUS, status)
+                .putExtra(BatteryManager.EXTRA_LEVEL, level).putExtra(BatteryManager.EXTRA_SCALE, 100),
+        )
+        battery(BatteryManager.BATTERY_PLUGGED_AC, BatteryManager.BATTERY_STATUS_CHARGING, 64)
+        assertEquals("plugged in, charging, 64%", PodcastWorker.batteryNow(app))
+        battery(BatteryManager.BATTERY_PLUGGED_USB, BatteryManager.BATTERY_STATUS_NOT_CHARGING, 80)
+        assertEquals("held at its limit, it's plugged in but not charging", "plugged in, not charging, 80%", PodcastWorker.batteryNow(app))
+        battery(0, BatteryManager.BATTERY_STATUS_DISCHARGING, 41)
+        assertEquals("on battery, 41%", PodcastWorker.batteryNow(app))
+    }
+
     /** The number alone sent a session guessing at reason 6; reason 4 is the one that means heat. */
     @Test
     fun androidsStopReasonsAreNamed() {
