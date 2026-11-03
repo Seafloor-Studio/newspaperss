@@ -262,6 +262,17 @@ class ListenAppTest {
         player.seek(ListenPosition(3, 2 + 38))
         compose.idleUntil { player.state.value.at == ListenPosition(3, 40) }
         compose.onNodeWithText("Episode 1 of 1 · 19 min in · 19 min left").assertIsDisplayed()
+        // Back in the edition, the episode picked again carries on from where it got.
+        player.seek(ListenPosition(1, 0))
+        compose.idleUntil { player.state.value.at.page == 1 && compose.onAllNodesWithText("Then 1 episode ›").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Then 1 episode ›").performClick()
+        compose.idleUntil { player.state.value.at.page == 3 }
+        assertEquals(ListenPosition(3, 40), player.state.value.at)
+        // So does Listen started at it from a closed player, as the article view's Listen does.
+        player.stop()
+        player.start(id, ListenPosition(3, 0))
+        compose.idleUntil { player.state.value.script != null }
+        assertEquals(ListenPosition(3, 40), player.state.value.at)
         player.stop()
     }
 

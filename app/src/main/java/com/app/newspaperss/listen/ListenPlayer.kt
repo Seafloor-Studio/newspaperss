@@ -116,6 +116,7 @@ class ListenPlayer(
 
     /**
      * Starts [editionId] at [from], or where it was left (from the top once it was finished).
+     * [from] at an episode's start is the episode picked, so it plays from its own place.
      * With [episode], at that episode's page (by its audio, as which episodes follow the
      * edition can change) from its own place; where it would otherwise start if it isn't there.
      */
@@ -125,7 +126,7 @@ class ListenPlayer(
             // Left on an episode played on its own, a plain start is the edition's Resume, as its button says.
             val resume = progress.get(editionId)?.takeUnless { progress.finished(editionId) }
                 ?.takeIf { current.pages.getOrNull(current.at.page)?.episode == true }
-            val at = episode?.let { episodeStart(editionId, current.pages, it) } ?: from ?: resume
+            val at = episode?.let { episodeStart(editionId, current.pages, it) } ?: from?.let { ownPlace(editionId, current.pages, it) } ?: resume
             if (at != null) seek(at) else play()
             return
         }
@@ -147,7 +148,7 @@ class ListenPlayer(
             _state.update { it.copy(editionTitle = opened.title, pages = opened.pages, loading = false) }
             // The store's first value can come after the book opens, and the first line would restart at it.
             if (savingSpeed == 0) savedSpeed.firstOrNull()?.let { speed -> _state.update { it.copy(speed = speed) } }
-            val at = episode?.let { episodeStart(editionId, opened.pages, it) } ?: from ?: progress.get(editionId)?.takeUnless { progress.finished(editionId) } ?: ListenPosition()
+            val at = episode?.let { episodeStart(editionId, opened.pages, it) } ?: from?.let { ownPlace(editionId, opened.pages, it) } ?: progress.get(editionId)?.takeUnless { progress.finished(editionId) } ?: ListenPosition()
             goTo(at)
         }
     }
@@ -217,6 +218,12 @@ class ListenPlayer(
     /** Plays from [position]: a tapped sentence, or an article picked from the contents. */
     fun seek(position: ListenPosition) = move(position, play = true)
 
+    /** Plays [page] from its start, or an episode from its own place: picked from the contents, a swipe, a car's list. */
+    fun playPage(page: Int) {
+        val current = _state.value
+        seek(ownPlace(current.editionId ?: return, current.pages, ListenPosition(page, 0)))
+    }
+
     /** Sets and saves the speed: one of [LISTEN_SPEEDS], the nearest to what a car or watch asks for. */
     fun setSpeed(speed: Float) {
         val listed = LISTEN_SPEEDS.minBy { abs(it - speed) }
@@ -280,8 +287,8 @@ class ListenPlayer(
         if (chimeFirst) heardEpisode()
         // An episode carries on from its own place, played part way on its own before.
         val next = current.at.page + 1
-        val from = current.pages.getOrNull(next)?.audio?.let { audio -> current.editionId?.let { progress.episode(it, audio) } }?.takeUnless { it.finished }?.line ?: 0
-        if (current.at.page < current.pages.lastIndex) move(ListenPosition(next, from), play, chimeFirst) else finish()
+        val from = current.editionId?.let { ownPlace(it, current.pages, ListenPosition(next, 0)) } ?: ListenPosition(next, 0)
+        if (current.at.page < current.pages.lastIndex) move(from, play, chimeFirst) else finish()
     }
 
     private fun goToLine(line: Int, script: ListenScript) {
@@ -349,7 +356,13 @@ class ListenPlayer(
     /** [audio]'s page in [pages], from its own place unless it was heard to its end. */
     private fun episodeStart(editionId: Long, pages: List<ListenPage>, audio: String): ListenPosition? {
         val page = pages.indexOfFirst { it.audio == audio }.takeIf { it >= 0 } ?: return null
-        return ListenPosition(page, progress.episode(editionId, audio)?.takeUnless { it.finished }?.line ?: 0)
+        return ownPlace(editionId, pages, ListenPosition(page, 0))
+    }
+
+    /** [at], or for an episode's start, its own place unless it was heard to its end. */
+    private fun ownPlace(editionId: Long, pages: List<ListenPage>, at: ListenPosition): ListenPosition {
+        val audio = pages.getOrNull(at.page)?.audio?.takeIf { at.line == 0 } ?: return at
+        return ListenPosition(at.page, progress.episode(editionId, audio)?.takeUnless { it.finished }?.line ?: 0)
     }
 
     /** The episode playing was heard to its end: listed as heard, and played again from its start. */

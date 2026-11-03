@@ -741,7 +741,8 @@ whose Kindle and KOReader answers ask for more on the same page).
       isn't hearing it). The edition's page lists them under **After the
       edition**, with how far each got ("23 min of 58 min heard",
       "Heard", nothing until its audio has played); a tap on the row
-      plays one from its place, straight from the page.
+      plays one from its place, straight from the page. Picked from the
+      contents, "Then 2 episodes ›" or a car's list, it's from its place too.
     - There's no switch back to the voice, which has nothing to read for
       them. One that won't play (offline, gone): "The episode won't play
       right now.", and on to the next.

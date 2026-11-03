@@ -232,7 +232,7 @@ fun ArticlePreviewScreen(
     }
     // While it plays, going to another article takes the voice there, which turns the page; paused,
     // only the page turns.
-    val toArticle = { at: Int -> if (listening?.playing == true) player.seek(ListenPosition(at, 0)) else article = at }
+    val toArticle = { at: Int -> if (listening?.playing == true) player.playPage(at) else article = at }
     // The page on screen stays, title, note and buttons with it, until the next is read: on e-ink a
     // page turn then redraws once, not blank and again.
     var shown by remember(open) { mutableStateOf<PreviewPage?>(null) }
@@ -284,7 +284,7 @@ fun ArticlePreviewScreen(
     var contents by rememberSaveable { mutableStateOf(false) }
     if (contents && listening != null && player != null) {
         // The page goes with the pick even when it's the voice's own article, which wouldn't turn it.
-        Contents(listening, onPick = { contents = false; article = it; player.seek(ListenPosition(it, 0)) }, onDismiss = { contents = false })
+        Contents(listening, onPick = { contents = false; article = it; player.playPage(it) }, onDismiss = { contents = false })
     }
     // Closed with Listen: left saved, it would open by itself the next time Listen starts.
     LaunchedEffect(listening == null) { if (listening == null) contents = false }
