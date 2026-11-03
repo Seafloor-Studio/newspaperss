@@ -81,6 +81,8 @@ class ReadingSpeaker(
     private var rate = 1f
     /** Articles whose recording has been announced: once is enough. */
     private val announced = mutableSetOf<Pair<Long, Int>>()
+    /** Pages whose prelude has been said, as for [announced]. */
+    private val preluded = mutableSetOf<Pair<Long, Int>>()
     /** How long each recording is, as the player found: by address. */
     private val lengths = mutableMapOf<String, Long>()
     /** A share of the recording to seek to once its length is known: asked for before it was. */
@@ -103,10 +105,11 @@ class ReadingSpeaker(
     init {
         voice.listener = object : Speaker.Listener {
             override fun onStart(id: String) {
-                if (!id.startsWith(HANDOVER) && !id.startsWith(SKIPPING)) listener?.onStart(id.removePrefix(HEADING))
+                if (!id.startsWith(HANDOVER) && !id.startsWith(SKIPPING) && !id.startsWith(PRELUDE)) listener?.onStart(id.removePrefix(HEADING))
             }
 
             override fun onDone(id: String) {
+                if (id.startsWith(PRELUDE)) return
                 if (id.startsWith(HANDOVER)) return handedOver(id)
                 if (id.startsWith(SKIPPING)) return skipped(id)
                 val own = id.removePrefix(HEADING)
@@ -115,7 +118,8 @@ class ReadingSpeaker(
             }
 
             override fun onError(id: String) {
-                // A handover the voice can't say is skipped: the recording plays anyway.
+                // A handover or prelude the voice can't say is skipped: the recording plays anyway.
+                if (id.startsWith(PRELUDE)) return
                 if (id.startsWith(HANDOVER)) return handedOver(id)
                 if (id.startsWith(SKIPPING)) return skipped(id)
                 val own = id.removePrefix(HEADING)
@@ -145,7 +149,16 @@ class ReadingSpeaker(
         val reading = reading ?: return voice.speak(id, text, language, rate, flush)
         // The heading, as plain speech rather than a line of the edition: a podcast voice given
         // the article's line would play the whole article from its own audio.
-        if (line.line < reading.bodyLine) return voice.speak("$HEADING$id", text, language, rate, flush)
+        if (line.line < reading.bodyLine) {
+            // Once, before the first episode after the edition: the closing page sounds like the end.
+            val prelude = reading.prelude?.takeIf { line.line == 0 && here !in preluded }
+            if (prelude != null) {
+                preluded += here
+                voice.speak("$PRELUDE$id", prelude, null, rate, flush)
+                return voice.speak("$HEADING$id", text, language, rate, flush = false)
+            }
+            return voice.speak("$HEADING$id", text, language, rate, flush)
+        }
         this.rate = rate
         if (!flush) {
             // The recording carries on through it, or the handover's on its way.
@@ -193,7 +206,7 @@ class ReadingSpeaker(
         waiting = null
         handingOver = line
         article?.let { announced += it }
-        voice.speak("$HANDOVER$line", announce(reading), null, rate, flush = true)
+        voice.speak("$HANDOVER$line", announcement(reading), null, rate, flush = true)
     }
 
     private fun handedOver(id: String) {
@@ -337,6 +350,9 @@ class ReadingSpeaker(
         /** Ids of the voice saying an episode won't play, before moving on. */
         const val SKIPPING = "skipping:"
 
+        /** Ids of the voice saying that episodes follow the edition, before the first one's heading. */
+        const val PRELUDE = "prelude:"
+
         fun what(reading: Reading?) = when {
             reading?.episode == true -> "its episode"
             reading?.own == true -> "its own audio"
@@ -345,9 +361,5 @@ class ReadingSpeaker(
 
         fun clock(ms: Long) = (ms / 1000).let { "%d:%02d".format(Locale.ROOT, it / 60, it % 60) }
 
-        fun announce(reading: Reading): String {
-            val what = if (reading.episode) "Now the episode itself" else "Now its recorded reading"
-            return reading.seconds?.let { "$what, ${spokenLength(it)}." } ?: "$what."
-        }
     }
 }

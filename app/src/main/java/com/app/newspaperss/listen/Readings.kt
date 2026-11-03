@@ -36,6 +36,11 @@ data class Reading(
     val starts: List<Double>,
     val episode: Boolean = false,
     val atTheEnd: Boolean = false,
+    /**
+     * Said before its page's heading: the first episode after the edition says that episodes
+     * follow it, which the closing page, from the book, doesn't.
+     */
+    val prelude: String? = null,
 ) {
     /** The share of the recording before [line]. */
     fun shareAt(line: Int): Double = starts.getOrElse(line - bodyLine) { if (line < bodyLine) 0.0 else 1.0 }
@@ -74,6 +79,12 @@ data class EndEpisode(val notesPage: Int, val title: String, val source: String?
     }
 }
 
+/** What the voice says between a recording's heading and the recording: "Now the episode itself, 58 minutes." */
+fun announcement(reading: Reading): String {
+    val what = if (reading.episode) "Now the episode itself" else "Now its recorded reading"
+    return reading.seconds?.let { "$what, ${spokenLength(it)}." } ?: "$what."
+}
+
 /** How long a recording plays, as the voice says it: "38 minutes", "1 hour 27 minutes". */
 fun spokenLength(seconds: Int): String {
     val minutes = maxOf(1, (seconds + 30) / 60)
@@ -108,6 +119,22 @@ class Readings(
 
     /** The episodes that play after [editionId]'s closing page, in book order. */
     fun ending(editionId: Long): List<EndEpisode> = loaded?.takeIf { it.editionId == editionId }?.ending.orEmpty()
+
+    /**
+     * Everything the voice says around [editionId]'s recordings that isn't a line it reads from
+     * the edition: each heading before its recording, the prelude and the announcement. The
+     * natural voice makes these ahead (see [PodcastMaker]), so they're heard in it too. Empty
+     * unless [load] has read the edition.
+     */
+    suspend fun spokenAround(editionId: Long, script: suspend (page: Int) -> ListenScript?): List<String> {
+        val l = loaded?.takeIf { it.editionId == editionId } ?: return emptyList()
+        val pages = l.readings.entries.map { (page, reading) -> page to reading } +
+            l.ending.mapIndexed { i, end -> l.articles + 1 + i to end.reading }
+        return pages.flatMap { (page, reading) ->
+            val heading = script(page)?.lines?.take(reading.bodyLine)?.map { it.spoken }.orEmpty()
+            listOfNotNull(reading.prelude) + heading + announcement(reading)
+        }.distinct()
+    }
 
     /**
      * Finds the recordings for an edition's [contents], in book order, reading the pages that may
@@ -188,6 +215,10 @@ class Readings(
             val starts = if (seconds == null || marks.isEmpty()) listOf(0.0) else marks.map { it.toDouble() / seconds }
             val reading = Reading(url, seconds, own = true, bodyLine = bodyLine, starts = starts, episode = true, atTheEnd = true)
             ending += EndEpisode(page, content.entry.title, content.entry.sourceTitle, reading)
+        }
+        ending.firstOrNull()?.let { first ->
+            val what = if (ending.size == 1) "an episode" else plural(ending.size, "episode")
+            ending[0] = first.copy(reading = first.reading.copy(prelude = "After the edition, $what."))
         }
         return ending
     }

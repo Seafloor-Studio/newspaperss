@@ -143,6 +143,28 @@ class PodcastStore(val dir: File) {
             .sortedBy { it.firstLine }
     }
 
+    /**
+     * A clip of [text] made for [editionId] in its voice, or null until it is: what the voice says
+     * around a recording, which isn't a line of any page (see [Readings.spokenAround]).
+     */
+    fun clip(editionId: Long, text: String): File? = clipFile(editionId, text).takeIf { it.exists() }
+
+    private fun clipFile(editionId: Long, text: String) = File(folder(editionId), "$CLIP$SEP${hash(text)}.$AUDIO")
+
+    /** Where a clip of [text] is written, before [keepClip]. */
+    fun clipScratch(editionId: Long, text: String): File = File(dir, "$editionId$SEP$CLIP$SEP${hash(text)}.$PART")
+
+    /** Keeps a clip of [text] written to [made]; with the podcast deleted since, it's dropped. */
+    @Synchronized
+    fun keepClip(editionId: Long, text: String, made: File) {
+        if (!folder(editionId).exists()) {
+            made.delete()
+            return
+        }
+        if (!made.renameTo(clipFile(editionId, text))) throw IOException("Couldn't keep a clip")
+        changed()
+    }
+
     /** How many of [page]'s lines are made: where making it carries on from. */
     fun linesMade(editionId: Long, page: Int): Int = pieces(editionId, page).lastOrNull()?.let { it.firstLine + it.starts.size } ?: 0
 
@@ -354,6 +376,10 @@ class PodcastStore(val dir: File) {
         private const val LINES = "lines"
         private const val PART = "part"
         private const val KEY = "said"
+        private const val CLIP = "clip"
+
+        private fun hash(text: String): String =
+            java.security.MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).take(16).joinToString("") { "%02x".format(it) }
     }
 }
 

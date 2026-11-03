@@ -50,6 +50,8 @@ class PodcastMaker(
     private val threads: (editionId: Long) -> Int = { KOKORO_THREADS },
     private val now: () -> Long = System::nanoTime,
     private val log: PodcastLog = PodcastLog(null),
+    /** What the voice says around an edition's recordings (see [Readings.spokenAround]), made as clips once its pages are. */
+    private val spokenAround: suspend (editionId: Long) -> List<String> = { emptyList() },
 ) {
     /** Makes every podcast asked for, until they're all finished, Kokoro is turned off, or it's stopped. */
     suspend fun makeAll() = withContext(Dispatchers.Default) {
@@ -142,6 +144,20 @@ class PodcastMaker(
     private suspend fun makeUnderLock() {
         // Loaded once, and again only for a podcast in another voice: loading takes seconds.
         var kokoro: Triple<PodcastVoice, Int, PodcastEngine>? = null
+        fun kokoroFor(editionId: Long): PodcastEngine {
+            val voice = store.voice(editionId) ?: throw IllegalStateException("No voice")
+            val threads = threads(editionId)
+            if (kokoro?.first != voice || kokoro?.second != threads) {
+                kokoro?.third?.release()
+                kokoro = null
+                // Loading is part of what a podcast costs: each of Android's stops means another.
+                val began = now()
+                kokoro = Triple(voice, threads, engine(voice, threads))
+                store.addCost(editionId, now() - began, 0.0)
+                log.add("Kokoro loaded (${voice.label}, $threads threads) in ${seconds(now() - began)}s")
+            }
+            return kokoro!!.third
+        }
         try {
             while (true) {
                 val editionId = store.waiting().firstOrNull()
@@ -173,17 +189,22 @@ class PodcastMaker(
                         if (store.waiting().firstOrNull() != editionId || !store.wanted(editionId, asked)) return@use
                         val script = script(book, page)
                         if (reused(editionId, asked, page, script, voice)) continue
-                        val threads = threads(editionId)
-                        if (kokoro?.first != voice || kokoro?.second != threads) {
-                            kokoro?.third?.release()
-                            kokoro = null
-                            // Loading is part of what a podcast costs: each of Android's stops means another.
-                            val began = now()
-                            kokoro = Triple(voice, threads, engine(voice, threads))
-                            store.addCost(editionId, now() - began, 0.0)
-                            log.add("Kokoro loaded (${voice.label}, $threads threads) in ${seconds(now() - began)}s")
-                        }
-                        makePage(editionId, asked, page, script, kokoro!!.third)
+                        makePage(editionId, asked, page, script, kokoroFor(editionId))
+                    }
+                    // Best effort: without its clips, what's said around a recording is the phone's voice.
+                    val around = try {
+                        spokenAround(editionId)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        log.add("Couldn't find what's said around the recordings: ${e.javaClass.simpleName}")
+                        emptyList()
+                    }
+                    for (text in around) {
+                        if (store.clip(editionId, text) != null) continue
+                        currentCoroutineContext().ensureActive()
+                        if (!inUse() || !store.wanted(editionId, asked)) return@use
+                        makeClip(editionId, text, kokoroFor(editionId))
                     }
                     // Stopped during its last page: not finished, so Make the rest can carry on.
                     if (!store.wanted(editionId, asked)) return@use
@@ -212,6 +233,22 @@ class PodcastMaker(
     } catch (e: StackOverflowError) {
         // An article nested deeper than the parser's stack.
         null
+    }
+
+    /** A clip of [text], in one go: a sentence or two, so nothing to keep part way. A failure leaves it to the phone's voice. */
+    private fun makeClip(editionId: Long, text: String, kokoro: PodcastEngine) {
+        val file = store.clipScratch(editionId, text)
+        try {
+            val speech = kokoro.speak(text)
+            val sink = encoder.open(file, speech.sampleRate)
+            // An encoder given no audio at all can't finish its file.
+            sink.write(speech.samples.takeIf { it.isNotEmpty() } ?: FloatArray(speech.sampleRate / 10))
+            sink.close()
+            store.keepClip(editionId, text, file)
+        } catch (e: Exception) {
+            file.delete()
+            log.add("A clip wasn't made: ${e.javaClass.name}")
+        }
     }
 
     private suspend fun makePage(editionId: Long, asked: String?, page: Int, script: ListenScript?, kokoro: PodcastEngine) {
