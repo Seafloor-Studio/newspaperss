@@ -1234,6 +1234,9 @@ class ListenAppTest {
         assertEquals(EpisodePlace(12), progress.episode(id, "https://cdn.example/48.mp3"))
         assertFalse(progress.finished(id))
         assertEquals(ListenPosition(1, 0), listening.saved(id))
+        // So Resume, its button says, is the edition's place, not the start.
+        player.start(id)
+        compose.idleUntil { player.state.value.at == ListenPosition(1, 0) && player.state.value.script != null }
 
         val episodes = runBlocking { listed.of(id).first() }
         assertEquals(listOf(4, 5), episodes.map { it.page })

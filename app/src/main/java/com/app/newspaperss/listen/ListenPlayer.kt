@@ -121,7 +121,11 @@ class ListenPlayer(
      */
     fun start(editionId: Long, from: ListenPosition? = null, episode: String? = null) {
         if (_state.value.editionId == editionId && book != null) {
-            val at = episode?.let { episodeStart(editionId, _state.value.pages, it) } ?: from
+            val current = _state.value
+            // Left on an episode played on its own, a plain start is the edition's Resume, as its button says.
+            val resume = progress.get(editionId)?.takeUnless { progress.finished(editionId) }
+                ?.takeIf { current.pages.getOrNull(current.at.page)?.episode == true }
+            val at = episode?.let { episodeStart(editionId, current.pages, it) } ?: from ?: resume
             if (at != null) seek(at) else play()
             return
         }
