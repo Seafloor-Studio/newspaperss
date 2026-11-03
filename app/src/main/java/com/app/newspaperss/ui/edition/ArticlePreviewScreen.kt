@@ -377,9 +377,9 @@ fun ArticlePreviewScreen(
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         voice = listening?.takeIf { it.at.page == onScreen.article },
                         onReadFrom = { line -> player?.seek(ListenPosition(onScreen.article, line)) },
-                        // Heard or read to the end on the phone, it's as good as sent: its articles
-                        // shouldn't come back for the next edition.
-                        footer = onMarkSent?.takeIf { onScreen.article == open.articles }?.let { mark -> { MarkSentAtTheEnd(mark) } },
+                        // Heard to the end on the phone, it's as good as sent: its articles shouldn't
+                        // come back for the next edition.
+                        footer = onMarkSent?.takeIf { listening?.pages?.getOrNull(onScreen.article)?.end == true }?.let { mark -> { MarkSentAtTheEnd(mark) } },
                     )
                 }
             }
@@ -496,12 +496,12 @@ private fun PreviewPageView(
     }
 }
 
-/** On the closing page: done with the edition here, so it needn't go to the e-reader. */
+/** On Listen's closing page: done with the edition here, so it needn't go to the e-reader. */
 @Composable
 private fun MarkSentAtTheEnd(onMarkSent: () -> Unit) {
     Column(Modifier.padding(top = 24.dp)) {
         Text(
-            "Read or heard it all here? Mark it as sent, and its articles won't come back in the next edition.",
+            "Heard it all here? Mark it as sent, and its articles won't come back in the next edition.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
