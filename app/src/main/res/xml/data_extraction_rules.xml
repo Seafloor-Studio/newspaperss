@@ -2,7 +2,8 @@
 <!-- Keep in step with backup_rules.xml, its equivalent before Android 12.
      The pending timer means nothing without WorkManager's own database, which isn't
      restored, past editions' EPUBs, Kokoro and podcasts would only take up backup quota (Kokoro
-     alone is 15 times it, and a backup over quota fails whole), and the tt-rss
+     alone is 15 times it, and a backup over quota fails whole), the podcast's run logs describe
+     this phone's runs and quote the sentences read, and the tt-rss
      password is sealed by a Keystore key that never leaves this phone. -->
 <data-extraction-rules>
     <cloud-backup>
@@ -10,6 +11,7 @@
         <exclude domain="file" path="editions/" />
         <exclude domain="file" path="kokoro/" />
         <exclude domain="file" path="podcasts/" />
+        <exclude domain="file" path="podcast-logs/" />
         <exclude domain="file" path="datastore/ttrss.preferences_pb" />
     </cloud-backup>
     <device-transfer>
@@ -17,6 +19,7 @@
         <exclude domain="file" path="editions/" />
         <exclude domain="file" path="kokoro/" />
         <exclude domain="file" path="podcasts/" />
+        <exclude domain="file" path="podcast-logs/" />
         <exclude domain="file" path="datastore/ttrss.preferences_pb" />
     </device-transfer>
 </data-extraction-rules>
