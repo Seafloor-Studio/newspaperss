@@ -1,5 +1,11 @@
 package com.app.newspaperss.ui
 
+import androidx.compose.ui.test.performScrollTo
+import com.app.newspaperss.testutil.FakeSpeaker
+import com.app.newspaperss.listen.StoredListenProgress
+import com.app.newspaperss.listen.Listening
+import com.app.newspaperss.listen.ListenPlayer
+import com.app.newspaperss.listen.EpisodeAfter
 import com.app.newspaperss.settings.offersOpen
 import com.app.newspaperss.settings.Settings
 import com.app.newspaperss.settings.Device
@@ -132,6 +138,43 @@ class EditionDetailScreenTest {
 
     private fun waitFor(text: String) = compose.idleUntil {
         compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    /** The episodes after the edition, listed under it with how far each got: a tap plays the one tapped. */
+    @Test
+    fun theEpisodesAfterTheEditionAreListedAndPlayFromTheList() {
+        val (id, _) = edition(EditionStatus.DELIVERED, listOf("Episode 12", "An essay"))
+        val episodes = listOf(
+            EpisodeAfter(3, "Episode 12: The ferry planner", "The Example Show", 3_480, heardSeconds = 1_380, line = 48),
+            EpisodeAfter(4, "Episode 48: Night trains", "Rail Talk", 2_700, finished = true),
+        )
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val player = ListenPlayer(FakeSpeaker(), StoredListenProgress(app), open = { null }, scope = kotlinx.coroutines.MainScope())
+        var played: EpisodeAfter? = null
+        fun screen(listen: Boolean) {
+            val vm = viewModels.add(EditionDetailViewModel(repo, id, episodesAfter = { flowOf(episodes) }) {})
+            compose.setContent {
+                EditionDetailScreen(vm, onBack = {}, listening = if (listen) Listening(player, StoredListenProgress(app), repo) {} else null, onPlayEpisode = { played = it })
+            }
+            compose.idleUntil { vm.detail.value?.contents?.isNotEmpty() == true && vm.episodes.value.isNotEmpty() }
+        }
+
+        screen(listen = true)
+        compose.onNodeWithText("After the edition").performScrollTo().assertExists()
+        compose.onNodeWithText("23 min of 58 min heard").assertExists()
+        compose.onNodeWithText("Heard").assertExists()
+        compose.onNodeWithContentDescription("Play Episode 12: The ferry planner").performScrollTo().performClick()
+        assertEquals(episodes[0], played)
+    }
+
+    /** Without Listen (a release build), no list: nothing could play them. */
+    @Test
+    fun withoutListenTheEpisodesArentListed() {
+        val (id, _) = edition(EditionStatus.DELIVERED, listOf("Episode 12"))
+        val vm = viewModels.add(EditionDetailViewModel(repo, id, episodesAfter = { flowOf(listOf(EpisodeAfter(2, "Episode 12", null, 60))) }) {})
+        compose.setContent { EditionDetailScreen(vm, onBack = {}) }
+        compose.idleUntil { vm.detail.value?.contents?.isNotEmpty() == true && vm.episodes.value.isNotEmpty() }
+        compose.onNodeWithText("After the edition").assertDoesNotExist()
     }
 
     @Test
