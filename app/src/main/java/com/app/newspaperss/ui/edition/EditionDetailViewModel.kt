@@ -13,6 +13,7 @@ import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.delivery.KindleSend
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
@@ -46,13 +47,25 @@ data class EditionDetail(
     fun isStarred(content: EditionContent): Boolean = canStar(content) && content.starredAt != null
 }
 
+/**
+ * An episode Listen plays after the edition (a notes post's), for the edition's page.
+ *
+ * @param page its page in Listen, past the closing page.
+ * @param heardSeconds how far into it Listen got, or null if it was never started.
+ */
+data class EpisodeAfter(val page: Int, val title: String, val source: String?, val seconds: Int?, val heardSeconds: Int? = null, val finished: Boolean = false)
+
 class EditionDetailViewModel(
     private val editions: EditionRepository,
     private val id: Long,
     sentToKindle: Flow<Map<Long, KindleSend>> = flowOf(emptyMap()),
+    /** The episodes Listen plays after this edition. */
+    episodesAfter: suspend (editionId: Long) -> List<EpisodeAfter> = { emptyList() },
     /** Takes down this edition's notification once it's deleted. */
     private val dismissNotification: (Long) -> Unit,
 ) : ViewModel() {
+    val episodes: StateFlow<List<EpisodeAfter>> = flow { emit(episodesAfter(id)) }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     /** How it was just sent to a Kindle, if it was: Amazon can take a few minutes to deliver it. */
     val sentToKindle: StateFlow<KindleSend?> = sentToKindle.map { it[id] }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 

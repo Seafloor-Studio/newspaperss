@@ -109,6 +109,7 @@ import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.ui.edition.EditionDetailViewModel
+import com.app.newspaperss.ui.edition.EpisodeAfter
 import com.app.newspaperss.ui.onboarding.OnboardingScreen
 import com.app.newspaperss.ui.onboarding.OnboardingViewModel
 import com.app.newspaperss.ui.onboarding.Step
@@ -551,6 +552,31 @@ class ScreenshotTest {
         shoot("05k-edition-detail-episodes", ready = { vm.detail.value?.contents?.any { it.episodeKind != null } == true }, act = {
             compose.onNode(hasScrollAction()).performScrollToNode(hasText("Why city trees are planted in pairs"))
         }) { EditionDetailScreen(vm, onBack = {}) }
+    }
+
+    /** The episodes after the edition, on its page: one not started, one part heard, one heard. */
+    @Test
+    fun editionDetailEpisodesAfter() {
+        val id = runBlocking {
+            val now = Instant.parse("2026-09-29T06:30:00Z")
+            val edition = db.editions().insert(EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.DELIVERED, fileName = "e.epub", articleCount = 3, minutes = 14.0, deliveredAt = now))
+            db.editions().insertArticles(
+                listOf("Episode 212: The ferry planner" to "The Example Show", "What do octopuses dream about?" to "Nautilus", "Episode 48: Night trains" to "Rail Talk").mapIndexed { i, (title, source) ->
+                    EditionArticleEntity(editionId = edition, articleId = null, position = i, title = title, sourceTitle = source, minutes = listOf(2.0, 9.0, 3.0)[i])
+                },
+            )
+            edition
+        }
+        val episodes = listOf(
+            EpisodeAfter(4, "Episode 212: The ferry planner", "The Example Show", 3_480, heardSeconds = 1_380),
+            EpisodeAfter(5, "Episode 48: Night trains", "Rail Talk", 2_700),
+            EpisodeAfter(6, "Episode 11: Lighthouses", "Coastlines", 2_160, finished = true),
+        )
+        val vm = viewModels.add(EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id, episodesAfter = { episodes }) {})
+        val listening = listening()
+        shoot("05k2-edition-detail-episodes-after", ready = { vm.detail.value?.contents?.isNotEmpty() == true && vm.episodes.value.isNotEmpty() }, act = {
+            compose.onNode(hasScrollAction()).performScrollToNode(hasText("Episode 11: Lighthouses"))
+        }) { EditionDetailScreen(vm, onBack = {}, listening = listening) }
     }
 
     /** Not sent before the next was made: released, and can still be marked as sent. */
