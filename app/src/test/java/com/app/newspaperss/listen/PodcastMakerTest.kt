@@ -108,7 +108,8 @@ class PodcastMakerTest {
     private val threadsUsed = mutableListOf<Int>()
     private var threadsFor: (Long) -> Int = { KOKORO_THREADS }
     private val log by lazy { PodcastLog(tmp.newFolder("logs")) }
-    private val maker by lazy { PodcastMaker(editions, store, install, settings, engine, encoder, pieceSeconds, pieceWorkSeconds, lastExit = { exit }, threads = { threadsFor(it) }, now = { clock }, log = log) }
+    private val maker by lazy { PodcastMaker(editions, store, install, settings, engine, encoder, pieceSeconds, pieceWorkSeconds, lastExit = { exit }, threads = { threadsFor(it) }, now = { clock }, log = log, spokenAround = { around }) }
+    private var around: List<String> = emptyList()
     private val podcasts by lazy { Podcasts(store, settings, install) { started++ } }
 
     private val knots = EditionArticle(
@@ -144,6 +145,36 @@ class PodcastMakerTest {
     private fun request(id: Long) = runBlocking { podcasts.request(id) }
 
     private fun make() = runBlocking { maker.makeAll() }
+
+    /** What's said around the edition's recordings is made too, once its pages are: in its voice, not the phone's. */
+    @Test
+    fun whatsSaidAroundTheRecordingsIsMadeAsClipsAfterThePages() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        around = listOf("After the edition, an episode.", "Now the episode itself, 58 minutes.")
+        make()
+
+        assertTrue(store.finished(id))
+        assertEquals(around, said.takeLast(2))
+        assertTrue(around.all { store.clip(id, it) != null })
+        assertNull("only what it was asked for", store.clip(id, "Counting Knots"))
+    }
+
+    /** One the encoder can't finish is left to the phone's voice; the podcast still finishes. */
+    @Test
+    fun aClipThatFailsLeavesItToThePhonesVoice() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        around = listOf("Now the episode itself, 58 minutes.", "After the edition, an episode.")
+        encoderBrokenOn = "Now the episode itself, 58 minutes."
+        make()
+
+        assertTrue(store.finished(id))
+        assertNull(store.clip(id, "Now the episode itself, 58 minutes."))
+        assertTrue(store.clip(id, "After the edition, an episode.") != null)
+    }
 
     @Test
     fun eachPageIsMadeInBookOrderWithWhenEachSentenceStarts() {
