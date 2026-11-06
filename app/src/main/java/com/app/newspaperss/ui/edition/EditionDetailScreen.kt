@@ -63,7 +63,7 @@ import com.app.newspaperss.ui.components.ArticleRowFrame
 import com.app.newspaperss.ui.components.BUILDING_NOTE
 import com.app.newspaperss.ui.components.EpisodeLabelTag
 import com.app.newspaperss.ui.components.LocalClock
-import com.app.newspaperss.ui.components.ReadToggle
+import com.app.newspaperss.ui.components.SentToggle
 import com.app.newspaperss.ui.components.StarToggle
 import com.app.newspaperss.ui.components.episodeLabel
 import com.app.newspaperss.ui.listen.ListenButton
@@ -394,22 +394,16 @@ private fun ContentRow(
 ) {
     val entry = content.entry
     val state = content.state
-    // Only what differs from the page's own status: on a sent edition, every article was sent.
-    val where = when (state) {
-        ArticleState.SKIPPED -> "Read"
-        ArticleState.DELIVERED -> "Sent".takeUnless { editionSent }
-        ArticleState.EXPIRED -> "Not picked"
-        ArticleState.NEW -> "Waiting".takeIf { editionSent }
-        ArticleState.IN_EDITION, null -> null
-    }
+    // Sent, or anything else that keeps it from coming back for another edition.
+    val sent = state == ArticleState.DELIVERED || state == ArticleState.SKIPPED || state == ArticleState.EXPIRED
     // Words, not the glyph, so it isn't mistaken for the toggle beside it; past tense, since that
     // toggle is about the next edition and may be off.
-    val details = listOfNotNull(entry.sourceTitle, minutesLabel(entry.minutes), "You starred it".takeIf { entry.starred }, where).joinToString(" · ")
-    // Dimmed as on a source's page, but not for being sent in a sent edition: that's every row.
-    val done = content.starredAt == null && (state == ArticleState.SKIPPED || state == ArticleState.EXPIRED || (state == ArticleState.DELIVERED && !editionSent))
+    val details = listOfNotNull(entry.sourceTitle, minutesLabel(entry.minutes), "You starred it".takeIf { entry.starred }).joinToString(" · ")
+    // Dimmed as on a source's page, so what's left stands out; not in a sent edition, where it's every row.
+    val done = sent && !editionSent && content.starredAt == null
     ArticleRowFrame(
         modifier = if (onOpen != null) Modifier.clickable(onClickLabel = "Read", onClick = onOpen) else Modifier,
-        leading = if (onToggleRead != null && state != null) { { ReadToggle(entry.title, state, onToggleRead) } } else null,
+        leading = if (onToggleRead != null && state != null) { { SentToggle(entry.title, sent, onToggleRead) } } else null,
         title = {
             Text(
                 entry.title,
