@@ -525,6 +525,13 @@ class ScreenshotTest {
         shoot("05b-edition-detail", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}, listening = listening) }
     }
 
+    /** A ready edition, its second article heard to its end in Listen: read, so it won't come back. */
+    @Test
+    fun editionDetailReadyPartRead() {
+        val vm = sentEdition(ready = true)
+        shoot("05b3-edition-detail-ready-part-read", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}) }
+    }
+
     /** Posts the episode detector judged: a letter and its reading, show notes, a transcript, and an article. */
     @Test
     fun editionDetailEpisodes() {
@@ -831,7 +838,7 @@ class ScreenshotTest {
         }
     }
 
-    private fun sentEdition(notSent: Boolean = false): EditionDetailViewModel {
+    private fun sentEdition(notSent: Boolean = false, ready: Boolean = false): EditionDetailViewModel {
         val id = runBlocking {
             val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Review"))
             val titles = listOf(
@@ -843,14 +850,21 @@ class ScreenshotTest {
             val articles = titles.mapIndexed { i, title ->
                 db.articles().insertIgnoring(
                     ArticleEntity(
-                        sourceId = source, guid = "$i", url = "https://example.com/$i", title = title, state = if (notSent) ArticleState.NEW else ArticleState.DELIVERED,
-                        starredAt = if (i == 1) Instant.parse("2026-09-29T08:00:00Z") else null,
+                        sourceId = source, guid = "$i", url = "https://example.com/$i", title = title,
+                        state = when {
+                            ready -> if (i == 1) ArticleState.SKIPPED else ArticleState.IN_EDITION
+                            notSent -> ArticleState.NEW
+                            else -> ArticleState.DELIVERED
+                        },
+                        starredAt = if (i == 1 && !ready) Instant.parse("2026-09-29T08:00:00Z") else null,
                     ),
                 )
             }
             val now = Instant.parse("2026-09-29T06:30:00Z")
             val edition = db.editions().insert(
-                if (notSent) {
+                if (ready) {
+                    EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.READY, fileName = "e.epub", articleCount = 4, minutes = 27.5)
+                } else if (notSent) {
                     EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.FAILED, error = com.app.newspaperss.edition.EditionBuilder.NOT_SENT, fileName = "e.epub", articleCount = 4, minutes = 27.5)
                 } else {
                     EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.DELIVERED, fileName = "e.epub", articleCount = 4, minutes = 27.5, deliveredAt = now)

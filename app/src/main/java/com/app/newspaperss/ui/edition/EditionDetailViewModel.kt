@@ -53,6 +53,8 @@ class EditionDetailViewModel(
     sentToKindle: Flow<Map<Long, KindleSend>> = flowOf(emptyMap()),
     /** The episodes Listen plays after this edition, with how far each was heard as it changes. */
     episodesAfter: (editionId: Long) -> Flow<List<EpisodeAfter>> = { flowOf(emptyList()) },
+    /** An article's status mark tapped: read if it was waiting, or back to waiting (see [com.app.newspaperss.data.SourceRepository.toggleRead]). */
+    private val toggleRead: suspend (articleId: Long) -> Unit = {},
     /** Takes down this edition's notification once it's deleted. */
     private val dismissNotification: (Long) -> Unit,
 ) : ViewModel() {
@@ -70,6 +72,10 @@ class EditionDetailViewModel(
 
     fun setStarred(articleId: Long, starred: Boolean) {
         viewModelScope.launch { editions.setStarred(articleId, starred) }
+    }
+
+    fun toggleRead(articleId: Long) {
+        viewModelScope.launch { toggleRead.invoke(articleId) }
     }
 
     private val _deleted = MutableStateFlow(false)
