@@ -403,7 +403,7 @@ private fun ContentRow(
     val done = sent && !editionSent && content.starredAt == null
     ArticleRowFrame(
         modifier = if (onOpen != null) Modifier.clickable(onClickLabel = "Read", onClick = onOpen) else Modifier,
-        leading = if (onToggleRead != null && state != null) { { SentToggle(entry.title, sent, onToggleRead) } } else null,
+        leading = if (onToggleRead != null && state != null) { { SentToggle(entry.title, state, onToggleRead) } } else null,
         title = {
             Text(
                 entry.title,

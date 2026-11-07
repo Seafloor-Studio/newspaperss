@@ -525,7 +525,7 @@ class ScreenshotTest {
         shoot("05b-edition-detail", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}, listening = listening) }
     }
 
-    /** A ready edition, its second article heard to its end in Listen: sent on its own, so it won't come back. */
+    /** A ready edition: its second article heard to its end in Listen (sent on its own), its last marked read on its source's page. */
     @Test
     fun editionDetailReadyPartRead() {
         val vm = sentEdition(ready = true)
@@ -852,7 +852,7 @@ class ScreenshotTest {
                     ArticleEntity(
                         sourceId = source, guid = "$i", url = "https://example.com/$i", title = title,
                         state = when {
-                            ready -> if (i == 1) ArticleState.DELIVERED else ArticleState.IN_EDITION
+                            ready -> when (i) { 1 -> ArticleState.DELIVERED; 3 -> ArticleState.SKIPPED; else -> ArticleState.IN_EDITION }
                             notSent -> ArticleState.NEW
                             else -> ArticleState.DELIVERED
                         },

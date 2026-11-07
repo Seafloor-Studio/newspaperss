@@ -150,16 +150,18 @@ fun ReadToggle(title: String, state: ArticleState, onToggle: () -> Unit) {
 }
 
 /**
- * An edition's article's mark: ✓ sent, ● not. A tap marks it sent on its own, as if it went out
- * (it won't come back for another edition), or not sent, back for one. Laid out as [ReadToggle].
+ * An edition's article's mark, the same as on a source's page (● to come, ✓ sent, ○ read or not
+ * picked), but a tap on ● marks it sent on its own, as it went out in this edition: it won't
+ * come back for another. A tap on ✓ or ○ brings it back. Laid out as [ReadToggle].
  */
 @Composable
-fun SentToggle(title: String, sent: Boolean, onToggle: () -> Unit) {
+fun SentToggle(title: String, state: ArticleState, onToggle: () -> Unit) {
+    val waiting = state == ArticleState.NEW || state == ArticleState.IN_EDITION
     val toggle = Modifier
         .clickable(interactionSource = null, indication = ripple(bounded = false, radius = 24.dp), role = Role.Button, onClick = onToggle)
-        .semantics { contentDescription = if (sent) "Mark $title as not sent" else "Mark $title as sent" }
+        .semantics { contentDescription = if (waiting) "Mark $title as sent" else "Mark $title as not sent" }
     Box(toggle, contentAlignment = Alignment.Center) {
-        Text(if (sent) "✓" else "●", style = MaterialTheme.typography.bodyLarge, softWrap = false, modifier = Modifier.clearAndSetSemantics {})
+        Text(statusMark(state), style = MaterialTheme.typography.bodyLarge, softWrap = false, modifier = Modifier.clearAndSetSemantics {})
     }
 }
 
