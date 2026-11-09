@@ -1,5 +1,6 @@
 package com.app.newspaperss.ui.edition
 
+import androidx.compose.ui.text.font.FontFamily
 import android.content.Intent
 import androidx.compose.material.icons.automirrored.filled.List
 import com.app.newspaperss.ui.listen.Contents
@@ -100,6 +101,8 @@ import org.jsoup.nodes.Document
 import org.jsoup.parser.Parser
 import java.io.File
 import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.semantics.Role
 
 /** An article's title and the web address of its original, as the book's page gives them. */
 internal data class ArticleLink(val title: String, val url: String)
@@ -198,6 +201,11 @@ fun ArticlePreviewScreen(
     onMarkSent: (() -> Unit)? = null,
     /** An article read to its end: its "Next" line followed. */
     onFinished: (article: Int) -> Unit = {},
+    /**
+     * Whether an article won't come back (sent, read or not picked), or null if it can't be
+     * marked: the last article, with no "Next" line, ends in a line marking it read instead.
+     */
+    finished: (article: Int) -> Boolean? = { null },
 ) {
     val player = listen?.player
     // Read in the background so the screen shows at once: reading a large edition during
@@ -385,7 +393,10 @@ fun ArticlePreviewScreen(
                         onReadFrom = { line -> player?.seek(ListenPosition(onScreen.article, line)) },
                         // Heard to the end on the phone, it's as good as sent: its articles shouldn't
                         // come back for the next edition.
-                        footer = onMarkSent?.takeIf { listening?.pages?.getOrNull(onScreen.article)?.end == true }?.let { mark -> { MarkSentAtTheEnd(mark) } },
+                        footer = onMarkSent?.takeIf { listening?.pages?.getOrNull(onScreen.article)?.end == true }?.let { mark -> { MarkSentAtTheEnd(mark) } }
+                            ?: finished(onScreen.article)?.takeIf { onScreen.article == open.articles - 1 }?.let { done ->
+                                { MarkReadAtTheEnd(onScreen.title.orEmpty(), done, textSize ?: PreviewTextSize.DEFAULT) { onFinished(onScreen.article) } }
+                            },
                     )
                 }
             }
@@ -499,6 +510,30 @@ private fun PreviewPageView(
                     .background(MaterialTheme.colorScheme.inverseSurface, CircleShape),
             ) { Text("Back to where it's reading", color = MaterialTheme.colorScheme.inverseOnSurface) }
         }
+    }
+}
+
+/**
+ * After the last article, in the place of the others' "Next" line, which marks them read when
+ * followed: the whole line a finger tall, like it. Once marked, it says so; the edition's page
+ * brings it back.
+ */
+@Composable
+private fun MarkReadAtTheEnd(title: String, done: Boolean, textSize: PreviewTextSize, onMark: () -> Unit) {
+    // The page's own furniture, as the "Next" line is drawn.
+    val style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Serif).sized(textSize)
+    if (done) {
+        Text(
+            "Marked as read ✓", style = style, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.semantics { contentDescription = "Marked as read" },
+        )
+    } else {
+        Text(
+            "Mark as read", style = style.copy(textDecoration = TextDecoration.Underline), color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                .clickable(role = Role.Button, onClickLabel = null, onClick = onMark)
+                .semantics { contentDescription = if (title.isEmpty()) "Mark as read" else "Mark $title as read" },
+        )
     }
 }
 

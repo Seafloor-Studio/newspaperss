@@ -890,6 +890,17 @@ class ScreenshotTest {
         }
     }
 
+    /** The edition's last article, with no "Next" line: one marking it read in its place. */
+    @Test
+    fun articlePreviewLastArticle() {
+        val file = tmp.newFile("last.epub")
+        val article = EditionArticle(title = "The quiet return of the night train", sourceTitle = "The Example Review", url = "https://example.com/night-train", bodyHtml = "<p>Sleeper services are coming back.</p>", minutes = 4.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05c3-article-preview-last-article", ready = { compose.onAllNodes(hasText("Mark as read")).fetchSemanticsNodes().isNotEmpty() }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, onFinished = {}, finished = { false })
+        }
+    }
+
     /** An article with its formatting: bold, a link, a quote, a numbered list, a table and code. */
     @Test
     fun articlePreviewFormatted() {

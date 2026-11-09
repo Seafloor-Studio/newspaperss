@@ -62,6 +62,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.io.File
 import java.time.LocalDate
+import androidx.compose.runtime.mutableStateListOf
 
 /** The preview, drawn by the app from the book's page: the article, its pictures and its "Next" line. */
 @RunWith(AndroidJUnit4::class)
@@ -258,6 +259,38 @@ class ArticlePreviewScreenTest {
         line.performTouchInput { click(centerRight.copy(x = right - 2f)) }
         onArticle("Two")
         assertEquals(listOf(0), finished)
+    }
+
+    /**
+     * The last article has no "Next" line to follow, so it ends in one marking it read, which says
+     * so once it is. Not on an article that has a "Next" line, nor one that can't be marked.
+     */
+    @Test
+    fun theLastArticleEndsInALineMarkingItRead() {
+        val file = twoArticleEdition()
+        val finished = mutableStateListOf<Int>()
+        compose.setContent {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = "One", onBack = {}, onFinished = { finished += it }, finished = { it in finished })
+        }
+        pageShown()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Next:", substring = true))
+        compose.onNodeWithText("Mark as read").assertDoesNotExist()
+
+        compose.onNodeWithText("Next:", substring = true).performClick()
+        onArticle("Two")
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Mark as read"))
+        compose.onNodeWithContentDescription("Mark Two as read").performClick()
+        assertEquals(listOf(0, 1), finished)
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Marked as read ✓"))
+    }
+
+    @Test
+    fun aLastArticleThatCantBeMarkedHasNoLine() {
+        val file = twoArticleEdition()
+        compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 1, title = "Two", onBack = {}) }
+        pageShown()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("That's all for today.", substring = true))
+        compose.onNodeWithText("Mark as read").assertDoesNotExist()
     }
 
     @Test
