@@ -23,6 +23,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -411,7 +412,7 @@ class EditionDetailScreenTest {
         show(id)
         compose.onNodeWithContentDescription("Mark Heard as sent").performClick()
         compose.idleUntil { runBlocking { db.articles().byId(articles[0]) }?.state == ArticleState.DELIVERED }
-        compose.onNodeWithContentDescription("Mark Heard as not sent").assertExists()
+        compose.idleUntil { compose.onAllNodesWithContentDescription("Mark Heard as not sent").fetchSemanticsNodes().isNotEmpty() }
         assertEquals(EditionStatus.READY, statusOf(id))
         assertEquals("its link is remembered as sent", listOf("https://example.com/Heard"), runBlocking { db.articles().deliveredAmong(listOf("https://example.com/Heard", "https://example.com/Still to come")) })
 
@@ -424,7 +425,7 @@ class EditionDetailScreenTest {
 
         compose.onNodeWithContentDescription("Mark Heard as not sent").performClick()
         compose.idleUntil { runBlocking { db.articles().byId(articles[0]) }?.state == ArticleState.NEW }
-        compose.onNodeWithContentDescription("Mark Heard as sent").assertExists()
+        compose.idleUntil { compose.onAllNodesWithContentDescription("Mark Heard as sent").fetchSemanticsNodes().isNotEmpty() }
     }
 
     /** A waiting article's mark waits for an edition being made, which may be taking it; one still in its edition doesn't. */
@@ -435,7 +436,9 @@ class EditionDetailScreenTest {
         runBlocking { db.editions().insert(EditionEntity(title = "Wednesday Morning Edition", status = EditionStatus.BUILDING)) }
         show(id)
         waitFor("Let go")
-        compose.onNodeWithContentDescription("Mark Let go as sent").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Mark Let go as sent").assertIsNotEnabled().performClick()
+        compose.waitForIdle()
+        assertEquals(ArticleState.NEW, runBlocking { db.articles().byId(articles[0]) }?.state)
         assertFalse(runBlocking { repo.toggleSent(id, articles[0]) })
 
         assertTrue(runBlocking { repo.toggleSent(ready, inIt[0]) })

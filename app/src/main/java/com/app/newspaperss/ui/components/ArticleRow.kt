@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
@@ -157,9 +158,14 @@ fun ReadToggle(title: String, state: ArticleState, onToggle: () -> Unit) {
 @Composable
 fun SentToggle(title: String, state: ArticleState, onToggle: () -> Unit, enabled: Boolean = true) {
     val waiting = state == ArticleState.NEW || state == ArticleState.IN_EDITION
+    // Held, it still takes the tap and does nothing, as [ReadToggle] does, rather than let it open
+    // the article underneath.
     val toggle = Modifier
-        .clickable(enabled = enabled, interactionSource = null, indication = ripple(bounded = false, radius = 24.dp), role = Role.Button, onClick = onToggle)
-        .semantics { contentDescription = if (waiting) "Mark $title as sent" else "Mark $title as not sent" }
+        .clickable(interactionSource = null, indication = ripple(bounded = false, radius = 24.dp), role = Role.Button) { if (enabled) onToggle() }
+        .semantics {
+            contentDescription = if (waiting) "Mark $title as sent" else "Mark $title as not sent"
+            if (!enabled) disabled()
+        }
     Box(toggle, contentAlignment = Alignment.Center) {
         Text(statusMark(state), style = MaterialTheme.typography.bodyLarge, softWrap = false, modifier = Modifier.clearAndSetSemantics {})
     }

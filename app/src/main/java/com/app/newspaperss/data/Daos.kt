@@ -723,6 +723,13 @@ interface ArticleDao {
            AND articles.id IN (SELECT articleId FROM edition_articles WHERE editionId = :editionId)""",
     )
     suspend fun ttrssUnsentInEdition(editionId: Long): List<ArticleEntity>
+
+    /** The article if it's from tt-rss and its account marks what's sent read there. */
+    @Query(
+        """SELECT articles.* FROM articles JOIN sources ON sources.id = articles.sourceId
+           WHERE articles.id = :id AND sources.kind = 'TTRSS' AND sources.markReadOnServer = 1""",
+    )
+    suspend fun ttrssArticle(id: Long): ArticleEntity?
 }
 
 /** tt-rss accounts that mark articles read there when they expire here (see [ArticleDao.expireOlderThan]). */

@@ -659,7 +659,10 @@ class TtrssSyncTest {
         assertEquals("not marked read again for its delivered link", listOf(20L), server.markedRead)
     }
 
-    /** One article of an unsent edition, sent on its own, is read in tt-rss; brought back, unread again. */
+    /**
+     * One article of an unsent edition, sent on its own, is read in tt-rss; brought back, unread
+     * again. Only that one: one of the others read in tt-rss meanwhile stays read there.
+     */
     @Test
     fun anArticleSentOnItsOwnFromAnUnsentEditionIsReadInTtrssAndUnreadOnceBack() = runTest {
         val source = connect()
@@ -669,19 +672,24 @@ class TtrssSyncTest {
         val editionId = editionWith(source.id, "ttrss:10", "ttrss:11")
         val byGuid = db.articles().allForSource(source.id).associateBy { it.guid }
         db.articles().setState(byGuid.values.map { it.id }, ArticleState.IN_EDITION)
-        val editions = EditionRepository(db, tmp.root, Clock.fixed(now, ZoneOffset.UTC))
+        val changed = mutableListOf<Long>()
+        val editions = EditionRepository(db, tmp.root, Clock.fixed(now, ZoneOffset.UTC), onTtrssArticleChanged = { changed += it })
+        val heard = byGuid.getValue("ttrss:10").id
+        server.readThere(11)
 
-        assertTrue(editions.toggleSent(editionId, byGuid.getValue("ttrss:10").id))
-        assertTrue(ttrss.syncRead(editionId))
+        assertTrue(editions.toggleSent(editionId, heard))
+        assertEquals(listOf(heard), changed)
+        assertTrue(ttrss.syncArticleRead(heard))
         assertEquals(listOf(10L), server.markedRead)
-        assertFalse(10L in server.markedUnread)
+        assertTrue(server.markedUnread.isEmpty())
 
-        assertTrue(editions.toggleSent(editionId, byGuid.getValue("ttrss:10").id))
+        assertTrue(editions.toggleSent(editionId, heard))
         assertEquals(ArticleState.IN_EDITION, stateOf(source, "ttrss:10"))
-        assertTrue(ttrss.syncRead(editionId))
-        assertTrue(10L in server.markedUnread)
+        assertTrue(ttrss.syncArticleRead(heard))
+        assertEquals(listOf(10L), server.markedUnread)
         sync.syncAll()
         assertEquals("not marked read again", listOf(10L), server.markedRead)
+        assertEquals("nor unread again", listOf(10L), server.markedUnread)
     }
 
     /** A delivered article tt-rss still has unread (its marking failed, say) is marked read at the next sync. */

@@ -17,8 +17,10 @@ import java.time.Clock
  *   follows delivery (taking its notification down), not again if it's sent again after being marked
  *   as not sent. Like [onTtrssChanged], it must return quickly.
  * @param onTtrssChanged called with an edition's id once it's delivered, or marked as not sent,
- *   or one of its articles is (see [toggleSent]), with tt-rss articles in it, to mark them read or unread on the server to match. It must
+ *   with tt-rss articles in it, to mark them read or unread on the server to match. It must
  *   return quickly and leave the work to run elsewhere: delivery doesn't wait for tt-rss.
+ * @param onTtrssArticleChanged like [onTtrssChanged], for one tt-rss article marked sent on its
+ *   own or brought back (see [toggleSent]).
  * @param kindleSends told how each edition was delivered, for the note after a send to a Kindle.
  */
 class EditionRepository(
@@ -28,6 +30,7 @@ class EditionRepository(
     private val kindleSends: KindleSends = KindleSends(),
     private val onDelivered: (editionId: Long) -> Unit = {},
     private val onTtrssChanged: (editionId: Long) -> Unit = {},
+    private val onTtrssArticleChanged: (articleId: Long) -> Unit = {},
     /** An edition's book was deleted (the edition, or only its file when old): Listen lets it go. */
     private val onFileGone: (editionId: Long) -> Unit = {},
 ) {
@@ -117,7 +120,7 @@ class EditionRepository(
         }
         if (!changed || db.articles().byId(articleId)?.guid?.startsWith(FeedSync.TTRSS_GUID_PREFIX) != true) return changed
         try {
-            onTtrssChanged(editionId)
+            onTtrssArticleChanged(articleId)
         } catch (e: Exception) {
             // Changed either way; tt-rss catches up at its next sync.
             Log.w(TAG, "Couldn't schedule marking a tt-rss article: ${e.javaClass.name}")

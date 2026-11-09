@@ -577,14 +577,29 @@ class TtrssRepository(
 
     /**
      * Brings the server in line with the edition: its tt-rss articles read once it's delivered,
-     * unread again once it's marked as not sent, and while it's unsent, read for each article
-     * sent on its own. Decided when this runs rather than when it was asked for, so a late retry
-     * can't undo a newer change. Returns false if it failed in a way that may pass.
+     * unread again once it's marked as not sent. Decided when this runs rather than when it was
+     * asked for, so a late retry can't undo a newer change. Returns false if it failed in a way
+     * that may pass.
      */
     suspend fun syncRead(editionId: Long): Boolean = when (db.editions().byId(editionId)?.status) {
         EditionStatus.DELIVERED -> markRead(editionId)
-        EditionStatus.READY, EditionStatus.FAILED -> markUnread(editionId) and markRead(editionId)
+        EditionStatus.READY, EditionStatus.FAILED -> markUnread(editionId)
         else -> true
+    }
+
+    /**
+     * Brings the server in line with one article marked sent on its own, or brought back (see
+     * [EditionRepository.toggleSent]): only that one, so a read or unread made in tt-rss since
+     * the last sync stays. Decided when this runs, like [syncRead].
+     */
+    suspend fun syncArticleRead(articleId: Long): Boolean {
+        val article = db.articles().ttrssArticle(articleId) ?: return true
+        return when (article.state) {
+            ArticleState.DELIVERED -> update(listOf(article), read = true, "Delivered articles weren't marked read in tt-rss.") { markRead(it) }
+            ArticleState.NEW, ArticleState.IN_EDITION ->
+                update(listOf(article), read = false, "Articles from an edition that wasn't sent weren't marked unread in tt-rss.") { markUnread(it) }
+            else -> true
+        }
     }
 
     /**
