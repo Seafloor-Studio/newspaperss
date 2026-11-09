@@ -1,5 +1,6 @@
 package com.app.newspaperss
 
+import com.app.newspaperss.ui.edition.markedAtTheEnd
 import androidx.navigation.NavBackStackEntry
 import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.data.ArticleSource
@@ -341,6 +342,7 @@ private fun App(
                     editionId = id,
                     onMarkSent = if (markable) ({ container.appScope.launch { container.editions.markSentByHand(id) } }) else null,
                     onFinished = { article -> container.appScope.launch { container.editions.markFinished(id, article) } },
+                    finished = { article -> markedAtTheEnd(contents.getOrNull(article), edition?.status, building) },
                 )
             }
             composable(Tab.SOURCES.route) {

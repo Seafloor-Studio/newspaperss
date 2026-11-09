@@ -659,7 +659,8 @@ whose Kindle and KOReader answers ask for more on the same page).
   itself when it's finished on the phone: Listen plays it to its end (not
   ⏭, and not when the voice couldn't say a line of it), or its "Next" line
   is followed in the article view. The last article has no "Next" line, so
-  only Listen marks it. Never the other way: going back to one doesn't
+  it ends in **Mark as read** in its place, which says "Marked as read ✓"
+  once it is. Never the other way: going back to one doesn't
   bring it back. tt-rss hears about only the article tapped, so a read
   or unread made there since the last sync stays. Marking a whole sent
   edition as not sent brings all its articles back, those marked sent on

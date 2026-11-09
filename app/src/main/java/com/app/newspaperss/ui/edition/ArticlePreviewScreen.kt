@@ -1,5 +1,9 @@
 package com.app.newspaperss.ui.edition
 
+import com.app.newspaperss.data.ArticleState
+import com.app.newspaperss.data.EditionStatus
+import com.app.newspaperss.data.EditionContent
+import androidx.compose.ui.text.font.FontFamily
 import android.content.Intent
 import androidx.compose.material.icons.automirrored.filled.List
 import com.app.newspaperss.ui.listen.Contents
@@ -100,6 +104,8 @@ import org.jsoup.nodes.Document
 import org.jsoup.parser.Parser
 import java.io.File
 import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.semantics.Role
 
 /** An article's title and the web address of its original, as the book's page gives them. */
 internal data class ArticleLink(val title: String, val url: String)
@@ -198,6 +204,11 @@ fun ArticlePreviewScreen(
     onMarkSent: (() -> Unit)? = null,
     /** An article read to its end: its "Next" line followed. */
     onFinished: (article: Int) -> Unit = {},
+    /**
+     * Whether an article won't come back (sent, read or not picked), or null if it can't be
+     * marked: the last article, with no "Next" line, ends in a line marking it read instead.
+     */
+    finished: (article: Int) -> Boolean? = { null },
 ) {
     val player = listen?.player
     // Read in the background so the screen shows at once: reading a large edition during
@@ -385,7 +396,10 @@ fun ArticlePreviewScreen(
                         onReadFrom = { line -> player?.seek(ListenPosition(onScreen.article, line)) },
                         // Heard to the end on the phone, it's as good as sent: its articles shouldn't
                         // come back for the next edition.
-                        footer = onMarkSent?.takeIf { listening?.pages?.getOrNull(onScreen.article)?.end == true }?.let { mark -> { MarkSentAtTheEnd(mark) } },
+                        footer = onMarkSent?.takeIf { listening?.pages?.getOrNull(onScreen.article)?.end == true }?.let { mark -> { MarkSentAtTheEnd(mark) } }
+                            ?: finished(onScreen.article)?.takeIf { onScreen.article == open.articles - 1 }?.let { done ->
+                                { MarkReadAtTheEnd(onScreen.title.orEmpty(), done, textSize ?: PreviewTextSize.DEFAULT) { onFinished(onScreen.article) } }
+                            },
                     )
                 }
             }
@@ -500,6 +514,41 @@ private fun PreviewPageView(
             ) { Text("Back to where it's reading", color = MaterialTheme.colorScheme.inverseOnSurface) }
         }
     }
+}
+
+/**
+ * For the line after the last article: whether [content] won't come back, or null for no line.
+ * None on a sent edition, all of which went out; nor, while an edition is being made, on one let
+ * go that it may be taking, which a tap couldn't mark; nor on one whose source was removed.
+ */
+internal fun markedAtTheEnd(content: EditionContent?, edition: EditionStatus?, building: Boolean): Boolean? {
+    if (content?.entry?.articleId == null || edition == EditionStatus.DELIVERED) return null
+    val state = content.state ?: return null
+    if (state == ArticleState.NEW && building) return null
+    return state == ArticleState.DELIVERED || state == ArticleState.SKIPPED || state == ArticleState.EXPIRED
+}
+
+/**
+ * After the last article, in the place of the others' "Next" line, which marks them read when
+ * followed: the whole line a finger tall, like it. Once marked, it says so; the edition's page
+ * brings it back.
+ */
+@Composable
+private fun MarkReadAtTheEnd(title: String, done: Boolean, textSize: PreviewTextSize, onMark: () -> Unit) {
+    // The page's own furniture, as the "Next" line is drawn.
+    val style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Serif).sized(textSize)
+    // One node either way, so TalkBack keeps its place on it and says the change.
+    Text(
+        if (done) "Marked as read ✓" else "Mark as read",
+        style = if (done) style else style.copy(textDecoration = TextDecoration.Underline),
+        color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .clickable(enabled = !done, role = Role.Button, onClickLabel = null, onClick = onMark)
+            .semantics {
+                contentDescription = if (done) "Marked as read" else if (title.isEmpty()) "Mark as read" else "Mark $title as read"
+                liveRegion = LiveRegionMode.Polite
+            },
+    )
 }
 
 /** On Listen's closing page: done with the edition here, so it needn't go to the e-reader. */
