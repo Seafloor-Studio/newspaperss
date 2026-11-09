@@ -286,7 +286,7 @@ fun EditionDetailScreen(
                     reserveStar = anyStar,
                     onOpen = if (current.file != null) { { onReadArticle(content.entry.position) } } else null,
                     editionSent = current.edition?.status == EditionStatus.DELIVERED,
-                    onToggleRead = if (articleId != null && content.state != null) { { viewModel.toggleRead(articleId) } } else null,
+                    onToggleSent = if (articleId != null && content.state != null) { { viewModel.toggleSent(articleId) } } else null,
                 )
                 HorizontalDivider()
             }
@@ -390,7 +390,7 @@ private fun ContentRow(
     reserveStar: Boolean,
     onOpen: (() -> Unit)?,
     editionSent: Boolean = false,
-    onToggleRead: (() -> Unit)? = null,
+    onToggleSent: (() -> Unit)? = null,
 ) {
     val entry = content.entry
     val state = content.state
@@ -403,7 +403,8 @@ private fun ContentRow(
     val done = sent && !editionSent && content.starredAt == null
     ArticleRowFrame(
         modifier = if (onOpen != null) Modifier.clickable(onClickLabel = "Read", onClick = onOpen) else Modifier,
-        leading = if (onToggleRead != null && state != null) { { SentToggle(entry.title, state, onToggleRead) } } else null,
+        // A waiting one is held while an edition is being made, which may be taking it.
+        leading = if (onToggleSent != null && state != null) { { SentToggle(entry.title, state, onToggleSent, enabled = !(building && state == ArticleState.NEW)) } } else null,
         title = {
             Text(
                 entry.title,

@@ -490,6 +490,7 @@ class TtrssSyncTest {
         server.add(12, "Not picked", feedId = 2, feedTitle = "A Blog")
         sync.syncAll()
         val editionId = editionWith(source.id, "ttrss:10", "ttrss:11")
+        db.articles().setDelivered(db.editions().articleIds(editionId))
 
         assertTrue(ttrss.markRead(editionId))
         assertEquals(listOf(10L, 11L), server.markedRead.sorted())
@@ -656,6 +657,31 @@ class TtrssSyncTest {
         server.add(20, "Old", feedId = 1, feedTitle = "Example News")
         sync.syncAll()
         assertEquals("not marked read again for its delivered link", listOf(20L), server.markedRead)
+    }
+
+    /** One article of an unsent edition, sent on its own, is read in tt-rss; brought back, unread again. */
+    @Test
+    fun anArticleSentOnItsOwnFromAnUnsentEditionIsReadInTtrssAndUnreadOnceBack() = runTest {
+        val source = connect()
+        server.add(10, "Heard", feedId = 1, feedTitle = "Example News")
+        server.add(11, "Still to come", feedId = 1, feedTitle = "Example News")
+        sync.syncAll()
+        val editionId = editionWith(source.id, "ttrss:10", "ttrss:11")
+        val byGuid = db.articles().allForSource(source.id).associateBy { it.guid }
+        db.articles().setState(byGuid.values.map { it.id }, ArticleState.IN_EDITION)
+        val editions = EditionRepository(db, tmp.root, Clock.fixed(now, ZoneOffset.UTC))
+
+        assertTrue(editions.toggleSent(editionId, byGuid.getValue("ttrss:10").id))
+        assertTrue(ttrss.syncRead(editionId))
+        assertEquals(listOf(10L), server.markedRead)
+        assertFalse(10L in server.markedUnread)
+
+        assertTrue(editions.toggleSent(editionId, byGuid.getValue("ttrss:10").id))
+        assertEquals(ArticleState.IN_EDITION, stateOf(source, "ttrss:10"))
+        assertTrue(ttrss.syncRead(editionId))
+        assertTrue(10L in server.markedUnread)
+        sync.syncAll()
+        assertEquals("not marked read again", listOf(10L), server.markedRead)
     }
 
     /** A delivered article tt-rss still has unread (its marking failed, say) is marked read at the next sync. */
@@ -1206,6 +1232,7 @@ class TtrssSyncTest {
         server.add(10, "One", feedId = 1, feedTitle = "Example News")
         sync.syncAll()
         val editionId = editionWith(source.id, "ttrss:10")
+        db.articles().setDelivered(db.editions().articleIds(editionId))
 
         http.unreachable += server.apiUrl
         assertFalse("unreachable is worth retrying", ttrss.markRead(editionId))

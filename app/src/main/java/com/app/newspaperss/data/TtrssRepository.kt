@@ -577,13 +577,13 @@ class TtrssRepository(
 
     /**
      * Brings the server in line with the edition: its tt-rss articles read once it's delivered,
-     * unread again once it's marked as not sent. Decided when this runs rather than when it was
-     * asked for, so a late retry can't undo a newer change. Returns false if it failed in a way
-     * that may pass.
+     * unread again once it's marked as not sent, and while it's unsent, read for each article
+     * sent on its own. Decided when this runs rather than when it was asked for, so a late retry
+     * can't undo a newer change. Returns false if it failed in a way that may pass.
      */
     suspend fun syncRead(editionId: Long): Boolean = when (db.editions().byId(editionId)?.status) {
         EditionStatus.DELIVERED -> markRead(editionId)
-        EditionStatus.READY, EditionStatus.FAILED -> markUnread(editionId)
+        EditionStatus.READY, EditionStatus.FAILED -> markUnread(editionId) and markRead(editionId)
         else -> true
     }
 

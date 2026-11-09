@@ -17,7 +17,7 @@ import java.time.Clock
  *   follows delivery (taking its notification down), not again if it's sent again after being marked
  *   as not sent. Like [onTtrssChanged], it must return quickly.
  * @param onTtrssChanged called with an edition's id once it's delivered, or marked as not sent,
- *   with tt-rss articles in it, to mark them read or unread on the server to match. It must
+ *   or one of its articles is (see [toggleSent]), with tt-rss articles in it, to mark them read or unread on the server to match. It must
  *   return quickly and leave the work to run elsewhere: delivery doesn't wait for tt-rss.
  * @param kindleSends told how each edition was delivered, for the note after a send to a Kindle.
  */
@@ -87,6 +87,44 @@ class EditionRepository(
         if (delivered(id)) kindleSends.record(id, KindleSend.EMAIL)
     }
 
+    private suspend fun useUp(articleIds: List<Long>, now: java.time.Instant) {
+        db.articles().setDelivered(articleIds)
+        db.articles().rememberDelivered(articleIds, now)
+        db.articles().deliverCopies(articleIds)
+        db.articles().unstarCopies(articleIds)
+    }
+
+    /**
+     * One article of edition [editionId], marked sent on its own: it went out in this edition,
+     * read or heard on the phone, so it won't come back for another, whether or not the edition
+     * is ever sent. Or, if it won't come back already (sent, read or not picked), back for an
+     * edition: in this one while it's unsent, else waiting for the next. A waiting one (its edition
+     * let go unsent) isn't marked while an edition is being made, which may be taking it.
+     *
+     * @return whether it changed.
+     */
+    suspend fun toggleSent(editionId: Long, articleId: Long): Boolean {
+        val changed = db.withTransaction {
+            if (articleId !in db.editions().articleIds(editionId)) return@withTransaction false
+            val article = db.articles().byId(articleId) ?: return@withTransaction false
+            if (article.state == ArticleState.NEW && db.editions().buildingSince(clock.instant().minus(BUILD_HOLD))) return@withTransaction false
+            if (article.state == ArticleState.NEW || article.state == ArticleState.IN_EDITION) {
+                useUp(listOf(articleId), clock.instant())
+                true
+            } else {
+                db.articles().markUnread(articleId, clock.instant()) > 0
+            }
+        }
+        if (!changed || db.articles().byId(articleId)?.guid?.startsWith(FeedSync.TTRSS_GUID_PREFIX) != true) return changed
+        try {
+            onTtrssChanged(editionId)
+        } catch (e: Exception) {
+            // Changed either way; tt-rss catches up at its next sync.
+            Log.w(TAG, "Couldn't schedule marking a tt-rss article: ${e.javaClass.name}")
+        }
+        return changed
+    }
+
     private suspend fun delivered(id: Long) = db.editions().byId(id)?.status == EditionStatus.DELIVERED
 
     /** Delivery succeeded: only now are the edition's articles used up. */
@@ -112,10 +150,7 @@ class EditionRepository(
             val articleIds = db.editions().articleIds(id)
             // One instant for both: marking it as not sent finds the links it remembered by it.
             val now = clock.instant()
-            db.articles().setDelivered(articleIds)
-            db.articles().rememberDelivered(articleIds, now)
-            db.articles().deliverCopies(articleIds)
-            db.articles().unstarCopies(articleIds)
+            useUp(articleIds, now)
             db.editions().update(edition.copy(status = EditionStatus.DELIVERED, deliveredAt = now, error = null))
             edition.deliveredAt == null
         } ?: return

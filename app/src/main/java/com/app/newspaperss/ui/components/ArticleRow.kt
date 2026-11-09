@@ -155,10 +155,10 @@ fun ReadToggle(title: String, state: ArticleState, onToggle: () -> Unit) {
  * come back for another. A tap on ✓ or ○ brings it back. Laid out as [ReadToggle].
  */
 @Composable
-fun SentToggle(title: String, state: ArticleState, onToggle: () -> Unit) {
+fun SentToggle(title: String, state: ArticleState, onToggle: () -> Unit, enabled: Boolean = true) {
     val waiting = state == ArticleState.NEW || state == ArticleState.IN_EDITION
     val toggle = Modifier
-        .clickable(interactionSource = null, indication = ripple(bounded = false, radius = 24.dp), role = Role.Button, onClick = onToggle)
+        .clickable(enabled = enabled, interactionSource = null, indication = ripple(bounded = false, radius = 24.dp), role = Role.Button, onClick = onToggle)
         .semantics { contentDescription = if (waiting) "Mark $title as sent" else "Mark $title as not sent" }
     Box(toggle, contentAlignment = Alignment.Center) {
         Text(statusMark(state), style = MaterialTheme.typography.bodyLarge, softWrap = false, modifier = Modifier.clearAndSetSemantics {})

@@ -1,46 +1,40 @@
 package com.app.newspaperss.ui
 
-import androidx.compose.ui.test.performScrollTo
-import com.app.newspaperss.testutil.FakeSpeaker
-import com.app.newspaperss.listen.StoredListenProgress
-import com.app.newspaperss.listen.Listening
-import com.app.newspaperss.listen.ListenPlayer
-import com.app.newspaperss.listen.EpisodeAfter
-import com.app.newspaperss.settings.offersOpen
-import com.app.newspaperss.settings.Settings
-import com.app.newspaperss.settings.Device
 import android.app.Application
 import android.content.Intent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
-import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.work.WorkInfo
+import androidx.work.workDataOf
 import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.data.AppDatabase
 import com.app.newspaperss.data.ArticleEntity
@@ -50,43 +44,49 @@ import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionRepository
 import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.data.SourceEntity
-import com.app.newspaperss.edition.EditionBuilder
 import com.app.newspaperss.delivery.KindleSend
+import com.app.newspaperss.edition.EditionBuilder
+import com.app.newspaperss.listen.EpisodeAfter
+import com.app.newspaperss.listen.ListenPlayer
+import com.app.newspaperss.listen.Listening
+import com.app.newspaperss.listen.StoredListenProgress
+import com.app.newspaperss.settings.Device
+import com.app.newspaperss.settings.Settings
+import com.app.newspaperss.settings.offersOpen
+import com.app.newspaperss.testutil.FakeSpeaker
 import com.app.newspaperss.testutil.TestApp
 import com.app.newspaperss.testutil.ViewModels
-import com.app.newspaperss.testutil.closeAfter
 import com.app.newspaperss.testutil.clearFileProviderCache
+import com.app.newspaperss.testutil.closeAfter
 import com.app.newspaperss.testutil.idleUntil
 import com.app.newspaperss.ui.edition.EditionDetailScreen
+import com.app.newspaperss.ui.edition.EditionDetailViewModel
 import com.app.newspaperss.ui.edition.KINDLE_NOTE
 import com.app.newspaperss.ui.edition.MARK_NOT_SENT
 import com.app.newspaperss.ui.edition.MARK_SENT_WAITING
-import com.app.newspaperss.ui.edition.EditionDetailViewModel
+import com.app.newspaperss.ui.today.BUILD_STATUS
+import com.app.newspaperss.ui.today.BuildState
 import com.app.newspaperss.ui.today.TodayScreen
 import com.app.newspaperss.ui.today.TodayViewModel
-import com.app.newspaperss.ui.today.BuildState
-import com.app.newspaperss.ui.today.BUILD_STATUS
 import com.app.newspaperss.work.EditionWorker
-import androidx.work.WorkInfo
-import androidx.work.workDataOf
+import java.io.File
+import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.After
-import org.junit.Before
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import java.io.File
-import java.time.Instant
 
 @RunWith(AndroidJUnit4::class)
 // Tall enough that every row of these short editions is composed without scrolling.
@@ -399,6 +399,46 @@ class EditionDetailScreenTest {
         compose.onNodeWithText("Mark as sent").assertIsEnabled().performClick()
         compose.idleUntil { statusOf(id) == EditionStatus.DELIVERED }
         assertEquals(ArticleState.DELIVERED, runBlocking { db.articles().byId(articles[0]) }?.state)
+    }
+
+    /**
+     * Each article's mark: ● sent on its own with a tap, so when the edition is let go unsent it
+     * stays out of the next one while the rest go back; ✓ brought back with another.
+     */
+    @Test
+    fun anArticleIsMarkedSentOnItsOwnAndBroughtBack() {
+        val (id, articles) = edition(EditionStatus.READY, listOf("Heard", "Still to come"))
+        show(id)
+        compose.onNodeWithContentDescription("Mark Heard as sent").performClick()
+        compose.idleUntil { runBlocking { db.articles().byId(articles[0]) }?.state == ArticleState.DELIVERED }
+        compose.onNodeWithContentDescription("Mark Heard as not sent").assertExists()
+        assertEquals(EditionStatus.READY, statusOf(id))
+        assertEquals("its link is remembered as sent", listOf("https://example.com/Heard"), runBlocking { db.articles().deliveredAmong(listOf("https://example.com/Heard", "https://example.com/Still to come")) })
+
+        // A newer edition lets this one go unsent: only what's still to come goes back.
+        runBlocking {
+            db.articles().release(id)
+            db.editions().update(db.editions().byId(id)!!.copy(status = EditionStatus.FAILED, error = EditionBuilder.NOT_SENT))
+        }
+        assertEquals(listOf(ArticleState.DELIVERED, ArticleState.NEW), runBlocking { articles.map { db.articles().byId(it)!!.state } })
+
+        compose.onNodeWithContentDescription("Mark Heard as not sent").performClick()
+        compose.idleUntil { runBlocking { db.articles().byId(articles[0]) }?.state == ArticleState.NEW }
+        compose.onNodeWithContentDescription("Mark Heard as sent").assertExists()
+    }
+
+    /** A waiting article's mark waits for an edition being made, which may be taking it; one still in its edition doesn't. */
+    @Test
+    fun aWaitingArticlesMarkWaitsForAnEditionBeingMade() {
+        val (id, articles) = edition(EditionStatus.FAILED, listOf("Let go"), articleState = ArticleState.NEW, error = EditionBuilder.NOT_SENT)
+        val (ready, inIt) = edition(EditionStatus.READY, listOf("In its edition"), name = "r")
+        runBlocking { db.editions().insert(EditionEntity(title = "Wednesday Morning Edition", status = EditionStatus.BUILDING)) }
+        show(id)
+        waitFor("Let go")
+        compose.onNodeWithContentDescription("Mark Let go as sent").assertIsNotEnabled()
+        assertFalse(runBlocking { repo.toggleSent(id, articles[0]) })
+
+        assertTrue(runBlocking { repo.toggleSent(ready, inIt[0]) })
     }
 
     @Test
