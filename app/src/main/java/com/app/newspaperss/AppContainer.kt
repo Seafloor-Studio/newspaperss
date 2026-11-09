@@ -107,6 +107,7 @@ class AppContainer(
     val db: AppDatabase = AppDatabase.open(context),
     cipher: SecretCipher = AesGcmCipher.androidKeystore(),
     markTtrssRead: (editionId: Long) -> Unit = { TtrssMarkReadWorker.enqueue(context, it) },
+    markTtrssArticleRead: (articleId: Long) -> Unit = { TtrssMarkReadWorker.enqueueArticle(context, it) },
     fetchReadingListTitles: (articleIds: List<Long>) -> Unit = { ReadingListTitleWorker.enqueue(context, it) },
     moveFeeds: () -> Unit = { MoveFeedsWorker.enqueue(context) },
     speaker: () -> Speaker = { SystemSpeaker(context) },
@@ -140,7 +141,7 @@ class AppContainer(
     val notifier = Notifier(context)
     val kindleSends = KindleSends()
     // A sent edition's Ready notification comes down: its Send would offer an edition already sent.
-    val editions = EditionRepository(db, editionsDir, onDelivered = notifier::dismissFor, onTtrssChanged = markTtrssRead, kindleSends = kindleSends,
+    val editions = EditionRepository(db, editionsDir, onDelivered = notifier::dismissFor, onTtrssChanged = markTtrssRead, onTtrssArticleChanged = markTtrssArticleRead, kindleSends = kindleSends,
         // Only if Listen has started: it isn't made just to be told.
         onFileGone = { id ->
             if (listenMade.isInitialized()) appScope.launch { listen.forget(id) }

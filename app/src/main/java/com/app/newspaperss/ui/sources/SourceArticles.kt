@@ -64,6 +64,7 @@ import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.core.plural
 import com.app.newspaperss.data.SourceRepository
 import com.app.newspaperss.ui.components.ArticleRowFrame
+import com.app.newspaperss.ui.components.ReadToggle
 import com.app.newspaperss.ui.components.EpisodeLabelTag
 import com.app.newspaperss.ui.components.episodeLabel
 import com.app.newspaperss.ui.components.LocalClock
@@ -276,7 +277,7 @@ internal fun RecentArticle(
                     tint = if (selection) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                ReadToggle(title, article, onToggleRead)
+                ReadToggle(title, article.state, onToggleRead)
             }
         },
         title = {
@@ -312,33 +313,6 @@ private fun isStarred(article: ArticleEntity) = article.starredAt != null && art
 /** Dimmed in the list: read, delivered or too old, so what's still to come stands out. Not if starred: it's going out again. */
 internal fun looksRead(article: ArticleEntity): Boolean =
     article.state in setOf(ArticleState.SKIPPED, ArticleState.DELIVERED, ArticleState.EXPIRED) && article.starredAt == null
-
-/**
- * The read toggle: the article's status mark, which marks a waiting article read and brings back
- * a read or delivered one. One in an unsent edition is marked read too: its book can't change,
- * but it won't come back for another edition. No outline: it would box in every row. Narrower than
- * a touch target, so as not to push the titles right; Compose widens its touch area to 48dp. While
- * a build may be writing a waiting one into its book it still takes the tap, which then says to
- * wait, rather than letting it open the article underneath.
- */
-@Composable
-private fun ReadToggle(title: String, article: ArticleEntity, onToggle: () -> Unit) {
-    val waiting = article.state == ArticleState.NEW || article.state == ArticleState.IN_EDITION
-    // Its own node, not merged into the row's, so TalkBack can reach it apart from opening the article.
-    val toggle = Modifier
-        .clickable(interactionSource = null, indication = ripple(bounded = false, radius = 24.dp), role = Role.Button, onClick = onToggle)
-        .semantics { contentDescription = if (waiting) "Mark $title as read" else "Mark $title as unread" }
-    Box(toggle, contentAlignment = Alignment.Center) {
-        // A shape per state, not a colour, so it reads on e-ink; the words are in the line below.
-        Text(statusMark(article), style = MaterialTheme.typography.bodyLarge, softWrap = false, modifier = Modifier.clearAndSetSemantics {})
-    }
-}
-
-private fun statusMark(article: ArticleEntity) = when (article.state) {
-    ArticleState.NEW, ArticleState.IN_EDITION -> "●"
-    ArticleState.DELIVERED -> "✓"
-    ArticleState.SKIPPED, ArticleState.EXPIRED -> "○"
-}
 
 /**
  * How often the source posts podcast episodes, among its newest [articles] the episode detector

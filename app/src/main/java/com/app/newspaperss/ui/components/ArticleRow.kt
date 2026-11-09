@@ -2,6 +2,7 @@ package com.app.newspaperss.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -26,11 +28,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.app.newspaperss.data.ArticleState
 
 /** Shown above the articles while unstarring and marking read are held; the dimmed controls alone would be a colour-only cue. */
 const val BUILDING_NOTE = "Your edition is being made. Mark as read and unstarring come back once it's ready."
@@ -122,4 +127,52 @@ fun StarToggle(title: String, starred: Boolean, onToggle: (Boolean) -> Unit, ena
             Icon(Icons.Outlined.StarOutline, contentDescription = null, modifier = Modifier.size(icon).alpha(alpha), tint = colors.onSurfaceVariant)
         }
     }
+}
+
+/**
+ * The read toggle: the article's status mark, which marks a waiting article read and brings back
+ * a read or delivered one. One in an unsent edition is marked read too: its book can't change,
+ * but it won't come back for another edition. No outline: it would box in every row. Narrower than
+ * a touch target, so as not to push the titles right; Compose widens its touch area to 48dp. While
+ * a build may be writing a waiting one into its book it still takes the tap, which then says to
+ * wait, rather than letting it open the article underneath.
+ */
+@Composable
+fun ReadToggle(title: String, state: ArticleState, onToggle: () -> Unit) {
+    val waiting = state == ArticleState.NEW || state == ArticleState.IN_EDITION
+    // Its own node, not merged into the row's, so TalkBack can reach it apart from opening the article.
+    val toggle = Modifier
+        .clickable(interactionSource = null, indication = ripple(bounded = false, radius = 24.dp), role = Role.Button, onClick = onToggle)
+        .semantics { contentDescription = if (waiting) "Mark $title as read" else "Mark $title as unread" }
+    Box(toggle, contentAlignment = Alignment.Center) {
+        // A shape per state, not a colour, so it reads on e-ink; the words are in the line below.
+        Text(statusMark(state), style = MaterialTheme.typography.bodyLarge, softWrap = false, modifier = Modifier.clearAndSetSemantics {})
+    }
+}
+
+/**
+ * An edition's article's mark, the same as on a source's page (● to come, ✓ sent, ○ read or not
+ * picked), but a tap on ● marks it sent on its own, as it went out in this edition: it won't
+ * come back for another. A tap on ✓ or ○ brings it back. Laid out as [ReadToggle].
+ */
+@Composable
+fun SentToggle(title: String, state: ArticleState, onToggle: () -> Unit, enabled: Boolean = true) {
+    val waiting = state == ArticleState.NEW || state == ArticleState.IN_EDITION
+    // Held, it still takes the tap and does nothing, as [ReadToggle] does, rather than let it open
+    // the article underneath.
+    val toggle = Modifier
+        .clickable(interactionSource = null, indication = ripple(bounded = false, radius = 24.dp), role = Role.Button) { if (enabled) onToggle() }
+        .semantics {
+            contentDescription = if (waiting) "Mark $title as sent" else "Mark $title as not sent"
+            if (!enabled) disabled()
+        }
+    Box(toggle, contentAlignment = Alignment.Center) {
+        Text(statusMark(state), style = MaterialTheme.typography.bodyLarge, softWrap = false, modifier = Modifier.clearAndSetSemantics {})
+    }
+}
+
+private fun statusMark(state: ArticleState) = when (state) {
+    ArticleState.NEW, ArticleState.IN_EDITION -> "●"
+    ArticleState.DELIVERED -> "✓"
+    ArticleState.SKIPPED, ArticleState.EXPIRED -> "○"
 }

@@ -695,18 +695,19 @@ interface ArticleDao {
     suspend fun keepNewest(sourceId: Long, keep: Int): Int
 
     /**
-     * The edition's tt-rss articles to mark read on the server, and tt-rss copies of its links (a
-     * story that went out from another source is read too): none from an account set to leave
-     * them unread. A copy only while it's still used up: this runs when the marking worker does,
-     * possibly hours later, and a copy starred since is going out again.
+     * The edition's sent tt-rss articles to mark read on the server, and tt-rss copies of their
+     * links (a story that went out from another source is read too): none from an account set to
+     * leave them unread. Sent, as this runs when the marking worker does, possibly hours later: an
+     * article can be sent on its own from an unsent edition, or brought back from a sent one, and
+     * a copy starred since is going out again.
      */
     @Query(
         """SELECT articles.* FROM articles JOIN sources ON sources.id = articles.sourceId
-           WHERE sources.kind = 'TTRSS' AND sources.markReadOnServer = 1
+           WHERE sources.kind = 'TTRSS' AND sources.markReadOnServer = 1 AND articles.state = 'DELIVERED'
            AND (articles.id IN (SELECT articleId FROM edition_articles WHERE editionId = :editionId)
-                OR (articles.state = 'DELIVERED' AND articles.starredAt IS NULL AND articles.url != '' AND articles.url IN (
+                OR (articles.starredAt IS NULL AND articles.url != '' AND articles.url IN (
                     SELECT a.url FROM edition_articles ea JOIN articles a ON a.id = ea.articleId
-                    WHERE ea.editionId = :editionId AND a.url != '')))""",
+                    WHERE ea.editionId = :editionId AND a.url != '' AND a.state = 'DELIVERED')))""",
     )
     suspend fun ttrssInEdition(editionId: Long): List<ArticleEntity>
 
@@ -722,6 +723,25 @@ interface ArticleDao {
            AND articles.id IN (SELECT articleId FROM edition_articles WHERE editionId = :editionId)""",
     )
     suspend fun ttrssUnsentInEdition(editionId: Long): List<ArticleEntity>
+
+    /** The article if it's from tt-rss and its account marks what's sent read there. */
+    @Query(
+        """SELECT articles.* FROM articles JOIN sources ON sources.id = articles.sourceId
+           WHERE articles.id = :id AND sources.kind = 'TTRSS' AND sources.markReadOnServer = 1""",
+    )
+    suspend fun ttrssArticle(id: Long): ArticleEntity?
+
+    /**
+     * The article and the copies of its link that sending it used up (see [deliverCopies]), from
+     * tt-rss accounts that mark what's sent read there, as [ttrssInEdition] has them for an edition.
+     */
+    @Query(
+        """SELECT articles.* FROM articles JOIN sources ON sources.id = articles.sourceId
+           WHERE sources.kind = 'TTRSS' AND sources.markReadOnServer = 1 AND articles.state = 'DELIVERED'
+           AND (articles.id = :id OR (articles.starredAt IS NULL AND articles.url != ''
+                AND articles.url = (SELECT url FROM articles WHERE id = :id)))""",
+    )
+    suspend fun ttrssSentWithLink(id: Long): List<ArticleEntity>
 }
 
 /** tt-rss accounts that mark articles read there when they expire here (see [ArticleDao.expireOlderThan]). */

@@ -12,12 +12,13 @@ import java.time.Duration
 
 /**
  * Marks an edition's tt-rss articles read on the server once it's delivered, or unread once it's
- * marked as not sent, retrying a few times.
+ * marked as not sent, retrying a few times. Or one article marked sent on its own, or brought back.
  */
 class TtrssMarkReadWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        val editionId = inputData.getLong(EDITION_ID, -1)
-        val done = applicationContext.container.ttrss.syncRead(editionId)
+        val ttrss = applicationContext.container.ttrss
+        val articleId = inputData.getLong(ARTICLE_ID, -1)
+        val done = if (articleId >= 0) ttrss.syncArticleRead(articleId) else ttrss.syncRead(inputData.getLong(EDITION_ID, -1))
         return when {
             done -> Result.success()
             runAttemptCount + 1 < MAX_ATTEMPTS -> Result.retry()
@@ -28,6 +29,7 @@ class TtrssMarkReadWorker(context: Context, params: WorkerParameters) : Coroutin
 
     companion object {
         const val EDITION_ID = "editionId"
+        const val ARTICLE_ID = "articleId"
         const val MAX_ATTEMPTS = 4
 
         /**
@@ -46,6 +48,16 @@ class TtrssMarkReadWorker(context: Context, params: WorkerParameters) : Coroutin
             // Replaced, not kept: the work reads the edition's state when it runs, so only the
             // newest request matters, and one still retrying a delivery mustn't block undoing it.
             WorkManager.getInstance(context).enqueueUniqueWork("ttrss-mark-read-$editionId", ExistingWorkPolicy.REPLACE, request)
+        }
+
+        /** One article, as [enqueue] does an edition: a tap undone within [DELAY] never reaches tt-rss. */
+        fun enqueueArticle(context: Context, articleId: Long) {
+            val request = OneTimeWorkRequestBuilder<TtrssMarkReadWorker>()
+                .setConstraints(CONNECTED_NETWORK)
+                .setInitialDelay(DELAY)
+                .setInputData(workDataOf(ARTICLE_ID to articleId))
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork("ttrss-mark-article-$articleId", ExistingWorkPolicy.REPLACE, request)
         }
     }
 }
