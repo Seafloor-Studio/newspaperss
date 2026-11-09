@@ -81,6 +81,8 @@ class ListenPlayer(
     private val now: () -> Long = System::currentTimeMillis,
     /** Played between articles when one runs into the next, not when the listener skips. */
     private val chime: Chime = Chime.NONE,
+    /** An article heard to its end, not skipped: its page, which is its place in the edition. */
+    private val onHeard: (editionId: Long, page: Int) -> Unit = { _, _ -> },
 ) : Speaker.Listener {
     private val _state = MutableStateFlow(ListenState())
     val state: StateFlow<ListenState> = _state.asStateFlow()
@@ -91,6 +93,8 @@ class ListenPlayer(
     private var queued = -1
     private var lineStartedAt = 0L
     private var errors = 0
+    /** A line of the page on now that the voice couldn't say, so it wasn't heard to its end. */
+    private var unsaid = false
     /** A page is being read out of the book: until it is, the script and position are the old page's. */
     private var turning = false
     private var turns = 0
@@ -131,6 +135,7 @@ class ListenPlayer(
             return
         }
         endOutOfOrder = false
+        unsaid = false
         silence()
         job?.cancel()
         // A turn cancelled before it ran never reaches its finally.
@@ -284,7 +289,11 @@ class ListenPlayer(
         // "Finish it first?" are about the paper, not an hour's episode left part way.
         if (current.pages.getOrNull(current.at.page)?.end == true && !endOutOfOrder) current.editionId?.let(progress::finish)
         // Run to its end, not skipped with ⏭: heard.
-        if (chimeFirst) heardEpisode()
+        if (chimeFirst) {
+            heardEpisode()
+            val page = current.pages.getOrNull(current.at.page)
+            if (page != null && !page.end && !page.episode && !unsaid) current.editionId?.let { onHeard(it, current.at.page) }
+        }
         // An episode carries on from its own place, played part way on its own before.
         val next = current.at.page + 1
         val from = current.editionId?.let { ownPlace(it, current.pages, ListenPosition(next, 0)) } ?: ListenPosition(next, 0)
@@ -337,6 +346,7 @@ class ListenPlayer(
             return
         }
         val at = ListenPosition(page, position.line.coerceIn(0, script.lines.lastIndex))
+        if (page != current.at.page) unsaid = false
         _state.update { it.copy(at = at, script = script, finished = false, missingLanguage = null, error = null) }
         save(at)
         if (!_state.value.playing) return
@@ -460,6 +470,7 @@ class ListenPlayer(
     /** One line the voice can't say is passed over; three in a row, and it's the voice that's stuck. */
     override fun onError(id: String) {
         val line = lineOf(id) ?: return
+        unsaid = true
         if (++errors >= MAX_ERRORS) {
             silence()
             _state.update { it.copy(playing = false, error = "The phone's voice isn't working. Check Android's text-to-speech settings, then try again.") }

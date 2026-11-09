@@ -428,6 +428,20 @@ class EditionDetailScreenTest {
         compose.idleUntil { compose.onAllNodesWithContentDescription("Mark Heard as sent").fetchSemanticsNodes().isNotEmpty() }
     }
 
+    /** Read or heard to its end, an article is sent on its own; reading one already done again changes nothing. */
+    @Test
+    fun anArticleFinishedOnThePhoneIsSentButNeverBroughtBack() = runBlocking {
+        val (id, articles) = edition(EditionStatus.READY, listOf("Heard", "Read before"))
+        db.articles().markReadAll(listOf(articles[1]), Instant.EPOCH)
+
+        assertTrue(repo.markFinished(id, 0))
+        assertEquals(ArticleState.DELIVERED, db.articles().byId(articles[0])!!.state)
+        assertFalse("already sent", repo.markFinished(id, 0))
+        assertEquals(ArticleState.DELIVERED, db.articles().byId(articles[0])!!.state)
+        assertFalse(repo.markFinished(id, 1))
+        assertEquals(ArticleState.SKIPPED, db.articles().byId(articles[1])!!.state)
+    }
+
     /** A waiting article's mark waits for an edition being made, which may be taking it; one still in its edition doesn't. */
     @Test
     fun aWaitingArticlesMarkWaitsForAnEditionBeingMade() {

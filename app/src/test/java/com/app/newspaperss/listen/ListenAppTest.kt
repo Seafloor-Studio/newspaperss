@@ -135,6 +135,36 @@ class ListenAppTest {
         id
     }
 
+    /** An article heard to its end is said to be; not one skipped with ⏭, nor one the voice couldn't say all of. */
+    @Test
+    fun anArticleHeardToItsEndIsSaidToBeNotOneSkipped() {
+        val id = edition()
+        val heard = mutableListOf<Pair<Long, Int>>()
+        val player = ListenPlayer(speaker, progress, open = { ListenBook.open(repo, it) }, CoroutineScope(SupervisorJob() + Dispatchers.Main), onHeard = { e, page -> heard += e to page })
+        player.start(id)
+        compose.idleUntil { player.state.value.script != null && speaker.queue.isNotEmpty() }
+        while (player.state.value.at.page == 0) {
+            speaker.sayNext()
+            compose.idleUntil { speaker.queue.isNotEmpty() || player.state.value.at.page != 0 }
+        }
+        compose.idleUntil { player.state.value.at.page == 1 && speaker.queue.isNotEmpty() }
+        assertEquals(listOf(id to 0), heard)
+
+        speaker.fail()
+        while (player.state.value.at.page == 1) {
+            compose.idleUntil { speaker.queue.isNotEmpty() || player.state.value.at.page != 1 }
+            if (player.state.value.at.page == 1) speaker.sayNext()
+        }
+        assertEquals("a line unsaid, not heard", listOf(id to 0), heard)
+
+        player.seek(ListenPosition(1, 0))
+        compose.idleUntil { player.state.value.at.page == 1 && player.state.value.script != null }
+        player.next()
+        compose.idleUntil { player.state.value.at.page == 2 }
+        assertEquals("skipped, not heard", listOf(id to 0), heard)
+        player.stop()
+    }
+
     /** Listen around [player], with what the article view says about the voice playing. */
     private fun listenOf(
         player: ListenPlayer,
