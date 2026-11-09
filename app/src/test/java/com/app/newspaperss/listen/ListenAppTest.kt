@@ -135,7 +135,7 @@ class ListenAppTest {
         id
     }
 
-    /** An article heard to its end is said to be, not one skipped with ⏭. */
+    /** An article heard to its end is said to be; not one skipped with ⏭, nor one the voice couldn't say all of. */
     @Test
     fun anArticleHeardToItsEndIsSaidToBeNotOneSkipped() {
         val id = edition()
@@ -147,9 +147,18 @@ class ListenAppTest {
             speaker.sayNext()
             compose.idleUntil { speaker.queue.isNotEmpty() || player.state.value.at.page != 0 }
         }
-        compose.idleUntil { player.state.value.at.page == 1 }
+        compose.idleUntil { player.state.value.at.page == 1 && speaker.queue.isNotEmpty() }
         assertEquals(listOf(id to 0), heard)
 
+        speaker.fail()
+        while (player.state.value.at.page == 1) {
+            compose.idleUntil { speaker.queue.isNotEmpty() || player.state.value.at.page != 1 }
+            if (player.state.value.at.page == 1) speaker.sayNext()
+        }
+        assertEquals("a line unsaid, not heard", listOf(id to 0), heard)
+
+        player.seek(ListenPosition(1, 0))
+        compose.idleUntil { player.state.value.at.page == 1 && player.state.value.script != null }
         player.next()
         compose.idleUntil { player.state.value.at.page == 2 }
         assertEquals("skipped, not heard", listOf(id to 0), heard)

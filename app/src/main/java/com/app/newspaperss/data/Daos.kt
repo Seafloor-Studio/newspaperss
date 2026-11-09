@@ -854,7 +854,9 @@ interface EditionDao {
 
     /**
      * When each source (and each tt-rss publication) last had an article in a ready or delivered
-     * edition, or one let go unsent that the reader read or marked sent there anyway. Starred
+     * edition, or one let go unsent that the reader marked sent there anyway (an article sent
+     * from it, or since with another edition, which is counted for that one too). Not read: an
+     * article goes to read for reasons that aren't the reader seeing it there. Starred
      * articles don't count: they go in whatever the turns, and counting them would push the
      * source's other articles to the back.
      */
@@ -862,7 +864,7 @@ interface EditionDao {
         """SELECT a.sourceId AS sourceId, a.originId AS originId, MAX(e.createdAt) AS createdAt
            FROM edition_articles ea JOIN articles a ON a.id = ea.articleId JOIN editions e ON e.id = ea.editionId
            WHERE ea.starred = 0 AND (e.status IN ('READY', 'DELIVERED')
-               OR (e.status = 'FAILED' AND a.state IN ('DELIVERED', 'SKIPPED')))
+               OR (e.status = 'FAILED' AND a.state = 'DELIVERED'))
            GROUP BY a.sourceId, a.originId""",
     )
     suspend fun lastFeatured(): List<Featured>

@@ -104,9 +104,10 @@ class EditionRepository(
      * edition: in this one while it's unsent, else waiting for the next. A waiting one (its edition
      * let go unsent) isn't marked while an edition is being made, which may be taking it.
      *
+     * @param onlyMark marks it sent if it isn't already, never brings it back.
      * @return whether it changed.
      */
-    suspend fun toggleSent(editionId: Long, articleId: Long): Boolean {
+    suspend fun toggleSent(editionId: Long, articleId: Long, onlyMark: Boolean = false): Boolean {
         val changed = db.withTransaction {
             if (articleId !in db.editions().articleIds(editionId)) return@withTransaction false
             val article = db.articles().byId(articleId) ?: return@withTransaction false
@@ -114,6 +115,8 @@ class EditionRepository(
             if (article.state == ArticleState.NEW || article.state == ArticleState.IN_EDITION) {
                 useUp(listOf(articleId), clock.instant())
                 true
+            } else if (onlyMark) {
+                false
             } else {
                 db.articles().markUnread(articleId, clock.instant()) > 0
             }
@@ -136,9 +139,8 @@ class EditionRepository(
      */
     suspend fun markFinished(editionId: Long, position: Int): Boolean {
         val articleId = db.editions().articleIdAt(editionId, position) ?: return false
-        val state = db.articles().byId(articleId)?.state
-        if (state != ArticleState.NEW && state != ArticleState.IN_EDITION) return false
-        return toggleSent(editionId, articleId)
+        // Decided in toggleSent's transaction: Listen and a "Next" tap can finish the same article at once.
+        return toggleSent(editionId, articleId, onlyMark = true)
     }
 
     private suspend fun delivered(id: Long) = db.editions().byId(id)?.status == EditionStatus.DELIVERED
