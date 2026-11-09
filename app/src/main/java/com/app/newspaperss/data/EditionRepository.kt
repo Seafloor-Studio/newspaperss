@@ -129,6 +129,18 @@ class EditionRepository(
         return changed
     }
 
+    /**
+     * The article at [position] read or heard to its end on the phone ("Next" followed, or Listen
+     * ran on past it): sent on its own, as [toggleSent] does, unless it won't come back already.
+     * Never the other way: reading it again doesn't bring it back.
+     */
+    suspend fun markFinished(editionId: Long, position: Int): Boolean {
+        val articleId = db.editions().articleIdAt(editionId, position) ?: return false
+        val state = db.articles().byId(articleId)?.state
+        if (state != ArticleState.NEW && state != ArticleState.IN_EDITION) return false
+        return toggleSent(editionId, articleId)
+    }
+
     private suspend fun delivered(id: Long) = db.editions().byId(id)?.status == EditionStatus.DELIVERED
 
     /** Delivery succeeded: only now are the edition's articles used up. */

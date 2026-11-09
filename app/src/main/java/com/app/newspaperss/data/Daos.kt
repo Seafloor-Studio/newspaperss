@@ -854,13 +854,16 @@ interface EditionDao {
 
     /**
      * When each source (and each tt-rss publication) last had an article in a ready or delivered
-     * edition. Starred articles don't count: they go in whatever the turns, and counting them
-     * would push the source's other articles to the back.
+     * edition, or one let go unsent that the reader read or marked sent there anyway. Starred
+     * articles don't count: they go in whatever the turns, and counting them would push the
+     * source's other articles to the back.
      */
     @Query(
         """SELECT a.sourceId AS sourceId, a.originId AS originId, MAX(e.createdAt) AS createdAt
            FROM edition_articles ea JOIN articles a ON a.id = ea.articleId JOIN editions e ON e.id = ea.editionId
-           WHERE e.status IN ('READY', 'DELIVERED') AND ea.starred = 0 GROUP BY a.sourceId, a.originId""",
+           WHERE ea.starred = 0 AND (e.status IN ('READY', 'DELIVERED')
+               OR (e.status = 'FAILED' AND a.state IN ('DELIVERED', 'SKIPPED')))
+           GROUP BY a.sourceId, a.originId""",
     )
     suspend fun lastFeatured(): List<Featured>
 
@@ -915,4 +918,7 @@ interface EditionDao {
 
     @Query("SELECT articleId FROM edition_articles WHERE editionId = :editionId AND articleId IS NOT NULL ORDER BY position")
     suspend fun articleIds(editionId: Long): List<Long>
+
+    @Query("SELECT articleId FROM edition_articles WHERE editionId = :editionId AND position = :position")
+    suspend fun articleIdAt(editionId: Long, position: Int): Long?
 }

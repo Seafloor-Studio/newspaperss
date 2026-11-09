@@ -242,17 +242,22 @@ class ArticlePreviewScreenTest {
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("That's all for today.", substring = true))
     }
 
-    /** The whole "Next" line is the link, a finger tall, not only its words: a tap at its far end turns too. */
+    /**
+     * The whole "Next" line is the link, a finger tall, not only its words: a tap at its far end
+     * turns too. Followed, the article was read to its end.
+     */
     @Test
     fun theWholeNextLineTurnsThePage() {
         val file = twoArticleEdition()
-        compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "One", onBack = {}) }
+        val finished = mutableListOf<Int>()
+        compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "One", onBack = {}, onFinished = { finished += it }) }
         pageShown()
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Next:", substring = true))
         val line = compose.onNode(hasText("Next:", substring = true) and hasClickAction())
         assertTrue(line.fetchSemanticsNode().size.height >= with(compose.density) { 48.dp.roundToPx() })
         line.performTouchInput { click(centerRight.copy(x = right - 2f)) }
         onArticle("Two")
+        assertEquals(listOf(0), finished)
     }
 
     @Test

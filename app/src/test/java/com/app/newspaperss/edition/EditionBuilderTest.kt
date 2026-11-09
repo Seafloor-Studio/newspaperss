@@ -359,6 +359,21 @@ class EditionBuilderTest {
         assertEquals(sourcesOf(unsent.editionId), sourcesOf(next.editionId))
     }
 
+    /** Never sent, but one of its articles was read or heard on the phone: that source had its turn. */
+    @Test
+    fun anArticleSentOnItsOwnFromAnUnsentEditionCountsAsItsSourcesTurn() = runTest {
+        for (name in listOf("a", "b", "c", "d")) source(name, "${name}1", "${name}2", "${name}3")
+        val settings = EditionSettings(minutes = 15, maxPerSource = 1, wordsPerMinute = 200)
+        fun sourcesOf(id: Long) = runBlocking { editions.observeArticles(id).first().map { it.title.substringBefore(' ') }.toSet() }
+
+        val unsent = builder.build(settings) as BuildResult.Built
+        val heard = editions.observeArticles(unsent.editionId).first().first()
+        assertTrue(editions.markFinished(unsent.editionId, heard.position))
+        val next = builder.build(settings) as BuildResult.Built
+
+        assertTrue(heard.title.substringBefore(' ') !in sourcesOf(next.editionId))
+    }
+
     @Test
     fun aStarredArticleDoesntUseUpItsSourcesTurn() = runTest {
         val a = source("a", "a1")

@@ -196,6 +196,8 @@ fun ArticlePreviewScreen(
     editionId: Long? = null,
     /** Marks the edition sent, offered on the closing page; null once it's sent, or for one that can't be. */
     onMarkSent: (() -> Unit)? = null,
+    /** An article read to its end: its "Next" line followed. */
+    onFinished: (article: Int) -> Unit = {},
 ) {
     val player = listen?.player
     // Read in the background so the screen shows at once: reading a large edition during
@@ -373,7 +375,11 @@ fun ArticlePreviewScreen(
                 key(onScreen.article) {
                     PreviewPageView(
                         onScreen, open.pages, textSize, link,
-                        onArticle = { at -> if (at in 0 until open.articles) toArticle(at) },
+                        onArticle = { at ->
+                            // Its "Next" line: read to the end.
+                            if (at == onScreen.article + 1) onFinished(onScreen.article)
+                            if (at in 0 until open.articles) toArticle(at)
+                        },
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         voice = listening?.takeIf { it.at.page == onScreen.article },
                         onReadFrom = { line -> player?.seek(ListenPosition(onScreen.article, line)) },

@@ -81,6 +81,8 @@ class ListenPlayer(
     private val now: () -> Long = System::currentTimeMillis,
     /** Played between articles when one runs into the next, not when the listener skips. */
     private val chime: Chime = Chime.NONE,
+    /** An article heard to its end, not skipped: its page, which is its place in the edition. */
+    private val onHeard: (editionId: Long, page: Int) -> Unit = { _, _ -> },
 ) : Speaker.Listener {
     private val _state = MutableStateFlow(ListenState())
     val state: StateFlow<ListenState> = _state.asStateFlow()
@@ -284,7 +286,11 @@ class ListenPlayer(
         // "Finish it first?" are about the paper, not an hour's episode left part way.
         if (current.pages.getOrNull(current.at.page)?.end == true && !endOutOfOrder) current.editionId?.let(progress::finish)
         // Run to its end, not skipped with ⏭: heard.
-        if (chimeFirst) heardEpisode()
+        if (chimeFirst) {
+            heardEpisode()
+            val page = current.pages.getOrNull(current.at.page)
+            if (page != null && !page.end && !page.episode) current.editionId?.let { onHeard(it, current.at.page) }
+        }
         // An episode carries on from its own place, played part way on its own before.
         val next = current.at.page + 1
         val from = current.editionId?.let { ownPlace(it, current.pages, ListenPosition(next, 0)) } ?: ListenPosition(next, 0)

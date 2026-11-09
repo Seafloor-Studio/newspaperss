@@ -340,6 +340,7 @@ private fun App(
                     listen = container.listening,
                     editionId = id,
                     onMarkSent = if (markable) ({ container.appScope.launch { container.editions.markSentByHand(id) } }) else null,
+                    onFinished = { article -> container.appScope.launch { container.editions.markFinished(id, article) } },
                 )
             }
             composable(Tab.SOURCES.route) {
