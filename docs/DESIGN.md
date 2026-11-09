@@ -73,7 +73,7 @@ module so it's all unit-tested without Android.
   feed counts as a source), so with more sources than fit, the next edition
   picks up the ones the last one left out. An edition that's never sent
   doesn't count as its sources' turn, except for an article in it the
-  reader read or marked sent anyway. Taking turns, each source's turn
+  reader marked sent anyway (read or heard on the phone). Taking turns, each source's turn
   comes a random few editions later (up to half as many as the turns span),
   so the sources of one edition don't come back together as a group every
   cycle. A source whose waiting articles would all expire before the next
@@ -657,8 +657,10 @@ whose Kindle and KOReader answers ask for more on the same page).
   article (its edition let go) can't be marked while an edition is being
   made, which may be taking it. The app marks an article sent this way
   itself when it's finished on the phone: Listen plays it to its end (not
-  ⏭), or its "Next" line is followed in the article view. Never the other
-  way: going back to one doesn't bring it back. tt-rss hears about only the article tapped, so a read
+  ⏭, and not when the voice couldn't say a line of it), or its "Next" line
+  is followed in the article view. The last article has no "Next" line, so
+  only Listen marks it. Never the other way: going back to one doesn't
+  bring it back. tt-rss hears about only the article tapped, so a read
   or unread made there since the last sync stays. Marking a whole sent
   edition as not sent brings all its articles back, those marked sent on
   their own before it went out included.
