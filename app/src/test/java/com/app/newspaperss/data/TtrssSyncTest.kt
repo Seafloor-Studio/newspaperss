@@ -692,6 +692,28 @@ class TtrssSyncTest {
         assertEquals("nor unread again", listOf(10L), server.markedUnread)
     }
 
+    /** Sent on its own, a feed's article uses up a tt-rss copy of its link, which is read in tt-rss too. */
+    @Test
+    fun aTtrssCopyOfAnArticleSentOnItsOwnIsReadInTtrss() = runTest {
+        val source = connect()
+        server.add(12, "The same story", feedId = 1, feedTitle = "Example News")
+        sync.syncAll()
+        val copy = db.articles().allForSource(source.id).single()
+        val feed = sources.addFeed("https://news.example/feed", "News")
+        db.articles().insertNew(listOf(ArticleEntity(sourceId = feed, guid = "n12", url = copy.url, title = "The same story")))
+        val editionId = editionWith(feed, "n12")
+        val article = db.articles().allForSource(feed).single()
+        db.articles().setState(listOf(article.id), ArticleState.IN_EDITION)
+        val changed = mutableListOf<Long>()
+        val editions = EditionRepository(db, tmp.root, Clock.fixed(now, ZoneOffset.UTC), onTtrssArticleChanged = { changed += it })
+
+        assertTrue(editions.toggleSent(editionId, article.id))
+        assertEquals(ArticleState.DELIVERED, db.articles().byId(copy.id)!!.state)
+        assertEquals(listOf(article.id), changed)
+        assertTrue(ttrss.syncArticleRead(article.id))
+        assertEquals(listOf(12L), server.markedRead)
+    }
+
     /** A delivered article tt-rss still has unread (its marking failed, say) is marked read at the next sync. */
     @Test
     fun aDeliveredArticleTtrssStillHasUnreadIsMarkedReadAtTheNextSync() = runTest {

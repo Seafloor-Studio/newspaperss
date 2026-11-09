@@ -118,7 +118,8 @@ class EditionRepository(
                 db.articles().markUnread(articleId, clock.instant()) > 0
             }
         }
-        if (!changed || db.articles().byId(articleId)?.guid?.startsWith(FeedSync.TTRSS_GUID_PREFIX) != true) return changed
+        // A plain feed's article too: sending it may have used up a tt-rss copy of its link.
+        if (!changed || db.articles().ttrssArticle(articleId) == null && db.articles().ttrssSentWithLink(articleId).isEmpty()) return changed
         try {
             onTtrssArticleChanged(articleId)
         } catch (e: Exception) {

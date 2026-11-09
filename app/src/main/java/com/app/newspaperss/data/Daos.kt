@@ -730,6 +730,18 @@ interface ArticleDao {
            WHERE articles.id = :id AND sources.kind = 'TTRSS' AND sources.markReadOnServer = 1""",
     )
     suspend fun ttrssArticle(id: Long): ArticleEntity?
+
+    /**
+     * The article and the copies of its link that sending it used up (see [deliverCopies]), from
+     * tt-rss accounts that mark what's sent read there, as [ttrssInEdition] has them for an edition.
+     */
+    @Query(
+        """SELECT articles.* FROM articles JOIN sources ON sources.id = articles.sourceId
+           WHERE sources.kind = 'TTRSS' AND sources.markReadOnServer = 1 AND articles.state = 'DELIVERED'
+           AND (articles.id = :id OR (articles.starredAt IS NULL AND articles.url != ''
+                AND articles.url = (SELECT url FROM articles WHERE id = :id)))""",
+    )
+    suspend fun ttrssSentWithLink(id: Long): List<ArticleEntity>
 }
 
 /** tt-rss accounts that mark articles read there when they expire here (see [ArticleDao.expireOlderThan]). */
