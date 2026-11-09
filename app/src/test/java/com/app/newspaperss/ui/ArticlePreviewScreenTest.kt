@@ -1,5 +1,10 @@
 package com.app.newspaperss.ui
 
+import com.app.newspaperss.ui.edition.markedAtTheEnd
+import com.app.newspaperss.data.EditionStatus
+import com.app.newspaperss.data.EditionContent
+import com.app.newspaperss.data.EditionArticleEntity
+import com.app.newspaperss.data.ArticleState
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -282,6 +287,19 @@ class ArticlePreviewScreenTest {
         compose.onNodeWithContentDescription("Mark Two as read").performClick()
         assertEquals(listOf(0, 1), finished)
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Marked as read ✓"))
+    }
+
+    /** No line on a sent edition, nor on an edition let go while one is being made; done once it won't come back. */
+    @Test
+    fun whenTheLastArticleHasALine() {
+        fun content(state: ArticleState?, articleId: Long? = 1) = EditionContent(EditionArticleEntity(editionId = 1, articleId = articleId, position = 0, title = "x", sourceTitle = "x", minutes = 1.0), state)
+        assertEquals(false, markedAtTheEnd(content(ArticleState.IN_EDITION), EditionStatus.READY, building = true))
+        assertEquals(true, markedAtTheEnd(content(ArticleState.DELIVERED), EditionStatus.READY, building = false))
+        assertEquals(true, markedAtTheEnd(content(ArticleState.SKIPPED), EditionStatus.READY, building = false))
+        assertEquals(null, markedAtTheEnd(content(ArticleState.DELIVERED), EditionStatus.DELIVERED, building = false))
+        assertEquals(false, markedAtTheEnd(content(ArticleState.NEW), EditionStatus.FAILED, building = false))
+        assertEquals(null, markedAtTheEnd(content(ArticleState.NEW), EditionStatus.FAILED, building = true))
+        assertEquals(null, markedAtTheEnd(content(ArticleState.NEW, articleId = null), EditionStatus.READY, building = false))
     }
 
     @Test

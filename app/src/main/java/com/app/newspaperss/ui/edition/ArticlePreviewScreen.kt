@@ -1,5 +1,8 @@
 package com.app.newspaperss.ui.edition
 
+import com.app.newspaperss.data.ArticleState
+import com.app.newspaperss.data.EditionStatus
+import com.app.newspaperss.data.EditionContent
 import androidx.compose.ui.text.font.FontFamily
 import android.content.Intent
 import androidx.compose.material.icons.automirrored.filled.List
@@ -514,6 +517,18 @@ private fun PreviewPageView(
 }
 
 /**
+ * For the line after the last article: whether [content] won't come back, or null for no line.
+ * None on a sent edition, all of which went out; nor, while an edition is being made, on one let
+ * go that it may be taking, which a tap couldn't mark; nor on one whose source was removed.
+ */
+internal fun markedAtTheEnd(content: EditionContent?, edition: EditionStatus?, building: Boolean): Boolean? {
+    if (content?.entry?.articleId == null || edition == EditionStatus.DELIVERED) return null
+    val state = content.state ?: return null
+    if (state == ArticleState.NEW && building) return null
+    return state == ArticleState.DELIVERED || state == ArticleState.SKIPPED || state == ArticleState.EXPIRED
+}
+
+/**
  * After the last article, in the place of the others' "Next" line, which marks them read when
  * followed: the whole line a finger tall, like it. Once marked, it says so; the edition's page
  * brings it back.
@@ -522,19 +537,18 @@ private fun PreviewPageView(
 private fun MarkReadAtTheEnd(title: String, done: Boolean, textSize: PreviewTextSize, onMark: () -> Unit) {
     // The page's own furniture, as the "Next" line is drawn.
     val style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Serif).sized(textSize)
-    if (done) {
-        Text(
-            "Marked as read ✓", style = style, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.semantics { contentDescription = "Marked as read" },
-        )
-    } else {
-        Text(
-            "Mark as read", style = style.copy(textDecoration = TextDecoration.Underline), color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                .clickable(role = Role.Button, onClickLabel = null, onClick = onMark)
-                .semantics { contentDescription = if (title.isEmpty()) "Mark as read" else "Mark $title as read" },
-        )
-    }
+    // One node either way, so TalkBack keeps its place on it and says the change.
+    Text(
+        if (done) "Marked as read ✓" else "Mark as read",
+        style = if (done) style else style.copy(textDecoration = TextDecoration.Underline),
+        color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .clickable(enabled = !done, role = Role.Button, onClickLabel = null, onClick = onMark)
+            .semantics {
+                contentDescription = if (done) "Marked as read" else if (title.isEmpty()) "Mark as read" else "Mark $title as read"
+                liveRegion = LiveRegionMode.Polite
+            },
+    )
 }
 
 /** On Listen's closing page: done with the edition here, so it needn't go to the e-reader. */
