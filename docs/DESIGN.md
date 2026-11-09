@@ -643,6 +643,17 @@ whose Kindle and KOReader answers ask for more on the same page).
   to the articles (an unsent edition's go back for the next one). An article that went in because it was starred says
   "You starred it". On delivered editions each article has a trailing **☆** to
   bring it back ("Didn't get to one? Tap ☆ to bring it back.").
+- Each article in an edition's contents has the same status mark as on a
+  source's page (`●` to come, `✓` sent, `○` read or not picked), but a tap
+  on `●` marks it **sent on its own**: it went out in this edition, read or
+  heard on the phone. It won't come back, its link is remembered as sent,
+  and tt-rss marks it read, whether or not the edition is ever sent; if a
+  newer edition lets this one go, only its `●` articles go back. A tap on `✓`
+  or `○` brings it back: into this edition while it's unsent, otherwise for
+  the next. In a ready edition, sent and read rows are dimmed so what's left
+  stands out; in a sent one, where every row is `✓`, none are. A waiting
+  article (its edition let go) can't be marked while an edition is being
+  made, which may be taking it.
 - **Episode labels** (debug builds): a post the episode detector judged to be
   more than an article says so under its title, in an edition's contents and a
   source's newest articles: "Episode notes", "Transcript of …", "Audio version of
