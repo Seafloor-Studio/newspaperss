@@ -111,11 +111,22 @@ class Readings(
 
     private class Loaded(val editionId: Long, val articles: Int, val readings: Map<Int, Reading>, val ending: List<EndEpisode>)
 
+    companion object {
+        const val NOTES_PRELUDE = "Its episode plays after the edition."
+    }
+
     /** The recording that plays for [page] of [editionId], if it has one. */
     fun at(editionId: Long, page: Int): Reading? {
         val l = loaded?.takeIf { it.editionId == editionId } ?: return null
         return l.readings[page] ?: l.ending.getOrNull(page - l.articles - 1)?.reading
     }
+
+    /**
+     * Said before [page]'s first line, read by the voice, when it's a notes post whose episode
+     * plays after the edition: the note above its page says so, but nothing would aloud.
+     */
+    fun preludeAt(editionId: Long, page: Int): String? =
+        NOTES_PRELUDE.takeIf { loaded?.takeIf { it.editionId == editionId }?.ending?.any { it.notesPage == page } == true }
 
     /** The episodes that play after [editionId]'s closing page, in book order. */
     fun ending(editionId: Long): List<EndEpisode> = loaded?.takeIf { it.editionId == editionId }?.ending.orEmpty()
@@ -134,7 +145,7 @@ class Readings(
             // Kokoro speaks English: a heading in another language stays the phone's.
             val heading = script(page)?.takeIf { PodcastMaker.english(it.language) }?.lines?.take(reading.bodyLine)?.map { it.spoken }.orEmpty()
             listOfNotNull(reading.prelude) + heading + announcement(reading)
-        }.distinct()
+        }.plus(listOfNotNull(NOTES_PRELUDE.takeIf { l.ending.isNotEmpty() })).distinct()
     }
 
     /**

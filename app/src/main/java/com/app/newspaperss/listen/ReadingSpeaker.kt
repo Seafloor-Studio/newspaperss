@@ -51,6 +51,8 @@ class ReadingSpeaker(
     private val readingAt: (editionId: Long, page: Int) -> Reading?,
     private val choices: ReadingChoices,
     private val log: (String) -> Unit = {},
+    /** Said before a page read by the voice, once (see [Readings.preludeAt]). */
+    private val preludeAt: (editionId: Long, page: Int) -> String? = { _, _ -> null },
 ) : Speaker {
     override var listener: Speaker.Listener? = null
 
@@ -83,6 +85,16 @@ class ReadingSpeaker(
     private val announced = mutableSetOf<Pair<Long, Int>>()
     /** Pages whose prelude has been said, as for [announced]. */
     private val preluded = mutableSetOf<Pair<Long, Int>>()
+    /**
+     * A page read by the voice, held behind its prelude: the prelude's id, and the lines asked for
+     * meanwhile. They go on once it's said, the first as a fresh start: a podcast voice only
+     * starts a page from one, and queued behind it, it would never play.
+     */
+    private var preluding: String? = null
+    private val held = mutableListOf<Held>()
+
+    private class Held(val id: String, val text: String, val language: String?, val rate: Float)
+
     /** How long each recording is, as the player found: by address. */
     private val lengths = mutableMapOf<String, Long>()
     /** A share of the recording to seek to once its length is known: asked for before it was. */
@@ -110,7 +122,10 @@ class ReadingSpeaker(
 
             override fun onDone(id: String) {
                 // Said: not again. One stopped part way is said again from the page's start.
-                if (id.startsWith(PRELUDE)) return LineId.parse(id.removePrefix(PRELUDE))?.let { preluded += it.editionId to it.page } ?: Unit
+                if (id.startsWith(PRELUDE)) {
+                    LineId.parse(id.removePrefix(PRELUDE))?.let { preluded += it.editionId to it.page }
+                    return releaseHeld(id)
+                }
                 if (id.startsWith(HANDOVER)) return handedOver(id)
                 if (id.startsWith(SKIPPING)) return skipped(id)
                 val own = id.removePrefix(HEADING)
@@ -120,7 +135,7 @@ class ReadingSpeaker(
 
             override fun onError(id: String) {
                 // A handover or prelude the voice can't say is skipped: the recording plays anyway.
-                if (id.startsWith(PRELUDE)) return
+                if (id.startsWith(PRELUDE)) return releaseHeld(id)
                 if (id.startsWith(HANDOVER)) return handedOver(id)
                 if (id.startsWith(SKIPPING)) return skipped(id)
                 val own = id.removePrefix(HEADING)
@@ -147,7 +162,11 @@ class ReadingSpeaker(
         if (flush) skipping = null
         if (here != article || flush) choose(here)
         if (flush) stopRecording()
-        val reading = reading ?: return voice.speak(id, text, language, rate, flush)
+        if (flush) {
+            preluding = null
+            held.clear()
+        }
+        val reading = reading ?: return byTheVoice(line, here, id, text, language, rate, flush)
         // The heading, as plain speech rather than a line of the edition: a podcast voice given
         // the article's line would play the whole article from its own audio.
         if (line.line < reading.bodyLine) {
@@ -169,6 +188,27 @@ class ReadingSpeaker(
         // Announced once an article: not again on every pause and play.
         if (line.line == reading.bodyLine && here !in announced) handOver(line) else play(line)
         return true
+    }
+
+    /** A line with no recording: the voice's, after the page's prelude if it has one not yet said. */
+    private fun byTheVoice(line: LineId, here: Pair<Long, Int>, id: String, text: String, language: String?, rate: Float, flush: Boolean): Boolean {
+        if (preluding != null) {
+            held += Held(id, text, language, rate)
+            return true
+        }
+        val prelude = preludeAt(line.editionId, line.page)?.takeIf { flush && line.line == 0 && here !in preluded }
+            ?: return voice.speak(id, text, language, rate, flush)
+        preluding = "$PRELUDE$id"
+        held += Held(id, text, language, rate)
+        return voice.speak("$PRELUDE$id", prelude, null, rate, flush = true)
+    }
+
+    private fun releaseHeld(preludeId: String) {
+        if (preludeId != preluding) return
+        preluding = null
+        val lines = held.toList()
+        held.clear()
+        lines.forEachIndexed { i, it -> voice.speak(it.id, it.text, it.language, it.rate, flush = i == 0) }
     }
 
     /** Turns [page] of [editionId] back to the voice, or to its recording again; the player then plays on from [line]. */
@@ -319,6 +359,8 @@ class ReadingSpeaker(
         left = null
         waiting = null
         skipping = null
+        preluding = null
+        held.clear()
         stopRecording("stopped")
         voice.stop()
     }

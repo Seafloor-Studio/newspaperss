@@ -202,7 +202,7 @@ class AppContainer(
     private val readingSpeaker by lazy {
         // What's said around a recording in the natural voice too, where it's made.
         val voice = ClipSpeaker(listenSpeaker, Media3Audio(podcastPlayer)) { editionId, text -> podcastStore.clip(editionId, text)?.takeIf { podcastInUse() } }
-        ReadingSpeaker(voice, StreamAudio(readingPlayer), readings::at, readingChoices, log = logPlaying)
+        ReadingSpeaker(voice, StreamAudio(readingPlayer), readings::at, readingChoices, log = logPlaying, preludeAt = readings::preludeAt)
     }
 
     /**

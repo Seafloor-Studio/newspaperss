@@ -53,6 +53,41 @@ class ReadingSpeakerTest {
 
     private fun id(line: Int, page: Int = 0) = LineId(1, 7, page, line, 6).toString()
 
+    /**
+     * A notes post whose episode plays after the edition says so before its first line, once. Its
+     * lines wait for that, then go on with the first as a fresh start: a podcast voice only starts
+     * a page from one.
+     */
+    @Test
+    fun aNotesPostSaysItsEpisodePlaysAfterTheEditionFirst() {
+        val notes = ReadingSpeaker(voice, audio, { _, _ -> null }, choices, preludeAt = { e, p -> Readings.NOTES_PRELUDE.takeIf { e == 7L && p == 3 } })
+        notes.speak(id(0, page = 3), "The Example Show.", null, 1f, flush = true)
+        notes.speak(id(1, page = 3), "This week, a ferry planner.", null, 1f, flush = false)
+        assertEquals(listOf(Readings.NOTES_PRELUDE), voice.said.map { it.text })
+
+        voice.sayNext()
+        assertEquals(listOf(Readings.NOTES_PRELUDE, "The Example Show.", "This week, a ferry planner."), voice.said.map { it.text })
+        assertEquals("the page's first line starts afresh, the next queues behind it", listOf(true, true, false), voice.flushed)
+
+        // Once: back to the page's start, straight into its lines.
+        notes.speak(id(0, page = 3), "The Example Show.", null, 1f, flush = true)
+        assertEquals("The Example Show.", voice.said.last().text)
+        // Nor on a page without one.
+        notes.speak(id(0, page = 4), "Another article.", null, 1f, flush = true)
+        assertEquals("Another article.", voice.said.last().text)
+    }
+
+    /** Moved on while the prelude is said, its held lines are dropped, not said over the new place. */
+    @Test
+    fun aMoveDuringTheNotesPreludeDropsWhatWasHeld() {
+        val notes = ReadingSpeaker(voice, audio, { _, _ -> null }, choices, preludeAt = { _, p -> Readings.NOTES_PRELUDE.takeIf { p == 3 } })
+        notes.speak(id(0, page = 3), "The Example Show.", null, 1f, flush = true)
+        notes.speak(id(1, page = 3), "This week, a ferry planner.", null, 1f, flush = false)
+        notes.speak(id(0, page = 4), "Another article.", null, 1f, flush = true)
+        voice.sayNext()
+        assertEquals(listOf(Readings.NOTES_PRELUDE, "Another article."), voice.said.map { it.text })
+    }
+
     @Test
     fun theVoiceReadsTheHeadingSaysWhatsComingAndTheRecordingPlaysTheRest() {
         listen()
