@@ -653,7 +653,10 @@ whose Kindle and KOReader answers ask for more on the same page).
   the next. In a ready edition, sent and read rows are dimmed so what's left
   stands out; in a sent one, where every row is `✓`, none are. A waiting
   article (its edition let go) can't be marked while an edition is being
-  made, which may be taking it.
+  made, which may be taking it. tt-rss hears about only the article tapped, so a read
+  or unread made there since the last sync stays. Marking a whole sent
+  edition as not sent brings all its articles back, those marked sent on
+  their own before it went out included.
 - **Episode labels** (debug builds): a post the episode detector judged to be
   more than an article says so under its title, in an edition's contents and a
   source's newest articles: "Episode notes", "Transcript of …", "Audio version of
