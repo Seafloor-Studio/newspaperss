@@ -424,7 +424,9 @@ phone restarts.
     too, with each feed's name, address and category. Until the first list,
     the feeds seen in the last month stand in. A failed list waits for the
     next sync; the sync itself has still succeeded. Changing the category
-    lists the feeds again.
+    lists the feeds again, and so does a feed sending articles that the
+    last list didn't have (subscribed since), so it shows under its category
+    at once rather than Uncategorized until the next day.
   - **Each feed is a publication** with its own page: leave it out or bring
     it back, its article text and cap, and its own recent
     articles. A feed left out isn't fetched, and its waiting articles go
