@@ -11,6 +11,7 @@ import com.app.newspaperss.data.EditionContent
 import com.app.newspaperss.data.PublicationEntity
 import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.SourceKind
+import com.app.newspaperss.settings.NotesEpisode
 import com.app.newspaperss.settings.Recordings
 import com.app.newspaperss.testutil.DbRule
 import com.app.newspaperss.testutil.TestApp
@@ -243,11 +244,26 @@ class ReadingsTest {
             logged.last(),
         )
 
-        choices = Recordings(atTheEnd = false)
+        choices = Recordings(notes = NotesEpisode.OFF)
         load()
         assertEquals(emptyList<EndEpisode>(), readings.ending(3))
         assertNull(readings.at(3, 7))
+        assertNull("notes read by the voice", readings.at(3, 0))
         assertTrue(logged.last(), logged.last().endsWith("; episodes at the end: switched off"))
+
+        // In their place: each notes post with audio plays its own episode on its page, no length
+        // needed, and none after the edition. The transcript still has the episode it plays.
+        choices = Recordings(notes = NotesEpisode.IN_THEIR_PLACE)
+        load()
+        assertEquals(emptyList<EndEpisode>(), readings.ending(3))
+        assertEquals("https://cdn.example/1.mp3", readings.at(3, 0)?.url)
+        assertTrue(readings.at(3, 0)!!.episode && !readings.at(3, 0)!!.atTheEnd)
+        assertEquals("https://cdn.example/2.mp3", readings.at(3, 1)?.url)
+        assertNull("its transcript plays it", readings.at(3, 2))
+        assertNull("no audio", readings.at(3, 3))
+        assertEquals("https://cdn.example/3.mp3", readings.at(3, 4)?.url)
+        assertNull("once an edition", readings.at(3, 5))
+        assertTrue(logged.last(), logged.last().endsWith("; episodes at the end: none, they play in their notes' place"))
     }
 
     @Test

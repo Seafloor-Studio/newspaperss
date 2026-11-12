@@ -4,6 +4,7 @@ import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.data.EditionArticleEntity
 import com.app.newspaperss.data.EditionContent
 import com.app.newspaperss.data.EpisodePair
+import com.app.newspaperss.settings.NotesEpisode
 import com.app.newspaperss.settings.Recordings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -34,7 +35,9 @@ class EpisodeNoteTest {
         assertEquals(plays, note(content(EpisodeKind.NOTES, audio = 3_600)))
         assertEquals("a length isn't needed", plays, note(content(EpisodeKind.NOTES, hasAudio = true)))
         assertEquals("an embedded video, no audio of its own", reads, note(content(EpisodeKind.NOTES)))
-        assertEquals(reads, note(content(EpisodeKind.NOTES, audio = 3_600), Recordings(atTheEnd = false)))
+        assertEquals(reads, note(content(EpisodeKind.NOTES, audio = 3_600), Recordings(notes = NotesEpisode.OFF)))
+        assertEquals("Episode notes. Listen plays the episode in their place.", note(content(EpisodeKind.NOTES, audio = 3_600), Recordings(notes = NotesEpisode.IN_THEIR_PLACE)))
+        assertEquals(reads, note(content(EpisodeKind.NOTES), Recordings(notes = NotesEpisode.IN_THEIR_PLACE)))
         assertEquals(reads, note(content(EpisodeKind.NOTES, audio = 3_600), Recordings(on = false)))
     }
 

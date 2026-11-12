@@ -94,11 +94,15 @@ enum class PodcastVoice(val label: String, val accent: String) {
  * a person) and [episodes] (the episode a transcript records) in a post's place, and [atTheEnd]
  * (the episode a notes post is about) after the edition's closing page.
  */
-data class Recordings(val on: Boolean = true, val readings: Boolean = true, val episodes: Boolean = true, val atTheEnd: Boolean = true) {
+data class Recordings(val on: Boolean = true, val readings: Boolean = true, val episodes: Boolean = true, val notes: NotesEpisode = NotesEpisode.AFTER_THE_EDITION) {
     val playReadings: Boolean get() = on && readings
     val playEpisodes: Boolean get() = on && episodes
-    val playAtTheEnd: Boolean get() = on && atTheEnd
+    val playAtTheEnd: Boolean get() = on && notes == NotesEpisode.AFTER_THE_EDITION
+    val playNotesInPlace: Boolean get() = on && notes == NotesEpisode.IN_THEIR_PLACE
 }
+
+/** What an episode notes post's episode does: the notes are read either way, unless it plays in their place. */
+enum class NotesEpisode { AFTER_THE_EDITION, IN_THEIR_PLACE, OFF }
 
 data class Settings(
     val onboarded: Boolean = false,
@@ -183,7 +187,9 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val playRecordings = booleanPreferencesKey("listen_play_recordings")
         val playReadings = booleanPreferencesKey("listen_play_readings")
         val playEpisodes = booleanPreferencesKey("listen_play_episodes")
+        /** Before [notesEpisode]: on was after the edition, off was off. */
         val playAtTheEnd = booleanPreferencesKey("listen_play_at_the_end")
+        val notesEpisode = stringPreferencesKey("listen_notes_episode")
     }
 
     val settings: Flow<Settings> = store.data.map(::read)
@@ -219,7 +225,8 @@ class SettingsStore(private val store: DataStore<Preferences>) {
             prefs[Keys.playRecordings] = s.recordings.on
             prefs[Keys.playReadings] = s.recordings.readings
             prefs[Keys.playEpisodes] = s.recordings.episodes
-            prefs[Keys.playAtTheEnd] = s.recordings.atTheEnd
+            prefs[Keys.notesEpisode] = s.recordings.notes.name
+            prefs.remove(Keys.playAtTheEnd)
         }
     }
 
@@ -272,7 +279,9 @@ class SettingsStore(private val store: DataStore<Preferences>) {
                 on = p[Keys.playRecordings] ?: d.recordings.on,
                 readings = p[Keys.playReadings] ?: d.recordings.readings,
                 episodes = p[Keys.playEpisodes] ?: d.recordings.episodes,
-                atTheEnd = p[Keys.playAtTheEnd] ?: d.recordings.atTheEnd,
+                notes = p[Keys.notesEpisode]?.enumOrNull<NotesEpisode>()
+                    ?: p[Keys.playAtTheEnd]?.let { if (it) NotesEpisode.AFTER_THE_EDITION else NotesEpisode.OFF }
+                    ?: d.recordings.notes,
             ),
         )
     }
