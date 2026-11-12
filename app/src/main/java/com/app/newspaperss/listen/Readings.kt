@@ -160,7 +160,6 @@ class Readings(
                     } else {
                         episodeOf(article, page, script).also { (_, why) -> why?.let { read += "page $page (transcript: $it)" } }.first
                     }
-                    EpisodeKind.NOTES -> if (choices.playNotesInPlace) notesEpisodeOf(article, page, script) else null
                     else -> null
                 }
             } catch (e: CancellationException) {
@@ -190,7 +189,6 @@ class Readings(
                 (if (choices.playReadings) "" else " (readings are switched off)") +
                 (if (read.isEmpty()) "" else "; read by the voice instead: ${read.joinToString()}") +
                 "; episodes at the end: " + when {
-                    choices.playNotesInPlace -> "none, they play in their notes' place"
                     !choices.playAtTheEnd -> "switched off"
                     ending.isEmpty() -> "none"
                     else -> ending.joinToString { "page ${it.notesPage}'s, ${minutes(it.reading.seconds)}" }
@@ -259,17 +257,6 @@ class Readings(
             return Reading(audio.audioUrl!!, seconds, own = audio === article, bodyLine = lines.first, starts = shares(lines.second), episode = true) to null
         }
         return null to why.joinToString("; ")
-    }
-
-    /**
-     * A notes post's own episode, to play in the notes' place when the reader chose that: no
-     * length check, as notes are a minute's text about an hour's episode. Its time runs across
-     * the notes' lines, as a transcript's does across its own.
-     */
-    private suspend fun notesEpisodeOf(article: ArticleEntity, page: Int, script: suspend (page: Int) -> ListenScript?): Reading? {
-        val url = article.audioUrl ?: return null
-        val lines = script(page)?.let(::bodyOf) ?: return null
-        return Reading(url, article.audioSeconds, own = true, bodyLine = lines.first, starts = shares(lines.second), episode = true)
     }
 
     private fun describe(r: Reading): String = when {

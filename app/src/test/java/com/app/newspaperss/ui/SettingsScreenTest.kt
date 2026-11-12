@@ -227,11 +227,9 @@ class SettingsScreenTest {
         compose.idleUntil { runBlocking { store.current().recordings } == Recordings(episodes = false) }
         compose.onNodeWithText("Transcripts").assertIsOff()
 
-        // Episode notes: one of three.
-        compose.onNodeWithText("Plays after the edition").performScrollTo().assertIsSelected()
-        compose.onNodeWithText("Plays in their place").performScrollTo().performClick()
-        compose.idleUntil { runBlocking { store.current().recordings.notes } == NotesEpisode.IN_THEIR_PLACE }
-        compose.onNodeWithText("Plays after the edition").assertIsNotSelected()
+        compose.onNodeWithText("Episode notes").performScrollTo().assertIsOn().performClick()
+        compose.idleUntil { runBlocking { store.current().recordings.notes } == NotesEpisode.OFF }
+        compose.onNodeWithText("Episode notes").assertIsOff()
 
         compose.onNodeWithText("Play a post's own recording").performScrollTo().performClick()
         compose.idleUntil { runBlocking { store.current().recordings.on } == false }
@@ -242,7 +240,7 @@ class SettingsScreenTest {
         compose.idleUntil { runBlocking { store.current().recordings.on } }
         compose.onNodeWithText("Narrated articles").performScrollTo().assertIsOn()
         compose.onNodeWithText("Transcripts").assertIsOff()
-        compose.onNodeWithText("Plays in their place").performScrollTo().assertIsSelected()
+        compose.onNodeWithText("Episode notes").performScrollTo().assertIsOff()
     }
 
     @Test

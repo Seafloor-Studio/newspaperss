@@ -709,10 +709,8 @@ whose Kindle and KOReader answers ask for more on the same page).
     default, and under it a row per kind of post, named as its banner names
     it: **Transcripts** (play the episode instead), **Narrated articles**
     (play the narration instead: the article's own, or its audio
-    version's), and **Episode notes**, one of three: the episode **plays
-    after the edition** (the default), **plays in their place** (the notes'
-    heading, "Now the episode itself, …", then the episode instead of the
-    notes, as a transcript's does), or **doesn't play**. The switch's line
+    version's), and **Episode notes** (read the notes, and play the episode
+    after the edition). The switch's line
     says a recording that needs a subscription or a sign-in can't be
     reached, so the voice reads that post: the app can't tell every such
     case, so it says the rule once. Off, the rows go away and the voice

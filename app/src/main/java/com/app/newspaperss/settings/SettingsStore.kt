@@ -91,18 +91,17 @@ enum class PodcastVoice(val label: String, val accent: String) {
 
 /**
  * Which recordings Listen plays: none while [on] is off, else [readings] (an article read aloud by
- * a person) and [episodes] (the episode a transcript records) in a post's place, and [atTheEnd]
+ * a person) and [episodes] (the episode a transcript records) in a post's place, and [notes]
  * (the episode a notes post is about) after the edition's closing page.
  */
 data class Recordings(val on: Boolean = true, val readings: Boolean = true, val episodes: Boolean = true, val notes: NotesEpisode = NotesEpisode.AFTER_THE_EDITION) {
     val playReadings: Boolean get() = on && readings
     val playEpisodes: Boolean get() = on && episodes
     val playAtTheEnd: Boolean get() = on && notes == NotesEpisode.AFTER_THE_EDITION
-    val playNotesInPlace: Boolean get() = on && notes == NotesEpisode.IN_THEIR_PLACE
 }
 
-/** What an episode notes post's episode does: the notes are read either way, unless it plays in their place. */
-enum class NotesEpisode { AFTER_THE_EDITION, IN_THEIR_PLACE, OFF }
+/** What an episode notes post's episode does; the notes are read either way. */
+enum class NotesEpisode { AFTER_THE_EDITION, OFF }
 
 data class Settings(
     val onboarded: Boolean = false,

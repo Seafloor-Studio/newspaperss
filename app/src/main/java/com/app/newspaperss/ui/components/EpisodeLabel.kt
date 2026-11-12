@@ -90,7 +90,6 @@ fun episodeNote(judgement: EpisodeJudgement): String? {
     return when (kind) {
         EpisodeKind.NOTES ->
             when {
-                hasAudio && recordings.playNotesInPlace -> "Episode notes. Listen plays the episode in their place."
                 hasAudio && recordings.playAtTheEnd -> "Episode notes. Listen reads them, then plays the episode after the edition."
                 else -> "Episode notes. Listen reads them."
             }

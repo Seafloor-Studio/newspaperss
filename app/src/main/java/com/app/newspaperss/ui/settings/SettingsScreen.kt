@@ -448,7 +448,7 @@ private fun ListeningSection(s: AppSettings, vm: SettingsViewModel, onOpenNatura
 /**
  * Whether a post's recording plays in Listen in place of the voice, and for each kind of post, by
  * the name its banner gives it: a transcript's episode and a narrated article's narration in the
- * post's place, and an episode notes post's episode after the edition, in its place or not at all.
+ * post's place, and an episode notes post's episode after the edition.
  * Off, the kinds go away rather than sit greyed out. One article can still be turned back to the
  * voice while it plays.
  */
@@ -473,22 +473,8 @@ private fun RecordingsSection(r: Recordings, change: ((Recordings) -> Recordings
         Column(Modifier.padding(start = 16.dp)) {
             RecordingRow("Transcripts", "Play the episode instead of reading the transcript.", r.episodes) { on -> change { it.copy(episodes = on) } }
             RecordingRow("Narrated articles", "Play the narration instead of reading the article: its own recording, or its audio version's.", r.readings) { on -> change { it.copy(readings = on) } }
-            Text("Episode notes", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 8.dp).semantics { heading() })
-            Text("The notes are read, unless their episode plays in their place. Their episode:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Column(Modifier.selectableGroup()) {
-                listOf(
-                    NotesEpisode.AFTER_THE_EDITION to "Plays after the edition",
-                    NotesEpisode.IN_THEIR_PLACE to "Plays in their place",
-                    NotesEpisode.OFF to "Doesn't play",
-                ).forEach { (choice, label) ->
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(r.notes == choice, role = Role.RadioButton) { change { it.copy(notes = choice) } },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = r.notes == choice, onClick = null)
-                        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 12.dp))
-                    }
-                }
+            RecordingRow("Episode notes", "Read the notes, and play the episode after the edition.", r.notes == NotesEpisode.AFTER_THE_EDITION) { on ->
+                change { it.copy(notes = if (on) NotesEpisode.AFTER_THE_EDITION else NotesEpisode.OFF) }
             }
         }
     }

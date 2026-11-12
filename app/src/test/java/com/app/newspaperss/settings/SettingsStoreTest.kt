@@ -71,9 +71,10 @@ class SettingsStoreTest {
         dataStore.edit { it[androidx.datastore.preferences.core.booleanPreferencesKey("listen_play_at_the_end")] = false }
         assertEquals("switched off before", NotesEpisode.OFF, store.current().recordings.notes)
 
-        store.update { it.copy(recordings = it.recordings.copy(notes = NotesEpisode.IN_THEIR_PLACE)) }
-        assertEquals(NotesEpisode.IN_THEIR_PLACE, store.current().recordings.notes)
-        assertTrue(store.current().recordings.playNotesInPlace)
+        store.update { it.copy(recordings = it.recordings.copy(notes = NotesEpisode.AFTER_THE_EDITION)) }
+        assertEquals(NotesEpisode.AFTER_THE_EDITION, store.current().recordings.notes)
+        assertTrue(store.current().recordings.playAtTheEnd)
+        store.update { it.copy(recordings = it.recordings.copy(notes = NotesEpisode.OFF)) }
         assertFalse(store.current().recordings.playAtTheEnd)
     }
 

@@ -160,6 +160,13 @@ From the N10 audit of the article view and Listen (30 Oct). Read against the cod
 - [ ] Listen sometimes stops at the paragraph instead of scrolling down to the sentence being read: its fine scroll needs the paragraph's text layout, which may not be recorded yet when the scroll runs. Seen as `11d-listen-larger-text` differing between two renders; likely on a phone too *(today B7)*
 
 ### Later
+
+- **Episode notes: play the episode in their place** *(device)*: a third choice under Settings ›
+  Listening › Episode notes, besides after the edition and not at all. Held back from the
+  Recordings redo: spread over the notes' few lines an hour's episode loses its place by minutes
+  after a restart, shows a minute's length when the feed gives none, and a notes post before its
+  transcript would take the transcript's episode. Do it on a page of 30-second marks, as the
+  episodes after the edition have, with the transcript winning over its notes.
 - [ ] When releases start, the live (debug) channel keeps self-updating; release builds never do.
 - [ ] Send the email itself (SMTP, an app password), so a Kindle edition arrives with no tap and from a chosen account; email delivery through the mail app is done (#123)
 
