@@ -127,6 +127,10 @@ interface SourceDao {
     @Query("UPDATE sources SET ttrssSeenId = :id WHERE id = :sourceId")
     suspend fun setTtrssSeenId(sourceId: Long, id: Long)
 
+    /** The account's feeds as tt-rss last listed them (see [listTtrssFeeds]). */
+    @Query("SELECT `key` FROM publications WHERE sourceId = :sourceId AND listed = 1")
+    suspend fun listedKeys(sourceId: Long): List<String>
+
     /** tt-rss has fetched these feeds: they have unread articles there. */
     @Query("UPDATE publications SET awaitingFirstFetch = 0 WHERE sourceId = :sourceId AND `key` IN (:keys) AND awaitingFirstFetch = 1")
     suspend fun fetchedByServer(sourceId: Long, keys: List<String>)
