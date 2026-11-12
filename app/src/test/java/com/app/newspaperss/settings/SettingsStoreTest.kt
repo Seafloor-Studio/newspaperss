@@ -64,6 +64,20 @@ class SettingsStoreTest {
         assertEquals(1.8f, s.podcastPace)
     }
 
+    /** An episode notes choice survives, and the old on/off switch for episodes at the end carries over. */
+    @Test
+    fun theNotesEpisodeChoiceIsKeptAndTheOldSwitchCarriesOver() = runTest {
+        assertEquals(NotesEpisode.AFTER_THE_EDITION, store.current().recordings.notes)
+        dataStore.edit { it[androidx.datastore.preferences.core.booleanPreferencesKey("listen_play_at_the_end")] = false }
+        assertEquals("switched off before", NotesEpisode.OFF, store.current().recordings.notes)
+
+        store.update { it.copy(recordings = it.recordings.copy(notes = NotesEpisode.AFTER_THE_EDITION)) }
+        assertEquals(NotesEpisode.AFTER_THE_EDITION, store.current().recordings.notes)
+        assertTrue(store.current().recordings.playAtTheEnd)
+        store.update { it.copy(recordings = it.recordings.copy(notes = NotesEpisode.OFF)) }
+        assertFalse(store.current().recordings.playAtTheEnd)
+    }
+
     @Test
     fun anUpgradeWithATtrssAccountLandsInTheServerSetupAndWithoutOneOnThePhone() = runTest {
         assertNull("unset before it's settled", store.current().feedsFrom)

@@ -89,7 +89,10 @@ fun episodeNote(judgement: EpisodeJudgement): String? {
     val title = pair?.title?.let { "“${shortened(it)}”" }
     return when (kind) {
         EpisodeKind.NOTES ->
-            if (hasAudio && recordings.playAtTheEnd) "Episode notes. Listen reads them, then plays the episode after the edition." else "Episode notes. Listen reads them."
+            when {
+                hasAudio && recordings.playAtTheEnd -> "Episode notes. Listen reads them, then plays the episode after the edition."
+                else -> "Episode notes. Listen reads them."
+            }
         EpisodeKind.TRANSCRIPT -> (title?.let { "Transcript of $it." } ?: "Transcript of an episode.") + " " + when {
             !recordings.playEpisodes -> "Listen reads it."
             // Where Listen looks for the episode: the post's own audio, or its notes post's.

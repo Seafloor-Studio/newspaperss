@@ -1,5 +1,6 @@
 package com.app.newspaperss.ui.settings
 
+import com.app.newspaperss.settings.NotesEpisode
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -445,10 +446,11 @@ private fun ListeningSection(s: AppSettings, vm: SettingsViewModel, onOpenNatura
 }
 
 /**
- * Whether a post's recording plays in Listen in place of the voice, and of which kinds: readings
- * and transcripts' episodes in the post's place, notes posts' episodes once the edition is over. Off,
- * the kinds go away rather than sit greyed out. One article can still be turned back to the voice
- * while it plays.
+ * Whether a post's recording plays in Listen in place of the voice, and for each kind of post, by
+ * the name its banner gives it: a transcript's episode and a narrated article's narration in the
+ * post's place, and an episode notes post's episode after the edition.
+ * Off, the kinds go away rather than sit greyed out. One article can still be turned back to the
+ * voice while it plays.
  */
 @Composable
 private fun RecordingsSection(r: Recordings, change: ((Recordings) -> Recordings) -> Unit) {
@@ -468,11 +470,28 @@ private fun RecordingsSection(r: Recordings, change: ((Recordings) -> Recordings
         Switch(checked = r.on, onCheckedChange = null, modifier = Modifier.padding(start = 16.dp))
     }
     if (r.on) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CheckChip(r.readings, { change { it.copy(readings = !it.readings) } }, "Readings")
-            CheckChip(r.episodes, { change { it.copy(episodes = !it.episodes) } }, "Episodes")
-            CheckChip(r.atTheEnd, { change { it.copy(atTheEnd = !it.atTheEnd) } }, "Episodes at the end")
+        Column(Modifier.padding(start = 16.dp)) {
+            RecordingRow("Transcripts", "Play the episode instead of reading the transcript.", r.episodes) { on -> change { it.copy(episodes = on) } }
+            RecordingRow("Narrated articles", "Play the narration instead of reading the article: its own recording, or its audio version's.", r.readings) { on -> change { it.copy(readings = on) } }
+            RecordingRow("Episode notes", "Read the notes, and play the episode after the edition.", r.notes == NotesEpisode.AFTER_THE_EDITION) { on ->
+                change { it.copy(notes = if (on) NotesEpisode.AFTER_THE_EDITION else NotesEpisode.OFF) }
+            }
         }
+    }
+}
+
+/** One kind of post's recording, on or off: a row of its own, under the switch for them all. */
+@Composable
+private fun RecordingRow(title: String, body: String, on: Boolean, set: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().toggleable(on, role = Role.Switch, onValueChange = set).heightIn(min = 48.dp).padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = on, onCheckedChange = null, modifier = Modifier.padding(start = 16.dp))
     }
 }
 

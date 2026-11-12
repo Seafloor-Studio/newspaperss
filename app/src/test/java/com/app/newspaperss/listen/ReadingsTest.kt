@@ -11,6 +11,7 @@ import com.app.newspaperss.data.EditionContent
 import com.app.newspaperss.data.PublicationEntity
 import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.SourceKind
+import com.app.newspaperss.settings.NotesEpisode
 import com.app.newspaperss.settings.Recordings
 import com.app.newspaperss.testutil.DbRule
 import com.app.newspaperss.testutil.TestApp
@@ -243,11 +244,13 @@ class ReadingsTest {
             logged.last(),
         )
 
-        choices = Recordings(atTheEnd = false)
+        choices = Recordings(notes = NotesEpisode.OFF)
         load()
         assertEquals(emptyList<EndEpisode>(), readings.ending(3))
         assertNull(readings.at(3, 7))
+        assertNull("notes read by the voice", readings.at(3, 0))
         assertTrue(logged.last(), logged.last().endsWith("; episodes at the end: switched off"))
+
     }
 
     @Test
