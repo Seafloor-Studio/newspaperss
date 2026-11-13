@@ -36,7 +36,7 @@ class EpisodeNoteTest {
         assertEquals("a length isn't needed", plays, note(content(EpisodeKind.NOTES, hasAudio = true)))
         assertEquals("an embedded video, no audio of its own", reads, note(content(EpisodeKind.NOTES)))
         assertEquals(reads, note(content(EpisodeKind.NOTES, audio = 3_600), Recordings(notes = NotesEpisode.OFF)))
-        assertEquals(reads, note(content(EpisodeKind.NOTES, audio = 3_600), Recordings(on = false)))
+        assertEquals(reads, note(content(EpisodeKind.NOTES, audio = 3_600), Recordings.NONE))
     }
 
     @Test

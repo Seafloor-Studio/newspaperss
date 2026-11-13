@@ -37,6 +37,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -446,52 +447,39 @@ private fun ListeningSection(s: AppSettings, vm: SettingsViewModel, onOpenNatura
 }
 
 /**
- * Whether a post's recording plays in Listen in place of the voice, and for each kind of post, by
- * the name its banner gives it: a transcript's episode and a narrated article's narration in the
- * post's place, and an episode notes post's episode after the edition.
- * Off, the kinds go away rather than sit greyed out. One article can still be turned back to the
- * voice while it plays.
+ * Which posts' own recordings Listen plays, one tick for each kind of post, named as its banner
+ * names it: a transcript's episode and a narrated article's narration in the post's place, and an
+ * episode notes post's episode after the edition. None ticked, the voice reads every post. One
+ * article can still be turned back to the voice while it plays.
  */
 @Composable
 private fun RecordingsSection(r: Recordings, change: ((Recordings) -> Recordings) -> Unit) {
     SubHeading("Recordings", Modifier.padding(top = 24.dp))
-    Row(
-        Modifier.fillMaxWidth().toggleable(r.on, role = Role.Switch) { on -> change { it.copy(on = on) } }.heightIn(min = 48.dp).padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("Play a post's own recording", style = MaterialTheme.typography.bodyLarge)
-            Text(
-                "Where a post has one, it plays in place of the voice. One that needs a subscription or a sign-in can't be reached, so the voice reads that post.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Switch(checked = r.on, onCheckedChange = null, modifier = Modifier.padding(start = 16.dp))
-    }
-    if (r.on) {
-        Column(Modifier.padding(start = 16.dp)) {
-            RecordingRow("Transcripts", "Play the episode instead of reading the transcript.", r.episodes) { on -> change { it.copy(episodes = on) } }
-            RecordingRow("Narrated articles", "Play the narration instead of reading the article: its own recording, or its audio version's.", r.readings) { on -> change { it.copy(readings = on) } }
-            RecordingRow("Episode notes", "Read the notes, and play the episode after the edition.", r.notes == NotesEpisode.AFTER_THE_EDITION) { on ->
-                change { it.copy(notes = if (on) NotesEpisode.AFTER_THE_EDITION else NotesEpisode.OFF) }
-            }
-        }
+    Text(
+        "Where a post comes with its own audio, play it instead of the voice. One that needs a subscription or a sign-in can't be reached, so the voice reads that post.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(bottom = 4.dp),
+    )
+    RecordingRow("Transcripts", "Play the episode in the transcript's place.", r.episodes) { on -> change { it.copy(episodes = on) } }
+    RecordingRow("Narrated articles", "Play the narration in the article's place: its own recording, or its audio version's.", r.readings) { on -> change { it.copy(readings = on) } }
+    RecordingRow("Episode notes", "Read the notes, then play the episode after the edition.", r.notes == NotesEpisode.AFTER_THE_EDITION) { on ->
+        change { it.copy(notes = if (on) NotesEpisode.AFTER_THE_EDITION else NotesEpisode.OFF) }
     }
 }
 
-/** One kind of post's recording, on or off: a row of its own, under the switch for them all. */
+/** One kind of post's recording, ticked or not. */
 @Composable
 private fun RecordingRow(title: String, body: String, on: Boolean, set: (Boolean) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().toggleable(on, role = Role.Switch, onValueChange = set).heightIn(min = 48.dp).padding(vertical = 4.dp),
+        Modifier.fillMaxWidth().toggleable(on, role = Role.Checkbox, onValueChange = set).heightIn(min = 48.dp).padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
+        Checkbox(checked = on, onCheckedChange = null)
+        Column(Modifier.weight(1f).padding(start = 8.dp)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked = on, onCheckedChange = null, modifier = Modifier.padding(start = 16.dp))
     }
 }
 

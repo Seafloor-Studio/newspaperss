@@ -218,10 +218,10 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun recordingsCanBeSwitchedOffWhollyOrByKind() {
+    fun eachKindOfRecordingIsTickedOnItsOwn() {
         installVoice(ApplicationProvider.getApplicationContext())
         show(SettingsPage.LISTENING)
-        waitFor("Play a post's own recording")
+        waitFor("Recordings")
         compose.onNodeWithText("Narrated articles").performScrollTo().assertIsOn()
         compose.onNodeWithText("Transcripts").assertIsOn().performClick()
         compose.idleUntil { runBlocking { store.current().recordings } == Recordings(episodes = false) }
@@ -231,16 +231,12 @@ class SettingsScreenTest {
         compose.idleUntil { runBlocking { store.current().recordings.notes } == NotesEpisode.OFF }
         compose.onNodeWithText("Episode notes").assertIsOff()
 
-        compose.onNodeWithText("Play a post's own recording").performScrollTo().performClick()
-        compose.idleUntil { runBlocking { store.current().recordings.on } == false }
-        compose.onNodeWithText("Narrated articles").assertDoesNotExist()
-
-        // Back on, the kinds are as they were left.
-        compose.onNodeWithText("Play a post's own recording").performClick()
-        compose.idleUntil { runBlocking { store.current().recordings.on } }
-        compose.onNodeWithText("Narrated articles").performScrollTo().assertIsOn()
-        compose.onNodeWithText("Transcripts").assertIsOff()
-        compose.onNodeWithText("Episode notes").performScrollTo().assertIsOff()
+        // The last one unticked: none play, and every kind is still there to tick again.
+        compose.onNodeWithText("Narrated articles").performScrollTo().performClick()
+        compose.idleUntil { runBlocking { store.current().recordings } == Recordings.NONE }
+        compose.onNodeWithText("Narrated articles").assertIsOff()
+        compose.onNodeWithText("Transcripts").performScrollTo().assertIsOff().performClick()
+        compose.idleUntil { runBlocking { store.current().recordings.episodes } }
     }
 
     @Test

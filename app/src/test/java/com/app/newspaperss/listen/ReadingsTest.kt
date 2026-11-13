@@ -279,8 +279,8 @@ class ReadingsTest {
         assertNull("episodes are off", readings.at(3, 1))
         assertEquals("Readings: edition 3, recorded readings: page 0 (its own audio, 11 min); read by the voice instead: page 1 (transcript: episodes are switched off); episodes at the end: none", logged.last())
 
-        // Off, the kinds chosen under it don't count.
-        choices = Recordings(on = false)
+        // None ticked: the voice reads every post.
+        choices = Recordings.NONE
         load()
         assertNull(readings.at(3, 0))
         assertNull(readings.at(3, 1))

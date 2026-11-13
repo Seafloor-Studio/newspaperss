@@ -1567,11 +1567,11 @@ class ScreenshotTest {
         shoot("07o3-settings-listening-font-200", ready = { vm.settings.value != null }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
     }
 
-    /** Recordings switched off: the kinds go away. */
+    /** No recordings ticked: the voice reads every post. */
     @Test
     fun settingsListeningRecordingsOff() {
         installVoice(ApplicationProvider.getApplicationContext())
-        runBlocking { store.update { it.copy(listenSpeed = 1.2f, recordings = Recordings(on = false)) } }
+        runBlocking { store.update { it.copy(listenSpeed = 1.2f, recordings = Recordings.NONE) } }
         val vm = SettingsViewModel(store) {}
         shoot("07o2-settings-listening-recordings-off", ready = { vm.settings.value != null }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
     }

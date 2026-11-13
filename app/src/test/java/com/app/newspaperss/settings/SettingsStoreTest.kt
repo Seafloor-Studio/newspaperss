@@ -78,6 +78,19 @@ class SettingsStoreTest {
         assertFalse(store.current().recordings.playAtTheEnd)
     }
 
+    /**
+     * The old switch for every recording, off, leaves every kind unticked, so the voice still reads
+     * every post; once a kind is ticked again, the old switch is gone and no longer holds them off.
+     */
+    @Test
+    fun theOldSwitchForAllRecordingsCarriesOverAsNoneTicked() = runTest {
+        dataStore.edit { it[androidx.datastore.preferences.core.booleanPreferencesKey("listen_play_recordings")] = false }
+        assertEquals(Recordings.NONE, store.current().recordings)
+
+        store.update { it.copy(recordings = it.recordings.copy(episodes = true)) }
+        assertEquals(Recordings.NONE.copy(episodes = true), store.current().recordings)
+    }
+
     @Test
     fun anUpgradeWithATtrssAccountLandsInTheServerSetupAndWithoutOneOnThePhone() = runTest {
         assertNull("unset before it's settled", store.current().feedsFrom)
