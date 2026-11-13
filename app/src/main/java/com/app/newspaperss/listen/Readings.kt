@@ -216,6 +216,8 @@ class Readings(
         val choices = choices()
         contents.forEachIndexed { page, content ->
             val article = content.entry.articleId?.let { db.articles().byId(it) } ?: return@forEachIndexed
+            val transcript = article.episodeKind == EpisodeKind.TRANSCRIPT
+            val kindOn = if (transcript) choices.playEpisodes else choices.playReadings
             // Found whether or not its kind is ticked: the banner says what a tick would play.
             val (reading, why) = try {
                 when (article.episodeKind) {
@@ -226,12 +228,10 @@ class Readings(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // A page that won't read costs its own recording, not the edition's.
-                read += "page $page (its page wouldn't read)"
+                // A page that won't read costs its own recording, not the edition's; one switched off had none to cost.
+                if (kindOn) read += "page $page (its page wouldn't read)"
                 null to null
             }
-            val transcript = article.episodeKind == EpisodeKind.TRANSCRIPT
-            val kindOn = if (transcript) choices.playEpisodes else choices.playReadings
             // The log counts why the voice reads a transcript; one switched off is just that.
             if (transcript && !kindOn) read += "page $page (transcript: episodes are switched off)"
             if (reading == null) {

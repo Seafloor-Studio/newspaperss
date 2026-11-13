@@ -331,8 +331,10 @@ private fun App(
                 // screen comes back (a source's switch may have changed).
                 // Null while it's worked out, so no banner shows one thing then another; a failure
                 // leaves the banners to what the detector alone says.
-                // Keyed on the contents themselves: a length measured or a label changed after delivery changes them.
-                val outcomes by produceState<Result<Map<Int, com.app.newspaperss.listen.Outcome>>?>(null, id, recordings, contents) {
+                // Keyed on what they're worked out from: a length measured or a label changed after
+                // delivery, not an article read, starred or synced, which would hide the banner each page.
+                val judged = remember(contents) { contents.map { listOf(it.entry.articleId, it.episodeKind, it.pair, it.audioSeconds, it.pairAudioSeconds, it.hasAudio, it.pairHasAudio) } }
+                val outcomes by produceState<Result<Map<Int, com.app.newspaperss.listen.Outcome>>?>(null, id, recordings, judged) {
                     value = null
                     if (contents.isEmpty()) return@produceState
                     value = try {
