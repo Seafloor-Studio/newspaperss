@@ -15,7 +15,7 @@ media3 = "1.11.1"
 datastore = "1.2.1"
 coroutines = "1.11.0"
 serialization = "1.11.0"
-okhttp = "5.5.0"
+okhttp = "5.5.1"
 sherpaOnnx = "v1.13.8"
 jsoup = "1.23.2"
 # The version jsoup 1.23.2 compiles against; see :core's compileOnly.
