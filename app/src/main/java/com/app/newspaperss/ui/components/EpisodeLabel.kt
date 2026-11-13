@@ -14,6 +14,7 @@ import com.app.newspaperss.core.episodes.AudioLength
 import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.data.EditionContent
 import com.app.newspaperss.data.EpisodePair
+import com.app.newspaperss.listen.Outcome
 import com.app.newspaperss.settings.Recordings
 import kotlin.math.roundToInt
 
@@ -108,6 +109,81 @@ fun episodeNote(judgement: EpisodeJudgement): String? {
             else -> null
         }
     }
+}
+
+/** Where a banner's link goes. */
+enum class BannerLink { LISTENING_SETTINGS, SOURCE }
+
+/** A banner above an article, with [linked] (a part of [text]) going to [link]. */
+data class Banner(val text: String, val link: BannerLink? = null, val linked: String? = null)
+
+private const val SETTINGS = "Settings › Listening"
+private const val THIS_SOURCE = "this source"
+
+/**
+ * What the post is and what Listen does with it, from what Listen decided as the edition opened
+ * ([outcome]), so the banner can't promise a recording that won't play. Null for a post Listen
+ * reads like any other.
+ *
+ * @param titleAt the title of the edition's page that plays its recording instead.
+ */
+fun listenBanner(kind: EpisodeKind?, pair: EpisodePair?, outcome: Outcome?, titleAt: (Int) -> String?): Banner? {
+    val title = pair?.title?.let { "“${shortened(it)}”" }
+    fun quoted(page: Int) = titleAt(page)?.let { "“${shortened(it)}”" } ?: "another post"
+    fun settings(before: String, kindName: String) = Banner("$before turn on $kindName in $SETTINGS.", BannerLink.LISTENING_SETTINGS, SETTINGS)
+    fun sourceOff(before: String, what: String) = Banner("$before You've turned off $what for $THIS_SOURCE.", BannerLink.SOURCE, THIS_SOURCE)
+    val why = (outcome as? Outcome.Read)?.why
+    return when (kind) {
+        EpisodeKind.NOTES -> {
+            val head = "Episode notes."
+            when {
+                outcome == Outcome.AfterTheEdition -> Banner("$head The episode itself plays after the edition.")
+                outcome is Outcome.PlaysWith && !outcome.atTheEnd -> Banner("$head Its transcript, ${quoted(outcome.page)}, plays the episode in its place.")
+                outcome is Outcome.PlaysWith -> Banner("$head Its episode already plays after the edition, with ${quoted(outcome.page)}.")
+                why == Outcome.Why.KIND_OFF -> settings("$head To play the episode itself after the edition,", "Episode notes")
+                why == Outcome.Why.SOURCE_OFF -> sourceOff(head, "episode audio")
+                else -> Banner("$head No episode audio found.")
+            }
+        }
+        EpisodeKind.TRANSCRIPT -> {
+            val head = title?.let { "Transcript of $it." } ?: "Transcript of an episode."
+            when {
+                outcome is Outcome.Plays -> Banner("$head Listen plays the episode in its place.")
+                outcome is Outcome.PlaysWith -> Banner("$head Its episode plays with ${quoted(outcome.page)}.")
+                why == Outcome.Why.KIND_OFF -> settings("$head To play the episode itself in its place,", "Transcripts")
+                why == Outcome.Why.SOURCE_OFF -> sourceOff(head, "episode audio")
+                why == Outcome.Why.PREVIEW -> Banner("$head Its audio is a ${maxOf(1, (((outcome as Outcome.Read).seconds ?: 0) / 60.0).roundToInt())}-min preview, so Listen reads it.")
+                why == Outcome.Why.LENGTH_UNKNOWN -> Banner("$head Its episode's length isn't known, so Listen reads it.")
+                why == Outcome.Why.LENGTH_MISMATCH -> Banner("$head Its audio doesn't match its length, so Listen reads it.")
+                why == Outcome.Why.NO_AUDIO -> Banner("$head No episode audio found, so Listen reads it.")
+                else -> Banner("$head Listen reads it.")
+            }
+        }
+        // Its page is read by the voice, and its recording plays on its post's: [episodeNote] says so.
+        EpisodeKind.AUDIO_VERSION -> null
+        EpisodeKind.ARTICLE -> when (pair?.episodeKind) {
+            EpisodeKind.TRANSCRIPT -> Banner("Its transcript is a separate post, $title.")
+            EpisodeKind.AUDIO_VERSION -> articleBanner("Has an audio version, $title.", "in this post's place", outcome, ::quoted, ::settings, ::sourceOff)
+            // Its own audio, when that's a reading of it.
+            else -> outcome?.let { articleBanner("Has a recorded reading.", "in its place", it, ::quoted, ::settings, ::sourceOff) }
+        }
+        null -> null
+    }
+}
+
+private fun articleBanner(
+    head: String,
+    place: String,
+    outcome: Outcome?,
+    quoted: (Int) -> String,
+    settings: (String, String) -> Banner,
+    sourceOff: (String, String) -> Banner,
+): Banner = when {
+    outcome is Outcome.Plays -> Banner("$head Listen plays it $place.")
+    outcome is Outcome.PlaysWith -> Banner("$head It plays with ${quoted(outcome.page)}.")
+    (outcome as? Outcome.Read)?.why == Outcome.Why.KIND_OFF -> settings("$head To play it $place,", "Narrated articles")
+    (outcome as? Outcome.Read)?.why == Outcome.Why.SOURCE_OFF -> sourceOff(head, "recordings")
+    else -> Banner(head)
 }
 
 /** [title] cut to the last whole word within [NOTE_TITLE] characters, when it's longer. */

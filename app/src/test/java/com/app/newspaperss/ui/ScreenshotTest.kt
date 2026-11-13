@@ -21,6 +21,8 @@ import com.app.newspaperss.listen.Reading
 import com.app.newspaperss.listen.Readings
 import com.app.newspaperss.listen.ReadingSpeaker
 import com.app.newspaperss.core.episodes.EpisodeKind
+import com.app.newspaperss.ui.components.listenBanner
+import com.app.newspaperss.listen.Outcome
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.CompositionLocalProvider
 import com.app.newspaperss.testutil.TestDataStores
@@ -931,7 +933,10 @@ class ScreenshotTest {
         val article = EditionArticle(title = "How a ferry timetable is made, with its planner", sourceTitle = "The Example Letter", url = "https://example.com/ferry", bodyHtml = "<p>This week's guest plans ferries.</p>", minutes = 2.0)
         file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
         shoot("05c-article-preview-episode", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
-            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, episodeFor = { EpisodeJudgement(EpisodeKind.NOTES) })
+            ArticlePreviewScreen(
+                loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {},
+                bannerFor = { listenBanner(EpisodeKind.NOTES, null, Outcome.AfterTheEdition) { null } },
+            )
         }
     }
 
@@ -942,7 +947,24 @@ class ScreenshotTest {
         val article = EditionArticle(title = "Transcript: the ferry planner", sourceTitle = "The Example Letter", url = "https://example.com/ferry-transcript", bodyHtml = "<p>This week's guest plans ferries.</p>", minutes = 40.0)
         file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
         shoot("05c4-article-preview-transcript-no-audio", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
-            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, episodeFor = { EpisodeJudgement(EpisodeKind.TRANSCRIPT, hasAudio = false, pairHasAudio = false) })
+            ArticlePreviewScreen(
+                loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {},
+                bannerFor = { listenBanner(EpisodeKind.TRANSCRIPT, null, Outcome.Read(Outcome.Why.NO_AUDIO)) { null } },
+            )
+        }
+    }
+
+    /** Episode notes switched off in Settings: the banner says where to switch them on, a link there. */
+    @Test
+    fun articlePreviewNotesSwitchedOff() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "How a ferry timetable is made, with its planner", sourceTitle = "The Example Letter", url = "https://example.com/ferry", bodyHtml = "<p>This week's guest plans ferries.</p>", minutes = 2.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05c5-article-preview-notes-switched-off", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(
+                loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {},
+                bannerFor = { listenBanner(EpisodeKind.NOTES, null, Outcome.Read(Outcome.Why.KIND_OFF)) { null } },
+            )
         }
     }
 

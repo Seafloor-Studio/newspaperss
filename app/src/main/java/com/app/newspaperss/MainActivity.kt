@@ -18,7 +18,9 @@ import androidx.compose.runtime.mutableStateOf
 import android.content.Intent
 import com.app.newspaperss.listen.KokoroSupport
 import com.app.newspaperss.listen.ListenPosition
+import com.app.newspaperss.ui.components.BannerLink
 import com.app.newspaperss.ui.components.episodeJudgement
+import com.app.newspaperss.ui.components.listenBanner
 import android.os.Bundle
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.ComponentActivity
@@ -324,6 +326,20 @@ private fun App(
                 }
                 val textSize by remember { container.settings.settings.map { it.previewTextSize } }.collectAsStateWithLifecycle(initialValue = null)
                 val recordings by remember { container.settings.settings.map { it.recordings } }.collectAsStateWithLifecycle(initialValue = com.app.newspaperss.settings.Recordings())
+                // What Listen would do with each page, worked out as it would open the edition: the
+                // banners say that, not a guess of their own. Again when the ticks change, or the
+                // screen comes back (a source's switch may have changed).
+                // Null while it's worked out, so no banner shows one thing then another; a failure
+                // leaves the banners to what the detector alone says.
+                val outcomes by produceState<Result<Map<Int, com.app.newspaperss.listen.Outcome>>?>(null, id, recordings, contents.size) {
+                    value = try {
+                        container.listenOutcomes(id)?.let { Result.success(it) } ?: Result.failure(IllegalStateException("no book"))
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Result.failure(e)
+                    }
+                }
                 ArticlePreviewScreen(
                     loadFile = { container.editions.byId(id)?.let(container.editions::fileOf) },
                     position = position,
@@ -338,6 +354,18 @@ private fun App(
                         goTo(contents, moving, position)?.let { nav.navigate(sourceRoute(it)) { launchSingleTop = true } }
                     },
                     episodeFor = { article -> contents.getOrNull(article)?.let { episodeJudgement(it, recordings) } },
+                    bannersReady = outcomes != null,
+                    bannerFor = { article ->
+                        contents.getOrNull(article)?.let { c ->
+                            outcomes?.getOrNull()?.let { o -> listenBanner(c.episodeKind, c.pair, o[article]) { contents.getOrNull(it)?.entry?.title } }
+                        }
+                    },
+                    onBannerLink = { article, link ->
+                        when (link) {
+                            BannerLink.LISTENING_SETTINGS -> nav.navigate("settings/${SettingsPage.LISTENING.slug}") { launchSingleTop = true }
+                            BannerLink.SOURCE -> goTo(contents, moving, article)?.let { nav.navigate(sourceRoute(it)) { launchSingleTop = true } }
+                        }
+                    },
                     listen = container.listening,
                     editionId = id,
                     onMarkSent = if (markable) ({ container.appScope.launch { container.editions.markSentByHand(id) } }) else null,

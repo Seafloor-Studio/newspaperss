@@ -47,6 +47,7 @@ import com.app.newspaperss.listen.AudioLengths
 import com.app.newspaperss.listen.KokoroDownload
 import com.app.newspaperss.listen.ListenPosition
 import com.app.newspaperss.listen.ReadingSpeaker
+import com.app.newspaperss.listen.Outcome
 import com.app.newspaperss.listen.Readings
 import com.app.newspaperss.listen.StoredReadingChoices
 import com.app.newspaperss.listen.StreamAudio
@@ -333,6 +334,18 @@ class AppContainer(
     }
 
     fun kokoroDownload() = newKokoroDownload(kokoroInstall)
+
+    /**
+     * What Listen would do with each page of [editionId] that has a recording, as it would open
+     * it now: for the article view's banners. Its own Readings: Listen's has the edition being
+     * heard, which may be another. Empty in a release build, which plays none; null when the
+     * edition's book won't open, so nothing is known.
+     */
+    suspend fun listenOutcomes(editionId: Long): Map<Int, Outcome>? {
+        if (!EPISODES) return emptyMap()
+        val own = Readings(db, choices = { settings.current().recordings })
+        return ListenBook.open(editions, editionId, own)?.use { own.outcomes(editionId) }
+    }
 
     /** See [SettingsStore.settleFeedsFrom]: a tt-rss source from before the choice means the server setup. */
     suspend fun settleFeedsFrom() = settings.settleFeedsFrom { db.sources().ofKind(SourceKind.TTRSS).isNotEmpty() }
