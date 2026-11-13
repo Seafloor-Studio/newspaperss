@@ -34,6 +34,9 @@ import androidx.compose.ui.text.style.TextAlign
 import android.content.Intent
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.core.episodes.EpisodeKind
+import com.app.newspaperss.listen.Outcome
+import com.app.newspaperss.ui.components.BannerLink
+import com.app.newspaperss.ui.components.listenBanner
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
 import com.app.newspaperss.core.epub.EpubImage
@@ -51,8 +54,8 @@ import com.app.newspaperss.ui.edition.fillsWidth
 import com.app.newspaperss.ui.edition.lookIssueUrl
 import com.app.newspaperss.ui.edition.quoteOf
 import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.app.newspaperss.ui.edition.withNextLine
 import kotlinx.coroutines.CompletableDeferred
@@ -246,6 +249,35 @@ class ArticlePreviewScreenTest {
         compose.onNodeWithText(note, substring = true).assertDoesNotExist()
         // The last says the paper ends, with nowhere further to go.
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("That's all for today.", substring = true))
+    }
+
+    /**
+     * The banner says what Listen decided, once that's known: none while it's worked out, so it
+     * doesn't say one thing then another. Its link goes where the switch is.
+     */
+    @Test
+    fun theBannerWaitsForListensDecisionAndItsLinkGoesToTheSwitch() {
+        val file = twoArticleEdition("Episode 12", "An essay")
+        var ready by mutableStateOf(false)
+        val followed = mutableListOf<Pair<Int, BannerLink>>()
+        val banner = listenBanner(EpisodeKind.NOTES, null, Outcome.Read(Outcome.Why.KIND_OFF)) { null }!!
+        compose.setContent {
+            ArticlePreviewScreen(
+                loadFile = { file }, position = 0, title = "Episode 12", onBack = {},
+                episodeFor = { if (it == 0) EpisodeJudgement(EpisodeKind.NOTES) else null },
+                bannerFor = { if (it == 0) banner else null },
+                bannersReady = ready,
+                onBannerLink = { article, link -> followed += article to link },
+            )
+        }
+        pageShown()
+        compose.onNodeWithText("Episode notes.", substring = true).assertDoesNotExist()
+
+        ready = true
+        compose.onNodeWithText(banner.text).assertIsDisplayed()
+        // The whole banner is the tap, not only its last words.
+        compose.onNode(hasText(banner.text) and hasClickAction()).performClick()
+        assertEquals(listOf(0 to BannerLink.LISTENING_SETTINGS), followed)
     }
 
     /**

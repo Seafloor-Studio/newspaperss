@@ -15,6 +15,9 @@ import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.app.newspaperss.listen.Listening
@@ -85,6 +88,8 @@ import androidx.compose.ui.unit.dp
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.core.listen.ListenScript
 import com.app.newspaperss.settings.PreviewTextSize
+import com.app.newspaperss.ui.components.Banner
+import com.app.newspaperss.ui.components.BannerLink
 import com.app.newspaperss.ui.components.EpisodeJudgement
 import com.app.newspaperss.ui.components.episodeNote
 import com.app.newspaperss.ui.listen.LinkTarget
@@ -197,6 +202,15 @@ fun ArticlePreviewScreen(
      * it: said in a line above the page, and a wrong label can be sent for a look.
      */
     episodeFor: (Int) -> EpisodeJudgement? = { null },
+    /**
+     * The banner above the article at this position, from what Listen would do with it; null for
+     * none. Falls back to [episodeNote] for a post Listen hasn't judged ([listenBanner] is null).
+     */
+    bannerFor: (Int) -> Banner? = { null },
+    /** False while the banners are worked out: none shows, rather than one that then changes. */
+    bannersReady: Boolean = true,
+    /** Follows a banner's link, for the article at this position. */
+    onBannerLink: (Int, BannerLink) -> Unit = { _, _ -> },
     /** Listen; while its player has [editionId] open, its controls sit under the page and the page follows the voice. */
     listen: Listening? = null,
     editionId: Long? = null,
@@ -378,9 +392,8 @@ fun ArticlePreviewScreen(
                         )
                     }
                 }
-                episodeFor(onScreen.article)?.let(::episodeNote)?.let { note ->
-                    // Held to four lines: it stays above the article for the whole read.
-                    Text(note, style = MaterialTheme.typography.bodySmall, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                (bannerFor(onScreen.article) ?: episodeFor(onScreen.article)?.let(::episodeNote)?.let(::Banner))?.takeIf { bannersReady }?.let { banner ->
+                    ArticleBanner(banner) { onBannerLink(onScreen.article, it) }
                     HorizontalDivider()
                 }
                 key(onScreen.article) {
@@ -648,6 +661,34 @@ private fun TextSizeMenu(textSize: PreviewTextSize, onTextSize: (PreviewTextSize
             }
         }
     }
+}
+
+/**
+ * A [Banner] above the article. With a link, the whole banner is the tap, a finger tall, and isn't
+ * cut short, so its last words, the link's, are always there; its linked words are underlined.
+ * Without one it's held to four lines: it stays above the article for the whole read.
+ */
+@Composable
+private fun ArticleBanner(banner: Banner, onLink: (BannerLink) -> Unit) {
+    val link = banner.link
+    val linked = banner.linked?.takeIf { link != null }
+    val at = linked?.let { banner.text.lastIndexOf(it) } ?: -1
+    val text = buildAnnotatedString {
+        if (linked == null || at < 0) return@buildAnnotatedString append(banner.text)
+        append(banner.text.substring(0, at))
+        withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline)) { append(linked) }
+        append(banner.text.substring(at + linked.length))
+    }
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        maxLines = if (link == null) 4 else Int.MAX_VALUE,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (link == null || linked == null) Modifier else Modifier.heightIn(min = 48.dp).clickable(onClickLabel = "Open $linked", role = Role.Button) { onLink(link) })
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    )
 }
 
 /** @param source the name of where the article came from, for **Go to …**; null leaves it out. */

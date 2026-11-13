@@ -93,6 +93,42 @@ fun spokenLength(seconds: Int): String {
 }
 
 /**
+ * What Listen does with a page whose post has a recording, or is about one: what its banner says,
+ * from the same choices Listen makes, so the two can't disagree.
+ */
+sealed interface Outcome {
+    /** Its recording plays in its place. */
+    data class Plays(val seconds: Int?) : Outcome
+
+    /** A notes post: read by the voice, its episode played after the edition. */
+    data object AfterTheEdition : Outcome
+
+    /** The voice reads it, for [why]; [seconds] a preview's length. */
+    data class Read(val why: Why, val seconds: Int? = null) : Outcome
+
+    /**
+     * Its recording plays with the post on [page] instead: once an edition. [atTheEnd]: that's a
+     * notes post, whose episode plays after the edition.
+     */
+    data class PlaysWith(val page: Int, val atTheEnd: Boolean = false) : Outcome
+
+    enum class Why {
+        /** Its kind's tick is off in Settings › Listening. */
+        KIND_OFF,
+
+        /** Its source's recordings are switched off. */
+        SOURCE_OFF,
+        NO_AUDIO,
+        PREVIEW,
+        LENGTH_UNKNOWN,
+        LENGTH_MISMATCH,
+
+        /** Its page wouldn't read, so nothing could be measured against it. */
+        UNREADABLE,
+    }
+}
+
+/**
  * Which pages of the edition Listen has open play a recording (see [Reading]). Worked out when
  * the edition is opened, so the voice can be chosen at once as each article starts; [choices]
  * are the kinds the reader lets play, read then, so a change in Settings waits for the next
@@ -110,7 +146,14 @@ class Readings(
     @Volatile private var loaded: Loaded? = null
 
     /** @param titleEnds each notes post's page, and the last line of its title. */
-    private class Loaded(val editionId: Long, val articles: Int, val readings: Map<Int, Reading>, val ending: List<EndEpisode>, val titleEnds: Map<Int, Int>)
+    private class Loaded(
+        val editionId: Long,
+        val articles: Int,
+        val readings: Map<Int, Reading>,
+        val ending: List<EndEpisode>,
+        val titleEnds: Map<Int, Int>,
+        val outcomes: Map<Int, Outcome>,
+    )
 
     /** Said after line [afterLine] of a page, its title's last. */
     data class Prelude(val text: String, val afterLine: Int)
@@ -131,6 +174,9 @@ class Readings(
      */
     fun preludeAt(editionId: Long, page: Int): Prelude? =
         loaded?.takeIf { it.editionId == editionId }?.titleEnds?.get(page)?.let { Prelude(NOTES_PRELUDE, it) }
+
+    /** What Listen does with each page of [editionId] that has a recording, or is about one, by page. */
+    fun outcomes(editionId: Long): Map<Int, Outcome>? = loaded?.takeIf { it.editionId == editionId }?.outcomes
 
     /** The episodes that play after [editionId]'s closing page, in book order. */
     fun ending(editionId: Long): List<EndEpisode> = loaded?.takeIf { it.editionId == editionId }?.ending.orEmpty()
@@ -164,49 +210,64 @@ class Readings(
      */
     suspend fun load(editionId: Long, contents: List<EditionContent>, script: suspend (page: Int) -> ListenScript?) {
         val found = mutableMapOf<Int, Reading>()
+        val outcomes = mutableMapOf<Int, Outcome>()
         val notes = mutableListOf<String>()
         val read = mutableListOf<String>()
         val choices = choices()
         contents.forEachIndexed { page, content ->
             val article = content.entry.articleId?.let { db.articles().byId(it) } ?: return@forEachIndexed
-            val reading = try {
+            val transcript = article.episodeKind == EpisodeKind.TRANSCRIPT
+            val kindOn = if (transcript) choices.playEpisodes else choices.playReadings
+            // Found whether or not its kind is ticked: the banner says what a tick would play.
+            val (reading, why) = try {
                 when (article.episodeKind) {
-                    EpisodeKind.ARTICLE -> if (choices.playReadings) readingOf(article, page, script) else null
-                    EpisodeKind.TRANSCRIPT -> if (!choices.playEpisodes) {
-                        read += "page $page (transcript: episodes are switched off)"
-                        null
-                    } else {
-                        episodeOf(article, page, script).also { (_, why) -> why?.let { read += "page $page (transcript: $it)" } }.first
-                    }
-                    else -> null
+                    EpisodeKind.ARTICLE -> readingOf(article, page, script) to null
+                    EpisodeKind.TRANSCRIPT -> episodeOf(article, page, script)
+                    else -> null to null
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // A page that won't read costs its own recording, not the edition's.
-                read += "page $page (its page wouldn't read)"
-                null
-            } ?: return@forEachIndexed
-            if (db.sources().publication(article.sourceId, PublicationEntity.keyOf(article))?.recordingsOff == true) {
+                // A page that won't read costs its own recording, not the edition's; one switched off had none to cost.
+                if (kindOn) read += "page $page (its page wouldn't read)"
+                null to null
+            }
+            // The log counts why the voice reads a transcript; one switched off is just that.
+            if (transcript && !kindOn) read += "page $page (transcript: episodes are switched off)"
+            if (reading == null) {
+                why?.let {
+                    if (kindOn) read += "page $page (transcript: ${it.second})"
+                    outcomes[page] = it.first
+                }
+                return@forEachIndexed
+            }
+            if (!kindOn) {
+                outcomes[page] = Outcome.Read(Outcome.Why.KIND_OFF)
+                return@forEachIndexed
+            }
+            if (sourceOff(article)) {
                 read += "page $page (its source's recordings are switched off)"
+                outcomes[page] = Outcome.Read(Outcome.Why.SOURCE_OFF)
                 return@forEachIndexed
             }
             // Each recording plays once: a second post with the same one is read by the voice.
             val first = found.entries.firstOrNull { it.value.url == reading.url }
             if (first != null) {
                 read += "page $page (its recording plays on page ${first.key})"
+                outcomes[page] = Outcome.PlaysWith(first.key)
                 return@forEachIndexed
             }
             found[page] = reading
+            outcomes[page] = Outcome.Plays(reading.seconds)
             notes += "page $page (${describe(reading)})"
         }
-        val ending = if (choices.playAtTheEnd) episodesAtTheEnd(contents, found.values.map { it.url }) else emptyList()
+        val ending = episodesAtTheEnd(contents, found, outcomes, choices.playAtTheEnd)
         val titleEnds = ending.associate { end ->
             // A page that won't read still has its prelude, after its first line.
             val script = try { script(end.notesPage) } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
             end.notesPage to (script?.let(::titleEnd) ?: 0)
         }
-        loaded = Loaded(editionId, contents.size, found, ending, titleEnds)
+        loaded = Loaded(editionId, contents.size, found, ending, titleEnds, outcomes)
         log(
             "Readings: edition $editionId, recorded readings: ${notes.joinToString().ifEmpty { "none" }}" +
                 (if (choices.playReadings) "" else " (readings are switched off)") +
@@ -219,19 +280,34 @@ class Readings(
         )
     }
 
+    private suspend fun sourceOff(article: ArticleEntity): Boolean =
+        db.sources().publication(article.sourceId, PublicationEntity.keyOf(article))?.recordingsOff == true
+
     /**
      * Notes posts' episodes, in book order: each once, and not one a transcript already plays in
      * its place. A notes post is a minute or two of text about an episode of an hour or more, so
      * the notes are read in their place and the episode waits until the edition is over.
      */
-    private suspend fun episodesAtTheEnd(contents: List<EditionContent>, playing: List<String>): List<EndEpisode> {
-        val urls = playing.toMutableSet()
+    private suspend fun episodesAtTheEnd(contents: List<EditionContent>, found: Map<Int, Reading>, outcomes: MutableMap<Int, Outcome>, on: Boolean): List<EndEpisode> {
+        val playing = found.entries.associate { (page, reading) -> reading.url to page }
+        val atTheEnd = mutableMapOf<String, Int>()
         val ending = mutableListOf<EndEpisode>()
         contents.forEachIndexed { page, content ->
             val article = content.entry.articleId?.let { db.articles().byId(it) } ?: return@forEachIndexed
             if (article.episodeKind != EpisodeKind.NOTES) return@forEachIndexed
-            val url = article.audioUrl ?: return@forEachIndexed
-            if (!urls.add(url)) return@forEachIndexed
+            val url = article.audioUrl
+            outcomes[page] = when {
+                url == null -> Outcome.Read(Outcome.Why.NO_AUDIO)
+                // Its transcript plays it in its place, whatever the tick for notes: once.
+                url in playing -> Outcome.PlaysWith(playing.getValue(url))
+                !on -> Outcome.Read(Outcome.Why.KIND_OFF)
+                sourceOff(article) -> Outcome.Read(Outcome.Why.SOURCE_OFF)
+                // Another notes post plays it after the edition: once.
+                url in atTheEnd -> Outcome.PlaysWith(atTheEnd.getValue(url), atTheEnd = true)
+                else -> Outcome.AfterTheEdition
+            }
+            if (outcomes[page] != Outcome.AfterTheEdition) return@forEachIndexed
+            atTheEnd[url!!] = page
             val seconds = article.audioSeconds
             val script = EndEpisode.script(content.entry.title, content.entry.sourceTitle, seconds)
             val marks = EndEpisode.marks(seconds)
@@ -266,20 +342,29 @@ class Readings(
      * A transcript's episode, its own audio or else its notes post's, the first long enough not to
      * be a preview and short enough to be what was transcribed; else why neither.
      */
-    private suspend fun episodeOf(article: ArticleEntity, page: Int, script: suspend (page: Int) -> ListenScript?): Pair<Reading?, String?> {
+    private suspend fun episodeOf(article: ArticleEntity, page: Int, script: suspend (page: Int) -> ListenScript?): Pair<Reading?, Pair<Outcome, String>?> {
         val pair = article.episodePair?.let { db.articles().byGuid(article.sourceId, it) }?.takeIf { it.episodeKind == EpisodeKind.NOTES }
         val candidates = listOfNotNull(article, pair).filter { it.audioUrl != null }
-        if (candidates.isEmpty()) return null to "no audio"
-        val lines = script(page)?.let(::bodyOf) ?: return null to "its page wouldn't read"
+        if (candidates.isEmpty()) return null to (Outcome.Read(Outcome.Why.NO_AUDIO) to "no audio")
+        val lines = script(page)?.let(::bodyOf) ?: return null to (Outcome.Read(Outcome.Why.UNREADABLE) to "its page wouldn't read")
         val words = lines.second.sumOf { ReadingTime.words(it.spoken) }
         val why = candidates.map { audio ->
             val from = if (audio === article) "its own audio" else "its notes post's"
             // Without a length a preview can't be told from the episode.
-            val seconds = audio.audioSeconds ?: return@map "$from, length unknown"
-            if (!AudioLength.isEpisodeOf(seconds, words)) return@map "$from, ${minutes(seconds)} against ${minutes(AudioLength.readSeconds(words))} read aloud"
+            val seconds = audio.audioSeconds ?: return@map Outcome.Read(Outcome.Why.LENGTH_UNKNOWN) to "$from, length unknown"
+            if (!AudioLength.isEpisodeOf(seconds, words)) {
+                val outcome = if (AudioLength.isPreviewOf(seconds, words)) Outcome.Read(Outcome.Why.PREVIEW, seconds) else Outcome.Read(Outcome.Why.LENGTH_MISMATCH)
+                return@map outcome to "$from, ${minutes(seconds)} against ${minutes(AudioLength.readSeconds(words))} read aloud"
+            }
             return Reading(audio.audioUrl!!, seconds, own = audio === article, bodyLine = lines.first, starts = shares(lines.second), episode = true) to null
         }
-        return null to why.joinToString("; ")
+        // Every one a preview: the longest named. Else a length unknown, which a fetch may yet find.
+        val outcome = why.map { it.first }.let { all ->
+            all.filter { it.why == Outcome.Why.PREVIEW }.takeIf { it.size == all.size }?.maxBy { it.seconds ?: 0 }
+                ?: all.firstOrNull { it.why == Outcome.Why.LENGTH_UNKNOWN }
+                ?: Outcome.Read(Outcome.Why.LENGTH_MISMATCH)
+        }
+        return null to (outcome to why.joinToString("; ") { it.second })
     }
 
     private fun describe(r: Reading): String = when {

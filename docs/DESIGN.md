@@ -671,14 +671,26 @@ whose Kindle and KOReader answers ask for more on the same page).
   more than an article says so under its title, in an edition's contents and a
   source's newest articles: "Episode notes", "Transcript of …", "Audio version of
   “October 15”", or "Has an audio version" on the post a reading belongs to. The
-  article screen has the same as a line above the page, for the article on screen,
-  saying what Listen does with it as Settings › Listening has it: "Episode notes.
-  Listen reads them, then plays the episode after the edition." (only with audio of
-  their own and Episodes at the end on), or that a transcript plays its episode in
-  its place when it can. A transcript whose only audio is far too short for it
-  (under a third of it read aloud) says "Its audio is a 5-min preview, so Listen
-  reads it." One with no audio of its own, and no notes post with audio, says "No
-  episode audio found, so Listen reads it." A pair's title is cut to about 45 characters, so the line fits.
+  article screen has a banner above the page, for the article on screen, saying
+  what Listen does with it. It comes from the choices Listen makes as it opens the
+  edition (its Settings › Listening ticks, the source's switch, the audio's
+  length, a recording already played by another post), worked out again when the
+  article screen opens or the ticks change; none shows until then. So:
+  - "Episode notes. The episode itself plays after the edition.", or why not: "No
+    episode audio found.", "Its transcript, “…”, plays the episode in its place.",
+    "Its episode already plays after the edition, with “…”."
+  - "Transcript of “…”. Listen plays the episode in its place.", or why Listen
+    reads it: no audio, a 5-min preview, a length that isn't known or doesn't
+    match, or "Its episode plays with “…”."
+  - "Has an audio version, “…”." or, for an article whose own audio is a reading of
+    it, "Has a recorded reading.", then "Listen plays it in its place."
+  - Switched off in Settings, a banner says so with a link: "To play the episode
+    itself after the edition, turn on Episode notes in Settings › Listening."
+    Switched off for the source: "You've turned off episode audio for this source.",
+    "this source" a link to its page.
+  - An audio version keeps its line: "Listen plays it with that post, when that
+    post is in the edition."
+  A pair's title is cut to about 45 characters, so the banner fits.
   A source that posts episodes says how often, among its newest judged posts:
   "Posts episodes: 9 of the last 17 posts". Release builds never judge posts, so
   show none of this. See [episodes-design.md](research/episodes-design.md).
@@ -722,7 +734,8 @@ whose Kindle and KOReader answers ask for more on the same page).
     builds), shows on a source with a recent post that could play one (a
     reading, its audio version, or a transcript with an episode), or while
     it's off. Off, the voice reads that source's posts, readings and
-    episodes alike; on a tt-rss account it's each feed's own. It's read
+    episodes alike, and its notes posts' episodes don't play after the
+    edition; on a tt-rss account it's each feed's own. It's read
     each time an edition opens in Listen, so one already open carries on
     as it started. The per-article choice above stays for "not this one".
   - **Transcripts** (debug builds) play their episode in their place the
