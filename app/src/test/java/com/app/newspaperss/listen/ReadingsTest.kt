@@ -226,14 +226,17 @@ class ReadingsTest {
         assertTrue(ending[0].reading.episode && ending[0].reading.atTheEnd)
         // The first says that episodes follow the edition; the closing page, from the book, doesn't.
         assertEquals(listOf("After the edition, 2 episodes.", null), ending.map { it.reading.prelude })
-        // Each notes post whose episode plays then says so before it's read, out loud: not the
+        // Each notes post whose episode plays then says so after its title, out loud: not the
         // notes post whose episode its transcript already plays, nor one with no audio.
         assertEquals(listOf(0, 4), (0..5).filter { readings.preludeAt(3, it) == Readings.NOTES_PRELUDE })
         assertNull("another edition", readings.preludeAt(4, 0))
         // What's said around the recordings, for the natural voice to make ahead: the transcript's
         // heading is its page's (here the made-up page's first two lines), the ending's their own.
-        val around = readings.spokenAround(3) { p -> if (p >= 7) ending[p - 7].script else page(100) }
-        assertTrue(around.toString(), around.containsAll(listOf("After the edition, 2 episodes.", "A", "Title 0", "Now the episode itself, 38 minutes.", "Title 4", "Now the episode itself.", Readings.NOTES_PRELUDE)))
+        // A notes post's title is said apart from its page, before the prelude, so it's made too.
+        val notesPage = { p: Int -> ListenScript(listOf(Block.Text(Kind.TITLE, listOf("Notes $p")), Block.Text(Kind.PARAGRAPH, listOf("Show notes.")))) }
+        val around = readings.spokenAround(3) { p -> if (p >= 7) ending[p - 7].script else if (p == 0 || p == 4) notesPage(p) else page(100) }
+        assertTrue(around.toString(), around.containsAll(listOf("After the edition, 2 episodes.", "A", "Title 0", "Now the episode itself, 38 minutes.", "Title 4", "Now the episode itself.", "Notes 0", "Notes 4", Readings.NOTES_PRELUDE)))
+        assertTrue("only a notes post's title, not its notes", "Show notes." !in around)
         assertTrue("the episode's marks are the recording's, not said", "0:00" !in around)
         // Kokoro speaks English: a heading in another language is left to the phone's voice.
         val french = readings.spokenAround(3) { p -> if (p >= 7) ending[p - 7].script.copy(language = "fr") else page(100) }

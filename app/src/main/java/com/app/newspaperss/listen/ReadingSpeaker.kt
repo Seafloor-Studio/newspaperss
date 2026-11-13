@@ -51,7 +51,7 @@ class ReadingSpeaker(
     private val readingAt: (editionId: Long, page: Int) -> Reading?,
     private val choices: ReadingChoices,
     private val log: (String) -> Unit = {},
-    /** Said before a page read by the voice, once (see [Readings.preludeAt]). */
+    /** Said after the title of a page read by the voice, once (see [Readings.preludeAt]). */
     private val preludeAt: (editionId: Long, page: Int) -> String? = { _, _ -> null },
 ) : Speaker {
     override var listener: Speaker.Listener? = null
@@ -190,7 +190,7 @@ class ReadingSpeaker(
         return true
     }
 
-    /** A line with no recording: the voice's, after the page's prelude if it has one not yet said. */
+    /** A line with no recording: the voice's, with the page's prelude after its title if it has one not yet said. */
     private fun byTheVoice(line: LineId, here: Pair<Long, Int>, id: String, text: String, language: String?, rate: Float, flush: Boolean): Boolean {
         if (preluding != null) {
             held += Held(id, text, language, rate)
@@ -198,9 +198,11 @@ class ReadingSpeaker(
         }
         val prelude = preludeAt(line.editionId, line.page)?.takeIf { flush && line.line == 0 && here !in preluded }
             ?: return voice.speak(id, text, language, rate, flush)
+        // The title, then the prelude, as plain speech: a podcast voice given the title's line
+        // would play on through the page. The lines after wait for the prelude.
         preluding = "$PRELUDE$id"
-        held += Held(id, text, language, rate)
-        return voice.speak("$PRELUDE$id", prelude, null, rate, flush = true)
+        voice.speak("$HEADING$id", text, language, rate, flush = true)
+        return voice.speak("$PRELUDE$id", prelude, null, rate, flush = false)
     }
 
     private fun releaseHeld(preludeId: String) {

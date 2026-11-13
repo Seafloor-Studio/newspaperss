@@ -54,24 +54,34 @@ class ReadingSpeakerTest {
     private fun id(line: Int, page: Int = 0) = LineId(1, 7, page, line, 6).toString()
 
     /**
-     * A notes post whose episode plays after the edition says so before its first line, once. Its
-     * lines wait for that, then go on with the first as a fresh start: a podcast voice only starts
-     * a page from one.
+     * A notes post whose episode plays after the edition says so after its title, once. The title
+     * is said apart from its page, and the lines after wait for the prelude, then go on with the
+     * first as a fresh start: a podcast voice given the title's line would play on through the
+     * page, and only starts a page from a fresh start.
      */
     @Test
-    fun aNotesPostSaysItsEpisodePlaysAfterTheEditionFirst() {
+    fun aNotesPostSaysItsEpisodePlaysAfterTheEditionAfterItsTitle() {
         val notes = ReadingSpeaker(voice, audio, { _, _ -> null }, choices, preludeAt = { e, p -> Readings.NOTES_PRELUDE.takeIf { e == 7L && p == 3 } })
+        notes.listener = object : Speaker.Listener {
+            override fun onStart(id: String) { heard += "start $id" }
+            override fun onDone(id: String) { heard += "done $id" }
+            override fun onError(id: String) { heard += "error $id" }
+        }
         notes.speak(id(0, page = 3), "The Example Show.", null, 1f, flush = true)
         notes.speak(id(1, page = 3), "This week, a ferry planner.", null, 1f, flush = false)
-        assertEquals(listOf(Readings.NOTES_PRELUDE), voice.said.map { it.text })
+        assertEquals(listOf("The Example Show.", Readings.NOTES_PRELUDE), voice.said.map { it.text })
+        assertEquals("the title isn't the page's line to a podcast voice", null, LineId.parse(voice.said[0].id))
 
         voice.sayNext()
-        assertEquals(listOf(Readings.NOTES_PRELUDE, "The Example Show.", "This week, a ferry planner."), voice.said.map { it.text })
-        assertEquals("the page's first line starts afresh, the next queues behind it", listOf(true, true, false), voice.flushed)
+        assertEquals("the title's line is the player's", listOf("start ${id(0, page = 3)}", "done ${id(0, page = 3)}"), heard)
+        voice.sayNext()
+        assertEquals(listOf("The Example Show.", Readings.NOTES_PRELUDE, "This week, a ferry planner."), voice.said.map { it.text })
+        assertEquals("the line after starts afresh", listOf(true, false, true), voice.flushed)
+        assertEquals("the prelude isn't a line of the page", 2, heard.size)
 
         // Once: back to the page's start, straight into its lines.
         notes.speak(id(0, page = 3), "The Example Show.", null, 1f, flush = true)
-        assertEquals("The Example Show.", voice.said.last().text)
+        assertEquals(id(0, page = 3), voice.said.last().id)
         // Nor on a page without one.
         notes.speak(id(0, page = 4), "Another article.", null, 1f, flush = true)
         assertEquals("Another article.", voice.said.last().text)
@@ -84,8 +94,7 @@ class ReadingSpeakerTest {
         notes.speak(id(0, page = 3), "The Example Show.", null, 1f, flush = true)
         notes.speak(id(1, page = 3), "This week, a ferry planner.", null, 1f, flush = false)
         notes.speak(id(0, page = 4), "Another article.", null, 1f, flush = true)
-        voice.sayNext()
-        assertEquals(listOf(Readings.NOTES_PRELUDE, "Another article."), voice.said.map { it.text })
+        assertEquals(listOf("The Example Show.", Readings.NOTES_PRELUDE, "Another article."), voice.said.map { it.text })
     }
 
     @Test
