@@ -1,0 +1,53 @@
+# Throwaway, never merged: what NYT answers the JVM and an Android emulator from the same runner.
+name: NYT probe
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/nyt-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: gradle
+
+      - name: From the JVM
+        run: NYT_PROBE=1 ./gradlew :core:test --tests '*NytProbeTest*' --rerun -i | grep PROBE
+
+      - name: Build the test app
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
+
+      - name: Let the runner use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: From an Android emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb logcat -c
+            adb shell am instrument -w -e class com.app.newspaperss.probe.NytProbeTest com.app.newspaperss.debug.test/androidx.test.runner.AndroidJUnitRunner || true
+            adb logcat -d -s NytProbe:I | grep PROBE
