@@ -736,8 +736,9 @@ whose Kindle and KOReader answers ask for more on the same page).
     recording plays once an edition; a second post with the same one is
     read by the voice.
   - **Episode notes** (debug builds) are read by the voice in their place,
-    after "Its episode plays after the edition." (once, and in the natural
-    voice too), and their episode plays once the edition is over: after "That's all
+    with "The episode itself plays after the edition." after their title
+    (once, and in the natural voice too), and their episode plays once the
+    edition is over: after "That's all
     for today", each on a page of its own, in book order. The first starts
     with "After the edition, 2 episodes." (the closing page sounds like the
     end). The voice reads the show and the episode's title, says "Now the
