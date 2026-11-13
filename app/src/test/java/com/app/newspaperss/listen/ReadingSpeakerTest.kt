@@ -116,6 +116,24 @@ class ReadingSpeakerTest {
         assertEquals(id(1, page = 3), voice.said.last().id)
     }
 
+    /**
+     * The title's last line fails before it starts, before the player has asked for the next: that
+     * line starts afresh when it comes, not queued behind the prelude, where a podcast voice would
+     * never play it.
+     */
+    @Test
+    fun aTitleThatWontSayLetsTheNextLineStartAfresh() {
+        val notes = notesSpeaker(afterLine = 0)
+        notes.speak(id(0, page = 3), "Ferries, again.", null, 1f, flush = true)
+        voice.fail()
+        assertEquals("error ${id(0, page = 3)}", heard.last())
+        notes.speak(id(1, page = 3), "This week, a ferry planner.", null, 1f, flush = false)
+        assertEquals(id(1, page = 3), voice.said.last().id)
+        assertEquals(true, voice.flushed.last())
+        notes.speak(id(2, page = 3), "Its stops.", null, 1f, flush = false)
+        assertEquals("only the one", false, voice.flushed.last())
+    }
+
     /** Paused before the prelude was said, it's said on playing again; started past the title, it isn't. */
     @Test
     fun aNotesPreludeCutShortIsSaidAgain() {

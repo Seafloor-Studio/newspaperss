@@ -94,6 +94,8 @@ class ReadingSpeaker(
     private val held = mutableListOf<Held>()
     /** A page whose heading is said apart, up to its title, then its prelude: started at or before the title's end. */
     private var introducing: Pair<Pair<Long, Int>, Readings.Prelude>? = null
+    /** A page whose next line starts afresh: released from behind a prelude before it was asked for. */
+    private var afresh: Pair<Long, Int>? = null
 
     private class Held(val id: String, val text: String, val language: String?, val rate: Float)
 
@@ -203,18 +205,25 @@ class ReadingSpeaker(
             held += Held(id, text, language, rate)
             return true
         }
+        // Queued behind a prelude, a podcast voice would never play it.
+        if (afresh == here && !flush) {
+            afresh = null
+            return voice.speak(id, text, language, rate, flush = true)
+        }
         if (flush) {
+            afresh = null
             introducing = preludeAt(line.editionId, line.page)?.takeIf { here !in preluded && line.line <= it.afterLine }?.let { here to it }
         }
         val prelude = introducing?.takeIf { it.first == here && line.line <= it.second.afterLine }?.second
             ?: return voice.speak(id, text, language, rate, flush)
         // The heading up to the title, then the prelude, as plain speech: a podcast voice given
         // a line of the page would play on through it. The lines after wait for the prelude.
-        voice.speak("$HEADING$id", text, language, rate, flush)
-        if (line.line < prelude.afterLine) return true
+        val spoken = voice.speak("$HEADING$id", text, language, rate, flush)
+        if (line.line < prelude.afterLine) return spoken
         introducing = null
         preluding = "$PRELUDE$id"
-        return voice.speak("$PRELUDE$id", prelude.text, null, rate, flush = false)
+        voice.speak("$PRELUDE$id", prelude.text, null, rate, flush = false)
+        return spoken
     }
 
     /** The prelude is over, said or not: so is the title's last line, and the lines held behind it go on. */
@@ -226,6 +235,8 @@ class ReadingSpeaker(
     }
 
     private fun releaseHeld() {
+        val page = preluding?.let { LineId.parse(it.removePrefix(PRELUDE)) }
+        afresh = page?.takeIf { held.isEmpty() }?.let { it.editionId to it.page }
         preluding = null
         val lines = held.toList()
         held.clear()
@@ -383,6 +394,7 @@ class ReadingSpeaker(
         preluding = null
         held.clear()
         introducing = null
+        afresh = null
         stopRecording("stopped")
         voice.stop()
     }
