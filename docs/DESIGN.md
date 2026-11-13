@@ -707,18 +707,17 @@ whose Kindle and KOReader answers ask for more on the same page).
     gone) hands back to the voice from where it got. See
     [episodes-design.md](research/episodes-design.md).
   - **Which recordings play** (debug builds) is set in Settings ›
-    Listening under Recordings: **Play a post's own recording**, on by
-    default, and under it a row per kind of post, named as its banner names
-    it: **Transcripts** (play the episode instead), **Narrated articles**
-    (play the narration instead: the article's own, or its audio
-    version's), and **Episode notes** (read the notes, and play the episode
-    after the edition). The switch's line
+    Listening under Recordings: a tick for each kind of post, all ticked by
+    default, named as its banner names it: **Transcripts** (play the episode
+    in the transcript's place), **Narrated articles** (play the narration in
+    the article's place: the article's own, or its audio version's), and
+    **Episode notes** (read the notes, then play the episode after the
+    edition). None ticked, the voice reads everything. The section's line
     says a recording that needs a subscription or a sign-in can't be
     reached, so the voice reads that post: the app can't tell every such
-    case, so it says the rule once. Off, the rows go away and the voice
-    reads everything. A change is used
-    from the next edition opened in Listen; one already open carries on
-    as it started, so the voice doesn't change part way through.
+    case, so it says the rule once. A change is used from the next edition
+    opened in Listen; one already open carries on as it started, so the
+    voice doesn't change part way through.
   - **Its recordings in Listen**, a switch in a source's settings (debug
     builds), shows on a source with a recent post that could play one (a
     reading, its audio version, or a transcript with an episode), or while
