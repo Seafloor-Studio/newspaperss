@@ -80,11 +80,17 @@ class SettingsStoreTest {
 
     /**
      * The old switch for every recording, off, leaves every kind unticked, so the voice still reads
-     * every post; once a kind is ticked again, the old switch is gone and no longer holds them off.
+     * every post, though each kind was stored ticked under it, as every write stored them all;
+     * once a kind is ticked again, the old switch is gone and no longer holds them off.
      */
     @Test
     fun theOldSwitchForAllRecordingsCarriesOverAsNoneTicked() = runTest {
-        dataStore.edit { it[androidx.datastore.preferences.core.booleanPreferencesKey("listen_play_recordings")] = false }
+        dataStore.edit {
+            it[androidx.datastore.preferences.core.booleanPreferencesKey("listen_play_recordings")] = false
+            it[androidx.datastore.preferences.core.booleanPreferencesKey("listen_play_readings")] = true
+            it[androidx.datastore.preferences.core.booleanPreferencesKey("listen_play_episodes")] = true
+            it[androidx.datastore.preferences.core.stringPreferencesKey("listen_notes_episode")] = "AFTER_THE_EDITION"
+        }
         assertEquals(Recordings.NONE, store.current().recordings)
 
         store.update { it.copy(recordings = it.recordings.copy(episodes = true)) }
