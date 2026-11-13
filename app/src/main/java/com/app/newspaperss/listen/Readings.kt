@@ -109,7 +109,11 @@ class Readings(
      */
     @Volatile private var loaded: Loaded? = null
 
-    private class Loaded(val editionId: Long, val articles: Int, val readings: Map<Int, Reading>, val ending: List<EndEpisode>)
+    /** @param titleEnds each notes post's page, and the last line of its title. */
+    private class Loaded(val editionId: Long, val articles: Int, val readings: Map<Int, Reading>, val ending: List<EndEpisode>, val titleEnds: Map<Int, Int>)
+
+    /** Said after line [afterLine] of a page, its title's last. */
+    data class Prelude(val text: String, val afterLine: Int)
 
     companion object {
         const val NOTES_PRELUDE = "The episode itself plays after the edition."
@@ -125,8 +129,8 @@ class Readings(
      * Said after [page]'s title, read by the voice, when it's a notes post whose episode
      * plays after the edition: the note above its page says so, but nothing would aloud.
      */
-    fun preludeAt(editionId: Long, page: Int): String? =
-        NOTES_PRELUDE.takeIf { loaded?.takeIf { it.editionId == editionId }?.ending?.any { it.notesPage == page } == true }
+    fun preludeAt(editionId: Long, page: Int): Prelude? =
+        loaded?.takeIf { it.editionId == editionId }?.titleEnds?.get(page)?.let { Prelude(NOTES_PRELUDE, it) }
 
     /** The episodes that play after [editionId]'s closing page, in book order. */
     fun ending(editionId: Long): List<EndEpisode> = loaded?.takeIf { it.editionId == editionId }?.ending.orEmpty()
@@ -134,7 +138,7 @@ class Readings(
     /**
      * Everything the voice says around [editionId]'s recordings that isn't a line it reads from
      * the edition: each heading before its recording, the prelude and the announcement, and a
-     * notes post's title and the line after it. The natural voice makes these ahead (see
+     * notes post's heading to its title and the line after it. The natural voice makes these ahead (see
      * [PodcastMaker]), so they're heard in it too. Empty unless [load] has read the edition.
      */
     suspend fun spokenAround(editionId: Long, script: suspend (page: Int) -> ListenScript?): List<String> {
@@ -146,8 +150,8 @@ class Readings(
             val heading = script(page)?.takeIf { PodcastMaker.english(it.language) }?.lines?.take(reading.bodyLine)?.map { it.spoken }.orEmpty()
             listOfNotNull(reading.prelude) + heading + announcement(reading)
         }.plus(
-            // A notes post's title is said apart from its page, before the prelude (see [preludeAt]).
-            l.ending.mapNotNull { end -> script(end.notesPage)?.takeIf { PodcastMaker.english(it.language) }?.lines?.firstOrNull()?.spoken },
+            // A notes post's heading to its title is said apart from its page, before the prelude (see [preludeAt]).
+            l.titleEnds.flatMap { (page, end) -> script(page)?.takeIf { PodcastMaker.english(it.language) }?.lines?.take(end + 1)?.map { it.spoken }.orEmpty() },
         ).plus(listOfNotNull(NOTES_PRELUDE.takeIf { l.ending.isNotEmpty() })).distinct()
     }
 
@@ -197,7 +201,12 @@ class Readings(
             notes += "page $page (${describe(reading)})"
         }
         val ending = if (choices.playAtTheEnd) episodesAtTheEnd(contents, found.values.map { it.url }) else emptyList()
-        loaded = Loaded(editionId, contents.size, found, ending)
+        val titleEnds = ending.associate { end ->
+            // A page that won't read still has its prelude, after its first line.
+            val script = try { script(end.notesPage) } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
+            end.notesPage to (script?.let(::titleEnd) ?: 0)
+        }
+        loaded = Loaded(editionId, contents.size, found, ending, titleEnds)
         log(
             "Readings: edition $editionId, recorded readings: ${notes.joinToString().ifEmpty { "none" }}" +
                 (if (choices.playReadings) "" else " (readings are switched off)") +
@@ -280,6 +289,12 @@ class Readings(
     }
 
     private fun minutes(seconds: Int?) = seconds?.let { "${(it + 30) / 60} min" } ?: "length unknown"
+
+    /** The last line of the title, else of the heading: a source's name, say, comes before it. */
+    private fun titleEnd(script: ListenScript): Int {
+        val title = script.lines.indexOfLast { (script.blocks[it.block] as? ListenScript.Block.Text)?.kind == ListenScript.Kind.TITLE }
+        return if (title >= 0) title else ((bodyOf(script)?.first ?: script.lines.size) - 1).coerceAtLeast(0)
+    }
 
     /** The first line after the heading, and the lines from there. */
     private fun bodyOf(script: ListenScript): Pair<Int, List<ListenScript.Line>>? {

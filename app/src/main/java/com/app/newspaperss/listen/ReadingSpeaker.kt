@@ -52,7 +52,7 @@ class ReadingSpeaker(
     private val choices: ReadingChoices,
     private val log: (String) -> Unit = {},
     /** Said after the title of a page read by the voice, once (see [Readings.preludeAt]). */
-    private val preludeAt: (editionId: Long, page: Int) -> String? = { _, _ -> null },
+    private val preludeAt: (editionId: Long, page: Int) -> Readings.Prelude? = { _, _ -> null },
 ) : Speaker {
     override var listener: Speaker.Listener? = null
 
@@ -92,6 +92,8 @@ class ReadingSpeaker(
      */
     private var preluding: String? = null
     private val held = mutableListOf<Held>()
+    /** A page whose heading is said apart, up to its title, then its prelude: started at or before the title's end. */
+    private var introducing: Pair<Pair<Long, Int>, Readings.Prelude>? = null
 
     private class Held(val id: String, val text: String, val language: String?, val rate: Float)
 
@@ -124,21 +126,26 @@ class ReadingSpeaker(
                 // Said: not again. One stopped part way is said again from the page's start.
                 if (id.startsWith(PRELUDE)) {
                     LineId.parse(id.removePrefix(PRELUDE))?.let { preluded += it.editionId to it.page }
-                    return releaseHeld(id)
+                    return preludeOver(id)
                 }
                 if (id.startsWith(HANDOVER)) return handedOver(id)
                 if (id.startsWith(SKIPPING)) return skipped(id)
                 val own = id.removePrefix(HEADING)
+                // The title's last line is over once its prelude is: on a page with nothing after
+                // it, the player would move on and cut the prelude off.
+                if (preluding == "$PRELUDE$own") return
                 listener?.onDone(own)
                 headingSaid(own)
             }
 
             override fun onError(id: String) {
                 // A handover or prelude the voice can't say is skipped: the recording plays anyway.
-                if (id.startsWith(PRELUDE)) return releaseHeld(id)
+                if (id.startsWith(PRELUDE)) return preludeOver(id)
                 if (id.startsWith(HANDOVER)) return handedOver(id)
                 if (id.startsWith(SKIPPING)) return skipped(id)
                 val own = id.removePrefix(HEADING)
+                // The title's last line won't say: nor its prelude, and the lines after go on.
+                if (preluding == "$PRELUDE$own") releaseHeld()
                 listener?.onError(own)
                 // A heading line the voice couldn't say is past too: the recording mustn't wait for it.
                 headingSaid(own)
@@ -196,17 +203,29 @@ class ReadingSpeaker(
             held += Held(id, text, language, rate)
             return true
         }
-        val prelude = preludeAt(line.editionId, line.page)?.takeIf { flush && line.line == 0 && here !in preluded }
+        if (flush) {
+            introducing = preludeAt(line.editionId, line.page)?.takeIf { here !in preluded && line.line <= it.afterLine }?.let { here to it }
+        }
+        val prelude = introducing?.takeIf { it.first == here && line.line <= it.second.afterLine }?.second
             ?: return voice.speak(id, text, language, rate, flush)
-        // The title, then the prelude, as plain speech: a podcast voice given the title's line
-        // would play on through the page. The lines after wait for the prelude.
+        // The heading up to the title, then the prelude, as plain speech: a podcast voice given
+        // a line of the page would play on through it. The lines after wait for the prelude.
+        voice.speak("$HEADING$id", text, language, rate, flush)
+        if (line.line < prelude.afterLine) return true
+        introducing = null
         preluding = "$PRELUDE$id"
-        voice.speak("$HEADING$id", text, language, rate, flush = true)
-        return voice.speak("$PRELUDE$id", prelude, null, rate, flush = false)
+        return voice.speak("$PRELUDE$id", prelude.text, null, rate, flush = false)
     }
 
-    private fun releaseHeld(preludeId: String) {
+    /** The prelude is over, said or not: so is the title's last line, and the lines held behind it go on. */
+    private fun preludeOver(preludeId: String) {
         if (preludeId != preluding) return
+        listener?.onDone(preludeId.removePrefix(PRELUDE))
+        // Moved on by the player on that line's end (the page's last): nothing to go on with.
+        if (preludeId == preluding) releaseHeld()
+    }
+
+    private fun releaseHeld() {
         preluding = null
         val lines = held.toList()
         held.clear()
@@ -363,6 +382,7 @@ class ReadingSpeaker(
         skipping = null
         preluding = null
         held.clear()
+        introducing = null
         stopRecording("stopped")
         voice.stop()
     }
