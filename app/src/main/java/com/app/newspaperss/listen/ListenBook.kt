@@ -50,6 +50,8 @@ class ListenBook(
             try {
                 readings?.load(editionId, contents, read)
             } catch (e: CancellationException) {
+                // Its pages may be open by now, and nothing else gets the book to close it.
+                book.close()
                 throw e
             } catch (e: Exception) {
                 Log.w("ListenBook", "Couldn't find the recordings: ${e.javaClass.name}")

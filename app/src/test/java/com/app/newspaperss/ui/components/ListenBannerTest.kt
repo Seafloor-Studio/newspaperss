@@ -12,6 +12,9 @@ import org.junit.Test
 class ListenBannerTest {
     private val titles = mapOf(2 to "Rail Talk: night trains", 5 to "Episode 48 notes")
 
+    /** A title as a banner quotes it, kept to its own direction. */
+    private fun q(title: String) = "\u2068$title\u2069"
+
     private fun banner(kind: EpisodeKind?, outcome: Outcome?, pair: EpisodePair? = null) = listenBanner(kind, pair, outcome, titles::get)
 
     private fun text(kind: EpisodeKind?, outcome: Outcome?, pair: EpisodePair? = null) = banner(kind, outcome, pair)?.text
@@ -21,11 +24,11 @@ class ListenBannerTest {
         assertEquals("Episode notes. The episode itself plays after the edition.", text(EpisodeKind.NOTES, Outcome.AfterTheEdition))
         assertEquals("Episode notes. No episode audio found.", text(EpisodeKind.NOTES, Outcome.Read(Why.NO_AUDIO)))
         assertEquals(
-            "Episode notes. Its transcript, “Rail Talk: night trains”, plays the episode in its place.",
+            "Episode notes. Its transcript, “${q("Rail Talk: night trains")}”, plays the episode in its place.",
             text(EpisodeKind.NOTES, Outcome.PlaysWith(2)),
         )
         assertEquals(
-            "Episode notes. Its episode already plays after the edition, with “Episode 48 notes”.",
+            "Episode notes. Its episode already plays after the edition, with “${q("Episode 48 notes")}”.",
             text(EpisodeKind.NOTES, Outcome.PlaysWith(5, atTheEnd = true)),
         )
     }
@@ -39,7 +42,7 @@ class ListenBannerTest {
         assertEquals("Settings › Listening", notes.linked)
 
         assertEquals(
-            "Transcript of “Rail Talk: night trains”. To play the episode itself in its place, turn on Transcripts in Settings › Listening.",
+            "Transcript of “${q("Rail Talk: night trains")}”. To play the episode itself in its place, turn on Transcripts in Settings › Listening.",
             text(EpisodeKind.TRANSCRIPT, Outcome.Read(Why.KIND_OFF), EpisodePair("g", "Rail Talk: night trains", EpisodeKind.NOTES)),
         )
         assertEquals(
@@ -47,7 +50,7 @@ class ListenBannerTest {
             text(EpisodeKind.ARTICLE, Outcome.Read(Why.KIND_OFF)),
         )
         assertEquals(
-            "Has an audio version, “October 15”. To play it in this post's place, turn on Narrated articles in Settings › Listening.",
+            "Has an audio version, “${q("October 15")}”. To play it in this post's place, turn on Narrated articles in Settings › Listening.",
             text(EpisodeKind.ARTICLE, Outcome.Read(Why.KIND_OFF), EpisodePair("g", "October 15", EpisodeKind.AUDIO_VERSION)),
         )
 
@@ -67,7 +70,7 @@ class ListenBannerTest {
         assertEquals("$head Its audio is a 3-min preview, so Listen reads it.", text(EpisodeKind.TRANSCRIPT, Outcome.Read(Why.PREVIEW, 170)))
         assertEquals("$head Its episode's length isn't known, so Listen reads it.", text(EpisodeKind.TRANSCRIPT, Outcome.Read(Why.LENGTH_UNKNOWN)))
         assertEquals("$head Its audio doesn't match its length, so Listen reads it.", text(EpisodeKind.TRANSCRIPT, Outcome.Read(Why.LENGTH_MISMATCH)))
-        assertEquals("$head Its episode plays with “Rail Talk: night trains”.", text(EpisodeKind.TRANSCRIPT, Outcome.PlaysWith(2)))
+        assertEquals("$head Its episode plays with “${q("Rail Talk: night trains")}”.", text(EpisodeKind.TRANSCRIPT, Outcome.PlaysWith(2)))
     }
 
     @Test
@@ -75,7 +78,7 @@ class ListenBannerTest {
         assertEquals("Has a recorded reading. Listen plays it in its place.", text(EpisodeKind.ARTICLE, Outcome.Plays(640)))
         assertNull("its own audio isn't a reading of it", text(EpisodeKind.ARTICLE, null))
         assertEquals(
-            "Its transcript is a separate post, “Rail Talk”.",
+            "Its transcript is a separate post, “${q("Rail Talk")}”.",
             text(EpisodeKind.ARTICLE, null, EpisodePair("g", "Rail Talk", EpisodeKind.TRANSCRIPT)),
         )
         // An audio version, and a post never judged, are left to what the detector says.

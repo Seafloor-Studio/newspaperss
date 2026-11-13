@@ -293,7 +293,9 @@ class ReadingsTest {
         assertNull("notes read by the voice", readings.at(3, 0))
         assertTrue(logged.last(), logged.last().endsWith("; episodes at the end: switched off"))
         val kindOff = Outcome.Read(Outcome.Why.KIND_OFF)
-        assertEquals(listOf(kindOff, kindOff, Outcome.Read(Outcome.Why.NO_AUDIO), kindOff, kindOff), listOf(0, 2, 3, 4, 5).map { readings.outcomes(3)[it] })
+        // Not the one whose transcript plays its episode in its place: a tick wouldn't change that.
+        assertEquals(listOf(kindOff, Outcome.PlaysWith(1), Outcome.Read(Outcome.Why.NO_AUDIO), kindOff, kindOff), listOf(0, 2, 3, 4, 5).map { readings.outcomes(3)!![it] })
+        assertNull("an edition not opened: nothing known, not nothing to say", readings.outcomes(4))
 
     }
 

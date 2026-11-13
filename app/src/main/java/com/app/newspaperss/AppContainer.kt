@@ -91,6 +91,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -341,10 +342,11 @@ class AppContainer(
      * heard, which may be another. Empty in a release build, which plays none; null when the
      * edition's book won't open, so nothing is known.
      */
-    suspend fun listenOutcomes(editionId: Long): Map<Int, Outcome>? {
-        if (!EPISODES) return emptyMap()
+    suspend fun listenOutcomes(editionId: Long): Map<Int, Outcome>? = withContext(Dispatchers.Default) {
+        if (!EPISODES) return@withContext emptyMap()
         val own = Readings(db, choices = { settings.current().recordings })
-        return ListenBook.open(editions, editionId, own)?.use { own.outcomes(editionId) }
+        // Null if the recordings couldn't be found: the banners then say only what the detector does.
+        ListenBook.open(editions, editionId, own)?.use { own.outcomes(editionId) }
     }
 
     /** See [SettingsStore.settleFeedsFrom]: a tt-rss source from before the choice means the server setup. */

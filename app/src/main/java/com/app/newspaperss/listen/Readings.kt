@@ -176,7 +176,7 @@ class Readings(
         loaded?.takeIf { it.editionId == editionId }?.titleEnds?.get(page)?.let { Prelude(NOTES_PRELUDE, it) }
 
     /** What Listen does with each page of [editionId] that has a recording, or is about one, by page. */
-    fun outcomes(editionId: Long): Map<Int, Outcome> = loaded?.takeIf { it.editionId == editionId }?.outcomes.orEmpty()
+    fun outcomes(editionId: Long): Map<Int, Outcome>? = loaded?.takeIf { it.editionId == editionId }?.outcomes
 
     /** The episodes that play after [editionId]'s closing page, in book order. */
     fun ending(editionId: Long): List<EndEpisode> = loaded?.takeIf { it.editionId == editionId }?.ending.orEmpty()
@@ -231,15 +231,17 @@ class Readings(
                 null to null
             }
             val transcript = article.episodeKind == EpisodeKind.TRANSCRIPT
+            val kindOn = if (transcript) choices.playEpisodes else choices.playReadings
+            // The log counts why the voice reads a transcript; one switched off is just that.
+            if (transcript && !kindOn) read += "page $page (transcript: episodes are switched off)"
             if (reading == null) {
                 why?.let {
-                    read += "page $page (transcript: ${it.second})"
+                    if (kindOn) read += "page $page (transcript: ${it.second})"
                     outcomes[page] = it.first
                 }
                 return@forEachIndexed
             }
-            if (!(if (transcript) choices.playEpisodes else choices.playReadings)) {
-                if (transcript) read += "page $page (transcript: episodes are switched off)"
+            if (!kindOn) {
                 outcomes[page] = Outcome.Read(Outcome.Why.KIND_OFF)
                 return@forEachIndexed
             }
@@ -296,10 +298,11 @@ class Readings(
             val url = article.audioUrl
             outcomes[page] = when {
                 url == null -> Outcome.Read(Outcome.Why.NO_AUDIO)
+                // Its transcript plays it in its place, whatever the tick for notes: once.
+                url in playing -> Outcome.PlaysWith(playing.getValue(url))
                 !on -> Outcome.Read(Outcome.Why.KIND_OFF)
                 sourceOff(article) -> Outcome.Read(Outcome.Why.SOURCE_OFF)
-                // Its transcript plays it in its place, or another notes post after the edition: once.
-                url in playing -> Outcome.PlaysWith(playing.getValue(url))
+                // Another notes post plays it after the edition: once.
                 url in atTheEnd -> Outcome.PlaysWith(atTheEnd.getValue(url), atTheEnd = true)
                 else -> Outcome.AfterTheEdition
             }

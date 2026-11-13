@@ -128,8 +128,8 @@ private const val THIS_SOURCE = "this source"
  * @param titleAt the title of the edition's page that plays its recording instead.
  */
 fun listenBanner(kind: EpisodeKind?, pair: EpisodePair?, outcome: Outcome?, titleAt: (Int) -> String?): Banner? {
-    val title = pair?.title?.let { "“${shortened(it)}”" }
-    fun quoted(page: Int) = titleAt(page)?.let { "“${shortened(it)}”" } ?: "another post"
+    val title = pair?.title?.let { "“${isolated(shortened(it))}”" }
+    fun quoted(page: Int) = titleAt(page)?.let { "“${isolated(shortened(it))}”" } ?: "another post"
     fun settings(before: String, kindName: String) = Banner("$before turn on $kindName in $SETTINGS.", BannerLink.LISTENING_SETTINGS, SETTINGS)
     fun sourceOff(before: String, what: String) = Banner("$before You've turned off $what for $THIS_SOURCE.", BannerLink.SOURCE, THIS_SOURCE)
     val why = (outcome as? Outcome.Read)?.why
@@ -185,6 +185,9 @@ private fun articleBanner(
     (outcome as? Outcome.Read)?.why == Outcome.Why.SOURCE_OFF -> sourceOff(head, "recordings")
     else -> Banner(head)
 }
+
+/** [text] kept to its own direction: a right-to-left title would otherwise pull the quote and full stop after it. */
+private fun isolated(text: String) = "\u2068$text\u2069"
 
 /** [title] cut to the last whole word within [NOTE_TITLE] characters, when it's longer. */
 private fun shortened(title: String): String {

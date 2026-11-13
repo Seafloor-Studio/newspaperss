@@ -29,7 +29,6 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
-import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextAlign
 import android.content.Intent
@@ -55,6 +54,7 @@ import com.app.newspaperss.ui.edition.fillsWidth
 import com.app.newspaperss.ui.edition.lookIssueUrl
 import com.app.newspaperss.ui.edition.quoteOf
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
@@ -276,13 +276,8 @@ class ArticlePreviewScreenTest {
 
         ready = true
         compose.onNodeWithText(banner.text).assertIsDisplayed()
-        // The link is part of the line, not a node of its own, and the test's font is too small to
-        // tap a word: followed through the line's own link, on the words it covers.
-        val layout = mutableListOf<TextLayoutResult>()
-        compose.onNodeWithText(banner.text).fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action?.invoke(layout)
-        val link = layout.single().layoutInput.text.getLinkAnnotations(0, banner.text.length).single()
-        assertEquals("Settings › Listening", banner.text.substring(link.start, link.end))
-        (link.item as LinkAnnotation.Clickable).linkInteractionListener!!.onClick(link.item)
+        // The whole banner is the tap, so it's a finger tall.
+        compose.onNode(hasText(banner.text) and hasClickAction()).assertHeightIsAtLeast(48.dp).performClick()
         assertEquals(listOf(0 to BannerLink.LISTENING_SETTINGS), followed)
     }
 

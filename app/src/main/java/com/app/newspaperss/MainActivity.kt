@@ -331,7 +331,10 @@ private fun App(
                 // screen comes back (a source's switch may have changed).
                 // Null while it's worked out, so no banner shows one thing then another; a failure
                 // leaves the banners to what the detector alone says.
-                val outcomes by produceState<Result<Map<Int, com.app.newspaperss.listen.Outcome>>?>(null, id, recordings, contents.size) {
+                // Keyed on the contents themselves: a length measured or a label changed after delivery changes them.
+                val outcomes by produceState<Result<Map<Int, com.app.newspaperss.listen.Outcome>>?>(null, id, recordings, contents) {
+                    value = null
+                    if (contents.isEmpty()) return@produceState
                     value = try {
                         container.listenOutcomes(id)?.let { Result.success(it) } ?: Result.failure(IllegalStateException("no book"))
                     } catch (e: kotlinx.coroutines.CancellationException) {
@@ -358,6 +361,8 @@ private fun App(
                     bannerFor = { article ->
                         contents.getOrNull(article)?.let { c ->
                             outcomes?.getOrNull()?.let { o -> listenBanner(c.episodeKind, c.pair, o[article]) { contents.getOrNull(it)?.entry?.title } }
+                                // A source with no page to go to (a feed kept paused after a move): no link.
+                                ?.let { b -> if (b.link == BannerLink.SOURCE && goTo(contents, moving, article) == null) b.copy(link = null) else b }
                         }
                     },
                     onBannerLink = { article, link ->

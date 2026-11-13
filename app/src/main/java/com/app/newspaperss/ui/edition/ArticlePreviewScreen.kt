@@ -15,11 +15,9 @@ import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextLinkStyles
-import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.app.newspaperss.listen.Listening
@@ -665,20 +663,32 @@ private fun TextSizeMenu(textSize: PreviewTextSize, onTextSize: (PreviewTextSize
     }
 }
 
-/** A [Banner] above the article, its link a tap away. Held to four lines: it stays above the article for the whole read. */
+/**
+ * A [Banner] above the article. With a link, the whole banner is the tap, a finger tall, and isn't
+ * cut short, so its last words, the link's, are always there; its linked words are underlined.
+ * Without one it's held to four lines: it stays above the article for the whole read.
+ */
 @Composable
 private fun ArticleBanner(banner: Banner, onLink: (BannerLink) -> Unit) {
-    val linkColor = MaterialTheme.colorScheme.primary
+    val link = banner.link
+    val linked = banner.linked?.takeIf { link != null }
+    val at = linked?.let { banner.text.lastIndexOf(it) } ?: -1
     val text = buildAnnotatedString {
-        val at = banner.linked?.let { banner.text.lastIndexOf(it) } ?: -1
-        if (banner.link == null || banner.linked == null || at < 0) return@buildAnnotatedString append(banner.text)
+        if (linked == null || at < 0) return@buildAnnotatedString append(banner.text)
         append(banner.text.substring(0, at))
-        withLink(LinkAnnotation.Clickable("banner", TextLinkStyles(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline))) { onLink(banner.link) }) {
-            append(banner.linked)
-        }
-        append(banner.text.substring(at + banner.linked.length))
+        withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline)) { append(linked) }
+        append(banner.text.substring(at + linked.length))
     }
-    Text(text, style = MaterialTheme.typography.bodySmall, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        maxLines = if (link == null) 4 else Int.MAX_VALUE,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (link == null || linked == null) Modifier else Modifier.heightIn(min = 48.dp).clickable(onClickLabel = "Open $linked", role = Role.Button) { onLink(link) })
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    )
 }
 
 /** @param source the name of where the article came from, for **Go to …**; null leaves it out. */
