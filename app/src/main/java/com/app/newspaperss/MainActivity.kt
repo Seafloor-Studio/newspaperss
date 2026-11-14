@@ -360,6 +360,7 @@ private fun App(
                     },
                     episodeFor = { article -> contents.getOrNull(article)?.let { episodeJudgement(it, recordings) } },
                     bannersReady = outcomes != null,
+                    blockedAnswerFor = { url -> container.blockedAnswers?.find(url) },
                     bannerFor = { article ->
                         contents.getOrNull(article)?.let { c ->
                             outcomes?.getOrNull()?.let { o -> listenBanner(c.episodeKind, c.pair, o[article]) { contents.getOrNull(it)?.entry?.title } }

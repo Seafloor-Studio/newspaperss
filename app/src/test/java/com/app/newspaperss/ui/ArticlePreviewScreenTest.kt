@@ -573,6 +573,27 @@ class ArticlePreviewScreenTest {
         compose.idleUntil { compose.onAllNodesWithText("public issue on GitHub", substring = true).fetchSemanticsNodes().isNotEmpty() }
     }
 
+    /** An article a site turned away: the issue says what the site answered, set apart so it reads as it was. */
+    @Test
+    fun aBlockedArticlesIssueSaysWhatTheSiteAnswered() {
+        val answer = "HTTP 403\nx-datadome: protected\npage: Access ```blocked```"
+        val body = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", "https://a.example/1"), "1.0", answer)).getQueryParameter("body")!!
+        assertTrue(body, body.endsWith("What the site answered when it turned the app away:\n\n```\nHTTP 403\nx-datadome: protected\npage: Access '''blocked'''\n```\n"))
+        val plain = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", "https://a.example/1"), "1.0")).getQueryParameter("body")!!
+        assertFalse(plain, "turned the app away" in plain)
+
+        // Too long for the form with both: the address is left to paste, the answer kept.
+        val long = "https://a.example/" + "x".repeat(6_000)
+        val kept = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", long), "1.0", "HTTP 403\npage: " + "日".repeat(300)))
+        assertTrue(kept.toString().length <= 8_000)
+        assertTrue(kept.getQueryParameter("body")!!.contains("please paste it here"))
+        assertTrue(kept.getQueryParameter("body")!!.contains("turned the app away"))
+        // Too long even then: the address, as before, without it.
+        val dropped = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", "https://a.example/1"), "1.0", "page: " + "日".repeat(1_000)))
+        assertTrue(dropped.toString().length <= 8_000)
+        assertFalse(dropped.getQueryParameter("body")!!.contains("turned the app away"))
+    }
+
     @Test
     fun aVeryLongArticleAddressIsLeftForTheReaderToPasteRatherThanOverfillingTheForm() {
         val long = "https://a.example/" + "x".repeat(9_000)
