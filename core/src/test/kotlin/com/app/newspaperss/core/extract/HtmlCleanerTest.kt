@@ -112,11 +112,32 @@ class HtmlCleanerTest {
     }
 
     @Test
+    fun anExponentBeforeTheFirstMarkerStaysAnExponent() {
+        val html = clean(
+            "<p>Famously E = mc<sup>2</sup>.</p><p>He said so.<sup>1</sup> Again.<sup>2</sup></p><p>$longText</p>" +
+                "<p><sup>1</sup> Note one.</p><p><sup>2</sup> Note two.</p>",
+        )
+        val doc = Jsoup.parse(html)
+        assertTrue(html, html.contains("mc<sup>2</sup>."))
+        assertEquals("Again.", doc.getElementById("fnref-2")!!.previousSibling().toString().trim())
+    }
+
+    /** kramdown and Jekyll put the link inside the sup; those footnotes already work and are left alone. */
+    @Test
+    fun footnotesLinkedInsideTheirSupAreLeftAlone() {
+        val source = """<p>Text.<sup><a href="#fn1" id="ref1">1</a></sup> More.<sup><a href="#fn2" id="ref2">2</a></sup></p>""" +
+            """<p><sup><a href="#ref1" id="fn1">1</a></sup> Note one.</p><p><sup><a href="#ref2" id="fn2">2</a></sup> Note two.</p>"""
+        assertEquals(4, Jsoup.parse(clean(source)).select("a").size)
+    }
+
+    @Test
     fun superscriptsThatArentANumberedRunOfNotesStayPlain() {
         val squared = "<p>Area is x<sup>2</sup>.</p><p>$longText</p><p><sup>2</sup> A paragraph starting at 2.</p>"
         val noMarker = "<p>Text.<sup>1</sup></p><p><sup>1</sup> First note.</p><p><sup>2</sup> A second with nothing pointing at it.</p>"
-        val markerAfter = "<p><sup>1</sup> A note above its marker.</p><p>Text.<sup>1</sup></p>"
-        for (html in listOf(squared, noMarker, markerAfter)) {
+        val markerAfter = "<p><sup>1</sup> A note above its marker.</p><p><sup>2</sup> And another.</p><p>Text.<sup>1</sup><sup>2</sup></p>"
+        val isotope = "<p>The <sup>1</sup>H spectrum.</p><p>$longText</p><p><sup>1</sup>H NMR (400 MHz).</p>"
+        val halves = "<p>Use <sup>1</sup>/<sub>2</sub> and <sup>2</sup>/<sub>3</sub>.</p><p><sup>1</sup>/<sub>2</sub> cup sugar</p><p><sup>2</sup>/<sub>3</sub> cup flour</p>"
+        for (html in listOf(squared, noMarker, markerAfter, isotope, halves)) {
             assertTrue(clean(html), Jsoup.parse(clean(html)).select("a").isEmpty())
         }
     }

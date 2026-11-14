@@ -822,36 +822,45 @@ object HtmlCleaner {
     /**
      * Links footnotes a writer numbered by hand: a plain `<sup>3</sup>` in the text and, further
      * down, a paragraph starting with `<sup>3</sup>`, with no link between them (the page doesn't
-     * have one either). Only a run of such paragraphs numbered 1, 2, 3… counts as notes, and only
-     * when the text before the first has a marker for each, so a squared number or a stray
-     * superscript is left alone. Both get links pointing at each other, the shape a platform's own
-     * footnotes have, which the book then turns into popups.
+     * have one either). Only a run of two or more such paragraphs numbered 1, 2, 3… counts as notes,
+     * and only when the text before the first has their markers in that order: each note's marker is
+     * the first plain superscript of its number after the previous note's, so an exponent (mc²)
+     * before the first marker stays as it is. A repeated marker stays plain. Marker and note then get
+     * links pointing at each other, the shape a platform's own footnotes have, which the book turns
+     * into popups.
      */
     internal fun linkPlainFootnotes(body: Element) {
-        fun numberOf(sup: Element): Int? =
-            if (sup.closest("a") != null) null else PLAIN_FOOTNOTE.matchEntire(sup.text().trim())?.groupValues?.get(1)?.toIntOrNull()
+        // A sup holding a link is already a footnote (kramdown's, Jekyll's); one inside a link too.
+        fun numberOf(sup: Element): Int? = if (sup.closest("a") != null || sup.selectFirst("a") != null) {
+            null
+        } else {
+            PLAIN_FOOTNOTE.matchEntire(sup.text().trim())?.groupValues?.get(1)?.toIntOrNull()
+        }
         val notes = body.select("p").mapNotNull { p ->
             val first = p.childNodes().firstOrNull { it !is TextNode || !it.isBlank } as? Element ?: return@mapNotNull null
             if (first.tagName() != "sup" || p.text().length <= first.text().length) return@mapNotNull null
+            // "½" written as <sup>1</sup>/<sub>2</sub> starts a recipe's line, not a note.
+            if (first.nextSibling().let { it is TextNode && it.text().startsWith("/") }) return@mapNotNull null
             numberOf(first)?.let { Triple(it, p, first) }
         }
-        if (notes.isEmpty() || notes.withIndex().any { (i, note) -> note.first != i + 1 }) return
-        val firstNote = notes.first().second
+        if (notes.size < 2 || notes.withIndex().any { (i, note) -> note.first != i + 1 }) return
         val order = body.select("*").withIndex().associate { (i, el) -> el to i }
-        val start = order.getValue(firstNote)
-        val noteSups = notes.map { it.third }.toSet()
-        val markers = body.select("sup")
-            .filter { it !in noteSups && order.getValue(it) < start }
-            .mapNotNull { sup -> numberOf(sup)?.let { it to sup } }
-            .groupBy({ it.first }, { it.second })
-        if (notes.any { markers[it.first].isNullOrEmpty() }) return
-        val ids = body.select("[id]").map { it.id() }.toSet()
+        val start = order.getValue(notes.first().second)
+        val candidates = body.select("sup").filter { order.getValue(it) < start }.mapNotNull { sup -> numberOf(sup)?.let { it to sup } }
+        val markers = ArrayList<Element>()
+        var from = 0
+        for ((number, _, _) in notes) {
+            val at = (from until candidates.size).firstOrNull { candidates[it].first == number } ?: return
+            markers.add(candidates[at].second)
+            from = at + 1
+        }
+        // fixLinks renames ids ("fn:1" to "fn-1"), so a clash is checked against the new names.
+        val ids = body.select("[id]").map { it.id().replace(INVALID_ID_CHARS, "-") }.toSet()
         if (notes.any { "fn-${it.first}" in ids || "fnref-${it.first}" in ids }) return
-        for ((number, _, sup) in notes) {
-            sup.wrap("""<a id="fn-$number" href="#fnref-$number"></a>""")
-            markers.getValue(number).forEachIndexed { i, marker ->
-                marker.wrap(if (i == 0) """<a id="fnref-$number" href="#fn-$number"></a>""" else """<a href="#fn-$number"></a>""")
-            }
+        for ((note, marker) in notes.zip(markers)) {
+            val number = note.first
+            note.third.wrap("""<a id="fn-$number" href="#fnref-$number"></a>""")
+            marker.wrap("""<a id="fnref-$number" href="#fn-$number"></a>""")
         }
     }
 

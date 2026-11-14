@@ -587,8 +587,8 @@ class EpubWriterTest {
     @Test
     fun aHandNumberedFootnotesMarkerPointsAtItsWholeNote() {
         val body = HtmlCleaner.clean(
-            "<p><span>Some context.</span><sup>1</sup></p><p>${"word ".repeat(100)}</p>" +
-                "<div><hr></div><p><sup>1</sup><span> Read the note, </span><em>all</em><span> of it.</span></p>",
+            "<p><span>Some context.</span><sup>1</sup> More.<sup>2</sup></p><p>${"word ".repeat(100)}</p>" +
+                "<div><hr></div><p><sup>1</sup><span> Read the note, </span><em>all</em><span> of it.</span></p><p><sup>2</sup> Ibid.</p>",
             "https://example.com/p/post",
         ).html
         val page = write(doc(article(body = body))).let { it.xml("OEBPS/" + it.articleHrefs().single()) }
