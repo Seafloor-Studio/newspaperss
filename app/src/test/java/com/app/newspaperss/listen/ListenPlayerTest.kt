@@ -511,12 +511,12 @@ class ListenPlayerTest {
         assertEquals("⏮: the article before's start", ListenPosition(0, 0), player.state.value.at)
         player.next()
         assertEquals("forward past it too", ListenPosition(2, 0), player.state.value.at)
+        player.playPage(1)
+        assertEquals("picked from below it: on to the next that has something, not back", ListenPosition(2, 0), player.state.value.at)
         // Paused, ↶ at a page's first sentence goes to the one before (playing, it first says it again).
         player.pause()
         player.back()
         assertEquals("↶: the article before's last sentence", ListenPosition(0, 2), player.state.value.at)
-        player.playPage(1)
-        assertEquals("picked: on to the next that has something", ListenPosition(2, 0), player.state.value.at)
     }
 
     /** With nothing before it to say, back goes forwards after all: no loop between empty pages. */
