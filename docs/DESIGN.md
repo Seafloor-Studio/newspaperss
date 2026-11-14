@@ -963,12 +963,14 @@ whose Kindle and KOReader answers ask for more on the same page).
     new comes in".
   - A source's page opens with its site's address as an underlined link (↗), then
     how it's doing (red when there's a problem), then small grey details.
-    The details end with **Feed: <address> ↗**, the feed's own address.
-    A tt-rss feed's page does the same, with the site as its articles name
-    it in tt-rss. The app learns a tt-rss feed's site from the unread
-    articles it fetches, so a feed left out, or one with nothing unread
-    since, may not have one yet. Until the app knows the site, the feed's
-    address is the link at the top and there is no Feed line.
+    The details end with the feed's own address, marked with the feed icon
+    (TalkBack says "Feed"). A tt-rss feed's page does the same, with the site
+    as its articles name it in tt-rss. The app learns a tt-rss feed's site
+    from the unread articles it fetches, so a feed left out, or one with
+    nothing unread since, may not have one yet. Until the app knows the
+    site, the link at the top is the feed's front page
+    (example.com for example.com/feed.xml), and the feed
+    keeps its own link below.
   - These links open only web addresses. With no browser to take one, or
     on a long press, the address is copied and a snackbar says so.
   On a source's or feed's page, each article row is a status mark (`●` waiting, `✓` delivered, `○` read or not

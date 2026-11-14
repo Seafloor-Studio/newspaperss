@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -35,19 +36,27 @@ import com.app.newspaperss.ui.components.openInBrowser
  * copied instead and [onCopied] gets the message to show. Anything but a web address is plain
  * muted text, so a hostile feed's `intent:` link is neither opened nor offered.
  *
- * @param label muted words before the address, such as "Feed:".
  * @param words [shownAs] is the app's own words for the link, not an address, so it keeps its spaces.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun AddressLink(url: String, shownAs: String, textStyle: TextStyle, onCopied: (String) -> Unit, modifier: Modifier = Modifier, label: String? = null, words: Boolean = false) {
+internal fun AddressLink(
+    url: String,
+    shownAs: String,
+    textStyle: TextStyle,
+    onCopied: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    words: Boolean = false,
+    /** An icon before it, and what it says to TalkBack, as for a feed's own address. */
+    icon: Pair<ImageVector, String>? = null,
+) {
     val shown = if (words) shownAs else readable(shownAs)
     val copiedAs = if (words) shownAddress(url) else shown
     // An address reads left to right even when it starts with a right-to-left letter.
     val style = textStyle.copy(textDirection = TextDirection.Ltr)
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     if (!isWebAddress(url)) {
-        Text(listOfNotNull(label, shown).joinToString(" "), style = style, color = muted, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = modifier)
+        Text(shown, style = style, color = muted, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = modifier)
         return
     }
     val context = LocalContext.current
@@ -69,9 +78,11 @@ internal fun AddressLink(url: String, shownAs: String, textStyle: TextStyle, onC
         ) { if (!openInBrowser(context, url)) copy(true) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        icon?.let { (image, said) ->
+            Icon(image, contentDescription = said, tint = muted, modifier = Modifier.padding(end = 6.dp).size(with(LocalDensity.current) { style.fontSize.toDp() * 1.2f }))
+        }
         Text(
             buildAnnotatedString {
-                label?.let { withStyle(SpanStyle(color = muted)) { append("$it ") } }
                 withStyle(SpanStyle(textDecoration = TextDecoration.Underline)) { append(shown) }
             },
             style = style,
@@ -88,6 +99,28 @@ internal fun AddressLink(url: String, shownAs: String, textStyle: TextStyle, onC
             modifier = Modifier.padding(start = 4.dp).size(with(LocalDensity.current) { style.fontSize.toDp() }),
         )
     }
+}
+
+/**
+ * The front page of [url]'s site ("https://example.com/" for "https://example.com/feed.xml"), or
+ * null if it isn't a web address: a feed's site until its articles have named one. Its host only,
+ * never a user name before an "@", and an international name in its ASCII form, so what's shown
+ * is what opens.
+ */
+internal fun frontPage(url: String): String? {
+    if (!isWebAddress(url)) return null
+    val uri = runCatching { java.net.URI(url.trim()) }.getOrNull() ?: return null
+    // java.net.URI has no host for a name it can't parse ("bücher.example", "my_blog.example"):
+    // the authority then, after any user name.
+    val authority = uri.rawAuthority?.substringAfterLast('@') ?: return null
+    val (host, port) = if (authority.startsWith("[")) {
+        authority.substringBefore(']') + "]" to authority.substringAfter(']').removePrefix(":")
+    } else {
+        authority.substringBeforeLast(':', authority) to authority.substringAfterLast(':', "")
+    }
+    val ascii = runCatching { if (host.startsWith("[")) host else java.net.IDN.toASCII(java.net.URLDecoder.decode(host, "UTF-8")) }.getOrNull()
+    if (ascii.isNullOrEmpty() || ascii.any { it.isWhitespace() || it == '/' || it == '\\' }) return null
+    return "${uri.scheme.lowercase()}://$ascii" + (port.takeIf { it.isNotEmpty() && it.all(Char::isDigit) }?.let { ":$it" } ?: "") + "/"
 }
 
 /** [url] for reading: [readable], without the scheme or a lone trailing slash. */
