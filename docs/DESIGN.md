@@ -961,18 +961,27 @@ whose Kindle and KOReader answers ask for more on the same page).
     only Bring back. The sheet stays open across a rotation.
   - **Paused** also leads the page, in the status line: "Paused · nothing
     new comes in".
-  - A source's page opens with its site's address as an underlined link (↗), then
-    how it's doing (red when there's a problem), then small grey details.
-    The details end with the feed's own address, marked with the feed icon
-    (TalkBack says "Feed"). A tt-rss feed's page does the same, with the site
-    as its articles name it in tt-rss. The app learns a tt-rss feed's site
-    from the unread articles it fetches, so a feed left out, or one with
-    nothing unread since, may not have one yet. Until the app knows the
-    site, the link at the top is the feed's front page
-    (example.com for example.com/feed.xml), and the feed
-    keeps its own link below.
-  - These links open only web addresses. With no browser to take one, or
-    on a long press, the address is copied and a snackbar says so.
+  - A source's page opens with its site's address as an underlined link (↗),
+    the page's one link. Then, only when something's wrong, what, in large type
+    (red for an error): paused, failing, left out, waiting for tt-rss, or text
+    that reaches the paper short ("Summaries only", "Site blocks fetching").
+    Then small grey details; all well, how it's doing is one of them, beside
+    when it was last checked ("New articles today · Last checked today at
+    7:15 AM"). A tt-rss feed's page does the same, with the site as its
+    articles name it in tt-rss. The app learns a tt-rss feed's site from the
+    unread articles it fetches, so a feed left out, or one with nothing unread
+    since, may not have one yet; until then the link is the feed's front page
+    (example.com for example.com/feed.xml).
+  - **Open feed**, in the ⋮ menu of a feed's page (one on the phone, or in
+    tt-rss), opens the feed's own address. A phone source's menu also has
+    **Remove source**.
+  - Where a feed's text comes from is in its settings: **Article text**
+    says "Automatic: full articles", "Automatic: summaries only", "Automatic:
+    still working out whether the site sends full articles", or the reader's
+    own choice.
+  - These links, and Open feed, open only web addresses. With no browser to
+    take one, or on a long press of a link, the address is copied and a
+    snackbar says so.
   On a source's or feed's page, each article row is a status mark (`●` waiting, `✓` delivered, `○` read or not
   used), the title, a details line and a trailing **☆**; tapping the row
   opens the original. Two toggles, one per question:
