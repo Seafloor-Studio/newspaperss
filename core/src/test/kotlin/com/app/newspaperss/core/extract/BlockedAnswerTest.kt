@@ -69,6 +69,15 @@ class BlockedAnswerTest {
         listOf("proxy3", "SJC", "8a1b2c3d", "sessiontoken", "198.51", "198-51").forEach { assertFalse("$it in $answer", it in answer) }
         assertTrue(answer, "page: Seen from ip_[address], host [address].dsl.isp.example." in answer)
 
+        // IPv6 in its shortened forms, and IPv4 inside a dotted host name.
+        val v6 = BlockedAnswer.of(
+            HttpResponse(
+                403, "https://a.example/", "text/html",
+                "<p>A 2001:db8::8a2e:370:7334 B fe80::1ff:fe23:4567:890a C <b>IP:</b>2001:db8::1 D ::ffff:cb00:7107 E host.203.0.113.7.rev</p>",
+            ),
+        )
+        listOf("8a2e", "370", "7334", "fe23", "890a", "db8", "cb00", "7107", "113").forEach { assertFalse("$it in $v6", it in v6) }
+
         // At the cut: redacted whole first, so no part of it is left.
         val atTheCut = BlockedAnswer.of(HttpResponse(403, "https://a.example/", "text/html", "<p>${"x".repeat(185)} Your IP: 203.0.113.77</p>"))
         assertFalse(atTheCut, "203.0" in atTheCut)

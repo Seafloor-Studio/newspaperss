@@ -8,12 +8,12 @@ import java.io.File
  * What sites answered the last few times they turned the app away, by the article's address: for
  * **Send for a look…**, so an issue about a blocked article says which blocker it met (see
  * [com.app.newspaperss.core.extract.BlockedAnswer]). Debug builds only; a newer answer for the
- * same address replaces the older one, and a fetch that gets through clears it.
+ * same address replaces the older one, and an article that goes in without one clears it.
  */
 class BlockedAnswers(private val file: File, private val keep: Int = 20) {
     private val lock = Any()
 
-    /** Keeps [answer] for [url], or forgets the last one if null (a fetch got through). Never throws: it's only for a report. */
+    /** Keeps [answer] for [url], or forgets the last one if null (it went in without one). Never throws: it's only for a report. */
     fun record(url: String, answer: String?): Unit = synchronized(lock) {
         val old = read()
         if (answer == null && old.none { it.first == url }) return

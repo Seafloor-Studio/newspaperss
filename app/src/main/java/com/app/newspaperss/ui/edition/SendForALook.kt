@@ -48,7 +48,9 @@ private fun issueTitle(link: ArticleLink): String = link.title.ifBlank { Uri.par
 
 /** GitHub's form filled in, or with the address left for the reader to paste if it would make the form too long. */
 private fun issueForm(link: ArticleLink, title: String, label: String, body: (address: String) -> String): String =
-    filled(title, label, body(link.url)).takeIf { it.length <= MAX_FORM } ?: filled(title, label, body("(too long to fill in: please paste it here)"))
+    filled(title, label, body(link.url)).takeIf { it.length <= MAX_FORM } ?: filled(title, label, body(TOO_LONG))
+
+private const val TOO_LONG = "(too long to fill in: please paste it here)"
 
 private fun filled(title: String, label: String, body: String): String = Uri.parse(NEW_ISSUE).buildUpon()
     .appendQueryParameter("title", title)
@@ -64,8 +66,12 @@ private fun filled(title: String, label: String, body: String): String = Uri.par
  */
 internal fun lookIssueUrl(link: ArticleLink, appVersion: String, blocked: String? = null): String {
     val title = "Extraction: ${issueTitle(link)}"
-    // What the site answered is left out before the address is: an issue without it can still be looked into.
-    blocked?.let { filled(title, "extraction", lookBody(link.url, appVersion, it)).takeIf { form -> form.length <= MAX_FORM }?.let { form -> return form } }
+    // What the site answered is left out only if it doesn't fit even without the address.
+    if (blocked != null) {
+        listOf(link.url, TOO_LONG).forEach { address ->
+            filled(title, "extraction", lookBody(address, appVersion, blocked)).takeIf { it.length <= MAX_FORM }?.let { return it }
+        }
+    }
     return issueForm(link, title, "extraction") { address -> lookBody(address, appVersion, null) }
 }
 

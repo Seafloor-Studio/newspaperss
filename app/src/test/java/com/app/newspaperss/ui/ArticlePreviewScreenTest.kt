@@ -582,12 +582,16 @@ class ArticlePreviewScreenTest {
         val plain = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", "https://a.example/1"), "1.0")).getQueryParameter("body")!!
         assertFalse(plain, "turned the app away" in plain)
 
-        // Too long for the form with it: it goes before the address does.
+        // Too long for the form with both: the address is left to paste, the answer kept.
         val long = "https://a.example/" + "x".repeat(6_000)
         val kept = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", long), "1.0", "HTTP 403\npage: " + "日".repeat(300)))
         assertTrue(kept.toString().length <= 8_000)
-        assertTrue(kept.getQueryParameter("body")!!.contains(long))
-        assertFalse(kept.getQueryParameter("body")!!.contains("turned the app away"))
+        assertTrue(kept.getQueryParameter("body")!!.contains("please paste it here"))
+        assertTrue(kept.getQueryParameter("body")!!.contains("turned the app away"))
+        // Too long even then: the address, as before, without it.
+        val dropped = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", "https://a.example/1"), "1.0", "page: " + "日".repeat(1_000)))
+        assertTrue(dropped.toString().length <= 8_000)
+        assertFalse(dropped.getQueryParameter("body")!!.contains("turned the app away"))
     }
 
     @Test
