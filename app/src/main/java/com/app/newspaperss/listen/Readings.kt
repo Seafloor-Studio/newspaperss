@@ -153,6 +153,7 @@ class Readings(
         val ending: List<EndEpisode>,
         val titleEnds: Map<Int, Int>,
         val outcomes: Map<Int, Outcome>,
+        val passedOver: Set<Int>,
     )
 
     /** Said after line [afterLine] of a page, its title's last. */
@@ -177,6 +178,12 @@ class Readings(
 
     /** What Listen does with each page of [editionId] that has a recording, or is about one, by page. */
     fun outcomes(editionId: Long): Map<Int, Outcome>? = loaded?.takeIf { it.editionId == editionId }?.outcomes
+
+    /**
+     * Pages of [editionId] Listen passes over: audio versions whose recording plays on their post's
+     * page, so their own short text ("Audio version of …") would only repeat it.
+     */
+    fun passedOver(editionId: Long): Set<Int> = loaded?.takeIf { it.editionId == editionId }?.passedOver.orEmpty()
 
     /** The episodes that play after [editionId]'s closing page, in book order. */
     fun ending(editionId: Long): List<EndEpisode> = loaded?.takeIf { it.editionId == editionId }?.ending.orEmpty()
@@ -261,13 +268,14 @@ class Readings(
             outcomes[page] = Outcome.Plays(reading.seconds)
             notes += "page $page (${describe(reading)})"
         }
+        val passedOver = audioVersions(contents, found, outcomes, choices.playReadings, script, notes, read)
         val ending = episodesAtTheEnd(contents, found, outcomes, choices.playAtTheEnd)
         val titleEnds = ending.associate { end ->
             // A page that won't read still has its prelude, after its first line.
             val script = try { script(end.notesPage) } catch (e: CancellationException) { throw e } catch (e: Exception) { null }
             end.notesPage to (script?.let(::titleEnd) ?: 0)
         }
-        loaded = Loaded(editionId, contents.size, found, ending, titleEnds, outcomes)
+        loaded = Loaded(editionId, contents.size, found, ending, titleEnds, outcomes, passedOver)
         log(
             "Readings: edition $editionId, recorded readings: ${notes.joinToString().ifEmpty { "none" }}" +
                 (if (choices.playReadings) "" else " (readings are switched off)") +
@@ -278,6 +286,63 @@ class Readings(
                     else -> ending.joinToString { "page ${it.notesPage}'s, ${minutes(it.reading.seconds)}" }
                 },
         )
+    }
+
+    /**
+     * Audio versions, once the articles have found theirs: one whose post plays it is passed over;
+     * one whose post isn't in the edition plays it on its own page, after its heading. Returns the
+     * pages passed over.
+     */
+    private suspend fun audioVersions(
+        contents: List<EditionContent>,
+        found: MutableMap<Int, Reading>,
+        outcomes: MutableMap<Int, Outcome>,
+        on: Boolean,
+        script: suspend (page: Int) -> ListenScript?,
+        notes: MutableList<String>,
+        read: MutableList<String>,
+    ): Set<Int> {
+        val passedOver = mutableSetOf<Int>()
+        contents.forEachIndexed { page, content ->
+            val article = content.entry.articleId?.let { db.articles().byId(it) } ?: return@forEachIndexed
+            if (article.episodeKind != EpisodeKind.AUDIO_VERSION) return@forEachIndexed
+            val url = article.audioUrl
+            val playedAt = url?.let { u -> found.entries.firstOrNull { it.value.url == u }?.key }
+            outcomes[page] = when {
+                url == null -> Outcome.Read(Outcome.Why.NO_AUDIO)
+                playedAt != null -> Outcome.PlaysWith(playedAt).also { passedOver += page }
+                !on -> Outcome.Read(Outcome.Why.KIND_OFF)
+                sourceOff(article) -> Outcome.Read(Outcome.Why.SOURCE_OFF)
+                else -> {
+                    val reading = try {
+                        script(page)?.let { s -> ownReading(url, article.audioSeconds, s) }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        null
+                    }
+                    if (reading == null) {
+                        read += "page $page (its page wouldn't read)"
+                        Outcome.Read(Outcome.Why.UNREADABLE)
+                    } else {
+                        found[page] = reading
+                        notes += "page $page (${describe(reading)})"
+                        Outcome.Plays(reading.seconds)
+                    }
+                }
+            }
+        }
+        return passedOver
+    }
+
+    /**
+     * An audio version's own recording on its own page: its heading said, then the recording. A
+     * page that's only a heading hands over at its last line.
+     */
+    private fun ownReading(url: String, seconds: Int?, script: ListenScript): Reading? {
+        if (script.lines.isEmpty()) return null
+        val (first, lines) = bodyOf(script) ?: (script.lines.lastIndex to script.lines.takeLast(1))
+        return Reading(url, seconds, own = true, bodyLine = first, starts = shares(lines))
     }
 
     private suspend fun sourceOff(article: ArticleEntity): Boolean =

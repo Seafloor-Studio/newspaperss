@@ -493,6 +493,24 @@ class ListenPlayerTest {
         assertEquals(ListenPosition(1, 0), progress.get(5))
     }
 
+    /** ⏮ onto a page with nothing to say goes on back past it, not forward again to where it was. */
+    @Test
+    fun backPastAPageWithNothingToSay() {
+        val holes = ListenPlayer(
+            speaker, progress,
+            open = { ListenBook(it, "E", listOf(ListenPage("A", null, 1.0), ListenPage("B", null, 1.0), ListenPage("C", null, 1.0)), read = { i ->
+                when (i) { 0 -> script("A one."); 1 -> ListenScript(emptyList()); else -> script("C one.") }
+            }) },
+            scope = TestScope(UnconfinedTestDispatcher()),
+        )
+        holes.start(5, ListenPosition(2, 0))
+        assertEquals(ListenPosition(2, 0), holes.state.value.at)
+        holes.previous()
+        assertEquals(0, holes.state.value.at.page)
+        holes.next()
+        assertEquals("forward past it too", 2, holes.state.value.at.page)
+    }
+
     @Test
     fun controlsTappedWhileTheNextArticleIsReadWaitForIt() {
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()

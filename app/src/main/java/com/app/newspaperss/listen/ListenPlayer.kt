@@ -341,8 +341,10 @@ class ListenPlayer(
             return
         }
         if (script.lines.isEmpty()) {
-            // A page with nothing to say, like an article that's only a video, is passed over.
-            if (page < opened.pages.lastIndex) goTo(ListenPosition(page + 1, 0), chimeFirst) else finish()
+            // A page with nothing to say, like an article that's only a video, is passed over, the
+            // way the listener was going: back past it with ⏮, not forward again to where they were.
+            if (page < current.at.page && page > 0) goTo(ListenPosition(page - 1, Int.MAX_VALUE), chimeFirst)
+            else if (page < opened.pages.lastIndex) goTo(ListenPosition(page + 1, 0), chimeFirst) else finish()
             return
         }
         val at = ListenPosition(page, position.line.coerceIn(0, script.lines.lastIndex))

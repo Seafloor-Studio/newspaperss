@@ -159,8 +159,17 @@ fun listenBanner(kind: EpisodeKind?, pair: EpisodePair?, outcome: Outcome?, titl
                 else -> Banner("$head Listen reads it.")
             }
         }
-        // Its page is read by the voice, and its recording plays on its post's: [episodeNote] says so.
-        EpisodeKind.AUDIO_VERSION -> null
+        EpisodeKind.AUDIO_VERSION -> {
+            val head = "Audio version of ${title ?: "another post"}"
+            when {
+                outcome is Outcome.Plays -> Banner("$head. Listen plays it here.")
+                outcome is Outcome.PlaysWith -> Banner("$head. Listen plays it with that post.")
+                why == Outcome.Why.KIND_OFF -> settings("$head. To play it,", "Narrated articles")
+                why == Outcome.Why.SOURCE_OFF -> sourceOff("$head.", "recordings")
+                why == Outcome.Why.NO_AUDIO -> Banner("$head, but no audio file found.")
+                else -> Banner("$head. Listen reads it.")
+            }
+        }
         EpisodeKind.ARTICLE -> when (pair?.episodeKind) {
             EpisodeKind.TRANSCRIPT -> Banner("Its transcript is a separate post, $title.")
             EpisodeKind.AUDIO_VERSION -> articleBanner("Has an audio version, $title.", "in this post's place", outcome, ::quoted, ::settings, ::sourceOff)

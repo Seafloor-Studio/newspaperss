@@ -41,6 +41,8 @@ class ListenBook(
             var ending = emptyList<EndEpisode>()
             val read: suspend (Int) -> ListenScript? = { index ->
                 when {
+                    // Its recording plays on its post's page: nothing to say here.
+                    readings?.passedOver(editionId)?.contains(index) == true -> ListenScript(emptyList())
                     index < contents.size -> withContext(Dispatchers.IO) { book.article(contents[index].entry.position) }?.let(ListenScript::parse)
                     index == contents.size -> withContext(Dispatchers.IO) { book.entry("OEBPS/end.xhtml")?.toString(Charsets.UTF_8) }?.let(ListenScript::parse)
                     else -> ending.getOrNull(index - contents.size - 1)?.script
