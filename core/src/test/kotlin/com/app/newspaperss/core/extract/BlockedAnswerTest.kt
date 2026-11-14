@@ -53,7 +53,7 @@ class BlockedAnswerTest {
      */
     @Test
     fun itKeepsNothingThatPointsAtTheReader() {
-        val page = "x".repeat(185) + " Your IP: 203.0.113.77 ip_198.51.100.9 host 198-51-100-9.dsl.isp.example"
+        val page = "Seen from ip_198.51.100.9, host 198-51-100-9.dsl.isp.example."
         val answer = BlockedAnswer.of(
             HttpResponse(
                 403, "https://a.example/", "text/html", "<p>$page</p>",
@@ -66,7 +66,12 @@ class BlockedAnswerTest {
                 ),
             ),
         )
-        listOf("proxy3", "SJC", "8a1b2c3d", "sessiontoken", "203.0", "198.51", "198-51").forEach { assertFalse("$it in $answer", it in answer) }
+        listOf("proxy3", "SJC", "8a1b2c3d", "sessiontoken", "198.51", "198-51").forEach { assertFalse("$it in $answer", it in answer) }
+        assertTrue(answer, "page: Seen from ip_[address], host [address].dsl.isp.example." in answer)
+
+        // At the cut: redacted whole first, so no part of it is left.
+        val atTheCut = BlockedAnswer.of(HttpResponse(403, "https://a.example/", "text/html", "<p>${"x".repeat(185)} Your IP: 203.0.113.77</p>"))
+        assertFalse(atTheCut, "203.0" in atTheCut)
         assertTrue(answer, "cookies set: (unnamed)" in answer)
         assertTrue(answer, "headers: cf-ray, set-cookie, via, x-cache, x-served-by" in answer)
     }
@@ -74,8 +79,12 @@ class BlockedAnswerTest {
     /** Untrusted, so held to a size: hundreds of headers and cookies don't make it longer. */
     @Test
     fun manyHeadersAreCutShort() {
-        val many = HttpResponse(403, "https://a.example/", "text/html", "", headers = (1..500).map { "x-header-$it" to "v" } + (1..500).map { "Set-Cookie" to "c$it=v" })
-        assertTrue(BlockedAnswer.of(many).length <= 1_500)
+        val name = "x".repeat(60)
+        val many = HttpResponse(
+            403, "https://a.example/", "text/html", "<p>${"word ".repeat(100)}</p>",
+            headers = (1..500).map { "$name-$it" to "v" } + (1..500).map { "Set-Cookie" to "$name$it=v" },
+        )
+        assertEquals(1_500, BlockedAnswer.of(many).length)
     }
 
     @Test
