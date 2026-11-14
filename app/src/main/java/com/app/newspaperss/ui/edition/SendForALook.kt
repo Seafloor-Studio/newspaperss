@@ -47,14 +47,14 @@ private fun issueTitle(link: ArticleLink): String = link.title.ifBlank { Uri.par
 }
 
 /** GitHub's form filled in, or with the address left for the reader to paste if it would make the form too long. */
-private fun issueForm(link: ArticleLink, title: String, label: String, body: (address: String) -> String): String {
-    fun form(address: String) = Uri.parse(NEW_ISSUE).buildUpon()
-        .appendQueryParameter("title", title)
-        .appendQueryParameter("labels", label)
-        .appendQueryParameter("body", body(address))
-        .build().toString()
-    return form(link.url).takeIf { it.length <= MAX_FORM } ?: form("(too long to fill in: please paste it here)")
-}
+private fun issueForm(link: ArticleLink, title: String, label: String, body: (address: String) -> String): String =
+    filled(title, label, body(link.url)).takeIf { it.length <= MAX_FORM } ?: filled(title, label, body("(too long to fill in: please paste it here)"))
+
+private fun filled(title: String, label: String, body: String): String = Uri.parse(NEW_ISSUE).buildUpon()
+    .appendQueryParameter("title", title)
+    .appendQueryParameter("labels", label)
+    .appendQueryParameter("body", body)
+    .build().toString()
 
 /**
  * The address of GitHub's new-issue form, filled in for the daily issue check to compare the
@@ -62,16 +62,21 @@ private fun issueForm(link: ArticleLink, title: String, label: String, body: (ad
  * it only for people who can label this repository's issues; the title's "Extraction:" is what
  * marks it for everyone else.
  */
-internal fun lookIssueUrl(link: ArticleLink, appVersion: String, blocked: String? = null): String =
-    issueForm(link, "Extraction: ${issueTitle(link)}", "extraction") { address ->
-        """
+internal fun lookIssueUrl(link: ArticleLink, appVersion: String, blocked: String? = null): String {
+    val title = "Extraction: ${issueTitle(link)}"
+    // What the site answered is left out before the address is: an issue without it can still be looked into.
+    blocked?.let { filled(title, "extraction", lookBody(link.url, appVersion, it)).takeIf { form -> form.length <= MAX_FORM }?.let { form -> return form } }
+    return issueForm(link, title, "extraction") { address -> lookBody(address, appVersion, null) }
+}
+
+private fun lookBody(address: String, appVersion: String, blocked: String?): String =
+    """
             |Article: $address
             |App version: $appVersion
             |
             |What looks wrong (optional; a missing picture, text that shouldn't be there, the article cut short):
             |
-        """.trimMargin() + blocked?.let { "\n\nWhat the site answered when it turned the app away:\n\n```\n${it.replace("`", "'")}\n```\n" }.orEmpty()
-    }
+    """.trimMargin() + blocked?.let { "\n\nWhat the site answered when it turned the app away:\n\n```\n${it.replace("`", "'")}\n```\n" }.orEmpty()
 
 /**
  * The form for a post the episode detector labelled wrongly: what it [got] and what the reader
@@ -132,7 +137,7 @@ internal fun SendForALookDialog(link: ArticleLink, judgement: EpisodeJudgement?,
                 } else {
                     Text(
                         if (blocked == null) "Anyone can see what you send: it becomes a public issue on GitHub, with this article's address and the app's version."
-                        else "Anyone can see what you send: it becomes a public issue on GitHub, with this article's address, the app's version, and what the site answered when it turned the app away (no cookies or network addresses).",
+                        else "Anyone can see what you send: it becomes a public issue on GitHub, with this article's address, the app's version, and what the site answered when it turned the app away (the cookies' names but not their values; network addresses it finds are taken out).",
                     )
                     Spacer(Modifier.height(8.dp))
                     Text("Your browser opens GitHub's form, filled in. You'll need a GitHub account to send it, and you can add what looks wrong. The app's page is then checked against the original, and what it got wrong is fixed.")

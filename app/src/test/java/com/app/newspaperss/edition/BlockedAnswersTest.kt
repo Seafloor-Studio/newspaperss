@@ -29,6 +29,11 @@ class BlockedAnswersTest {
         answers.record("https://a.example/3", "HTTP 403")
         assertNull("only the last two are kept", answers.find("https://a.example/1"))
         assertEquals("kept across a restart", "HTTP 403", BlockedAnswers(file, keep = 2).find("https://a.example/3"))
+
+        // Fetched since, and it got through: nothing to tell any more.
+        answers.record("https://a.example/3", null)
+        assertNull(answers.find("https://a.example/3"))
+        assertEquals("HTTP 403", answers.find("https://a.example/2"))
     }
 
     @Test

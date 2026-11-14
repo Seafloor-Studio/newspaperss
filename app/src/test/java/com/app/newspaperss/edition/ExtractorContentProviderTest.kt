@@ -114,20 +114,25 @@ class ExtractorContentProviderTest {
         assertEquals(null, provider.contentFor(saved, readingList, ImageAllowance(), TextChoice()))
     }
 
-    /** A site that turns the app away: what it answered is passed on, by the article's address. */
+    /**
+     * A site that turns the app away: what it answered is passed on, by the address the book links
+     * to (an international name in punycode); a fetch that fails otherwise, or gets through,
+     * passes on nothing, which clears an old answer.
+     */
     @Test
     fun aPageThatTurnsTheAppAwayIsReportedWithWhatItAnswered() = runTest {
-        val blocked = mutableListOf<Pair<String, String>>()
-        val reporting = ExtractorContentProvider(ArticleExtractor(http), http, AndroidImageEncoder(), onBlocked = { url, answer -> blocked += url to answer }) { _, _, _, _ -> }
-        http.page("https://example.com/story", "<html>Forbidden</html>", code = 403)
+        val told = mutableListOf<Pair<String, String?>>()
+        val reporting = ExtractorContentProvider(ArticleExtractor(http), http, AndroidImageEncoder(), onBlocked = { url, answer -> told += url to answer }) { _, _, _, _ -> }
+        http.page("https://exämple.com/story", "<html>Forbidden</html>", code = 403)
         http.page("https://example.com/down", "", code = 500)
         val paged = source.copy(contentMode = ContentMode.PAGE)
 
-        reporting.contentFor(article("<p>Its summary.</p>"), paged, ImageAllowance(), TextChoice())
+        reporting.contentFor(article("<p>Its summary.</p>").copy(url = "https://exämple.com/story"), paged, ImageAllowance(), TextChoice())
         reporting.contentFor(article("<p>Its summary.</p>").copy(url = "https://example.com/down"), paged, ImageAllowance(), TextChoice())
 
-        assertEquals(listOf("https://example.com/story"), blocked.map { it.first })
-        assertTrue(blocked.single().second, blocked.single().second.startsWith("HTTP 403"))
+        assertEquals(listOf("https://xn--exmple-cua.com/story", "https://example.com/down"), told.map { it.first })
+        assertTrue(told[0].second.orEmpty(), told[0].second.orEmpty().startsWith("HTTP 403"))
+        assertEquals(null, told[1].second)
     }
 
     @Test

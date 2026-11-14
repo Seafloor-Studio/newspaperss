@@ -581,6 +581,13 @@ class ArticlePreviewScreenTest {
         assertTrue(body, body.endsWith("What the site answered when it turned the app away:\n\n```\nHTTP 403\nx-datadome: protected\npage: Access '''blocked'''\n```\n"))
         val plain = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", "https://a.example/1"), "1.0")).getQueryParameter("body")!!
         assertFalse(plain, "turned the app away" in plain)
+
+        // Too long for the form with it: it goes before the address does.
+        val long = "https://a.example/" + "x".repeat(6_000)
+        val kept = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", long), "1.0", "HTTP 403\npage: " + "日".repeat(300)))
+        assertTrue(kept.toString().length <= 8_000)
+        assertTrue(kept.getQueryParameter("body")!!.contains(long))
+        assertFalse(kept.getQueryParameter("body")!!.contains("turned the app away"))
     }
 
     @Test

@@ -8,20 +8,25 @@ import java.io.File
  * What sites answered the last few times they turned the app away, by the article's address: for
  * **Send for a look…**, so an issue about a blocked article says which blocker it met (see
  * [com.app.newspaperss.core.extract.BlockedAnswer]). Debug builds only; a newer answer for the
- * same address replaces the older one.
+ * same address replaces the older one, and a fetch that gets through clears it.
  */
 class BlockedAnswers(private val file: File, private val keep: Int = 20) {
     private val lock = Any()
 
-    fun record(url: String, answer: String) = synchronized(lock) {
-        val entries = read().filter { it.first != url } + (url to answer)
+    /** Keeps [answer] for [url], or forgets the last one if null (a fetch got through). Never throws: it's only for a report. */
+    fun record(url: String, answer: String?): Unit = synchronized(lock) {
+        val old = read()
+        if (answer == null && old.none { it.first == url }) return
+        val entries = old.filter { it.first != url } + listOfNotNull(answer?.let { url to it })
         val json = JSONArray()
         entries.takeLast(keep).forEach { (u, a) -> json.put(JSONObject().put("url", u).put("answer", a)) }
         file.parentFile?.mkdirs()
         // Written whole and moved over the old one: a crash part way leaves the old list, not half a file.
         val next = File(file.parentFile, file.name + ".new")
-        next.writeText(json.toString())
-        next.renameTo(file)
+        runCatching {
+            next.writeText(json.toString())
+            next.renameTo(file)
+        }
     }
 
     fun find(url: String): String? = synchronized(lock) { read().lastOrNull { it.first == url }?.second }

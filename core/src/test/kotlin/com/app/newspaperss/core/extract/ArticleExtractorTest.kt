@@ -327,6 +327,10 @@ class ArticleExtractorTest {
 
         val broken = ArticleExtractor(FakeHttp(mapOf(url to page("<html>Oops</html>", code = 500)))).extract(input(teaser))
         assertEquals(null, broken.pageBlockedAnswer)
+
+        // A bot check that answers 200 is a refusal too.
+        val check = ArticleExtractor(FakeHttp(mapOf(url to page("<html><head><title>Just a moment...</title></head><body>Checking your browser</body></html>")))).extract(input(teaser))
+        assertTrue(check.pageBlockedAnswer.orEmpty(), check.pageBlockedAnswer.orEmpty().startsWith("HTTP 200"))
     }
 
     @Test

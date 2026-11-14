@@ -1,6 +1,7 @@
 package com.app.newspaperss.edition
 
 import com.app.newspaperss.core.extract.ArticleExtractor
+import com.app.newspaperss.core.extract.BlockedAnswer
 import com.app.newspaperss.core.extract.ContentMode
 import com.app.newspaperss.core.extract.ExtractInput
 import com.app.newspaperss.core.extract.FullTextCheck
@@ -35,7 +36,8 @@ import java.io.IOException
  *   article's [TextChoice], for [com.app.newspaperss.data.SourceRepository.recordFullText].
  * @param onUnreadable told of a saved link whose page can never be read (see
  *   [com.app.newspaperss.data.ArticleEntity.unreadable]), and why.
- * @param onBlocked told what a site answered when it turned the app away from an article's page.
+ * @param onBlocked told, for each article fetched, what its site answered if it turned the app away
+ *   from the page the article went in without, or null if it didn't: by the address the book links to.
  */
 class ExtractorContentProvider(
     private val extractor: ArticleExtractor,
@@ -43,7 +45,7 @@ class ExtractorContentProvider(
     private val encoder: ImageEncoder,
     private val onPaidOnly: suspend (articleId: Long, skipped: Boolean) -> Unit = { _, _ -> },
     private val onUnreadable: suspend (articleId: Long, why: String) -> Unit = { _, _ -> },
-    private val onBlocked: (url: String, answer: String) -> Unit = { _, _ -> },
+    private val onBlocked: (url: String, answer: String?) -> Unit = { _, _ -> },
     private val onEvidence: suspend (sourceId: Long, originId: String?, FullTextEvidence?, TextChoice) -> Unit,
 ) : ArticleContentProvider {
     // Downloads overlap but decoding doesn't: a decoded photo can take tens of MB of heap.
@@ -60,13 +62,14 @@ class ExtractorContentProvider(
         )
         val checking = text.check && article.viaUrl == null && input.mode != ContentMode.PAGE
         val fetched = extractor.extract(if (checking) input.copy(mode = ContentMode.PAGE) else input)
-        fetched.pageBlockedAnswer?.let { onBlocked(article.url, it) }
         // A link post's story page against its pitch says nothing about the source's own feed.
         val evidence = if (article.viaUrl == null) FullTextCheck.evidence(fetched) else null
         if (evidence != null || checking) onEvidence(source.id, article.originId, evidence, text.copy(check = checking))
         // Unless the check found the page the better copy, the article is what it would have been
         // without one: the feed's text, with no note about a page that failed.
-        val extracted = if (checking && evidence?.mode != ContentMode.PAGE) extractor.extract(input).also { again -> again.pageBlockedAnswer?.let { onBlocked(article.url, it) } } else fetched
+        val extracted = if (checking && evidence?.mode != ContentMode.PAGE) extractor.extract(input) else fetched
+        // What went in, not a check's fetch it went in without; and cleared once a fetch gets through.
+        onBlocked(BlockedAnswer.key(article.url), extracted.pageBlockedAnswer)
         // A feed article that can't be read still goes in, so a broken feed gets noticed. A link the
         // reader saved on purpose waits for the next edition instead of being used up as a stub.
         if (source.kind == SourceKind.READING_LIST && extracted.wordCount == 0) {
