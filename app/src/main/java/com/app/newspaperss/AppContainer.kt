@@ -260,7 +260,11 @@ class AppContainer(
             savedSpeed = settings.settings.map { it.listenSpeed }.distinctUntilChanged(),
             saveSpeed = { speed -> settings.update { it.copy(listenSpeed = speed) } },
             chime = MediaPlayerChime(context),
-            onHeard = { id, page -> appScope.launch { editions.markFinished(id, page) } },
+            onHeard = { id, page ->
+                // An audio version passed over is heard with the post that played its recording.
+                val alsoHeard = if (EPISODES) readings.passedOverWith(id, page) else emptyList()
+                appScope.launch { (listOf(page) + alsoHeard).forEach { editions.markFinished(id, it) } }
+            },
         ).also { player ->
             // A recording that won't play: on from where it got, in the voice.
             if (EPISODES) readingSpeaker.restart = { line -> if (player.state.value.editionId == line.editionId) player.seek(ListenPosition(line.page, line.line)) }

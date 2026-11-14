@@ -163,7 +163,7 @@ fun listenBanner(kind: EpisodeKind?, pair: EpisodePair?, outcome: Outcome?, titl
             val head = "Audio version of ${title ?: "another post"}"
             when {
                 outcome is Outcome.Plays -> Banner("$head. Listen plays it here.")
-                outcome is Outcome.PlaysWith -> Banner("$head. Listen plays it with that post.")
+                outcome is Outcome.PlaysWith -> Banner("$head. Listen plays it with ${quoted(outcome.page)}.")
                 why == Outcome.Why.KIND_OFF -> settings("$head. To play it,", "Narrated articles")
                 why == Outcome.Why.SOURCE_OFF -> sourceOff("$head.", "recordings")
                 why == Outcome.Why.NO_AUDIO -> Banner("$head, but no audio file found.")

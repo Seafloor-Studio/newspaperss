@@ -231,11 +231,18 @@ class ListenAppTest {
             ),
         )
 
-        val book = ListenBook.open(repo, id, Readings(db, { Recordings() }))!!
+        val readings = Readings(db, { Recordings() })
+        val book = ListenBook.open(repo, id, readings)!!
 
         assertTrue(book.script(0)!!.lines.isEmpty())
         assertEquals(0.0, book.pages[0].minutes, 0.001)
         assertEquals("its recording counted on its post's page", 10.0, book.pages[1].minutes, 0.001)
+
+        // Opened again once its post no longer plays it (its label corrected): found as it is now, not as last time.
+        db.articles().setEpisodeKind(source, "e", EpisodeKind.TRANSCRIPT)
+        val again = ListenBook.open(repo, id, readings)!!
+        assertEquals("https://cdn.example/v.mp3", readings.at(id, 0)?.url)
+        assertTrue(again.script(0)!!.lines.isNotEmpty())
     }
 
     /**

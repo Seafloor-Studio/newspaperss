@@ -185,6 +185,11 @@ class Readings(
      */
     fun passedOver(editionId: Long): Set<Int> = loaded?.takeIf { it.editionId == editionId }?.passedOver.orEmpty()
 
+    /** The pages passed over whose recording plays on [page] of [editionId]: heard when it is. */
+    fun passedOverWith(editionId: Long, page: Int): List<Int> = loaded?.takeIf { it.editionId == editionId }?.let { l ->
+        l.passedOver.filter { l.outcomes[it] == Outcome.PlaysWith(page) }
+    }.orEmpty()
+
     /** The episodes that play after [editionId]'s closing page, in book order. */
     fun ending(editionId: Long): List<EndEpisode> = loaded?.takeIf { it.editionId == editionId }?.ending.orEmpty()
 
@@ -280,6 +285,7 @@ class Readings(
             "Readings: edition $editionId, recorded readings: ${notes.joinToString().ifEmpty { "none" }}" +
                 (if (choices.playReadings) "" else " (readings are switched off)") +
                 (if (read.isEmpty()) "" else "; read by the voice instead: ${read.joinToString()}") +
+                (if (passedOver.isEmpty()) "" else "; passed over: " + passedOver.sorted().joinToString { "page $it (its recording plays on page ${(outcomes[it] as? Outcome.PlaysWith)?.page})" }) +
                 "; episodes at the end: " + when {
                     !choices.playAtTheEnd -> "switched off"
                     ending.isEmpty() -> "none"

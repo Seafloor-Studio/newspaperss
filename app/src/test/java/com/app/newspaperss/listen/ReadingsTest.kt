@@ -323,6 +323,9 @@ class ReadingsTest {
         load()
         assertEquals("https://cdn.example/1.mp3", readings.at(3, 1)?.url)
         assertEquals(setOf(0), readings.passedOver(3))
+        assertEquals("heard with the post that played it", listOf(0), readings.passedOverWith(3, 1))
+        assertEquals(emptyList<Int>(), readings.passedOverWith(3, 2))
+        assertTrue(logged.last(), logged.last().contains("; passed over: page 0 (its recording plays on page 1)"))
         val lone = readings.at(3, 2)!!
         assertEquals("on its own page, after its heading", Reading("https://cdn.example/2.mp3", 720, own = true, bodyLine = 2, starts = lone.starts), lone)
         assertEquals(
