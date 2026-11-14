@@ -636,7 +636,13 @@ whose Kindle and KOReader answers ask for more on the same page).
   only with a web link) is for an article that came out wrong: it first says the
   report is a public GitHub issue, then opens GitHub's new-issue form in the
   browser with "Extraction: *title*", the article's address and the app's version
-  filled in, for the issue check to compare with the page. On a post the episode
+  filled in, for the issue check to compare with the page. In debug builds, an
+  article whose site turned the app away (a refusal or a bot check) also carries
+  what the site answered the last time: the status, every header's name, the
+  values of a few that name a blocker or cache, which cookies it set (not their
+  values), and the start of the block page, with anything shaped like a network
+  address taken out; the dialog says so. The app keeps the last 20 such answers.
+  On a post the episode
   detector judged (debug builds), it first asks what's wrong: "The article came
   out wrong", or "It's labelled “Episode notes”, and it's…" with the other kinds
   to pick from. A wrong label opens "Episode label: *title*" with the post's
