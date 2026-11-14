@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -40,7 +41,17 @@ import com.app.newspaperss.ui.components.openInBrowser
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun AddressLink(url: String, shownAs: String, textStyle: TextStyle, onCopied: (String) -> Unit, modifier: Modifier = Modifier, label: String? = null, words: Boolean = false) {
+internal fun AddressLink(
+    url: String,
+    shownAs: String,
+    textStyle: TextStyle,
+    onCopied: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    label: String? = null,
+    words: Boolean = false,
+    /** An icon before it, and what it says to TalkBack, as for a feed's own address. */
+    icon: Pair<ImageVector, String>? = null,
+) {
     val shown = if (words) shownAs else readable(shownAs)
     val copiedAs = if (words) shownAddress(url) else shown
     // An address reads left to right even when it starts with a right-to-left letter.
@@ -69,6 +80,9 @@ internal fun AddressLink(url: String, shownAs: String, textStyle: TextStyle, onC
         ) { if (!openInBrowser(context, url)) copy(true) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        icon?.let { (image, said) ->
+            Icon(image, contentDescription = said, tint = muted, modifier = Modifier.padding(end = 6.dp).size(with(LocalDensity.current) { style.fontSize.toDp() * 1.2f }))
+        }
         Text(
             buildAnnotatedString {
                 label?.let { withStyle(SpanStyle(color = muted)) { append("$it ") } }
@@ -88,6 +102,17 @@ internal fun AddressLink(url: String, shownAs: String, textStyle: TextStyle, onC
             modifier = Modifier.padding(start = 4.dp).size(with(LocalDensity.current) { style.fontSize.toDp() }),
         )
     }
+}
+
+/**
+ * The front page of [url]'s site ("https://backseats.substack.com/" for its feed), or null if it
+ * isn't a web address: a feed's site until its articles have named one.
+ */
+internal fun frontPage(url: String): String? {
+    if (!isWebAddress(url)) return null
+    val uri = runCatching { java.net.URI(url.trim()) }.getOrNull() ?: return null
+    val host = uri.host ?: return null
+    return "${uri.scheme.lowercase()}://$host" + (if (uri.port != -1) ":${uri.port}" else "") + "/"
 }
 
 /** [url] for reading: [readable], without the scheme or a lone trailing slash. */

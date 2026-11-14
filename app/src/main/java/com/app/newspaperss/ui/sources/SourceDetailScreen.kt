@@ -53,6 +53,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.material.icons.filled.RssFeed
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -299,8 +301,8 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
 
 /**
  * A tt-rss feed's site, then whether it's left out, failing or waiting, then the details: its account
- * and category, where its article text comes from, and the feed's own address. Until the feed's
- * articles have named its site, the feed's address is the link at the top.
+ * and category, where its article text comes from, and the feed's own address, marked with the feed
+ * icon. Until the feed's articles have named its site, the site is the feed's front page.
  */
 @Composable
 private fun FeedHeader(publication: PublicationEntity?, account: SourceEntity?, episodes: String?, onCopied: (String) -> Unit) {
@@ -308,8 +310,9 @@ private fun FeedHeader(publication: PublicationEntity?, account: SourceEntity?, 
     val details = MaterialTheme.typography.bodySmall
     Column(Modifier.padding(16.dp)) {
         // Not one that isn't a web address, as a hostile feed's may not be, nor the feed itself again.
-        val site = publication?.siteUrl?.takeIf { isWebAddress(it) && it != publication.feedUrl }
-        (site ?: publication?.feedUrl)?.let { url ->
+        val feed = publication?.feedUrl
+        val site = publication?.siteUrl?.takeIf { isWebAddress(it) && it != feed } ?: feed?.let(::frontPage)
+        site?.let { url ->
             AddressLink(url, SourceRepository.hostOf(url), MaterialTheme.typography.bodyMedium, onCopied, Modifier.padding(bottom = 12.dp))
         }
         // Not for a feed left out: it isn't fetched for the paper, so its fetching doesn't matter here.
@@ -338,10 +341,15 @@ private fun FeedHeader(publication: PublicationEntity?, account: SourceEntity?, 
             Text(listOfNotNull("In your tt-rss", publication?.category?.let { "category $it" }).joinToString(" · "), style = details, color = muted)
             if (!leftOut) Text(textLine(publication), style = details, color = muted)
             episodes?.let { Text(it, style = details, color = muted) }
-            if (site != null) publication?.feedUrl?.let { AddressLink(it, shownAddress(it), details, onCopied, label = "Feed:") }
+            feed?.let { FeedLink(it, details, onCopied) }
         }
     }
 }
+
+/** A feed's own address, with the feed icon, where a feed reader would want it. */
+@Composable
+private fun FeedLink(url: String, style: TextStyle, onCopied: (String) -> Unit) =
+    AddressLink(url, shownAddress(url), style, onCopied, icon = Icons.Default.RssFeed to "Feed")
 
 @Composable
 private fun LeaveOutDialog(title: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
@@ -362,8 +370,13 @@ private fun Health(source: SourceEntity, learned: PublicationEntity?, lastNew: I
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val details = MaterialTheme.typography.bodySmall
     val clock = LocalClock.current
-    // The feed's own address when the site's isn't one to open, as a hostile feed's may not be.
-    val site = listOfNotNull(source.siteUrl, source.url).firstOrNull(::isWebAddress) ?: source.siteUrl ?: source.url
+    // A feed's site, or its front page until its articles name one; the feed has its own link below.
+    // Not one that isn't a web address, as a hostile feed's may not be.
+    val site = if (source.kind == SourceKind.FEED) {
+        source.siteUrl?.takeIf { isWebAddress(it) && it != source.url } ?: frontPage(source.url) ?: source.url
+    } else {
+        listOfNotNull(source.siteUrl, source.url).firstOrNull(::isWebAddress) ?: source.siteUrl ?: source.url
+    }
     Column(Modifier.padding(16.dp)) {
         AddressLink(site, SourceRepository.hostOf(site), MaterialTheme.typography.bodyMedium, onCopied)
         Column(Modifier.padding(top = 12.dp)) {
@@ -376,8 +389,7 @@ private fun Health(source: SourceEntity, learned: PublicationEntity?, lastNew: I
             lastCheckedLine(source.lastFetchedAt, locale, is24Hour, clock.instant(), clock.zone)?.let { Text(it, style = details, color = muted) }
             if (source.kind == SourceKind.FEED) {
                 Text(textLine(learned), style = details, color = muted)
-                // Unless the site's link at the top is already the feed's.
-                if (site != source.url) AddressLink(source.url, shownAddress(source.url), details, onCopied, label = "Feed:")
+                if (site != source.url) FeedLink(source.url, details, onCopied)
             }
             episodes?.let { Text(it, style = details, color = muted) }
         }

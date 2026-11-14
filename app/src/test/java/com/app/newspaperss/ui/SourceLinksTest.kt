@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.room.Room
@@ -74,10 +75,12 @@ class SourceLinksTest {
     @Test
     fun aSourceLinksItsSiteAndItsFeed() {
         show(feed(), until = "Last checked")
+        // The feed's own link is marked as one, to TalkBack too.
+        compose.onNode(hasText("example.com/weekly/rss.xml") and hasContentDescription("Feed")).assertExists()
 
         compose.onNodeWithText("example.com").performClick()
         assertEquals("https://example.com/", opened())
-        compose.onNodeWithText("Feed: example.com/weekly/rss.xml").performClick()
+        compose.onNodeWithText("example.com/weekly/rss.xml").performClick()
         assertEquals("https://example.com/weekly/rss.xml", opened())
     }
 
@@ -85,22 +88,24 @@ class SourceLinksTest {
     fun aFailingSourceAlsoLinksTheFeedItReads() {
         show(feed(error = "Couldn't reach the site."), until = "Couldn't reach the site.")
 
-        compose.onNodeWithText("Feed: example.com/weekly/rss.xml").performClick()
+        compose.onNodeWithText("example.com/weekly/rss.xml").performClick()
         assertEquals("https://example.com/weekly/rss.xml", opened())
     }
 
     @Test
     fun aSourceWithNoArticlesYetLinksTheFeedToo() {
-        show(feed(articles = false), until = "Feed: example.com/weekly/rss.xml")
+        show(feed(articles = false), until = "example.com/weekly/rss.xml")
     }
 
+    /** Until its articles name its site, the site is the feed's front page, and the feed keeps its own link. */
     @Test
-    fun withoutASiteTheHostOpensTheFeed() {
+    fun withoutASiteTheFrontPageStandsInAndTheFeedKeepsItsLink() {
         show(feed(siteUrl = null), until = "Last checked")
 
         compose.onNodeWithText("example.com").performClick()
+        assertEquals("https://example.com/", opened())
+        compose.onNodeWithText("example.com/weekly/rss.xml").performClick()
         assertEquals("https://example.com/weekly/rss.xml", opened())
-        compose.onNodeWithText("Feed:", substring = true).assertDoesNotExist()
     }
 
     @Test
@@ -108,7 +113,7 @@ class SourceLinksTest {
         show(feed(siteUrl = "intent://scan/#Intent;scheme=zxing;end"), until = "Last checked")
 
         compose.onNodeWithText("example.com").performClick()
-        assertEquals("the feed's address stands in", "https://example.com/weekly/rss.xml", opened())
+        assertEquals("the feed's front page stands in", "https://example.com/", opened())
     }
 
     @Test
@@ -117,7 +122,7 @@ class SourceLinksTest {
         // A real phone with no browser refuses to start the view.
         shadowOf(app).checkActivities(true)
 
-        compose.onNodeWithText("Feed: example.com/weekly/rss.xml").performClick()
+        compose.onNodeWithText("example.com/weekly/rss.xml").performClick()
 
         assertEquals("https://example.com/weekly/rss.xml", copied())
         compose.idleUntil { visible("No browser here. Copied example.com/weekly/rss.xml") }
@@ -128,7 +133,7 @@ class SourceLinksTest {
     fun aTapJustBelowTheSmallFeedLinkStillOpensIt() {
         show(feed(error = "Couldn't reach the site."), until = "Couldn't reach the site.")
 
-        compose.onNodeWithText("Feed: example.com/weekly/rss.xml").performTouchInput {
+        compose.onNodeWithText("example.com/weekly/rss.xml").performTouchInput {
             // Just inside the 48dp: Robolectric's stand-in font sets the line's own height.
             val spare = (48.dp.toPx() - height) / 2
             click(Offset(centerX, height + spare - 1.dp.toPx()))
@@ -166,8 +171,9 @@ class SourceLinksTest {
         show(account, key = "5", until = "quantamagazine.org")
 
         compose.onNodeWithText("quantamagazine.org").performClick()
+        assertEquals("its front page, until its articles name its site", "https://www.quantamagazine.org/", opened())
+        compose.onNodeWithText("www.quantamagazine.org/feed/").performClick()
         assertEquals("https://www.quantamagazine.org/feed/", opened())
-        compose.onNodeWithText("Feed:", substring = true).assertDoesNotExist()
     }
 
     /** Once its articles have named its site, the feed's page links the site, and the feed below. */
@@ -180,11 +186,11 @@ class SourceLinksTest {
             )
             account
         }
-        show(account, key = "5", until = "Feed: api.quantamagazine.org/feed/")
+        show(account, key = "5", until = "api.quantamagazine.org/feed/")
 
         compose.onNodeWithText("quantamagazine.org").performClick()
         assertEquals("https://www.quantamagazine.org/", opened())
-        compose.onNodeWithText("Feed: api.quantamagazine.org/feed/").performClick()
+        compose.onNodeWithText("api.quantamagazine.org/feed/").performClick()
         assertEquals("https://api.quantamagazine.org/feed/", opened())
     }
 
@@ -200,7 +206,7 @@ class SourceLinksTest {
         show(account, key = "5", until = "quantamagazine.org")
 
         compose.onNodeWithText("quantamagazine.org").performClick()
-        assertEquals("the feed's address stands in", "https://www.quantamagazine.org/feed/", opened())
+        assertEquals("the feed's front page stands in", "https://www.quantamagazine.org/", opened())
     }
 
     @Test
@@ -213,7 +219,8 @@ class SourceLinksTest {
         show(account, key = "5", until = "tt-rss says: HTTP Code: 404")
 
         assertTrue(visible("couldn't fetch it last time"))
-        compose.onNodeWithText("quantamagazine.org").performClick()
+        // The address to check in tt-rss is the feed's own, a tap away.
+        compose.onNodeWithText("www.quantamagazine.org/feed/").performClick()
         assertEquals("https://www.quantamagazine.org/feed/", opened())
     }
 
