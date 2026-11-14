@@ -205,7 +205,10 @@ module so it's all unit-tested without Android.
     ids they point at (they're paired up again by number). A marker points
     at the whole footnote, so a Kindle's popup shows its text, and markers
     side by side are split with a comma ("3, 4"). Notes a page keeps in a
-    `<footer>` or `<aside>` come along when the text links to them. Substack
+    `<footer>` or `<aside>` come along when the text links to them. Notes a
+    writer numbered by hand, with no links (a plain superscript 1, 2, 3… in
+    the text and paragraphs starting with the same numbers below), are
+    linked up too. Substack
     Notes quoted where the post embeds them, galleries as a figure of their
     pictures and caption, and @-mentions keep the name the page's script
     would have filled in. tt-rss strips all three, so a
