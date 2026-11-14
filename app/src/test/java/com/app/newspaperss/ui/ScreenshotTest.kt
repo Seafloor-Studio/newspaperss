@@ -954,6 +954,20 @@ class ScreenshotTest {
         }
     }
 
+    /** An audio version whose post isn't in the edition: it plays on its own page. */
+    @Test
+    fun articlePreviewAudioVersionPlaysHere() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "Audio version of How a ferry timetable is made", sourceTitle = "The Example Letter", url = "https://example.com/ferry-audio", bodyHtml = "<p>Listen to this post.</p>", minutes = 1.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05c6-article-preview-audio-version", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(
+                loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {},
+                bannerFor = { listenBanner(EpisodeKind.AUDIO_VERSION, com.app.newspaperss.data.EpisodePair("g", "How a ferry timetable is made", EpisodeKind.ARTICLE), Outcome.Plays(720)) { null } },
+            )
+        }
+    }
+
     /** Episode notes switched off in Settings: the banner says where to switch them on, a link there. */
     @Test
     fun articlePreviewNotesSwitchedOff() {

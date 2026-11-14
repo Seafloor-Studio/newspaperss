@@ -81,8 +81,19 @@ class ListenBannerTest {
             "Its transcript is a separate post, “${q("Rail Talk")}”.",
             text(EpisodeKind.ARTICLE, null, EpisodePair("g", "Rail Talk", EpisodeKind.TRANSCRIPT)),
         )
-        // An audio version, and a post never judged, are left to what the detector says.
-        assertNull(text(EpisodeKind.AUDIO_VERSION, null))
+        // A post never judged is left to what the detector says.
         assertNull(text(null, null))
+    }
+
+    /** An audio version plays with its post, or on its own page when its post isn't in the edition. */
+    @Test
+    fun anAudioVersionSaysWhereItsRecordingPlays() {
+        val pair = EpisodePair("g", "October 15", EpisodeKind.ARTICLE)
+        val head = "Audio version of “${q("October 15")}”"
+        assertEquals("$head. Listen plays it with “${q("Rail Talk: night trains")}”.", text(EpisodeKind.AUDIO_VERSION, Outcome.PlaysWith(2), pair))
+        assertEquals("$head. Listen plays it here.", text(EpisodeKind.AUDIO_VERSION, Outcome.Plays(720), pair))
+        assertEquals("$head. To play it, turn on Narrated articles in Settings › Listening.", text(EpisodeKind.AUDIO_VERSION, Outcome.Read(Why.KIND_OFF), pair))
+        assertEquals("$head, but no audio file found.", text(EpisodeKind.AUDIO_VERSION, Outcome.Read(Why.NO_AUDIO), pair))
+        assertEquals("Audio version of another post. Listen plays it here.", text(EpisodeKind.AUDIO_VERSION, Outcome.Plays(720)))
     }
 }

@@ -39,8 +39,13 @@ class ListenBook(
             val book = EpubPages(file)
             // Known once the recordings are found, which reads the articles' pages first.
             var ending = emptyList<EndEpisode>()
+            // While the recordings are found, every page as it is: what was passed over last time
+            // may not be now.
+            var finding = true
             val read: suspend (Int) -> ListenScript? = { index ->
                 when {
+                    // Its recording plays on its post's page: nothing to say here.
+                    !finding && readings?.passedOver(editionId)?.contains(index) == true -> ListenScript(emptyList())
                     index < contents.size -> withContext(Dispatchers.IO) { book.article(contents[index].entry.position) }?.let(ListenScript::parse)
                     index == contents.size -> withContext(Dispatchers.IO) { book.entry("OEBPS/end.xhtml")?.toString(Charsets.UTF_8) }?.let(ListenScript::parse)
                     else -> ending.getOrNull(index - contents.size - 1)?.script
@@ -56,12 +61,16 @@ class ListenBook(
             } catch (e: Exception) {
                 Log.w("ListenBook", "Couldn't find the recordings: ${e.javaClass.name}")
             }
+            finding = false
             ending = readings?.ending(editionId).orEmpty()
             // A page that plays a recording takes as long as it: an episode can be half or twice
             // its transcript read aloud.
+            val passedOver = readings?.passedOver(editionId).orEmpty()
             val pages = contents.mapIndexed { i, it ->
                 val recording = readings?.at(editionId, i)?.seconds?.let { s -> s / 60.0 }
-                ListenPage(it.entry.title, it.entry.sourceTitle, recording ?: ListenTime.fromReading(it.entry.minutes))
+                // Passed over: no time of its own, its recording counted on its post's page.
+                val minutes = if (i in passedOver) 0.0 else recording ?: ListenTime.fromReading(it.entry.minutes)
+                ListenPage(it.entry.title, it.entry.sourceTitle, minutes)
             } + ListenPage(EpubWriter.END_TITLE, null, 0.0, end = true) +
                 ending.map { ListenPage(it.title, it.source, (it.reading.seconds ?: 0) / 60.0, episode = true, audio = it.reading.url) }
             return ListenBook(editionId, edition.title, pages, read = read, onClose = book::close)

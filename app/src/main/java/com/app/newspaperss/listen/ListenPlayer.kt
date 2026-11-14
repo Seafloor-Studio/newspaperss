@@ -195,7 +195,7 @@ class ListenPlayer(
         val line = if (restart) current.at.line else current.at.line - 1
         when {
             line >= 0 -> goToLine(line, script)
-            current.at.page > 0 -> move(ListenPosition(current.at.page - 1, Int.MAX_VALUE), current.playing)
+            current.at.page > 0 -> move(ListenPosition(current.at.page - 1, Int.MAX_VALUE), current.playing, back = true)
             else -> goToLine(0, script)
         }
     }
@@ -217,7 +217,7 @@ class ListenPlayer(
     fun previous() {
         val current = _state.value
         val page = if (current.at.line >= RESTART_AFTER_LINES || current.at.page == 0) current.at.page else current.at.page - 1
-        move(ListenPosition(page, 0), current.playing)
+        move(ListenPosition(page, 0), current.playing, back = page < current.at.page)
     }
 
     /** Plays from [position]: a tapped sentence, or an article picked from the contents. */
@@ -309,7 +309,8 @@ class ListenPlayer(
         if (current.playing) speakFrom(at.line) else speaker.stop()
     }
 
-    private fun move(position: ListenPosition, play: Boolean, chimeFirst: Boolean = false) {
+    /** @param back going back with ⏮ or ↶: a page with nothing to say is passed over backwards. */
+    private fun move(position: ListenPosition, play: Boolean, chimeFirst: Boolean = false, back: Boolean = false) {
         val current = _state.value
         endOutOfOrder = current.pages.getOrNull(current.at.page)?.episode == true || (endOutOfOrder && position.page == current.at.page)
         silence()
@@ -320,7 +321,7 @@ class ListenPlayer(
         val turn = ++turns
         job = scope.launch {
             try {
-                goTo(position, chimeFirst)
+                goTo(position, chimeFirst, back)
             } finally {
                 // A cancelled turn ends after the one that replaced it began.
                 if (turn == turns) turning = false
@@ -328,7 +329,7 @@ class ListenPlayer(
         }
     }
 
-    private suspend fun goTo(position: ListenPosition, chimeFirst: Boolean = false) {
+    private suspend fun goTo(position: ListenPosition, chimeFirst: Boolean = false, back: Boolean = false) {
         val opened = book ?: return
         val page = position.page.coerceIn(0, opened.pages.lastIndex)
         val current = _state.value
@@ -341,8 +342,14 @@ class ListenPlayer(
             return
         }
         if (script.lines.isEmpty()) {
-            // A page with nothing to say, like an article that's only a video, is passed over.
-            if (page < opened.pages.lastIndex) goTo(ListenPosition(page + 1, 0), chimeFirst) else finish()
+            // A page with nothing to say, like an article that's only a video, is passed over for the
+            // nearest that has something: forwards, or backwards for ⏮ and ↶ (on to the line they
+            // asked for there), and forwards after all with none before it. One that won't read is
+            // gone to, to say so.
+            val ahead = (page + 1..opened.pages.lastIndex).toList()
+            val order = if (back) (page - 1 downTo 0).toList() + ahead else ahead
+            val to = order.firstOrNull { i -> opened.script(i)?.lines?.isNotEmpty() != false }
+            if (to == null) finish() else goTo(ListenPosition(to, if (to < page) position.line else 0), chimeFirst)
             return
         }
         val at = ListenPosition(page, position.line.coerceIn(0, script.lines.lastIndex))

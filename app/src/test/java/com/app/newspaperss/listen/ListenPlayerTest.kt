@@ -493,6 +493,42 @@ class ListenPlayerTest {
         assertEquals(ListenPosition(1, 0), progress.get(5))
     }
 
+    private fun holes(vararg pages: ListenScript) = ListenPlayer(
+        speaker, progress,
+        open = { ListenBook(it, "E", pages.indices.map { i -> ListenPage("$i", null, 1.0) }, read = { i -> pages.getOrNull(i) }) },
+        scope = TestScope(UnconfinedTestDispatcher()),
+    )
+
+    /**
+     * Back onto a page with nothing to say goes on back past it, to the line asked for there: ⏮
+     * to the article before's start, ↶ to its last sentence. Forwards, and a page picked, go forwards.
+     */
+    @Test
+    fun backPastAPageWithNothingToSay() {
+        val player = holes(script("A one.", "A two.", "A three."), ListenScript(emptyList()), script("C one."))
+        player.start(5, ListenPosition(2, 0))
+        player.previous()
+        assertEquals("⏮: the article before's start", ListenPosition(0, 0), player.state.value.at)
+        player.next()
+        assertEquals("forward past it too", ListenPosition(2, 0), player.state.value.at)
+        player.playPage(1)
+        assertEquals("picked from below it: on to the next that has something, not back", ListenPosition(2, 0), player.state.value.at)
+        // Paused, ↶ at a page's first sentence goes to the one before (playing, it first says it again).
+        player.pause()
+        player.back()
+        assertEquals("↶: the article before's last sentence", ListenPosition(0, 2), player.state.value.at)
+    }
+
+    /** With nothing before it to say, back goes forwards after all: no loop between empty pages. */
+    @Test
+    fun backPastTwoEmptyPagesAtTheStart() {
+        val player = holes(ListenScript(emptyList()), ListenScript(emptyList()), script("C one.", "C two."))
+        player.start(5, ListenPosition(2, 0))
+        player.previous()
+        assertEquals(ListenPosition(2, 0), player.state.value.at)
+        assertTrue(player.state.value.playing)
+    }
+
     @Test
     fun controlsTappedWhileTheNextArticleIsReadWaitForIt() {
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()

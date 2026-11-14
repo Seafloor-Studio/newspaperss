@@ -299,6 +299,47 @@ class ReadingsTest {
 
     }
 
+    /**
+     * An audio version is passed over when its post plays it; with its post not in the edition it
+     * plays on its own page, after its heading; with narrated articles off, or none, the voice reads it.
+     */
+    @Test
+    fun anAudioVersionPlaysWithItsPostOrOnItsOwnPage() = runTest {
+        var choices = Recordings()
+        val readings = Readings(db, { choices }, logged::add)
+        val source = db.sources().insert(SourceEntity(url = "https://a.example/feed", title = "A"))
+        suspend fun post(guid: String, kind: EpisodeKind, audio: String? = null, seconds: Int? = null, pair: String? = null) = db.articles().insertIgnoring(
+            ArticleEntity(sourceId = source, guid = guid, url = "https://a.example/$guid", title = guid, episodeKind = kind, audioUrl = audio, audioSeconds = seconds, episodePair = pair),
+        )
+        val ids = listOf(
+            post("narrated-version", EpisodeKind.AUDIO_VERSION, audio = "https://cdn.example/1.mp3", seconds = 640, pair = "essay"),
+            post("essay", EpisodeKind.ARTICLE, pair = "narrated-version"),
+            post("lone-version", EpisodeKind.AUDIO_VERSION, audio = "https://cdn.example/2.mp3", seconds = 720, pair = "not-here"),
+            post("silent-version", EpisodeKind.AUDIO_VERSION),
+        )
+        val contents = ids.mapIndexed { i, id -> EditionContent(EditionArticleEntity(editionId = 3, articleId = id, position = i, title = "$i", sourceTitle = "A", minutes = 7.0), state = null) }
+        val load: suspend () -> Unit = { readings.load(3, contents) { page(1_600) } }
+
+        load()
+        assertEquals("https://cdn.example/1.mp3", readings.at(3, 1)?.url)
+        assertEquals(setOf(0), readings.passedOver(3))
+        assertEquals("heard with the post that played it", listOf(0), readings.passedOverWith(3, 1))
+        assertEquals(emptyList<Int>(), readings.passedOverWith(3, 2))
+        assertTrue(logged.last(), logged.last().contains("; passed over: page 0 (its recording plays on page 1)"))
+        val lone = readings.at(3, 2)!!
+        assertEquals("on its own page, after its heading", Reading("https://cdn.example/2.mp3", 720, own = true, bodyLine = 2, starts = lone.starts), lone)
+        assertEquals(
+            mapOf(0 to Outcome.PlaysWith(1), 1 to Outcome.Plays(640), 2 to Outcome.Plays(720), 3 to Outcome.Read(Outcome.Why.NO_AUDIO)),
+            readings.outcomes(3),
+        )
+
+        choices = Recordings(readings = false)
+        load()
+        assertEquals("none passed over: the voice reads them all", emptySet<Int>(), readings.passedOver(3))
+        assertNull(readings.at(3, 2))
+        assertEquals(Outcome.Read(Outcome.Why.KIND_OFF), readings.outcomes(3)!![2])
+    }
+
     @Test
     fun theKindsSwitchedOffInSettingsAreReadByTheVoiceFromTheNextEditionOpened() = runTest {
         var choices = Recordings(readings = false)

@@ -207,6 +207,44 @@ class ListenAppTest {
         assertEquals(ListenTime.fromReading(2.0), book.pages[1].minutes, 0.001)
     }
 
+    /** An audio version whose post plays it is passed over: nothing to say, and no time of its own. */
+    @Test
+    fun anAudioVersionWhosePostPlaysItIsPassedOver() = runBlocking {
+        val version = EditionArticle(title = "Audio version of October 15", sourceTitle = "The Example Letter", url = "https://example.com/v", bodyHtml = "<p>Listen to this post.</p>", minutes = 1.0)
+        val essay = EditionArticle(
+            title = "October 15", sourceTitle = "The Example Letter", url = "https://example.com/e",
+            bodyHtml = "<p>" + List(160) { (1..10).joinToString(" ") { "word" } + "." }.joinToString(" ") + "</p>", minutes = 8.0,
+        )
+        FileOutputStream(File(editionsDir, "v.epub")).use {
+            EpubWriter.write(EditionDoc("Friday Morning Edition", LocalDate.of(2026, 10, 2), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000021", listOf(version, essay)), it)
+        }
+        val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Letter"))
+        val versionId = db.articles().insertIgnoring(
+            ArticleEntity(sourceId = source, guid = "v", url = version.url, title = version.title, episodeKind = EpisodeKind.AUDIO_VERSION, audioUrl = "https://cdn.example/v.mp3", audioSeconds = 600, episodePair = "e"),
+        )
+        val essayId = db.articles().insertIgnoring(ArticleEntity(sourceId = source, guid = "e", url = essay.url, title = essay.title, episodeKind = EpisodeKind.ARTICLE, episodePair = "v"))
+        val id = db.editions().insert(EditionEntity(title = "Friday Morning Edition", status = EditionStatus.DELIVERED, fileName = "v.epub", articleCount = 2, minutes = 9.0))
+        db.editions().insertArticles(
+            listOf(
+                EditionArticleEntity(editionId = id, articleId = versionId, position = 0, title = version.title, sourceTitle = version.sourceTitle, minutes = version.minutes),
+                EditionArticleEntity(editionId = id, articleId = essayId, position = 1, title = essay.title, sourceTitle = essay.sourceTitle, minutes = essay.minutes),
+            ),
+        )
+
+        val readings = Readings(db, { Recordings() })
+        val book = ListenBook.open(repo, id, readings)!!
+
+        assertTrue(book.script(0)!!.lines.isEmpty())
+        assertEquals(0.0, book.pages[0].minutes, 0.001)
+        assertEquals("its recording counted on its post's page", 10.0, book.pages[1].minutes, 0.001)
+
+        // Opened again once its post no longer plays it (its label corrected): found as it is now, not as last time.
+        db.articles().setEpisodeKind(source, "e", EpisodeKind.TRANSCRIPT)
+        val again = ListenBook.open(repo, id, readings)!!
+        assertEquals("https://cdn.example/v.mp3", readings.at(id, 0)?.url)
+        assertTrue(again.script(0)!!.lines.isNotEmpty())
+    }
+
     /**
      * A notes post's episode plays once the edition is over, after "That's all for today", on a
      * page of its own; the notes are read in their place.
