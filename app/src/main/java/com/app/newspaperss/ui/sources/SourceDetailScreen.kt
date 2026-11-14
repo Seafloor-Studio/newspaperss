@@ -373,12 +373,12 @@ private fun Health(source: SourceEntity, learned: PublicationEntity?, lastNew: I
     // A feed's site, or its front page until its articles name one; the feed has its own link below.
     // Not one that isn't a web address, as a hostile feed's may not be.
     val site = if (source.kind == SourceKind.FEED) {
-        source.siteUrl?.takeIf { isWebAddress(it) && it != source.url } ?: frontPage(source.url) ?: source.url
+        source.siteUrl?.takeIf { isWebAddress(it) && it != source.url } ?: frontPage(source.url)
     } else {
         listOfNotNull(source.siteUrl, source.url).firstOrNull(::isWebAddress) ?: source.siteUrl ?: source.url
     }
     Column(Modifier.padding(16.dp)) {
-        AddressLink(site, SourceRepository.hostOf(site), MaterialTheme.typography.bodyMedium, onCopied)
+        site?.let { AddressLink(it, SourceRepository.hostOf(it), MaterialTheme.typography.bodyMedium, onCopied) }
         Column(Modifier.padding(top = 12.dp)) {
             // Paused here, first on the page, as well as in the settings: it's the one that stops the site altogether.
             val status = if (source.paused) "Paused · nothing new comes in" else statusLine(source, lastNew, clock.instant(), clock.zone)
@@ -389,7 +389,7 @@ private fun Health(source: SourceEntity, learned: PublicationEntity?, lastNew: I
             lastCheckedLine(source.lastFetchedAt, locale, is24Hour, clock.instant(), clock.zone)?.let { Text(it, style = details, color = muted) }
             if (source.kind == SourceKind.FEED) {
                 Text(textLine(learned), style = details, color = muted)
-                if (site != source.url) FeedLink(source.url, details, onCopied)
+                FeedLink(source.url, details, onCopied)
             }
             episodes?.let { Text(it, style = details, color = muted) }
         }

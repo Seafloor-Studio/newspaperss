@@ -108,6 +108,14 @@ class SourceLinksTest {
         assertEquals("https://example.com/weekly/rss.xml", opened())
     }
 
+    /** A feed at its site's root: both links, the same address, so the feed's own is always there. */
+    @Test
+    fun aFeedAtItsSitesRootStillHasItsOwnLink() {
+        val id = runBlocking { repo.addFeed("https://example.com/", "Example Weekly").also { db.sources().recordSuccess(it, Instant.now(), null, null, "") } }
+        show(id, until = "Last checked")
+        compose.onNode(hasContentDescription("Feed")).assertExists()
+    }
+
     @Test
     fun aSiteAddressThatIsNotTheWebIsNeverOpened() {
         show(feed(siteUrl = "intent://scan/#Intent;scheme=zxing;end"), until = "Last checked")

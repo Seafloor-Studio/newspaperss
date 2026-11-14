@@ -964,7 +964,7 @@ whose Kindle and KOReader answers ask for more on the same page).
     from the unread articles it fetches, so a feed left out, or one with
     nothing unread since, may not have one yet. Until the app knows the
     site, the link at the top is the feed's front page
-    (backseats.substack.com for backseats.substack.com/feed), and the feed
+    (example.com for example.com/feed.xml), and the feed
     keeps its own link below.
   - These links open only web addresses. With no browser to take one, or
     on a long press, the address is copied and a snackbar says so.
