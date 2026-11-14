@@ -92,6 +92,35 @@ class HtmlCleanerTest {
         assertEquals("footnote-4", back.id())
     }
 
+    /** Notes numbered by hand, as some Substack writers do: nothing links them, on the page or in the feed. */
+    @Test
+    fun handNumberedFootnotesAreLinkedBothWays() {
+        val html = clean(
+            """<p><span>As the poet said.</span><sup>1</sup><span> Then more.</span><sup>[2]</sup></p>
+               <p>$longText</p>
+               <div><hr></div>
+               <p><sup>1</sup><span> A. Poet, </span><em>Collected Lines</em><span>, 1999</span></p>
+               <p><sup>[2]</sup><span> Ibid.</span></p>""",
+        )
+        val doc = Jsoup.parse(html)
+        for ((number, text) in listOf("1" to "A. Poet, Collected Lines, 1999", "[2]" to "Ibid.")) {
+            val (marker, back) = doc.select("a").filter { it.text() == number }
+            val note = doc.getElementById(marker.attr("href").removePrefix("#"))!!
+            assertTrue("the marker goes to the note: $html", note === back && text in note.parent()!!.text())
+            assertEquals("and the note's number back to the marker", marker, doc.getElementById(back.attr("href").removePrefix("#")))
+        }
+    }
+
+    @Test
+    fun superscriptsThatArentANumberedRunOfNotesStayPlain() {
+        val squared = "<p>Area is x<sup>2</sup>.</p><p>$longText</p><p><sup>2</sup> A paragraph starting at 2.</p>"
+        val noMarker = "<p>Text.<sup>1</sup></p><p><sup>1</sup> First note.</p><p><sup>2</sup> A second with nothing pointing at it.</p>"
+        val markerAfter = "<p><sup>1</sup> A note above its marker.</p><p>Text.<sup>1</sup></p>"
+        for (html in listOf(squared, noMarker, markerAfter)) {
+            assertTrue(clean(html), Jsoup.parse(clean(html)).select("a").isEmpty())
+        }
+    }
+
     @Test
     fun aLinkToThisPagePlusAFragmentBecomesAnInBookLink() {
         val html = clean("""<p id="part-two">Part two.</p><p><a href="$base#part-two">back to part two</a> $longText</p>""")

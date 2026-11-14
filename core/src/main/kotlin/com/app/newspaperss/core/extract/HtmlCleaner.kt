@@ -76,6 +76,7 @@ object HtmlCleaner {
         body.select("source").remove()
         flattenLayoutTables(body)
         stripTagsAndAttributes(body)
+        linkPlainFootnotes(body)
         fixLinks(body, baseUrl)
         if (!title.isNullOrBlank()) removeLeadingTitle(body, title)
         val teaser = removeReadMore(body, baseUrl)
@@ -819,6 +820,42 @@ object HtmlCleaner {
     }
 
     /**
+     * Links footnotes a writer numbered by hand: a plain `<sup>3</sup>` in the text and, further
+     * down, a paragraph starting with `<sup>3</sup>`, with no link between them (the page doesn't
+     * have one either). Only a run of such paragraphs numbered 1, 2, 3… counts as notes, and only
+     * when the text before the first has a marker for each, so a squared number or a stray
+     * superscript is left alone. Both get links pointing at each other, the shape a platform's own
+     * footnotes have, which the book then turns into popups.
+     */
+    internal fun linkPlainFootnotes(body: Element) {
+        fun numberOf(sup: Element): Int? =
+            if (sup.closest("a") != null) null else PLAIN_FOOTNOTE.matchEntire(sup.text().trim())?.groupValues?.get(1)?.toIntOrNull()
+        val notes = body.select("p").mapNotNull { p ->
+            val first = p.childNodes().firstOrNull { it !is TextNode || !it.isBlank } as? Element ?: return@mapNotNull null
+            if (first.tagName() != "sup" || p.text().length <= first.text().length) return@mapNotNull null
+            numberOf(first)?.let { Triple(it, p, first) }
+        }
+        if (notes.isEmpty() || notes.withIndex().any { (i, note) -> note.first != i + 1 }) return
+        val firstNote = notes.first().second
+        val order = body.select("*").withIndex().associate { (i, el) -> el to i }
+        val start = order.getValue(firstNote)
+        val noteSups = notes.map { it.third }.toSet()
+        val markers = body.select("sup")
+            .filter { it !in noteSups && order.getValue(it) < start }
+            .mapNotNull { sup -> numberOf(sup)?.let { it to sup } }
+            .groupBy({ it.first }, { it.second })
+        if (notes.any { markers[it.first].isNullOrEmpty() }) return
+        val ids = body.select("[id]").map { it.id() }.toSet()
+        if (notes.any { "fn-${it.first}" in ids || "fnref-${it.first}" in ids }) return
+        for ((number, _, sup) in notes) {
+            sup.wrap("""<a id="fn-$number" href="#fnref-$number"></a>""")
+            markers.getValue(number).forEachIndexed { i, marker ->
+                marker.wrap(if (i == 0) """<a id="fnref-$number" href="#fn-$number"></a>""" else """<a href="#fn-$number"></a>""")
+            }
+        }
+    }
+
+    /**
      * An address with what tt-rss and sites vary dropped: the scheme, "www.", a query and a trailing
      * slash. Ending in "/", so "blog/" isn't taken as the start of "blog-2/".
      */
@@ -1130,6 +1167,7 @@ object HtmlCleaner {
     private val BLANK_LINE = Regex("\\n\\s*\\n")
     private val NEWLINES = Regex("\\n+")
     private val TRAILING_NUMBER = Regex("\\d+$")
+    private val PLAIN_FOOTNOTE = Regex("\\[?(\\p{Nd}{1,3})]?")
     private const val FOOTNOTE_MARKER_MAX = 4
     private val AUTHOR_SEPARATOR = Regex(":\\s+|\\s+[|–—]\\s+")
     private const val STEM_PREFIX_MIN = 2

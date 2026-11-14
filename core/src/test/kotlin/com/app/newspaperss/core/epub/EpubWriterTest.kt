@@ -583,6 +583,21 @@ class EpubWriterTest {
         epub.xml("OEBPS/content.opf")
     }
 
+    /** Hand-numbered notes, linked by the cleaner, pop up their whole text like a platform's own. */
+    @Test
+    fun aHandNumberedFootnotesMarkerPointsAtItsWholeNote() {
+        val body = HtmlCleaner.clean(
+            "<p><span>Some context.</span><sup>1</sup></p><p>${"word ".repeat(100)}</p>" +
+                "<div><hr></div><p><sup>1</sup><span> Read the note, </span><em>all</em><span> of it.</span></p>",
+            "https://example.com/p/post",
+        ).html
+        val page = write(doc(article(body = body))).let { it.xml("OEBPS/" + it.articleHrefs().single()) }
+        val marker = page.elements("a").first()
+        val note = page.elements("*").single { it.getAttribute("id") == marker.getAttribute("href").removePrefix("#") }
+        assertEquals("p", note.localName)
+        assertEquals("1 Read the note, all of it.", note.textContent)
+    }
+
     /** A Kindle's footnote popup shows only what the marker points at, so that must be the footnote's text, not its number. */
     @Test
     fun aFootnoteMarkerPointsAtTheWholeFootnote() {
