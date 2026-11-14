@@ -26,6 +26,7 @@ import com.app.newspaperss.data.TtrssAccountStore
 import com.app.newspaperss.data.TtrssRepository
 import com.app.newspaperss.data.TtrssSubscriptions
 import com.app.newspaperss.edition.AndroidImageEncoder
+import com.app.newspaperss.edition.BlockedAnswers
 import com.app.newspaperss.edition.CoverRenderer
 import com.app.newspaperss.edition.EditionBuilder
 import com.app.newspaperss.edition.EditionRun
@@ -159,8 +160,11 @@ class AppContainer(
     val ttrssSubscriptions = TtrssSubscriptions(ttrss, appScope)
     val feedMoves = FeedMoves(feedMovesData, db, ttrss, schedule = moveFeeds)
     val feedSync = FeedSync(db, http, ttrssAccounts = ttrssAccounts, onUntitled = fetchReadingListTitles, episodesOn = EPISODES)
+    /** What sites answered when they turned the app away, for Send for a look; kept in debug builds only. */
+    val blockedAnswers: BlockedAnswers? = if (EPISODES) BlockedAnswers(File(context.filesDir, "blocked-answers.json")) else null
     private val content = ExtractorContentProvider(
         ArticleExtractor(http), http, AndroidImageEncoder(), onPaidOnly = sources::markPaidOnly, onUnreadable = db.articles()::setUnreadable,
+        onBlocked = { url, answer -> blockedAnswers?.record(url, answer) },
     ) { sourceId, originId, evidence, text ->
         sources.recordFullText(sourceId, originId, evidence, text.check, text.day)
     }

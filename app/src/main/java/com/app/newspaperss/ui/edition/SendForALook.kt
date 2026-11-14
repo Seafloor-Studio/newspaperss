@@ -62,7 +62,7 @@ private fun issueForm(link: ArticleLink, title: String, label: String, body: (ad
  * it only for people who can label this repository's issues; the title's "Extraction:" is what
  * marks it for everyone else.
  */
-internal fun lookIssueUrl(link: ArticleLink, appVersion: String): String =
+internal fun lookIssueUrl(link: ArticleLink, appVersion: String, blocked: String? = null): String =
     issueForm(link, "Extraction: ${issueTitle(link)}", "extraction") { address ->
         """
             |Article: $address
@@ -70,7 +70,7 @@ internal fun lookIssueUrl(link: ArticleLink, appVersion: String): String =
             |
             |What looks wrong (optional; a missing picture, text that shouldn't be there, the article cut short):
             |
-        """.trimMargin()
+        """.trimMargin() + blocked?.let { "\n\nWhat the site answered when it turned the app away:\n\n```\n${it.replace("`", "'")}\n```\n" }.orEmpty()
     }
 
 /**
@@ -98,7 +98,7 @@ internal fun labelIssueUrl(link: ArticleLink, got: EpisodeKind, `is`: EpisodeKin
  * rotation, as is its answer when no browser could take the form.
  */
 @Composable
-internal fun SendForALookDialog(link: ArticleLink, judgement: EpisodeJudgement?, onDismiss: () -> Unit) {
+internal fun SendForALookDialog(link: ArticleLink, judgement: EpisodeJudgement?, blocked: String? = null, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var noBrowser by rememberSaveable(link.url) { mutableStateOf(false) }
     var aboutLabel by rememberSaveable(link.url) { mutableStateOf(false) }
@@ -130,7 +130,10 @@ internal fun SendForALookDialog(link: ArticleLink, judgement: EpisodeJudgement?,
                 if (judgement != null && aboutLabel) {
                     Text("Anyone can see what you send: it becomes a public issue on GitHub, with this post's address, the label it got, the one you pick and the app's version. Nothing else from your app is sent.")
                 } else {
-                    Text("Anyone can see what you send: it becomes a public issue on GitHub, with this article's address and the app's version.")
+                    Text(
+                        if (blocked == null) "Anyone can see what you send: it becomes a public issue on GitHub, with this article's address and the app's version."
+                        else "Anyone can see what you send: it becomes a public issue on GitHub, with this article's address, the app's version, and what the site answered when it turned the app away (no cookies or network addresses).",
+                    )
                     Spacer(Modifier.height(8.dp))
                     Text("Your browser opens GitHub's form, filled in. You'll need a GitHub account to send it, and you can add what looks wrong. The app's page is then checked against the original, and what it got wrong is fixed.")
                 }
@@ -147,7 +150,7 @@ internal fun SendForALookDialog(link: ArticleLink, judgement: EpisodeJudgement?,
                 enabled = judgement == null || !aboutLabel || picked != null,
                 onClick = {
                     val version = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
-                    val url = if (judgement != null && aboutLabel && picked != null) labelIssueUrl(link, judgement.kind, picked, version) else lookIssueUrl(link, version)
+                    val url = if (judgement != null && aboutLabel && picked != null) labelIssueUrl(link, judgement.kind, picked, version) else lookIssueUrl(link, version, blocked)
                     if (openInBrowser(context, url)) onDismiss() else noBrowser = true
                 },
             ) { Text("Open GitHub") }

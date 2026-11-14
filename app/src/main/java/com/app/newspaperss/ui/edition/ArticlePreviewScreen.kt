@@ -207,6 +207,8 @@ fun ArticlePreviewScreen(
      * none. Falls back to [episodeNote] for a post Listen hasn't judged ([listenBanner] is null).
      */
     bannerFor: (Int) -> Banner? = { null },
+    /** What the article's site answered when it last turned the app away, by its address, for Send for a look. */
+    blockedAnswerFor: (url: String) -> String? = { null },
     /** False while the banners are worked out: none shows, rather than one that then changes. */
     bannersReady: Boolean = true,
     /** Follows a banner's link, for the article at this position. */
@@ -315,7 +317,7 @@ fun ArticlePreviewScreen(
     }
     // Closed with Listen: left saved, it would open by itself the next time Listen starts.
     LaunchedEffect(listening == null) { if (listening == null) contents = false }
-    link?.takeIf { it.url == lookAt }?.let { SendForALookDialog(it, shown?.article?.let(episodeFor), onDismiss = { lookAt = null }) }
+    link?.takeIf { it.url == lookAt }?.let { SendForALookDialog(it, shown?.article?.let(episodeFor), blocked = remember(it.url) { blockedAnswerFor(it.url) }, onDismiss = { lookAt = null }) }
     Scaffold(
         topBar = {
             TopAppBar(

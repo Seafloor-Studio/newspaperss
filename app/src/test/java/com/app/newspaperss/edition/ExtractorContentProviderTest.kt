@@ -114,6 +114,22 @@ class ExtractorContentProviderTest {
         assertEquals(null, provider.contentFor(saved, readingList, ImageAllowance(), TextChoice()))
     }
 
+    /** A site that turns the app away: what it answered is passed on, by the article's address. */
+    @Test
+    fun aPageThatTurnsTheAppAwayIsReportedWithWhatItAnswered() = runTest {
+        val blocked = mutableListOf<Pair<String, String>>()
+        val reporting = ExtractorContentProvider(ArticleExtractor(http), http, AndroidImageEncoder(), onBlocked = { url, answer -> blocked += url to answer }) { _, _, _, _ -> }
+        http.page("https://example.com/story", "<html>Forbidden</html>", code = 403)
+        http.page("https://example.com/down", "", code = 500)
+        val paged = source.copy(contentMode = ContentMode.PAGE)
+
+        reporting.contentFor(article("<p>Its summary.</p>"), paged, ImageAllowance(), TextChoice())
+        reporting.contentFor(article("<p>Its summary.</p>").copy(url = "https://example.com/down"), paged, ImageAllowance(), TextChoice())
+
+        assertEquals(listOf("https://example.com/story"), blocked.map { it.first })
+        assertTrue(blocked.single().second, blocked.single().second.startsWith("HTTP 403"))
+    }
+
     @Test
     fun aSavedLinkThatCanNeverBeReadIsReportedOnceAndOneWorthRetryingIsNot() = runTest {
         val unreadable = mutableListOf<Pair<Long, String>>()

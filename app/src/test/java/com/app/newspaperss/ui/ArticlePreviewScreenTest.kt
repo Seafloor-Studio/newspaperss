@@ -573,6 +573,16 @@ class ArticlePreviewScreenTest {
         compose.idleUntil { compose.onAllNodesWithText("public issue on GitHub", substring = true).fetchSemanticsNodes().isNotEmpty() }
     }
 
+    /** An article a site turned away: the issue says what the site answered, set apart so it reads as it was. */
+    @Test
+    fun aBlockedArticlesIssueSaysWhatTheSiteAnswered() {
+        val answer = "HTTP 403\nx-datadome: protected\npage: Access ```blocked```"
+        val body = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", "https://a.example/1"), "1.0", answer)).getQueryParameter("body")!!
+        assertTrue(body, body.endsWith("What the site answered when it turned the app away:\n\n```\nHTTP 403\nx-datadome: protected\npage: Access '''blocked'''\n```\n"))
+        val plain = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", "https://a.example/1"), "1.0")).getQueryParameter("body")!!
+        assertFalse(plain, "turned the app away" in plain)
+    }
+
     @Test
     fun aVeryLongArticleAddressIsLeftForTheReaderToPasteRatherThanOverfillingTheForm() {
         val long = "https://a.example/" + "x".repeat(9_000)

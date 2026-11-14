@@ -317,6 +317,18 @@ class ArticleExtractorTest {
         assertTrue(article.pageBlocked)
     }
 
+    /** A site that turns the app away is described ([BlockedAnswer]); one that just fails isn't. */
+    @Test
+    fun aBlockedPageSaysWhatTheSiteAnswered() = runTest {
+        val refused = HttpResponse(403, url, "text/html", "<html>Forbidden</html>", headers = listOf("X-DataDome" to "protected"))
+        val article = ArticleExtractor(FakeHttp(mapOf(url to refused))).extract(input(teaser))
+        assertTrue(article.pageBlocked)
+        assertTrue(article.pageBlockedAnswer.orEmpty(), "x-datadome: protected" in article.pageBlockedAnswer.orEmpty())
+
+        val broken = ArticleExtractor(FakeHttp(mapOf(url to page("<html>Oops</html>", code = 500)))).extract(input(teaser))
+        assertEquals(null, broken.pageBlockedAnswer)
+    }
+
     @Test
     fun pageTitleIsUsedWhenTheItemHasNone() = runTest {
         val article = ArticleExtractor(FakeHttp(mapOf(url to page()))).extract(input(null, feedTitle = " "))
