@@ -61,9 +61,12 @@ class ListenBook(
             ending = readings?.ending(editionId).orEmpty()
             // A page that plays a recording takes as long as it: an episode can be half or twice
             // its transcript read aloud.
+            val passedOver = readings?.passedOver(editionId).orEmpty()
             val pages = contents.mapIndexed { i, it ->
                 val recording = readings?.at(editionId, i)?.seconds?.let { s -> s / 60.0 }
-                ListenPage(it.entry.title, it.entry.sourceTitle, recording ?: ListenTime.fromReading(it.entry.minutes))
+                // Passed over: no time of its own, its recording counted on its post's page.
+                val minutes = if (i in passedOver) 0.0 else recording ?: ListenTime.fromReading(it.entry.minutes)
+                ListenPage(it.entry.title, it.entry.sourceTitle, minutes)
             } + ListenPage(EpubWriter.END_TITLE, null, 0.0, end = true) +
                 ending.map { ListenPage(it.title, it.source, (it.reading.seconds ?: 0) / 60.0, episode = true, audio = it.reading.url) }
             return ListenBook(editionId, edition.title, pages, read = read, onClose = book::close)
