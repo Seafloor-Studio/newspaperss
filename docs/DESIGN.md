@@ -694,8 +694,13 @@ whose Kindle and KOReader answers ask for more on the same page).
     itself after the edition, turn on Episode notes in Settings › Listening."
     Switched off for the source: "You've turned off episode audio for this source.",
     "this source" a link to its page.
-  - An audio version keeps its line: "Listen plays it with that post, when that
-    post is in the edition."
+  - An audio version (a narration posted beside its post): "Listen plays it with
+    that post." when its post is in the edition and plays it, and Listen passes over
+    its page, which counts no time of its own; "Listen plays it here." when its post
+    isn't, and its page plays the recording after its heading, as a narrated article
+    does. Switched off, or with no audio, it says so, and the voice reads its page.
+  - A page with nothing to say is passed over the way the listener was going: ⏮
+    goes on back past it.
   A pair's title is cut to about 45 characters, so the banner fits.
   A source that posts episodes says how often, among its newest judged posts:
   "Posts episodes: 9 of the last 17 posts". Release builds never judge posts, so
