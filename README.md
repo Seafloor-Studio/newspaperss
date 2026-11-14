@@ -55,8 +55,9 @@ another reader app's list):
   turns between sites with at most one article from each (you can allow
   more), so no site drowns out the others. The full article is fetched and
   cleaned for e-ink when a site only sends summaries; the app works out
-  which sites need that. A paid post goes in as its free part, with a note
-  saying so; a feed can skip paid posts with nothing free at all.
+  which sites need that. A paid post, or one for subscribers who sign up
+  for free, goes in as its open part, with a note saying which; a feed can
+  skip posts with nothing free at all.
 - **Ready when you are.** Set a "ready by" time; the app starts early so the
   paper is there when you wake.
 - **A proper book.** A cover with the day's headlines, contents with

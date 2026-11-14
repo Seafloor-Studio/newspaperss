@@ -490,6 +490,50 @@ class ArticleExtractorTest {
         assertFalse("an excerpt feed's page is the whole post", free.paidPost)
     }
 
+    private val substackFreewall = """<div data-testid="freewall" data-component-name="Freewall" role="region" aria-label="Subscribe for free to continue reading">""" +
+        """<div class="fade" aria-hidden="true"></div><div class="card"><h2>Subscribe for free to continue reading</h2>""" +
+        """<div class="subtitle">Enter your email and get every post from The Example Letter.</div>""" +
+        """<form action="/api/v1/free?nojs=true" method="post"><input type="hidden" name="source" value="freewall">""" +
+        """<input type="email" name="email" placeholder="Type your email..."><button>Subscribe</button></form>""" +
+        """<div class="login">Already have an account? <a href="/sign-in">Sign in</a></div></div></div>"""
+
+    /** Shaped like Substack's post page: the header, then the open part with the box in place of the rest. */
+    private fun subscribersPage(words: Int, wall: String = substackFreewall) = page(
+        "<html><head><title>The Quiet Joy of Reading Slowly</title></head><body><article class=\"post\">" +
+            "<div class=\"post-header\"><h1>The Quiet Joy of Reading Slowly</h1><div class=\"byline\">A. Writer · Oct 30, 2026</div></div>" +
+            "<div class=\"available-content\"><div class=\"body markup\"><p>${sentence.repeat(words / 16 + 1)}</p>$wall</div></div>" +
+            "</article></body></html>",
+    )
+
+    /**
+     * Substack's post for subscribers only puts a free sign-up where a paid post's paywall goes: the
+     * open part has a note of its own, and the box isn't part of the post.
+     */
+    @Test
+    fun aSubstackSignUpWallIsAPostForSubscribers() = runTest {
+        val opening = "<p>${sentence.repeat(2)}<a href=\"$url\">Read more</a></p>"
+        val article = ArticleExtractor(FakeHttp(mapOf(url to subscribersPage(40)))).extract(input(opening))
+        assertTrue(article.paidPost)
+        assertTrue(article.freeSignUp)
+        assertEquals(ArticleExtractor.SIGN_UP_NOTE, article.note)
+        assertTrue(article.html, "committee met again" in article.html)
+        assertFalse(article.html, Regex("Subscribe|Enter your email|Already have an account").containsMatchIn(article.html))
+
+        val paid = ArticleExtractor(FakeHttp(mapOf(url to subscribersPage(40, substackPaywall)))).extract(input(opening))
+        assertFalse(paid.freeSignUp)
+        assertEquals(ArticleExtractor.PAID_NOTE, paid.note)
+    }
+
+    /** Next to nothing open behind a sign-up is next to nothing free, as for a paid post; a real opening isn't. */
+    @Test
+    fun aSignUpWallWithNextToNothingOpenIsNothingFree() = runTest {
+        val bare = ArticleExtractor(FakeHttp(mapOf(url to subscribersPage(10)))).extract(input("<p>A sentence of preview.</p>"))
+        assertTrue(bare.nothingFree)
+        val opening = ArticleExtractor(FakeHttp(mapOf(url to subscribersPage(200)))).extract(input(teaser))
+        assertFalse(opening.nothingFree)
+        assertEquals(ArticleExtractor.SIGN_UP_NOTE, opening.note)
+    }
+
     /** A link post's pitch is the pitcher's own words, free whatever the story's site does. */
     @Test
     fun aLinkPostsPitchIsntAPaidPost() = runTest {

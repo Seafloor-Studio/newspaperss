@@ -594,7 +594,7 @@ internal fun feedNote(feed: FeedChoice, now: Instant, listedAt: Instant? = null)
             else -> null
         },
         p?.maxArticles?.let { "At most $it" },
-        "Skips paid posts".takeIf { p?.skipPaidPosts == true },
+        "Skips posts with nothing free".takeIf { p?.skipPaidPosts == true },
     ).joinToString(" · ").ifEmpty { null }
 }
 
