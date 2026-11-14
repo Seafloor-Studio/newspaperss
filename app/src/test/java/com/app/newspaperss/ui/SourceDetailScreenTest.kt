@@ -297,7 +297,8 @@ class SourceDetailScreenTest {
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
         compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
         openSettings()
-        compose.idleUntil { compose.onAllNodes(hasText("Article text") and hasText("Automatic")).fetchSemanticsNodes().isNotEmpty() }
+        // Automatic says what it has found so far: where to look before overriding it.
+        compose.idleUntil { compose.onAllNodes(hasText("Article text") and hasText("Automatic: still working out whether the site sends full articles")).fetchSemanticsNodes().isNotEmpty() }
 
         runBlocking { repo.chooseContentMode(id, PublicationEntity.OWN, ContentMode.PAGE) }
 

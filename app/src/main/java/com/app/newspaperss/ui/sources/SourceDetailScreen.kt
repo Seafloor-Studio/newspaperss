@@ -184,15 +184,26 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
                 TopAppBar(
                     title = { Text(if (viewModel.isFeed) feedTitle else source?.title.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
-                    // Removing is rare and destructive: in the menu, as on an edition's page, not
-                    // beside Pause. A tt-rss account is left from Settings, as the server setup.
+                    // The feed's own address and removing are both rare: in the menu, as on an edition's
+                    // page, not on the page. A tt-rss account is left from Settings, as the server setup;
+                    // a tt-rss feed is left out from its settings.
                     actions = {
-                        if (source != null && !viewModel.isFeed && source.kind != SourceKind.TTRSS) {
+                        val feedAddress = if (viewModel.isFeed) publication?.feedUrl else source?.url?.takeIf { source.kind == SourceKind.FEED }
+                        val removable = source != null && !viewModel.isFeed && source.kind != SourceKind.TTRSS
+                        if (feedAddress != null || removable) {
+                            val context = LocalContext.current
                             var menu by remember { mutableStateOf(false) }
                             Box {
                                 IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, contentDescription = "More options") }
                                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                    DropdownMenuItem(text = { Text("Remove source") }, onClick = { menu = false; removing = true })
+                                    feedAddress?.takeIf(::isWebAddress)?.let { url ->
+                                        DropdownMenuItem(
+                                            text = { Text("Open feed") },
+                                            leadingIcon = { Icon(Icons.Default.RssFeed, contentDescription = null) },
+                                            onClick = { menu = false; openAddress(context, url, onCopied) },
+                                        )
+                                    }
+                                    if (removable) DropdownMenuItem(text = { Text("Remove source") }, onClick = { menu = false; removing = true })
                                 }
                             }
                         }
@@ -300,9 +311,9 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
 }
 
 /**
- * A tt-rss feed's site, then whether it's left out, failing or waiting, then the details: its account
- * and category, where its article text comes from, and the feed's own address, marked with the feed
- * icon. Until the feed's articles have named its site, the site is the feed's front page.
+ * A tt-rss feed's site, then whether it's left out, failing, waiting or short of full articles, then
+ * its account and category. Until the feed's articles have named its site, the site is the feed's
+ * front page. The feed's own address is in the menu.
  */
 @Composable
 private fun FeedHeader(publication: PublicationEntity?, account: SourceEntity?, episodes: String?, onCopied: (String) -> Unit) {
@@ -318,7 +329,8 @@ private fun FeedHeader(publication: PublicationEntity?, account: SourceEntity?, 
         // Not for a feed left out: it isn't fetched for the paper, so its fetching doesn't matter here.
         val serverError = publication?.serverError?.takeIf { !publication.leftOut }
         val leftOut = publication?.leftOut == true
-        if (leftOut || serverError != null || publication?.awaitingFirstFetch == true) Column(Modifier.padding(bottom = 12.dp)) {
+        val textProblem = textProblem(publication)?.takeIf { !leftOut }
+        if (leftOut || serverError != null || publication?.awaitingFirstFetch == true || textProblem != null) Column(Modifier.padding(bottom = 12.dp)) {
             when {
                 leftOut ->
                     Text("Left out of the paper. It stays in your tt-rss and isn't fetched. Starred articles from it still go in.", style = MaterialTheme.typography.bodyLarge)
@@ -333,23 +345,17 @@ private fun FeedHeader(publication: PublicationEntity?, account: SourceEntity?, 
                         AddressLink(url, "Its settings in tt-rss", MaterialTheme.typography.bodyMedium, onCopied, Modifier.padding(top = 8.dp), words = true)
                     }
                 }
-                else ->
+                publication?.awaitingFirstFetch == true ->
                     Text("$WAITING_FOR_FIRST_FETCH. Its first articles come once tt-rss has fetched it, usually within the hour.", style = MaterialTheme.typography.bodyLarge)
             }
+            textProblem?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(listOfNotNull("In your tt-rss", publication?.category?.let { "category $it" }).joinToString(" · "), style = details, color = muted)
-            if (!leftOut) Text(textLine(publication), style = details, color = muted)
             episodes?.let { Text(it, style = details, color = muted) }
-            feed?.let { FeedLink(it, details, onCopied) }
         }
     }
 }
-
-/** A feed's own address, with the feed icon, where a feed reader would want it. */
-@Composable
-private fun FeedLink(url: String, style: TextStyle, onCopied: (String) -> Unit) =
-    AddressLink(url, shownAddress(url), style, onCopied, icon = Icons.Default.RssFeed to "Feed")
 
 @Composable
 private fun LeaveOutDialog(title: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
@@ -364,13 +370,17 @@ private fun LeaveOutDialog(title: String, onConfirm: () -> Unit, onDismiss: () -
     )
 }
 
-/** A source's site, then how it's doing, then the details, with a feed's own address last. */
+/**
+ * A source's site, then, when something's wrong (paused, failing, short of full articles), what in
+ * large type, then the details. All well, how it's doing is a detail too. A feed's own address is
+ * in the menu.
+ */
 @Composable
 private fun Health(source: SourceEntity, learned: PublicationEntity?, lastNew: Instant?, episodes: String?, locale: Locale, is24Hour: Boolean, onCopied: (String) -> Unit) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val details = MaterialTheme.typography.bodySmall
     val clock = LocalClock.current
-    // A feed's site, or its front page until its articles name one; the feed has its own link below.
+    // A feed's site, or its front page until its articles name one.
     // Not one that isn't a web address, as a hostile feed's may not be.
     val site = if (source.kind == SourceKind.FEED) {
         source.siteUrl?.takeIf { isWebAddress(it) && it != source.url } ?: frontPage(source.url)
@@ -379,18 +389,18 @@ private fun Health(source: SourceEntity, learned: PublicationEntity?, lastNew: I
     }
     Column(Modifier.padding(16.dp)) {
         site?.let { AddressLink(it, SourceRepository.hostOf(it), MaterialTheme.typography.bodyMedium, onCopied) }
-        Column(Modifier.padding(top = 12.dp)) {
-            // Paused here, first on the page, as well as in the settings: it's the one that stops the site altogether.
-            val status = if (source.paused) "Paused · nothing new comes in" else statusLine(source, lastNew, clock.instant(), clock.zone)
-            Text(status, style = MaterialTheme.typography.bodyLarge, color = if (hasProblem(source)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+        // Paused here, first on the page, as well as in the settings: it's the one that stops the site altogether.
+        val status = if (source.paused) "Paused · nothing new comes in" else statusLine(source, lastNew, clock.instant(), clock.zone)
+        val textProblem = textProblem(learned)?.takeIf { source.kind == SourceKind.FEED && !source.paused }
+        val trouble = source.paused || hasProblem(source)
+        if (trouble || textProblem != null) Column(Modifier.padding(top = 12.dp)) {
+            if (trouble) Text(status, style = MaterialTheme.typography.bodyLarge, color = if (hasProblem(source)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
             if (!source.paused) failingLine(source.failingSince, locale, clock.instant(), clock.zone)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+            textProblem?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
         }
         Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            lastCheckedLine(source.lastFetchedAt, locale, is24Hour, clock.instant(), clock.zone)?.let { Text(it, style = details, color = muted) }
-            if (source.kind == SourceKind.FEED) {
-                Text(textLine(learned), style = details, color = muted)
-                FeedLink(source.url, details, onCopied)
-            }
+            val checked = lastCheckedLine(source.lastFetchedAt, locale, is24Hour, clock.instant(), clock.zone)
+            listOfNotNull(status.takeIf { !trouble }, checked).joinToString(" · ").takeIf { it.isNotEmpty() }?.let { Text(it, style = details, color = muted) }
             episodes?.let { Text(it, style = details, color = muted) }
         }
     }
@@ -518,7 +528,7 @@ private fun SettingsSheet(
                         ChoiceRow("Leave out of the paper", "It stays in your tt-rss and isn't fetched.", onClick = onLeaveOut)
                     }
                 }
-                if (offered.mode) add { ChoiceRow("Article text", modeName(publication), onClick = onChooseMode) }
+                if (offered.mode) add { ChoiceRow("Article text", modeLine(publication), onClick = onChooseMode) }
                 if (offered.cap) add {
                     ArticleCap(publication?.maxArticles, detail?.defaultMax ?: 1, viewModel::stepMaxArticles, viewModel::followEditionMax)
                 }
@@ -643,9 +653,23 @@ private fun modeName(publication: PublicationEntity?) = when (publication?.chose
     else -> "Automatic"
 }
 
-/** Where a publication's text comes from, including while the automatic check is still deciding. */
-private fun textLine(publication: PublicationEntity?): String =
-    fullTextLine(publication) ?: "Still working out whether this site sends full articles"
+/**
+ * The article-text setting for its row in the settings: the choice, and for Automatic what it has
+ * found so far, which is where to look before overriding it.
+ */
+private fun modeLine(publication: PublicationEntity?): String {
+    if (publication?.chosenMode.let { it != null && it != ContentMode.AUTO }) return modeName(publication)
+    val found = fullTextLine(publication)?.replaceFirstChar { it.lowercase() } ?: "still working out whether the site sends full articles"
+    return "Automatic: $found"
+}
+
+/**
+ * What the automatic article-text check found that changes what reaches the paper (only summaries,
+ * or a site that blocks fetching), for the top of the page; null when all is well or still unknown,
+ * or the reader has chosen.
+ */
+private fun textProblem(publication: PublicationEntity?): String? =
+    fullTextLine(publication)?.takeIf { publication?.chosenMode.let { m -> m == null || m == ContentMode.AUTO } && it != "Full articles" }
 
 /** Null until a failure has lasted past the day it started: one bad sync isn't worth a second line. */
 internal fun failingLine(since: Instant?, locale: Locale, now: Instant = Instant.now(), zone: ZoneId = ZoneId.systemDefault()): String? {

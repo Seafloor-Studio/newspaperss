@@ -2,6 +2,7 @@ package com.app.newspaperss.ui.sources
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Row
@@ -15,7 +16,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -47,8 +47,6 @@ internal fun AddressLink(
     onCopied: (String) -> Unit,
     modifier: Modifier = Modifier,
     words: Boolean = false,
-    /** An icon before it, and what it says to TalkBack, as for a feed's own address. */
-    icon: Pair<ImageVector, String>? = null,
 ) {
     val shown = if (words) shownAs else readable(shownAs)
     val copiedAs = if (words) shownAddress(url) else shown
@@ -63,10 +61,7 @@ internal fun AddressLink(
     // Ink and an underline, not the accent: the brick-red accent next to a failing source's red
     // status reads as part of the error, and on e-ink a tint alone is too faint to see.
     val ink = MaterialTheme.colorScheme.onSurface
-    val copy = { noBrowser: Boolean ->
-        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Address", url.trim()))
-        onCopied(if (noBrowser) "No browser here. Copied $copiedAs" else "Copied $copiedAs")
-    }
+    val copy = { noBrowser: Boolean -> copyAddress(context, url, copiedAs, noBrowser, onCopied) }
     // No padding for a 48dp target: Compose already gives a smaller clickable a 48dp touch area,
     // one that loses to a direct hit, so the lines around it keep their own taps.
     Row(
@@ -78,9 +73,6 @@ internal fun AddressLink(
         ) { if (!openInBrowser(context, url)) copy(true) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        icon?.let { (image, said) ->
-            Icon(image, contentDescription = said, tint = muted, modifier = Modifier.padding(end = 6.dp).size(with(LocalDensity.current) { style.fontSize.toDp() * 1.2f }))
-        }
         Text(
             buildAnnotatedString {
                 withStyle(SpanStyle(textDecoration = TextDecoration.Underline)) { append(shown) }
@@ -99,6 +91,16 @@ internal fun AddressLink(
             modifier = Modifier.padding(start = 4.dp).size(with(LocalDensity.current) { style.fontSize.toDp() }),
         )
     }
+}
+
+/** Opens [url] in the browser; with none to take it, copies it instead and says so through [onCopied]. */
+internal fun openAddress(context: Context, url: String, onCopied: (String) -> Unit) {
+    if (!openInBrowser(context, url)) copyAddress(context, url, shownAddress(url), noBrowser = true, onCopied)
+}
+
+private fun copyAddress(context: Context, url: String, shownAs: String, noBrowser: Boolean, onCopied: (String) -> Unit) {
+    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Address", url.trim()))
+    onCopied(if (noBrowser) "No browser here. Copied $shownAs" else "Copied $shownAs")
 }
 
 /**
