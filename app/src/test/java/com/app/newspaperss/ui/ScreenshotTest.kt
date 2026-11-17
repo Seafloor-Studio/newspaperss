@@ -1148,7 +1148,7 @@ class ScreenshotTest {
         }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
-    /** A busy source lists only its newest articles, and the heading says so rather than looking like a total. */
+    /** A busy source lists only its newest articles, under a heading that says so and gives no count. */
     @Test
     fun sourceDetailNewest() {
         val repo = SourceRepository(db, clock)
@@ -1448,7 +1448,7 @@ class ScreenshotTest {
         shoot("08h-left-out-list", ready = { vm.feeds.value.any { !it.inPaper } }) { LeftOutScreen(vm, onBack = {}, onOpenFeed = {}) }
     }
 
-    /** A failing feed's page from the top, where its own address is offered to check. */
+    /** A failing feed's page from the top: the problem with its mark, how long, and what it means for the paper. */
     @Test
     fun sourceDetailFailing() {
         val repo = SourceRepository(db, clock)
@@ -1486,7 +1486,7 @@ class ScreenshotTest {
         return viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
     }
 
-    /** Two settings changed: the row names only those, in the sheet's order. */
+    /** Two settings changed: the row says the limit as its rule, and the other under it. */
     @Test
     fun sourceDetailSettingsChanged() {
         val vm = letter { repo, id ->
@@ -1496,7 +1496,7 @@ class ScreenshotTest {
         shoot("06h-source-detail-settings-changed", ready = { vm.detail.value?.text?.recordingsOff == true && vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
-    /** Paused: the status line says so first, as well as the settings row. */
+    /** Paused: the page says so first, with Start again; the settings row keeps to the rule. */
     @Test
     fun sourceDetailPaused() {
         val vm = letter { repo, id ->
@@ -1531,6 +1531,52 @@ class ScreenshotTest {
     fun phoneFeedSettings() {
         val vm = sourceWithArticles()
         shoot("08i-phone-feed-settings", ready = { vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** The top of the page at twice the font size: every line wraps rather than squeezing. */
+    @Test
+    @Config(fontScale = 2f)
+    fun sourceDetailTopAtTwiceTheFontSize() {
+        val vm = sourceWithArticles()
+        shoot("06n-source-detail-top-200", ready = { vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** A site that sends only summaries: the page says so in ink, and the settings row where it's changed. */
+    @Test
+    fun sourceDetailSummariesOnly() {
+        val vm = letter { _, id ->
+            db.sources().savePublication(PublicationEntity(id, PublicationEntity.OWN, ContentMode.FEED, FullTextEvidence.FEED_SHORT, 3))
+            val first = db.articles().allForSource(id).first().id
+            db.articles().setDelivered(listOf(first))
+            db.articles().rememberDelivered(listOf(first), clock.instant().minus(Duration.ofDays(1)))
+        }
+        shoot("06l-source-detail-summaries", ready = { vm.detail.value?.paper?.sent?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** A curated list's page: each pick keeps its site's name, and the legend says how many the list keeps. */
+    @Test
+    fun sourceDetailCuratedList() {
+        val repo = SourceRepository(db, clock)
+        val id = runBlocking {
+            val id = repo.addList(com.app.newspaperss.core.lists.CuratedLists.all.first())
+            val picks = listOf(
+                "A long piece about how ferries keep time" to "Example Magazine",
+                "What the harbour master saw" to "The Example Review",
+                "Why city trees are planted in pairs" to "Example Weekly",
+            )
+            db.articles().insertNew(
+                picks.mapIndexed { i, (title, site) ->
+                    ArticleEntity(sourceId = id, guid = "$i", url = "https://example.org/$i", title = title, originTitle = site, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1)))
+                },
+            )
+            val delivered = db.articles().allForSource(id).single { it.guid == "2" }.id
+            db.articles().setDelivered(listOf(delivered))
+            db.articles().rememberDelivered(listOf(delivered), clock.instant().minus(Duration.ofDays(1)))
+            db.sources().recordSuccess(id, clock.instant(), null, null, "")
+            id
+        }
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
+        shoot("06m-source-detail-list", ready = { vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
     @Test

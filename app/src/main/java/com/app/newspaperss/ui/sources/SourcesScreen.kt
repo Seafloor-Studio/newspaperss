@@ -695,14 +695,24 @@ internal fun fullTextLine(learned: PublicationEntity?): String? {
         ContentMode.PAGE -> return "Always fetches the full page (your choice)"
         else -> {}
     }
-    return when (learned?.contentMode ?: ContentMode.AUTO) {
-        ContentMode.AUTO -> null
-        ContentMode.PAGE -> "Full articles"
-        ContentMode.FEED -> when (learned?.fullTextEvidence) {
-            FullTextEvidence.FEED_SHORT -> "Summaries only"
-            FullTextEvidence.BLOCKED -> "Site blocks fetching: using the summaries it sends"
-            else -> "Full articles"
-        }
+    return when (textFound(learned)) {
+        TextFound.CHECKING -> null
+        TextFound.FULL -> "Full articles"
+        TextFound.SUMMARIES -> "Summaries only"
+        TextFound.BLOCKED -> "Site blocks fetching: using the summaries it sends"
+    }
+}
+
+/** What the automatic article-text check has found for a publication, whatever the reader chose. */
+internal enum class TextFound { CHECKING, FULL, SUMMARIES, BLOCKED }
+
+internal fun textFound(learned: PublicationEntity?): TextFound = when (learned?.contentMode ?: ContentMode.AUTO) {
+    ContentMode.AUTO -> TextFound.CHECKING
+    ContentMode.PAGE -> TextFound.FULL
+    ContentMode.FEED -> when (learned?.fullTextEvidence) {
+        FullTextEvidence.FEED_SHORT -> TextFound.SUMMARIES
+        FullTextEvidence.BLOCKED -> TextFound.BLOCKED
+        else -> TextFound.FULL
     }
 }
 

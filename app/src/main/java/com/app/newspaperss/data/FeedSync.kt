@@ -48,7 +48,7 @@ class FeedSync(
     private val keepFor: Duration = KEEP_WAITING,
     private val ttrssAccounts: TtrssAccountStore? = null,
     /** How many unpicked links a curated list keeps; older ones expire as new ones arrive. */
-    private val listKeep: Int = 12,
+    private val listKeep: Int = LIST_KEEP,
     /**
      * Given the ids of curated-list links that came without a title, to look up in the background
      * (see [ReadingListTitles]): Arts & Letters Daily gives only a teaser, and a source's page
@@ -510,6 +510,9 @@ class FeedSync(
 
         /** How long an unpicked article waits, from when it was found, before it expires. */
         val KEEP_WAITING: Duration = Duration.ofDays(7)
+
+        /** How many unpicked links a curated list keeps by default. */
+        const val LIST_KEEP = 12
 
         const val LIST_LAYOUT_CHANGED =
             "This page has changed its layout, so NewspapeRSS can't tell which links are new and took none. An app update should fix it."

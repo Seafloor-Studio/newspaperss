@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.Star
@@ -56,13 +57,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.app.newspaperss.core.plural
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleState
 import com.app.newspaperss.data.EpisodePair
 import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.core.plural
 import com.app.newspaperss.data.SourceRepository
+import com.app.newspaperss.data.FeedSync
+import com.app.newspaperss.data.SourceKind
 import com.app.newspaperss.ui.components.ArticleRowFrame
 import com.app.newspaperss.ui.components.ReadToggle
 import com.app.newspaperss.ui.components.EpisodeLabelTag
@@ -73,52 +75,62 @@ import com.app.newspaperss.ui.components.openInBrowser
 import com.app.newspaperss.ui.components.rowIconSize
 import java.util.Locale
 
+/**
+ * "Newest articles", and Select beside it, or under it at large text, where beside it would squeeze
+ * the heading. No count: it would be how many are listed, which reads as an unread count.
+ */
 @Composable
-internal fun ArticlesHeading(articles: List<ArticleEntity>, selecting: Boolean, onSelect: () -> Unit) {
-    // The list stops at the newest few, so its count isn't everything the source has waiting.
-    Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+internal fun ArticlesHeading(selecting: Boolean, onSelect: () -> Unit) {
+    val heading: @Composable (Modifier) -> Unit = { modifier ->
         Text(
-            if (articles.isEmpty()) "Newest articles" else "Newest articles · ${articles.size}",
+            "Newest articles",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.weight(1f).semantics {
-                heading()
-                contentDescription = if (articles.isEmpty()) "Newest articles" else "Newest articles, ${articles.size}"
-            },
+            modifier = modifier.semantics { heading() },
         )
-        if (articles.isNotEmpty()) {
-            // Hidden rather than removed while selecting: removing it would change the heading's
-            // height and width, and move every row on the way in and out of selection mode.
-            TextButton(
-                onClick = onSelect,
-                enabled = !selecting,
-                modifier = Modifier.heightIn(min = 48.dp).then(if (selecting) Modifier.alpha(0f).clearAndSetSemantics {} else Modifier),
-            ) { Text("Select") }
-        }
     }
-    if (articles.isEmpty()) Text("No articles yet.", modifier = Modifier.padding(horizontal = 16.dp))
-    if (articles.isNotEmpty()) {
-        // Nothing while selecting: the selection bar says what to do then.
-        val shown = TAP_HELP.takeIf { !selecting }
-        // The longest wording is laid out invisibly under the one shown, so the line keeps one
-        // height as what it says changes: a change in its line count would move every row below it.
-        Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp)) {
-            HelperText(TAP_HELP, shown = false)
-            if (shown != null) HelperText(shown, shown = true)
+    // Hidden rather than removed while selecting: removing it would change the heading's height
+    // and width, and move every row on the way in and out of selection mode.
+    val select: @Composable () -> Unit = {
+        TextButton(
+            onClick = onSelect,
+            enabled = !selecting,
+            modifier = Modifier.heightIn(min = 48.dp).then(if (selecting) Modifier.alpha(0f).clearAndSetSemantics {} else Modifier),
+        ) { Text("Select") }
+    }
+    if (LocalDensity.current.fontScale >= LARGE_TEXT) {
+        Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 20.dp, bottom = 4.dp)) {
+            heading(Modifier)
+            // Left-aligned with the heading: a TextButton's own padding would indent its label.
+            Box(Modifier.offset(x = (-12).dp)) { select() }
+        }
+    } else {
+        Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            heading(Modifier.weight(1f))
+            select()
         }
     }
 }
 
-private const val TAP_HELP = "Tap ● to mark one read or unread, and ☆ to put it in your next edition."
-
+/**
+ * Under the last row, where a legend goes: what the marks mean, what a tap does, and why an
+ * article ends up "Not picked", which the rows can't say.
+ */
 @Composable
-private fun HelperText(text: String, shown: Boolean) {
+internal fun ListLegend(kind: SourceKind) {
+    val ending = when (kind) {
+        SourceKind.FEED, SourceKind.TTRSS -> " An article waits ${plural(FeedSync.KEEP_WAITING.toDays().toInt(), "day")} for a place, then it's not picked."
+        SourceKind.LIST -> " The list keeps its newest ${FeedSync.LIST_KEEP}."
+        else -> ""
+    }
+    val shown = "● waiting · ✓ sent · ○ read or not picked. Tap a mark to change it, and ☆ to put an article in your next edition.$ending"
+    // TalkBack would read the marks as "black circle" and "white star".
+    val spoken = "A dot means waiting, a tick sent, a circle read or not picked. Tap a mark to change it, and the star to put an article in your next edition.$ending"
     Text(
-        text,
+        shown,
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        // TalkBack would read ☆ as "white star".
-        modifier = if (shown) Modifier.semantics { contentDescription = text.replace("☆", "the star") } else Modifier.alpha(0f).clearAndSetSemantics {},
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).semantics { contentDescription = spoken },
     )
 }
 
@@ -236,13 +248,15 @@ internal fun RecentArticle(
     onStartSelecting: () -> Unit,
     /** The posts the source's articles pair with, by guid, for their episode labels. */
     pairs: Map<String, EpisodePair> = emptyMap(),
+    /** Whether the details name where the article came from: not when the page is that one place. */
+    showOrigin: Boolean = true,
 ) {
     val context = LocalContext.current
     val clock = LocalClock.current
     val details = buildAnnotatedString {
         // When it was published: a tt-rss backlog arrives all at once, and every row would show
         // the day it was fetched.
-        append(listOfNotNull(article.originTitle, shortDate(article.shownDate, locale, clock.instant(), clock.zone)).joinToString(" · "))
+        append(listOfNotNull(article.originTitle?.takeIf { showOrigin }, shortDate(article.shownDate, locale, clock.instant(), clock.zone)).joinToString(" · "))
         append(" · ")
         if (isStarred(article)) withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary)) { append(status) } else append(status)
     }

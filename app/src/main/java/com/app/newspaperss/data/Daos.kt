@@ -345,6 +345,36 @@ interface ArticleDao {
     fun observeHistory(sourceId: Long): Flow<List<ArticleHistory>>
 
     /**
+     * A source's (or with [key], one tt-rss feed's) most recent deliveries, newest first: when each
+     * went out and how many of its articles. Not from the listed articles, which stop at the newest
+     * few: on a busy feed held to one an edition, yesterday's can be older than all of them. Each
+     * edition's links share one time, so a row is one delivery.
+     */
+    @Query(
+        """SELECT d.deliveredAt AS sentAt, COUNT(*) AS count
+           FROM articles a JOIN delivered_urls d ON d.url = a.url
+           WHERE a.sourceId = :sourceId AND (:key = '' OR a.originId = :key) AND a.state = 'DELIVERED' AND a.url != ''
+           GROUP BY d.deliveredAt ORDER BY d.deliveredAt DESC LIMIT 20""",
+    )
+    fun observeSent(sourceId: Long, key: String): Flow<List<SentBatch>>
+
+    /** The newest unsent edition holding any of the source's (or feed's) articles, and how many. */
+    @Query(
+        """SELECT e.title AS title, COUNT(*) AS count
+           FROM edition_articles ea JOIN editions e ON e.id = ea.editionId JOIN articles a ON a.id = ea.articleId
+           WHERE a.sourceId = :sourceId AND (:key = '' OR a.originId = :key) AND a.state = 'IN_EDITION' AND e.status IN ('READY', 'BUILDING')
+           GROUP BY e.id ORDER BY e.createdAt DESC, e.id DESC LIMIT 1""",
+    )
+    fun observeUnsent(sourceId: Long, key: String): Flow<UnsentCount?>
+
+    /** Whether any of the source's (or feed's) articles waits for an edition, starred ones included. */
+    @Query(
+        """SELECT EXISTS(SELECT 1 FROM articles WHERE sourceId = :sourceId AND (:key = '' OR originId = :key)
+           AND (state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')))""",
+    )
+    fun observeWaiting(sourceId: Long, key: String): Flow<Boolean>
+
+    /**
      * A paid post an edition found next to nothing free in; [skip] leaves it out for good, as
      * [ArticleEntity.paidSkipped]. Not a starred one, nor one that's already left the waiting articles:
      * a star given while the edition was being made wins.
@@ -765,6 +795,18 @@ data class PaidOnlyCount(val found: Int, val skipped: Int)
 
 /** One fact about what happened to an article: when it went out, or which unsent edition holds it. */
 data class ArticleHistory(val articleId: Long, val sentAt: Instant?, val editionTitle: String?)
+
+/** One delivery's worth of a source's articles. */
+data class SentBatch(val sentAt: Instant, val count: Int)
+
+/** How many of a source's articles an unsent edition, by its title, holds. */
+data class UnsentCount(val title: String, val count: Int)
+
+/**
+ * What a source has done for the paper, for its page's first line: its last [sent] deliveries
+ * (newest first), the unsent edition holding some of it, and whether anything of it is [waiting].
+ */
+data class PaperRecord(val sent: List<SentBatch> = emptyList(), val unsent: UnsentCount? = null, val waiting: Boolean = false)
 
 /** A tt-rss article's guid and the tt-rss feed it came from. */
 data class TtrssRef(val guid: String, val originId: String?)
