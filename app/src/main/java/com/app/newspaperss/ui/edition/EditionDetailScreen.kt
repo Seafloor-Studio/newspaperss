@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -37,13 +38,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.app.newspaperss.data.ArticleState
 import com.app.newspaperss.data.EditionContent
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionStatus
@@ -52,14 +56,16 @@ import com.app.newspaperss.delivery.EditionIntents
 import com.app.newspaperss.delivery.FolderDelivery
 import com.app.newspaperss.delivery.KindleSend
 import com.app.newspaperss.edition.EditionBuilder
+import com.app.newspaperss.listen.EpisodeAfter
 import com.app.newspaperss.listen.Listening
 import com.app.newspaperss.settings.KindleEmail
 import com.app.newspaperss.ui.components.ArticleRowFrame
-import com.app.newspaperss.ui.components.EpisodeLabelTag
-import com.app.newspaperss.ui.components.episodeLabel
 import com.app.newspaperss.ui.components.BUILDING_NOTE
+import com.app.newspaperss.ui.components.EpisodeLabelTag
 import com.app.newspaperss.ui.components.LocalClock
+import com.app.newspaperss.ui.components.SentToggle
 import com.app.newspaperss.ui.components.StarToggle
+import com.app.newspaperss.ui.components.episodeLabel
 import com.app.newspaperss.ui.listen.ListenButton
 import com.app.newspaperss.ui.listen.PodcastLine
 import com.app.newspaperss.ui.today.failureColor
@@ -87,8 +93,11 @@ fun EditionDetailScreen(
     kindleEmail: KindleEmail? = null,
     listening: Listening? = null,
     onOpenPlayer: () -> Unit = {},
+    /** Plays an episode after the edition, from where it was left. */
+    onPlayEpisode: (EpisodeAfter) -> Unit = {},
 ) {
     val detail by viewModel.detail.collectAsStateWithLifecycle()
+    val episodes by viewModel.episodes.collectAsStateWithLifecycle()
     val building by viewModel.building.collectAsStateWithLifecycle()
     val sentToKindle by viewModel.sentToKindle.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -219,7 +228,11 @@ fun EditionDetailScreen(
             Text("This edition has been deleted.", modifier = Modifier.padding(padding).padding(24.dp))
             return@Scaffold
         }
-        val listenable = listening?.takeIf { current.file != null && current.contents.isNotEmpty() && (edition.status == EditionStatus.READY || edition.status == EditionStatus.DELIVERED) }
+        // Any edition whose book is still here, a ready one, a sent one or one released as not sent:
+        // it may have been read aloud part way before a newer one came.
+        val readable = edition.status == EditionStatus.READY || edition.status == EditionStatus.DELIVERED ||
+            EditionBuilder.released(edition)
+        val listenable = listening?.takeIf { current.file != null && current.contents.isNotEmpty() && readable }
         val minutes = current.contents.sortedBy { it.entry.position }.map { it.entry.minutes }
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
@@ -272,8 +285,25 @@ fun EditionDetailScreen(
                     building = building,
                     reserveStar = anyStar,
                     onOpen = if (current.file != null) { { onReadArticle(content.entry.position) } } else null,
+                    editionSent = current.edition?.status == EditionStatus.DELIVERED,
+                    onToggleSent = if (articleId != null && content.state != null) { { viewModel.toggleSent(articleId) } } else null,
                 )
                 HorizontalDivider()
+            }
+            if (episodes.isNotEmpty() && listenable != null) {
+                item {
+                    Text("After the edition", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp).semantics { heading() })
+                    Text(
+                        "Episodes Listen plays once the edition is over. Tap one to play it now; each keeps its own place.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+                items(episodes, key = { "episode-${it.page}" }) { episode ->
+                    EpisodeRow(episode, onPlay = { onPlayEpisode(episode) })
+                    HorizontalDivider()
+                }
             }
         }
     }
@@ -306,7 +336,7 @@ private fun Header(
         if (edition.status == EditionStatus.DELIVERED) sentToKindle?.let { KindleNote(it) }
         // The same button as Today's card; the rest is in the top bar's ⋮.
         next?.let { NextStepButton(it, enabled = !fileMissing, onSend, onOpen, Modifier.padding(top = 12.dp)) }
-        if (fileMissing && (edition.status == EditionStatus.READY || edition.status == EditionStatus.DELIVERED)) {
+        if (fileMissing && (edition.status == EditionStatus.READY || edition.status == EditionStatus.DELIVERED || EditionBuilder.released(edition))) {
             Text(
                 "This edition's file has been deleted, so it can't be sent or opened.",
                 style = MaterialTheme.typography.bodySmall,
@@ -315,11 +345,38 @@ private fun Header(
             )
         }
         // A ready one, or one released as not sent when a newer one was made: it may have gone out
-        // another way. Not while an edition is being made, which may be taking its articles.
-        val notSent = edition.status == EditionStatus.FAILED && edition.error == EditionBuilder.NOT_SENT && !fileMissing && !building
-        if (edition.status == EditionStatus.READY || notSent) MarkAsSentLine(preferOpen, onSent, Modifier.padding(top = 4.dp))
+        // another way. A released one waits while an edition is being made, which may be taking its articles.
+        val notSent = EditionBuilder.released(edition) && !fileMissing
+        if (edition.status == EditionStatus.READY || notSent) {
+            MarkAsSentLine(preferOpen, onSent, Modifier.padding(top = 4.dp), waiting = notSent && building)
+        }
         listen?.invoke(Modifier.padding(top = 8.dp))
     }
+}
+
+/** An episode after the edition: a tap plays it from where it was left. */
+@Composable
+private fun EpisodeRow(episode: EpisodeAfter, onPlay: () -> Unit) {
+    val length = episode.seconds?.let { minutesLabel(it / 60.0) }
+    val progress = when {
+        episode.finished -> "Heard"
+        episode.heardSeconds != null && episode.seconds != null -> "${minutesLabel(episode.heardSeconds / 60.0)} of ${minutesLabel(episode.seconds / 60.0)} heard"
+        episode.heardSeconds != null -> "${minutesLabel(episode.heardSeconds / 60.0)} heard"
+        else -> null
+    }
+    ArticleRowFrame(
+        modifier = Modifier.clickable(onClickLabel = "Play", onClick = onPlay),
+        title = { Text(episode.title, style = MaterialTheme.typography.bodyLarge, maxLines = 3, overflow = TextOverflow.Ellipsis) },
+        details = {
+            Column {
+                Text(listOfNotNull(episode.source, length.takeIf { progress == null }).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                progress?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
+            }
+        },
+        // The whole row plays it: a button of its own would be a second stop for TalkBack.
+        trailing = { Icon(Icons.Default.PlayArrow, contentDescription = null) },
+        reserveTrailing = true,
+    )
 }
 
 /** @param reserveStar keeps the star's slot on a row without one, so titles line up with those that have it. */
@@ -332,14 +389,32 @@ private fun ContentRow(
     building: Boolean,
     reserveStar: Boolean,
     onOpen: (() -> Unit)?,
+    editionSent: Boolean = false,
+    onToggleSent: (() -> Unit)? = null,
 ) {
     val entry = content.entry
+    val state = content.state
+    // Sent, or anything else that keeps it from coming back for another edition.
+    val sent = state == ArticleState.DELIVERED || state == ArticleState.SKIPPED || state == ArticleState.EXPIRED
     // Words, not the glyph, so it isn't mistaken for the toggle beside it; past tense, since that
     // toggle is about the next edition and may be off.
     val details = listOfNotNull(entry.sourceTitle, minutesLabel(entry.minutes), "You starred it".takeIf { entry.starred }).joinToString(" · ")
+    // Dimmed as on a source's page, so what's left stands out; not in a sent edition, where it's every row.
+    val done = sent && !editionSent && content.starredAt == null
     ArticleRowFrame(
         modifier = if (onOpen != null) Modifier.clickable(onClickLabel = "Read", onClick = onOpen) else Modifier,
-        title = { Text(entry.title, style = MaterialTheme.typography.bodyLarge, maxLines = 3, overflow = TextOverflow.Ellipsis) },
+        // A waiting one is held while an edition is being made, which may be taking it.
+        leading = if (onToggleSent != null && state != null) { { SentToggle(entry.title, state, onToggleSent, enabled = !(building && state == ArticleState.NEW)) } } else null,
+        title = {
+            Text(
+                entry.title,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = if (done) FontWeight.Normal else null,
+                color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
+            )
+        },
         details = {
             Column {
                 Text(details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

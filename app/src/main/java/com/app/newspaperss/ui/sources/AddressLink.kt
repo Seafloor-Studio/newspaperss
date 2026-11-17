@@ -2,6 +2,7 @@ package com.app.newspaperss.ui.sources
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Row
@@ -35,27 +36,32 @@ import com.app.newspaperss.ui.components.openInBrowser
  * copied instead and [onCopied] gets the message to show. Anything but a web address is plain
  * muted text, so a hostile feed's `intent:` link is neither opened nor offered.
  *
- * @param label muted words before the address, such as "Feed:".
+ * @param words [shownAs] is the app's own words for the link, not an address, so it keeps its spaces.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun AddressLink(url: String, shownAs: String, textStyle: TextStyle, onCopied: (String) -> Unit, modifier: Modifier = Modifier, label: String? = null) {
-    val shown = readable(shownAs)
+internal fun AddressLink(
+    url: String,
+    shownAs: String,
+    textStyle: TextStyle,
+    onCopied: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    words: Boolean = false,
+) {
+    val shown = if (words) shownAs else readable(shownAs)
+    val copiedAs = if (words) shownAddress(url) else shown
     // An address reads left to right even when it starts with a right-to-left letter.
     val style = textStyle.copy(textDirection = TextDirection.Ltr)
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     if (!isWebAddress(url)) {
-        Text(listOfNotNull(label, shown).joinToString(" "), style = style, color = muted, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = modifier)
+        Text(shown, style = style, color = muted, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = modifier)
         return
     }
     val context = LocalContext.current
     // Ink and an underline, not the accent: the brick-red accent next to a failing source's red
     // status reads as part of the error, and on e-ink a tint alone is too faint to see.
     val ink = MaterialTheme.colorScheme.onSurface
-    val copy = { noBrowser: Boolean ->
-        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Address", url.trim()))
-        onCopied(if (noBrowser) "No browser here. Copied $shown" else "Copied $shown")
-    }
+    val copy = { noBrowser: Boolean -> copyAddress(context, url, copiedAs, noBrowser, onCopied) }
     // No padding for a 48dp target: Compose already gives a smaller clickable a 48dp touch area,
     // one that loses to a direct hit, so the lines around it keep their own taps.
     Row(
@@ -69,7 +75,6 @@ internal fun AddressLink(url: String, shownAs: String, textStyle: TextStyle, onC
     ) {
         Text(
             buildAnnotatedString {
-                label?.let { withStyle(SpanStyle(color = muted)) { append("$it ") } }
                 withStyle(SpanStyle(textDecoration = TextDecoration.Underline)) { append(shown) }
             },
             style = style,
@@ -86,6 +91,38 @@ internal fun AddressLink(url: String, shownAs: String, textStyle: TextStyle, onC
             modifier = Modifier.padding(start = 4.dp).size(with(LocalDensity.current) { style.fontSize.toDp() }),
         )
     }
+}
+
+/** Opens [url] in the browser, as a tap on an [AddressLink] does: with none to take it, copies it and says so. */
+internal fun openAddress(context: Context, url: String, onCopied: (String) -> Unit) {
+    if (!openInBrowser(context, url)) copyAddress(context, url, shownAddress(url), noBrowser = true, onCopied)
+}
+
+private fun copyAddress(context: Context, url: String, shownAs: String, noBrowser: Boolean, onCopied: (String) -> Unit) {
+    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Address", url.trim()))
+    onCopied(if (noBrowser) "No browser here. Copied $shownAs" else "Copied $shownAs")
+}
+
+/**
+ * The front page of [url]'s site ("https://example.com/" for "https://example.com/feed.xml"), or
+ * null if it isn't a web address: a feed's site until its articles have named one. Its host only,
+ * never a user name before an "@", and an international name in its ASCII form, so what's shown
+ * is what opens.
+ */
+internal fun frontPage(url: String): String? {
+    if (!isWebAddress(url)) return null
+    val uri = runCatching { java.net.URI(url.trim()) }.getOrNull() ?: return null
+    // java.net.URI has no host for a name it can't parse ("bücher.example", "my_blog.example"):
+    // the authority then, after any user name.
+    val authority = uri.rawAuthority?.substringAfterLast('@') ?: return null
+    val (host, port) = if (authority.startsWith("[")) {
+        authority.substringBefore(']') + "]" to authority.substringAfter(']').removePrefix(":")
+    } else {
+        authority.substringBeforeLast(':', authority) to authority.substringAfterLast(':', "")
+    }
+    val ascii = runCatching { if (host.startsWith("[")) host else java.net.IDN.toASCII(java.net.URLDecoder.decode(host, "UTF-8")) }.getOrNull()
+    if (ascii.isNullOrEmpty() || ascii.any { it.isWhitespace() || it == '/' || it == '\\' }) return null
+    return "${uri.scheme.lowercase()}://$ascii" + (port.takeIf { it.isNotEmpty() && it.all(Char::isDigit) }?.let { ":$it" } ?: "") + "/"
 }
 
 /** [url] for reading: [readable], without the scheme or a lone trailing slash. */

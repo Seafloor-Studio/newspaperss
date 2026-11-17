@@ -195,10 +195,10 @@ class SourceRepositoryTest {
         assertEquals(ContentMode.PAGE, learned(ttrss, "7"))
 
         record(ttrss, FullTextEvidence.PAGE_LONGER, 1, originId = "7")
-        assertEquals(listOf("7"), db.sources().allLeftOut().map { it.key })
+        assertEquals(listOf("7"), leftOutKeys())
 
         repo.setFeedInPaper(ttrss, feed, inPaper = true)
-        assertTrue(db.sources().allLeftOut().isEmpty())
+        assertTrue(leftOutKeys().isEmpty())
         assertEquals(ContentMode.PAGE, learned(ttrss, "7"))
     }
 
@@ -321,4 +321,7 @@ class SourceRepositoryTest {
         assertEquals(second, article(ids.getValue("b")).starredAt)
         assertEquals(null, article(ids.getValue("c")).starredAt)
     }
+
+    /** Every source's feeds left out of the paper, by key, whichever source holds them now. */
+    private suspend fun leftOutKeys() = db.sources().all().flatMap { db.sources().leftOut(it.id) }.map { it.key }
 }

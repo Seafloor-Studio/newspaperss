@@ -13,7 +13,6 @@ import androidx.core.graphics.createBitmap
 import androidx.core.graphics.withTranslation
 import com.app.newspaperss.core.ReadingTime
 import com.app.newspaperss.core.epub.EpubImage
-import com.app.newspaperss.core.plural
 import java.io.ByteArrayOutputStream
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -27,7 +26,6 @@ import java.util.Locale
  * @property minutes the edition's total reading time.
  */
 data class CoverInfo(
-    val title: String,
     val date: LocalDate,
     val headlines: List<CoverHeadline>,
     val articleCount: Int,
@@ -141,7 +139,7 @@ class CoverRenderer {
 
     companion object {
         /** The cover's footer line. */
-        internal fun totals(info: CoverInfo) = "${plural(info.articleCount, "article")} · about ${ReadingTime.format(info.minutes)}"
+        internal fun totals(info: CoverInfo) = ReadingTime.summary(info.articleCount, info.minutes)
 
         /** A portrait e-reader screen (Kobo/Paperwhite class), as rss-to-e-reader uses; not KDP's 1600x2560. */
         const val WIDTH = 1264

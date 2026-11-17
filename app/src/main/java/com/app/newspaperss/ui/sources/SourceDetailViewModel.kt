@@ -2,11 +2,13 @@ package com.app.newspaperss.ui.sources
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.app.newspaperss.EPISODES
 import com.app.newspaperss.core.extract.ContentMode
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleHistory
 import com.app.newspaperss.data.EpisodePair
 import com.app.newspaperss.data.PaidOnlyCount
+import com.app.newspaperss.data.PaperRecord
 import com.app.newspaperss.data.MarkedRead
 import com.app.newspaperss.data.StarBatch
 import com.app.newspaperss.core.plural
@@ -42,6 +44,8 @@ data class SourceDetail(
     val paidOnly: PaidOnlyCount = PaidOnlyCount(0, 0),
     /** The posts its articles are paired with, by guid (see [ArticleEntity.episodePair]). */
     val episodePairs: Map<String, EpisodePair> = emptyMap(),
+    /** What it has done for the paper, whatever the listed articles leave out. */
+    val paper: PaperRecord = PaperRecord(),
 )
 
 /**
@@ -49,6 +53,8 @@ data class SourceDetail(
  * writing, on its [PublicationEntity].
  *
  * @param onSourceChanged asks for a sync, after a change to what the source fetches.
+ * @param recordings whether recordings play in Listen at all in this build, and so whether a
+ *   source that posts them offers its switch.
  */
 class SourceDetailViewModel(
     private val repository: SourceRepository,
@@ -56,6 +62,7 @@ class SourceDetailViewModel(
     defaultMax: Flow<Int>,
     val key: String = PublicationEntity.OWN,
     private val onSourceChanged: () -> Unit = {},
+    val recordings: Boolean = EPISODES,
 ) : ViewModel() {
     /** A tt-rss feed's page rather than a source's. */
     val isFeed get() = key != PublicationEntity.OWN
@@ -65,9 +72,9 @@ class SourceDetailViewModel(
         combine(
             combine(repository.observe(id), repository.observeRecentArticles(id, key), defaultMax, ::Triple),
             repository.observePublication(id, key), repository.observeHistory(id), repository.observePaidOnly(id, key),
-            repository.observeEpisodePairs(id),
-        ) { (source, articles, max), publication, history, paidOnly, pairs ->
-            SourceDetail(source, articles, max, publication, history, paidOnly, pairs)
+            combine(repository.observeEpisodePairs(id), repository.observePaper(id, key), ::Pair),
+        ) { (source, articles, max), publication, history, paidOnly, (pairs, paper) ->
+            SourceDetail(source, articles, max, publication, history, paidOnly, pairs, paper)
         }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -99,8 +106,21 @@ class SourceDetailViewModel(
         viewModelScope.launch { repository.setPaused(source.id, !source.paused) }
     }
 
+    /**
+     * Unpauses the source, or on a tt-rss feed's page its account. Not a toggle: a second tap
+     * before the button goes would pause it again.
+     */
+    fun startAgain() {
+        viewModelScope.launch { repository.setPaused(id, false) }
+    }
+
     fun setSkipPaidPosts(skip: Boolean) {
         viewModelScope.launch { repository.setSkipPaidPosts(id, key, skip) }
+    }
+
+    /** Whether its posts' recordings play in Listen, from the next edition opened there. */
+    fun setRecordingsOn(on: Boolean) {
+        viewModelScope.launch { repository.setRecordingsOff(id, key, !on) }
     }
 
     fun chooseContentMode(mode: ContentMode) {

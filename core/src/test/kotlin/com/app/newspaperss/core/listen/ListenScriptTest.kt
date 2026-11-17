@@ -2,7 +2,6 @@ package com.app.newspaperss.core.listen
 
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
-import com.app.newspaperss.core.epub.EditionSection
 import com.app.newspaperss.core.epub.EpubImage
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.core.listen.ListenScript.Block
@@ -22,7 +21,7 @@ class ListenScriptTest {
         val out = ByteArrayOutputStream()
         val doc = EditionDoc(
             "Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000002",
-            listOf(EditionSection(null, articles.toList())), reflection = reflection,
+            articles.toList(), reflection = reflection,
         )
         EpubWriter.write(doc, out)
         val pages = mutableMapOf<String, String>()
@@ -205,6 +204,18 @@ class ListenScriptTest {
     }
 
     @Test
+    fun aLinkOrBoldAroundABlockCoversItsWordsInEachBlock() {
+        // As HTML allows: a link around whole blocks, not inside a paragraph (which the book's writer would split).
+        val texts = ListenScript.parse(
+            "<html><body><div class=\"article-body\"><div>Before <a href=\"https://example.com/u\">link words <b>bold start <div>a block</div> bold tail</b></a> end.</div></div></body></html>",
+        ).blocks.filterIsInstance<Block.Text>()
+        fun over(text: Block.Text, kind: ListenScript.StyleKind) = text.styles.filter { it.kind == kind }.map { text.shown.substring(it.start, it.end) }
+        assertEquals(listOf("Before link words bold start", "a block", "bold tail end."), texts.map { it.shown })
+        assertEquals(listOf(listOf("link words bold start"), listOf("a block"), listOf("bold tail")), texts.map { over(it, ListenScript.StyleKind.LINK) })
+        assertEquals(listOf(listOf("bold start"), listOf("a block"), listOf("bold tail")), texts.map { over(it, ListenScript.StyleKind.BOLD) })
+    }
+
+    @Test
     fun listsAreNumberedFromTheirStartAndNestedInsideEachOther() {
         val items = page("<ol start=\"3\"><li>Three</li><li>Four<ul><li>Inside</li></ul>still four</li></ol><dl><dt>Term</dt></dl>").blocks
             .filterIsInstance<Block.Text>().filter { it.kind == Kind.ITEM }
@@ -268,5 +279,18 @@ class ListenScriptTest {
         // 161 words of body at 160 a minute, after the source, title and byline.
         assertEquals(60.0, script.lines.drop(3).sumOf { ListenTime.seconds(it.spoken) }, 2.0)
         assertTrue(script.seconds > 60.0)
+    }
+
+    /** Where each id is, for a footnote's link: in a paragraph, a table's cell or a figure. */
+    @Test
+    fun anIdIsFoundWhereverItIsOnThePage() {
+        val script = ListenScript.parse(
+            "<html><body><div class=\"article-body\"><p>First <a id=\"ref1\" href=\"#fn1\">1</a>.</p>" +
+                "<table><tr><td id=\"cell\">x</td></tr></table><figure><a id=\"pic\"><img src=\"a.png\" alt=\"\"/></a></figure>" +
+                "<p id=\"fn1\">The note.</p></div></body></html>",
+        )
+        val at = script.anchors.mapValues { (_, block) -> script.blocks[block]::class.simpleName }
+        assertEquals(mapOf("ref1" to "Text", "cell" to "Table", "pic" to "Image", "fn1" to "Text"), at)
+        assertEquals("The note.", (script.blocks[script.anchors.getValue("fn1")] as Block.Text).shown)
     }
 }

@@ -30,14 +30,14 @@ import com.app.newspaperss.listen.ListenState
 /**
  * Whether the bar shows: Listen has an edition open, or is opening one, and hasn't heard it to its
  * end. Kept while opening so that switching editions doesn't blink it away. Not after an error,
- * which only the playing screen explains: the bar's Play would only meet it again.
+ * which only the article view explains: the bar's Play would only meet it again.
  */
 fun showsListenBar(state: ListenState?): Boolean =
     state != null && state.editionId != null && (state.loading || state.pages.isNotEmpty()) && !state.finished && state.error == null
 
 /**
  * Listen, along the bottom of the app while an edition is open in it, playing or paused: what it's
- * reading, play and pause, a tap to open the playing screen, and [onClose] to stop listening, which
+ * reading, play and pause, a tap to open the article it's on, and [onClose] to stop listening, which
  * puts the bar away (where it got to is kept). No progress bar: on e-ink every redraw is a flash.
  * While the edition opens, Listen knows nothing of it yet but its id, so the bar says only that,
  * with a still hourglass rather than a spinner for the same reason.

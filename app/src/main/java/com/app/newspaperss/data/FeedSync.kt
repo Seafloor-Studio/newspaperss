@@ -48,7 +48,7 @@ class FeedSync(
     private val keepFor: Duration = KEEP_WAITING,
     private val ttrssAccounts: TtrssAccountStore? = null,
     /** How many unpicked links a curated list keeps; older ones expire as new ones arrive. */
-    private val listKeep: Int = 12,
+    private val listKeep: Int = LIST_KEEP,
     /**
      * Given the ids of curated-list links that came without a title, to look up in the background
      * (see [ReadingListTitles]): Arts & Letters Daily gives only a teaser, and a source's page
@@ -197,59 +197,69 @@ class FeedSync(
         val error = if (account == null || account.apiUrl != source.url) {
             SIGN_IN_AGAIN
         } else {
-            val client = account.client(http)
-            try {
-                val category = source.ttrssCategoryId
-                // A few from each feed rather than the newest 200 overall: busy news feeds would
-                // fill those 200, and a feed that posts monthly would never reach the paper.
-                val leftOut = db.sources().leftOut(source.id).map { it.key }.toSet()
-                val withUnread = client.unreadFeeds(category).filter { it.unread > 0 }
-                // A feed with articles has been fetched, without waiting for tomorrow's feed list to say so,
-                // and its fetching error is current: one fixed in tt-rss stops showing as soon as it has posts.
-                db.sources().fetchedByServer(source.id, withUnread.map { it.id.toString() })
-                db.withTransaction { withUnread.forEach { db.sources().setServerError(source.id, it.id.toString(), it.lastError) } }
-                val unreadFeeds = withUnread.filter { it.id.toString() !in leftOut }
-                val headlines = fromEachFeed(client, unreadFeeds)
-                val episodes = judged(source, headlines, now)
-                val articles = headlines.map { it to article(source, it, now).episode(it.attachments, episodes["$TTRSS_GUID_PREFIX${it.id}"]) }
-                if (source.markReadOnServer) syncReadState(client, source, articles, now)
-                val guids = articles.map { it.second.guid }
-                val known = guids.chunked(500).flatMap { db.articles().knownGuids(source.id, it) }.toSet()
-                val added = db.articles().insertFetched(articles.map { (h, a) -> a to h.link })
-                if (source.markReadOnServer && source.markExpiredRead) {
-                    (guids - known).chunked(500).forEach { db.articles().readOnArrival(source.id, it, now.minus(keepFor)) }
+            account.client(http).session { client ->
+                try {
+                    val category = source.ttrssCategoryId
+                    // A few from each feed rather than the newest 200 overall: busy news feeds would
+                    // fill those 200, and a feed that posts monthly would never reach the paper.
+                    val leftOut = db.sources().leftOut(source.id).map { it.key }.toSet()
+                    val withUnread = client.unreadFeeds(category).filter { it.unread > 0 }
+                    // Subscribed since the last list: listed again now for its name and category,
+                    // rather than shown under Uncategorized until tomorrow's.
+                    val listed = db.sources().listedKeys(source.id).toSet()
+                    val newFeed = withUnread.any { it.id.toString() !in listed }
+                    // A feed with articles has been fetched, without waiting for tomorrow's feed list to say so,
+                    // and its fetching error is current: one fixed in tt-rss stops showing as soon as it has posts.
+                    db.sources().fetchedByServer(source.id, withUnread.map { it.id.toString() })
+                    db.withTransaction { withUnread.forEach { db.sources().setServerError(source.id, it.id.toString(), it.lastError) } }
+                    val unreadFeeds = withUnread.filter { it.id.toString() !in leftOut }
+                    val headlines = fromEachFeed(client, unreadFeeds)
+                    val episodes = judged(source, headlines, now)
+                    val articles = headlines.map { it to article(source, it, now).episode(it.attachments, episodes["$TTRSS_GUID_PREFIX${it.id}"]) }
+                    if (source.markReadOnServer) syncReadState(client, source, articles, now)
+                    val guids = articles.map { it.second.guid }
+                    val known = guids.chunked(500).flatMap { db.articles().knownGuids(source.id, it) }.toSet()
+                    val added = db.articles().insertFetched(articles.map { (h, a) -> a to h.link })
+                    if (source.markReadOnServer && source.markExpiredRead) {
+                        (guids - known).chunked(500).forEach { db.articles().readOnArrival(source.id, it, now.minus(keepFor)) }
+                    }
+                    // tt-rss answers a deleted (or another user's) category with no articles and no error.
+                    if (headlines.isEmpty() && category != null && client.categories().none { it.id == category }) {
+                        CATEGORY_GONE
+                    } else {
+                        db.sources().recordSuccess(source.id, now, null, null, source.title)
+                        listFeeds(client, source, now, force = newFeed)
+                        noteSites(source, headlines)
+                        watchPosts(client, source, now)
+                        return added + if (source.takeTtrssStars) takeStars(client, source, now) else 0
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: TtrssException) {
+                    e.reason
+                } catch (e: IOException) {
+                    // The periodic sync, and every edition, tries again.
+                    ttrssUnreachable(e) + if (tooSlow(e)) " It'll be tried again at the next sync." else ""
+                } catch (e: SQLiteConstraintException) {
+                    return null
+                } catch (e: Exception) {
+                    "Something went wrong reading from tt-rss."
                 }
-                // tt-rss answers a deleted (or another user's) category with no articles and no error.
-                if (headlines.isEmpty() && category != null && client.categories().none { it.id == category }) {
-                    CATEGORY_GONE
-                } else {
-                    db.sources().recordSuccess(source.id, now, null, null, source.title)
-                    listFeeds(client, source, now)
-                    watchPosts(client, source, now)
-                    return added + if (source.takeTtrssStars) takeStars(client, source, now) else 0
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: TtrssException) {
-                e.reason
-            } catch (e: IOException) {
-                // The periodic sync, and every edition, tries again.
-                ttrssUnreachable(e) + if (tooSlow(e)) " It'll be tried again at the next sync." else ""
-            } catch (e: SQLiteConstraintException) {
-                return null
-            } catch (e: Exception) {
-                "Something went wrong reading from tt-rss."
-            } finally {
-                logOut(client)
             }
         }
         db.sources().recordFailure(source.id, now, error)
         return null
     }
 
+    /** Each feed's site, as its articles name it, for its page on Sources. */
+    private suspend fun noteSites(source: SourceEntity, headlines: List<TtrssHeadline>) {
+        val sites = headlines.groupBy { it.feedId }.mapNotNull { (feed, its) -> its.firstNotNullOfOrNull { RowLimits.link(it.siteUrl) }?.let { feed to it } }
+        if (sites.isNotEmpty()) db.withTransaction { sites.forEach { (feed, url) -> db.sources().setSiteUrl(source.id, feed, url) } }
+    }
+
     /** Lists the account's feeds once a day (see [listTtrssFeeds]). */
-    private suspend fun listFeeds(client: TtrssClient, source: SourceEntity, now: Instant) {
-        if (source.feedsListedAt?.let { Duration.between(it, now) < LIST_FEEDS_EVERY } == true) return
+    private suspend fun listFeeds(client: TtrssClient, source: SourceEntity, now: Instant, force: Boolean = false) {
+        if (!force && source.feedsListedAt?.let { Duration.between(it, now) < LIST_FEEDS_EVERY } == true) return
         listTtrssFeeds(db, client, source, now)
     }
 
@@ -263,7 +273,7 @@ class FeedSync(
      */
     private suspend fun watchPosts(client: TtrssClient, source: SourceEntity, now: Instant) {
         val posted = try {
-            client.postedSince(source.ttrssSeenId, if (source.ttrssSeenId == null) FIRST_LOOK_PAGES else WATCH_PAGES)
+            client.postedSince(source.ttrssSeenId, WATCH_PAGES)
         } catch (e: TtrssException) {
             return
         } catch (e: IOException) {
@@ -492,7 +502,6 @@ class FeedSync(
 
         /** Pages of 200 articles looked at per sync; more wait for the next. */
         private const val WATCH_PAGES = 5
-        private const val FIRST_LOOK_PAGES = 5
 
         /** Pages of 200 starred articles listed per sync: 10,000 stars, past which none are taken. */
         private const val STAR_PAGES = 50
@@ -501,6 +510,9 @@ class FeedSync(
 
         /** How long an unpicked article waits, from when it was found, before it expires. */
         val KEEP_WAITING: Duration = Duration.ofDays(7)
+
+        /** How many unpicked links a curated list keeps by default. */
+        const val LIST_KEEP = 12
 
         const val LIST_LAYOUT_CHANGED =
             "This page has changed its layout, so NewspapeRSS can't tell which links are new and took none. An app update should fix it."
@@ -630,6 +642,16 @@ internal fun ArticleEntity.withEpisode(enclosures: List<Enclosure>, verdict: Ver
 internal fun ArticleEntity.linkedToStory(siteUrl: String?): ArticleEntity {
     val story = LinkPosts.storyUrl(url, feedHtml, siteUrl)
     return if (story != null) copy(url = story, viaUrl = url) else copy(url = withoutTracking(url, LinkPosts.siteNames(url, siteUrl)))
+}
+
+/**
+ * A tt-rss session for [block], logged out however it ends. Inline, so a `return` in [block]
+ * returns from the caller, as it would from the `try` this stands for.
+ */
+internal suspend inline fun <T> TtrssClient.session(block: (TtrssClient) -> T): T = try {
+    block(this)
+} finally {
+    logOut(this)
 }
 
 /**

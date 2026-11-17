@@ -144,7 +144,7 @@ The steps, with where they live:
    marks any edition left `BUILDING` by a dead process as failed, and
    releases editions still `READY` (never sent) so their articles go back.
    It then inserts the new edition as `BUILDING` and reads the candidates
-   (`ArticleDao.candidates`), dropping left-out publications' unless starred.
+   (`ArticleDao.buildCandidates`, without the feed text), dropping left-out publications' unless starred.
 3. **Order.** `EditionPlanner.order` (`core/edition/EditionPlanner.kt`)
    sorts candidates: stars first, then by turns across publications: a
    feed added here is one, and each of a tt-rss account's feeds is one. A
@@ -255,7 +255,7 @@ flowchart LR
     player -->|"a line, and the next"| speaker["Speaker: SystemSpeaker (TextToSpeech)"]
     speaker -->|"started, done"| player
     player --> state["state: StateFlow"]
-    state --> screen["ListenScreen, ListenButton"]
+    state --> screen["ArticlePreviewScreen, PlayerDock, ListenButton"]
     state --> session["SessionPlayer (Media3) in ListenService"]
     session -->|"lock screen, headphones"| player
     player --> progress["ListenProgress (SharedPreferences)"]
@@ -293,7 +293,7 @@ flowchart LR
   kept with each piece, so the player tints and saves sentences the same way. Line ids
   (`LineId`) carry the edition, page and line, and the page's line count:
   a podcast made from other lines isn't used. Its `voice` is the name the
-  playing screen shows, and `instead` why an article of an edition with a
+  player shows, and `instead` why an article of an edition with a
   podcast plays in the phone's voice.
 - **`Podcasts`** is how the rest of the app reaches podcasts. It shows
   the edition page which articles are made, followed through
@@ -417,6 +417,7 @@ erDiagram
         int maxArticles
         bool leftOut
         bool skipPaidPosts
+        bool recordingsOff "Listen's voice reads its posts"
         string title "tt-rss"
         string feedUrl "tt-rss"
         string category "tt-rss"
@@ -468,7 +469,7 @@ erDiagram
   (a feed address, a tt-rss account, the reading list, a curated list):
   sync, read sync, sign-in and Pause are per source. A publication is who
   wrote them, and holds the settings about the writing: article text, cap,
-  left out, Skip paid posts. A feed added here and a feed in tt-rss differ
+  left out, Skip paid posts, its recordings in Listen. A feed added here and a feed in tt-rss differ
   only in which source carries them. An article's publication is
   `(sourceId, originId ?: "")` (`PublicationEntity.keyOf`).
 - **A publication's row** is written only once there's something to keep;
@@ -526,7 +527,7 @@ stays as a `DELETED` row to keep its title taken.
 | EPUBs | `files/editions/`; only the newest 14 keep their file (unsent ones always do) | `EditionRepository.pruneFiles` |
 | HTTP cache | `cache/http`, used to revalidate feeds | `AppContainer`, `core/net/HttpClient.kt` |
 
-Auto Backup leaves out the EPUBs, Kokoro, podcasts, the timer state and the tt-rss account
+Auto Backup leaves out the EPUBs, Kokoro, podcasts, the podcast's run logs, the timer state and the tt-rss account
 (`app/src/main/res/xml/backup_rules.xml`).
 
 **Where the feeds come from** is the setting `feedsFrom` (`PHONE` or
@@ -655,8 +656,8 @@ On a PR that touches what they cover:
   every push to main), on an emulator:
   - `EditionReachesAnotherAppTest` hands an edition to `:epubsink` in
     another process.
-  - `ArticlePreviewRenderTest` renders the edition's own EPUB in a real
-    WebView, as the preview does.
+  - `ArticlePreviewRenderTest` draws the edition's own EPUB in the preview on
+    a real screen, with real fonts.
   - `AccessibilityChecksTest` runs Google's accessibility checks on every
     screen a new reader meets, then Today, Sources and Settings again at 200%
     text. Under Robolectric those checks check nothing, so they live here.

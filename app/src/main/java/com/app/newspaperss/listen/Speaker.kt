@@ -27,6 +27,12 @@ interface Speaker {
     /** Stops speaking and drops the queue, without calling [Listener.onDone]. */
     fun stop()
 
+    /**
+     * Stops as [stop] does, for a pause or a change of speed: speaking on from the same line then
+     * carries on from where it got, where the speaker can, rather than from the line's start.
+     */
+    fun pause() = stop()
+
     fun release()
 
     interface Listener {
