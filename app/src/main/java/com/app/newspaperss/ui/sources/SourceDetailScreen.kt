@@ -428,7 +428,7 @@ private fun offeredSettings(
         cap = !leftOut && (viewModel.isFeed || source.kind != SourceKind.TTRSS),
         // Offered before any paid post arrives, so a reader who knows the publication can set it ahead.
         paidPosts = ownsPosts && paidOnly != null,
-        // Only on a source with a post that could play one in Listen (see Readings), as for paid posts.
+        // Only on a source with a post that could play one in Listen (see Readings): most never have one.
         recordings = ownsPosts && viewModel.recordings && (off || articles.any(::mayPlayARecording)),
     )
 }
