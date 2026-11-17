@@ -72,6 +72,11 @@ class EditionDetailViewModel(
         viewModelScope.launch { editions.setStarred(articleId, starred) }
     }
 
+    /** An article's mark tapped: sent on its own, or back for an edition (see [EditionRepository.toggleSent]). */
+    fun toggleSent(articleId: Long) {
+        viewModelScope.launch { editions.toggleSent(id, articleId) }
+    }
+
     private val _deleted = MutableStateFlow(false)
     /**
      * True once [delete] has deleted it, for the screen to leave. A state, not a callback: the

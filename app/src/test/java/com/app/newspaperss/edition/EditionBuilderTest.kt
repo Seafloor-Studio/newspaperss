@@ -223,6 +223,51 @@ class EditionBuilderTest {
         assertEquals("the second article of a capped source waits", ArticleState.NEW, stateOf("a1"))
     }
 
+    /** A link saved after a feed brought it in: the saved copy is the one kept, so it goes first. */
+    @Test
+    fun aSavedLinkAlsoInAFeedKeepsItsPlaceAtTheFront() = runTest {
+        source("c", "c1", "c2")
+        source("a", "a1")
+        ReadingListRepository(db, clock).save("https://c.example/c1", "Saved from c")
+
+        val built = builder.build(EditionSettings(minutes = 25, maxPerSource = 1, wordsPerMinute = 200)) as BuildResult.Built
+        assertEquals(listOf("Saved from c", "c c2", "a a1"), editions.observeArticles(built.editionId).first().map { it.title })
+    }
+
+    /**
+     * Saved links were picked on purpose, like stars: they go first, oldest saved first, though the
+     * reading list was in the last edition and the feeds weren't. Held to one by default, more
+     * when there's room; held to the reader's own number when they set one.
+     */
+    @Test
+    fun savedLinksGoFirstAndTheReadingListHasItsOwnNumber() = runTest {
+        val list = ReadingListRepository(db, clock)
+        list.save("https://saved.example/one", "Saved one")
+        list.save("https://saved.example/two", "Saved two")
+        val listId = list.sourceId()
+        // The list was in yesterday's edition: by turns alone it would come last.
+        list.save("https://saved.example/before", "Saved before")
+        val before = db.articles().allForSource(listId).single { it.guid.endsWith("before") }
+        val yesterday = db.editions().insert(EditionEntity(title = "Yesterday", createdAt = clock.instant().minus(Duration.ofDays(1)), status = EditionStatus.DELIVERED))
+        db.editions().insertArticles(listOf(EditionArticleEntity(editionId = yesterday, articleId = before.id, position = 0, title = before.title, sourceTitle = "Your reading list", minutes = 1.0)))
+        db.articles().setState(listOf(before.id), ArticleState.DELIVERED)
+        source("a", "a1")
+        source("b", "b1")
+
+        suspend fun titles(minutes: Int): List<String> {
+            val built = builder.build(EditionSettings(minutes = minutes, maxPerSource = 1, wordsPerMinute = 200)) as BuildResult.Built
+            val titles = editions.observeArticles(built.editionId).first().map { it.title }
+            editions.delete(built.editionId)
+            return titles
+        }
+
+        assertEquals("first, and one by default", listOf("Saved one", "a a1", "b b1"), titles(25))
+        // Taken last, it's placed beside the first: the book keeps a source's articles together.
+        assertEquals("more when there's room", listOf("Saved one", "Saved two", "a a1", "b b1"), titles(35))
+        sources.setMaxArticles(listId, PublicationEntity.OWN, 2)
+        assertEquals("its own number", listOf("Saved one", "Saved two", "a a1"), titles(25))
+    }
+
     /**
      * Six sources last featured on six different days, room for one: the one featured longest ago
      * has only an article that waits out its week before the next scheduled edition. Across draws
@@ -357,6 +402,21 @@ class EditionBuilderTest {
         val next = builder.build(settings) as BuildResult.Built
 
         assertEquals(sourcesOf(unsent.editionId), sourcesOf(next.editionId))
+    }
+
+    /** Never sent, but one of its articles was read or heard on the phone: that source had its turn. */
+    @Test
+    fun anArticleSentOnItsOwnFromAnUnsentEditionCountsAsItsSourcesTurn() = runTest {
+        for (name in listOf("a", "b", "c", "d")) source(name, "${name}1", "${name}2", "${name}3")
+        val settings = EditionSettings(minutes = 15, maxPerSource = 1, wordsPerMinute = 200)
+        fun sourcesOf(id: Long) = runBlocking { editions.observeArticles(id).first().map { it.title.substringBefore(' ') }.toSet() }
+
+        val unsent = builder.build(settings) as BuildResult.Built
+        val heard = editions.observeArticles(unsent.editionId).first().first()
+        assertTrue(editions.markFinished(unsent.editionId, heard.position))
+        val next = builder.build(settings) as BuildResult.Built
+
+        assertTrue(heard.title.substringBefore(' ') !in sourcesOf(next.editionId))
     }
 
     @Test

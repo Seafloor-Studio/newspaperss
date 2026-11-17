@@ -50,6 +50,7 @@ class TtrssMarkReadWorkerTest {
         val article = db.articles().allForSource(source.id).single()
         val editionId = db.editions().insert(EditionEntity(title = "Tuesday", status = EditionStatus.DELIVERED))
         db.editions().insertArticles(listOf(EditionArticleEntity(editionId = editionId, articleId = article.id, position = 0, title = "One", sourceTitle = "Example News", minutes = 1.0)))
+        db.articles().setDelivered(listOf(article.id))
 
         app.http.unreachable += server.apiUrl
         assertTrue(worker(editionId, attempt = 0) is ListenableWorker.Result.Retry)
@@ -68,6 +69,7 @@ class TtrssMarkReadWorkerTest {
         val article = db.articles().allForSource(db.sources().ofKind(SourceKind.TTRSS).single().id).single()
         val editionId = db.editions().insert(EditionEntity(title = "Tuesday", status = EditionStatus.DELIVERED))
         db.editions().insertArticles(listOf(EditionArticleEntity(editionId = editionId, articleId = article.id, position = 0, title = "One", sourceTitle = "Example News", minutes = 1.0)))
+        db.articles().setDelivered(listOf(article.id))
         editionId
     }
 

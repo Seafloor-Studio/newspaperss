@@ -21,6 +21,8 @@ import com.app.newspaperss.listen.Reading
 import com.app.newspaperss.listen.Readings
 import com.app.newspaperss.listen.ReadingSpeaker
 import com.app.newspaperss.core.episodes.EpisodeKind
+import com.app.newspaperss.ui.components.listenBanner
+import com.app.newspaperss.listen.Outcome
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.CompositionLocalProvider
 import com.app.newspaperss.testutil.TestDataStores
@@ -525,6 +527,13 @@ class ScreenshotTest {
         shoot("05b-edition-detail", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}, listening = listening) }
     }
 
+    /** A ready edition: its second article heard to its end in Listen (sent on its own), its last marked read on its source's page. */
+    @Test
+    fun editionDetailReadyPartRead() {
+        val vm = sentEdition(ready = true)
+        shoot("05b3-edition-detail-ready-part-read", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}) }
+    }
+
     /** Posts the episode detector judged: a letter and its reading, show notes, a transcript, and an article. */
     @Test
     fun editionDetailEpisodes() {
@@ -831,7 +840,7 @@ class ScreenshotTest {
         }
     }
 
-    private fun sentEdition(notSent: Boolean = false): EditionDetailViewModel {
+    private fun sentEdition(notSent: Boolean = false, ready: Boolean = false): EditionDetailViewModel {
         val id = runBlocking {
             val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Review"))
             val titles = listOf(
@@ -843,14 +852,21 @@ class ScreenshotTest {
             val articles = titles.mapIndexed { i, title ->
                 db.articles().insertIgnoring(
                     ArticleEntity(
-                        sourceId = source, guid = "$i", url = "https://example.com/$i", title = title, state = if (notSent) ArticleState.NEW else ArticleState.DELIVERED,
-                        starredAt = if (i == 1) Instant.parse("2026-09-29T08:00:00Z") else null,
+                        sourceId = source, guid = "$i", url = "https://example.com/$i", title = title,
+                        state = when {
+                            ready -> when (i) { 1 -> ArticleState.DELIVERED; 3 -> ArticleState.SKIPPED; else -> ArticleState.IN_EDITION }
+                            notSent -> ArticleState.NEW
+                            else -> ArticleState.DELIVERED
+                        },
+                        starredAt = if (i == 1 && !ready) Instant.parse("2026-09-29T08:00:00Z") else null,
                     ),
                 )
             }
             val now = Instant.parse("2026-09-29T06:30:00Z")
             val edition = db.editions().insert(
-                if (notSent) {
+                if (ready) {
+                    EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.READY, fileName = "e.epub", articleCount = 4, minutes = 27.5)
+                } else if (notSent) {
                     EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.FAILED, error = com.app.newspaperss.edition.EditionBuilder.NOT_SENT, fileName = "e.epub", articleCount = 4, minutes = 27.5)
                 } else {
                     EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.DELIVERED, fileName = "e.epub", articleCount = 4, minutes = 27.5, deliveredAt = now)
@@ -873,6 +889,17 @@ class ScreenshotTest {
         file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
         shoot("05c-article-preview", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
             ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {})
+        }
+    }
+
+    /** The edition's last article, with no "Next" line: one marking it read in its place. */
+    @Test
+    fun articlePreviewLastArticle() {
+        val file = tmp.newFile("last.epub")
+        val article = EditionArticle(title = "The quiet return of the night train", sourceTitle = "The Example Review", url = "https://example.com/night-train", bodyHtml = "<p>Sleeper services are coming back.</p>", minutes = 4.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05c3-article-preview-last-article", ready = { compose.onAllNodes(hasText("Mark as read")).fetchSemanticsNodes().isNotEmpty() }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, onFinished = {}, finished = { false })
         }
     }
 
@@ -906,7 +933,10 @@ class ScreenshotTest {
         val article = EditionArticle(title = "How a ferry timetable is made, with its planner", sourceTitle = "The Example Letter", url = "https://example.com/ferry", bodyHtml = "<p>This week's guest plans ferries.</p>", minutes = 2.0)
         file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
         shoot("05c-article-preview-episode", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
-            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, episodeFor = { EpisodeJudgement(EpisodeKind.NOTES) })
+            ArticlePreviewScreen(
+                loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {},
+                bannerFor = { listenBanner(EpisodeKind.NOTES, null, Outcome.AfterTheEdition) { null } },
+            )
         }
     }
 
@@ -917,7 +947,38 @@ class ScreenshotTest {
         val article = EditionArticle(title = "Transcript: the ferry planner", sourceTitle = "The Example Letter", url = "https://example.com/ferry-transcript", bodyHtml = "<p>This week's guest plans ferries.</p>", minutes = 40.0)
         file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
         shoot("05c4-article-preview-transcript-no-audio", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
-            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, episodeFor = { EpisodeJudgement(EpisodeKind.TRANSCRIPT, hasAudio = false, pairHasAudio = false) })
+            ArticlePreviewScreen(
+                loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {},
+                bannerFor = { listenBanner(EpisodeKind.TRANSCRIPT, null, Outcome.Read(Outcome.Why.NO_AUDIO)) { null } },
+            )
+        }
+    }
+
+    /** An audio version whose post isn't in the edition: it plays on its own page. */
+    @Test
+    fun articlePreviewAudioVersionPlaysHere() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "Audio version of How a ferry timetable is made", sourceTitle = "The Example Letter", url = "https://example.com/ferry-audio", bodyHtml = "<p>Listen to this post.</p>", minutes = 1.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05c6-article-preview-audio-version", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(
+                loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {},
+                bannerFor = { listenBanner(EpisodeKind.AUDIO_VERSION, com.app.newspaperss.data.EpisodePair("g", "How a ferry timetable is made", EpisodeKind.ARTICLE), Outcome.Plays(720)) { null } },
+            )
+        }
+    }
+
+    /** Episode notes switched off in Settings: the banner says where to switch them on, a link there. */
+    @Test
+    fun articlePreviewNotesSwitchedOff() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "How a ferry timetable is made, with its planner", sourceTitle = "The Example Letter", url = "https://example.com/ferry", bodyHtml = "<p>This week's guest plans ferries.</p>", minutes = 2.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05c5-article-preview-notes-switched-off", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(
+                loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {},
+                bannerFor = { listenBanner(EpisodeKind.NOTES, null, Outcome.Read(Outcome.Why.KIND_OFF)) { null } },
+            )
         }
     }
 
@@ -951,6 +1012,20 @@ class ScreenshotTest {
         }
     }
 
+    /** Send for a look on an article its site turned away: it says the site's answer goes too. */
+    @Test
+    fun articlePreviewSendForALookBlocked() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "The quiet return of the night train", sourceTitle = "The Example Review", url = "https://example.com/night-train", bodyHtml = "<p>Sleeper services are coming back.</p>", minutes = 4.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05e3-article-preview-look-blocked", ready = { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }, act = {
+            compose.onNodeWithContentDescription("More").performClick()
+            compose.onNodeWithText("Send for a look…").performClick()
+        }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, blockedAnswerFor = { "HTTP 403" })
+        }
+    }
+
     /** The top bar at twice the font size: the title stays on one line beside Back and Share. */
     @Test
     @Config(fontScale = 2f)
@@ -976,8 +1051,8 @@ class ScreenshotTest {
             db.articles().setPageWords(saved.getValue("On walking").id, 3400)
             db.articles().setUnreadable(saved.getValue("Annual report 2025").id, "not a web page")
         }
-        val vm = com.app.newspaperss.ui.readinglist.ReadingListViewModel(list)
-        shoot("09a-reading-list", ready = { vm.items.value?.size == 3 }) { com.app.newspaperss.ui.readinglist.ReadingListScreen(vm, onBack = {}) }
+        val vm = com.app.newspaperss.ui.readinglist.ReadingListViewModel(list, SourceRepository(db, clock), kotlinx.coroutines.flow.flowOf(1))
+        shoot("09a-reading-list", ready = { vm.items.value?.size == 3 && vm.cap.value != null }) { com.app.newspaperss.ui.readinglist.ReadingListScreen(vm, onBack = {}) }
     }
 
     @Test
@@ -1073,7 +1148,7 @@ class ScreenshotTest {
         }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
-    /** A busy source lists only its newest articles, and the heading says so rather than looking like a total. */
+    /** A busy source lists only its newest articles, under a heading that says so and gives no count. */
     @Test
     fun sourceDetailNewest() {
         val repo = SourceRepository(db, clock)
@@ -1373,7 +1448,7 @@ class ScreenshotTest {
         shoot("08h-left-out-list", ready = { vm.feeds.value.any { !it.inPaper } }) { LeftOutScreen(vm, onBack = {}, onOpenFeed = {}) }
     }
 
-    /** A failing feed's page from the top, where its own address is offered to check. */
+    /** A failing feed's page from the top: the problem with its mark, how long, and what it means for the paper. */
     @Test
     fun sourceDetailFailing() {
         val repo = SourceRepository(db, clock)
@@ -1411,7 +1486,7 @@ class ScreenshotTest {
         return viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
     }
 
-    /** Two settings changed: the row names only those, in the sheet's order. */
+    /** Two settings changed: the row says the limit as its rule, and the other under it. */
     @Test
     fun sourceDetailSettingsChanged() {
         val vm = letter { repo, id ->
@@ -1421,7 +1496,7 @@ class ScreenshotTest {
         shoot("06h-source-detail-settings-changed", ready = { vm.detail.value?.text?.recordingsOff == true && vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
-    /** Paused: the status line says so first, as well as the settings row. */
+    /** Paused: the page says so first, with Start again; the settings row keeps to the rule. */
     @Test
     fun sourceDetailPaused() {
         val vm = letter { repo, id ->
@@ -1456,6 +1531,57 @@ class ScreenshotTest {
     fun phoneFeedSettings() {
         val vm = sourceWithArticles()
         shoot("08i-phone-feed-settings", ready = { vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** [ids] went out in yesterday's edition. */
+    private suspend fun sentYesterday(ids: List<Long>) {
+        val at = clock.instant().minus(Duration.ofDays(1))
+        val edition = db.editions().insert(EditionEntity(title = "Monday Morning Edition", createdAt = at, status = EditionStatus.DELIVERED, deliveredAt = at))
+        db.editions().insertArticles(ids.mapIndexed { i, id -> EditionArticleEntity(editionId = edition, articleId = id, position = i, title = "An article", sourceTitle = "A source", minutes = 4.0) })
+        db.articles().setDelivered(ids)
+        db.articles().rememberDelivered(ids, at)
+    }
+
+    /** The top of the page at twice the font size: every line wraps rather than squeezing. */
+    @Test
+    @Config(fontScale = 2f)
+    fun sourceDetailTopAtTwiceTheFontSize() {
+        val vm = sourceWithArticles()
+        shoot("06n-source-detail-top-200", ready = { vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** A site that sends only summaries: the page says so in ink, and the settings row where it's changed. */
+    @Test
+    fun sourceDetailSummariesOnly() {
+        val vm = letter { _, id ->
+            db.sources().savePublication(PublicationEntity(id, PublicationEntity.OWN, ContentMode.FEED, FullTextEvidence.FEED_SHORT, 3))
+            sentYesterday(listOf(db.articles().allForSource(id).first().id))
+        }
+        shoot("06l-source-detail-summaries", ready = { vm.detail.value?.paper?.sent?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** A curated list's page: each pick keeps its site's name, and the legend says how many the list keeps. */
+    @Test
+    fun sourceDetailCuratedList() {
+        val repo = SourceRepository(db, clock)
+        val id = runBlocking {
+            val id = repo.addList(com.app.newspaperss.core.lists.CuratedLists.all.first())
+            val picks = listOf(
+                "A long piece about how ferries keep time" to "Example Magazine",
+                "What the harbour master saw" to "The Example Review",
+                "Why city trees are planted in pairs" to "Example Weekly",
+            )
+            db.articles().insertNew(
+                picks.mapIndexed { i, (title, site) ->
+                    ArticleEntity(sourceId = id, guid = "$i", url = "https://example.org/$i", title = title, originTitle = site, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1)))
+                },
+            )
+            sentYesterday(listOf(db.articles().allForSource(id).single { it.guid == "2" }.id))
+            db.sources().recordSuccess(id, clock.instant(), null, null, "")
+            id
+        }
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
+        shoot("06m-source-detail-list", ready = { vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
     @Test
@@ -1542,11 +1668,11 @@ class ScreenshotTest {
         shoot("07o3-settings-listening-font-200", ready = { vm.settings.value != null }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
     }
 
-    /** Recordings switched off: the kinds go away. */
+    /** No recordings ticked: the voice reads every post. */
     @Test
     fun settingsListeningRecordingsOff() {
         installVoice(ApplicationProvider.getApplicationContext())
-        runBlocking { store.update { it.copy(listenSpeed = 1.2f, recordings = Recordings(on = false)) } }
+        runBlocking { store.update { it.copy(listenSpeed = 1.2f, recordings = Recordings.NONE) } }
         val vm = SettingsViewModel(store) {}
         shoot("07o2-settings-listening-recordings-off", ready = { vm.settings.value != null }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
     }

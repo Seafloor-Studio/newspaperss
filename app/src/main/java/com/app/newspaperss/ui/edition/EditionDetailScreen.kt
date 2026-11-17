@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -24,7 +25,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -38,13 +38,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.app.newspaperss.data.ArticleState
 import com.app.newspaperss.data.EditionContent
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionStatus
@@ -57,11 +60,12 @@ import com.app.newspaperss.listen.EpisodeAfter
 import com.app.newspaperss.listen.Listening
 import com.app.newspaperss.settings.KindleEmail
 import com.app.newspaperss.ui.components.ArticleRowFrame
-import com.app.newspaperss.ui.components.EpisodeLabelTag
-import com.app.newspaperss.ui.components.episodeLabel
 import com.app.newspaperss.ui.components.BUILDING_NOTE
+import com.app.newspaperss.ui.components.EpisodeLabelTag
 import com.app.newspaperss.ui.components.LocalClock
+import com.app.newspaperss.ui.components.SentToggle
 import com.app.newspaperss.ui.components.StarToggle
+import com.app.newspaperss.ui.components.episodeLabel
 import com.app.newspaperss.ui.listen.ListenButton
 import com.app.newspaperss.ui.listen.PodcastLine
 import com.app.newspaperss.ui.today.failureColor
@@ -281,6 +285,8 @@ fun EditionDetailScreen(
                     building = building,
                     reserveStar = anyStar,
                     onOpen = if (current.file != null) { { onReadArticle(content.entry.position) } } else null,
+                    editionSent = current.edition?.status == EditionStatus.DELIVERED,
+                    onToggleSent = if (articleId != null && content.state != null) { { viewModel.toggleSent(articleId) } } else null,
                 )
                 HorizontalDivider()
             }
@@ -383,14 +389,32 @@ private fun ContentRow(
     building: Boolean,
     reserveStar: Boolean,
     onOpen: (() -> Unit)?,
+    editionSent: Boolean = false,
+    onToggleSent: (() -> Unit)? = null,
 ) {
     val entry = content.entry
+    val state = content.state
+    // Sent, or anything else that keeps it from coming back for another edition.
+    val sent = state == ArticleState.DELIVERED || state == ArticleState.SKIPPED || state == ArticleState.EXPIRED
     // Words, not the glyph, so it isn't mistaken for the toggle beside it; past tense, since that
     // toggle is about the next edition and may be off.
     val details = listOfNotNull(entry.sourceTitle, minutesLabel(entry.minutes), "You starred it".takeIf { entry.starred }).joinToString(" · ")
+    // Dimmed as on a source's page, so what's left stands out; not in a sent edition, where it's every row.
+    val done = sent && !editionSent && content.starredAt == null
     ArticleRowFrame(
         modifier = if (onOpen != null) Modifier.clickable(onClickLabel = "Read", onClick = onOpen) else Modifier,
-        title = { Text(entry.title, style = MaterialTheme.typography.bodyLarge, maxLines = 3, overflow = TextOverflow.Ellipsis) },
+        // A waiting one is held while an edition is being made, which may be taking it.
+        leading = if (onToggleSent != null && state != null) { { SentToggle(entry.title, state, onToggleSent, enabled = !(building && state == ArticleState.NEW)) } } else null,
+        title = {
+            Text(
+                entry.title,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = if (done) FontWeight.Normal else null,
+                color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
+            )
+        },
         details = {
             Column {
                 Text(details, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

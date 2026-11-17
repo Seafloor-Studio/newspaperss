@@ -20,17 +20,51 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import com.app.newspaperss.data.PublicationEntity
+import com.app.newspaperss.data.SourceRepository
+import com.app.newspaperss.ui.settings.SettingsViewModel
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
+ * @param sources where the list's own cap is kept, as for any source; null offers none.
+ * @param defaultMax the edition's per-source number, which the list's own cap replaces.
  * @param outlive runs a removal still waiting on its Undo when the screen goes away, which
  *   [viewModelScope] can't, being cancelled by then.
  */
 class ReadingListViewModel(
     private val list: ReadingListRepository,
+    private val sources: SourceRepository? = null,
+    defaultMax: Flow<Int> = flowOf(1),
     private val outlive: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) : ViewModel() {
+    /** The list's own cap, null when it follows the edition's [default]. */
+    data class Cap(val own: Int?, val default: Int)
+
+    /** How many saved links go in each edition; null until known, or with no [sources]. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val cap: StateFlow<Cap?> = (sources?.let { repo ->
+        flow { emit(list.sourceId()) }.flatMapLatest { id ->
+            combine(repo.observePublication(id, PublicationEntity.OWN), defaultMax) { p, d -> Cap(p?.maxArticles, d) }
+        }
+    } ?: flowOf(null)).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun stepCap(delta: Int) {
+        val repo = sources ?: return
+        val default = cap.value?.default ?: return
+        viewModelScope.launch { repo.stepMaxArticles(list.sourceId(), PublicationEntity.OWN, delta, default, SettingsViewModel.MAX_PER_SOURCE) }
+    }
+
+    fun followDefault() {
+        val repo = sources ?: return
+        viewModelScope.launch { repo.setMaxArticles(list.sourceId(), PublicationEntity.OWN, null) }
+    }
+
     private val _removed = MutableStateFlow<ArticleEntity?>(null)
     /**
      * The link just removed, hidden but not yet deleted while Undo is offered: undoing then only

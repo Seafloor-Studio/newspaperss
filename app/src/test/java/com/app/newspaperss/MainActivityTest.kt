@@ -305,6 +305,9 @@ class MainActivityTest {
         compose.onNodeWithContentDescription("More").performClick()
         compose.onNodeWithText("Go to Quanta Magazine").performClick()
 
+        // The feed's own page: its settings end with where it is in tt-rss.
+        shows("quanta.example")
+        compose.onNode(androidx.compose.ui.test.hasContentDescription("This site's settings:", substring = true)).performClick()
         shows("In your tt-rss \u00b7 category Science")
     }
 

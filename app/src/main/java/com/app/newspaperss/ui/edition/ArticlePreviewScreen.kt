@@ -1,5 +1,9 @@
 package com.app.newspaperss.ui.edition
 
+import com.app.newspaperss.data.ArticleState
+import com.app.newspaperss.data.EditionStatus
+import com.app.newspaperss.data.EditionContent
+import androidx.compose.ui.text.font.FontFamily
 import android.content.Intent
 import androidx.compose.material.icons.automirrored.filled.List
 import com.app.newspaperss.ui.listen.Contents
@@ -11,6 +15,9 @@ import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.app.newspaperss.listen.Listening
@@ -81,6 +88,8 @@ import androidx.compose.ui.unit.dp
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.core.listen.ListenScript
 import com.app.newspaperss.settings.PreviewTextSize
+import com.app.newspaperss.ui.components.Banner
+import com.app.newspaperss.ui.components.BannerLink
 import com.app.newspaperss.ui.components.EpisodeJudgement
 import com.app.newspaperss.ui.components.episodeNote
 import com.app.newspaperss.ui.listen.LinkTarget
@@ -100,6 +109,8 @@ import org.jsoup.nodes.Document
 import org.jsoup.parser.Parser
 import java.io.File
 import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.semantics.Role
 
 /** An article's title and the web address of its original, as the book's page gives them. */
 internal data class ArticleLink(val title: String, val url: String)
@@ -191,11 +202,29 @@ fun ArticlePreviewScreen(
      * it: said in a line above the page, and a wrong label can be sent for a look.
      */
     episodeFor: (Int) -> EpisodeJudgement? = { null },
+    /**
+     * The banner above the article at this position, from what Listen would do with it; null for
+     * none. Falls back to [episodeNote] for a post Listen hasn't judged ([listenBanner] is null).
+     */
+    bannerFor: (Int) -> Banner? = { null },
+    /** What the article's site answered when it last turned the app away, by its address, for Send for a look. */
+    blockedAnswerFor: (url: String) -> String? = { null },
+    /** False while the banners are worked out: none shows, rather than one that then changes. */
+    bannersReady: Boolean = true,
+    /** Follows a banner's link, for the article at this position. */
+    onBannerLink: (Int, BannerLink) -> Unit = { _, _ -> },
     /** Listen; while its player has [editionId] open, its controls sit under the page and the page follows the voice. */
     listen: Listening? = null,
     editionId: Long? = null,
     /** Marks the edition sent, offered on the closing page; null once it's sent, or for one that can't be. */
     onMarkSent: (() -> Unit)? = null,
+    /** An article read to its end: its "Next" line followed. */
+    onFinished: (article: Int) -> Unit = {},
+    /**
+     * Whether an article won't come back (sent, read or not picked), or null if it can't be
+     * marked: the last article, with no "Next" line, ends in a line marking it read instead.
+     */
+    finished: (article: Int) -> Boolean? = { null },
 ) {
     val player = listen?.player
     // Read in the background so the screen shows at once: reading a large edition during
@@ -288,7 +317,7 @@ fun ArticlePreviewScreen(
     }
     // Closed with Listen: left saved, it would open by itself the next time Listen starts.
     LaunchedEffect(listening == null) { if (listening == null) contents = false }
-    link?.takeIf { it.url == lookAt }?.let { SendForALookDialog(it, shown?.article?.let(episodeFor), onDismiss = { lookAt = null }) }
+    link?.takeIf { it.url == lookAt }?.let { SendForALookDialog(it, shown?.article?.let(episodeFor), blocked = remember(it.url) { blockedAnswerFor(it.url) }, onDismiss = { lookAt = null }) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -365,21 +394,27 @@ fun ArticlePreviewScreen(
                         )
                     }
                 }
-                episodeFor(onScreen.article)?.let(::episodeNote)?.let { note ->
-                    // Held to four lines: it stays above the article for the whole read.
-                    Text(note, style = MaterialTheme.typography.bodySmall, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                (bannerFor(onScreen.article) ?: episodeFor(onScreen.article)?.let(::episodeNote)?.let(::Banner))?.takeIf { bannersReady }?.let { banner ->
+                    ArticleBanner(banner) { onBannerLink(onScreen.article, it) }
                     HorizontalDivider()
                 }
                 key(onScreen.article) {
                     PreviewPageView(
                         onScreen, open.pages, textSize, link,
-                        onArticle = { at -> if (at in 0 until open.articles) toArticle(at) },
+                        onArticle = { at ->
+                            // Its "Next" line: read to the end.
+                            if (at == onScreen.article + 1) onFinished(onScreen.article)
+                            if (at in 0 until open.articles) toArticle(at)
+                        },
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         voice = listening?.takeIf { it.at.page == onScreen.article },
                         onReadFrom = { line -> player?.seek(ListenPosition(onScreen.article, line)) },
                         // Heard to the end on the phone, it's as good as sent: its articles shouldn't
                         // come back for the next edition.
-                        footer = onMarkSent?.takeIf { listening?.pages?.getOrNull(onScreen.article)?.end == true }?.let { mark -> { MarkSentAtTheEnd(mark) } },
+                        footer = onMarkSent?.takeIf { listening?.pages?.getOrNull(onScreen.article)?.end == true }?.let { mark -> { MarkSentAtTheEnd(mark) } }
+                            ?: finished(onScreen.article)?.takeIf { onScreen.article == open.articles - 1 }?.let { done ->
+                                { MarkReadAtTheEnd(onScreen.title.orEmpty(), done, textSize ?: PreviewTextSize.DEFAULT) { onFinished(onScreen.article) } }
+                            },
                     )
                 }
             }
@@ -496,6 +531,41 @@ private fun PreviewPageView(
     }
 }
 
+/**
+ * For the line after the last article: whether [content] won't come back, or null for no line.
+ * None on a sent edition, all of which went out; nor, while an edition is being made, on one let
+ * go that it may be taking, which a tap couldn't mark; nor on one whose source was removed.
+ */
+internal fun markedAtTheEnd(content: EditionContent?, edition: EditionStatus?, building: Boolean): Boolean? {
+    if (content?.entry?.articleId == null || edition == EditionStatus.DELIVERED) return null
+    val state = content.state ?: return null
+    if (state == ArticleState.NEW && building) return null
+    return state == ArticleState.DELIVERED || state == ArticleState.SKIPPED || state == ArticleState.EXPIRED
+}
+
+/**
+ * After the last article, in the place of the others' "Next" line, which marks them read when
+ * followed: the whole line a finger tall, like it. Once marked, it says so; the edition's page
+ * brings it back.
+ */
+@Composable
+private fun MarkReadAtTheEnd(title: String, done: Boolean, textSize: PreviewTextSize, onMark: () -> Unit) {
+    // The page's own furniture, as the "Next" line is drawn.
+    val style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Serif).sized(textSize)
+    // One node either way, so TalkBack keeps its place on it and says the change.
+    Text(
+        if (done) "Marked as read ✓" else "Mark as read",
+        style = if (done) style else style.copy(textDecoration = TextDecoration.Underline),
+        color = if (done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .clickable(enabled = !done, role = Role.Button, onClickLabel = null, onClick = onMark)
+            .semantics {
+                contentDescription = if (done) "Marked as read" else if (title.isEmpty()) "Mark as read" else "Mark $title as read"
+                liveRegion = LiveRegionMode.Polite
+            },
+    )
+}
+
 /** On Listen's closing page: done with the edition here, so it needn't go to the e-reader. */
 @Composable
 private fun MarkSentAtTheEnd(onMarkSent: () -> Unit) {
@@ -593,6 +663,34 @@ private fun TextSizeMenu(textSize: PreviewTextSize, onTextSize: (PreviewTextSize
             }
         }
     }
+}
+
+/**
+ * A [Banner] above the article. With a link, the whole banner is the tap, a finger tall, and isn't
+ * cut short, so its last words, the link's, are always there; its linked words are underlined.
+ * Without one it's held to four lines: it stays above the article for the whole read.
+ */
+@Composable
+private fun ArticleBanner(banner: Banner, onLink: (BannerLink) -> Unit) {
+    val link = banner.link
+    val linked = banner.linked?.takeIf { link != null }
+    val at = linked?.let { banner.text.lastIndexOf(it) } ?: -1
+    val text = buildAnnotatedString {
+        if (linked == null || at < 0) return@buildAnnotatedString append(banner.text)
+        append(banner.text.substring(0, at))
+        withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline)) { append(linked) }
+        append(banner.text.substring(at + linked.length))
+    }
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        maxLines = if (link == null) 4 else Int.MAX_VALUE,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (link == null || linked == null) Modifier else Modifier.heightIn(min = 48.dp).clickable(onClickLabel = "Open $linked", role = Role.Button) { onLink(link) })
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    )
 }
 
 /** @param source the name of where the article came from, for **Go to …**; null leaves it out. */

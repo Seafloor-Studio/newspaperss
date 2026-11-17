@@ -40,6 +40,22 @@ class ReadingListScreenTest {
         compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
     }
 
+    /** How many saved links go in each edition, set here as on any source's page. */
+    @Test
+    fun theReadingListSetsHowManySavedLinksGoInEachEdition() {
+        val list = app.container.readingList
+        val vm = ReadingListViewModel(list, app.container.sources, kotlinx.coroutines.flow.flowOf(1))
+        compose.setContent { ReadingListScreen(vm, onBack = {}) }
+        waitFor("1 article from your reading list, then more if there's room")
+
+        compose.onNodeWithContentDescription("More articles from your reading list").performClick()
+        waitFor("At most 2 articles from your reading list in each edition")
+        assertEquals(2, runBlocking { app.container.db.sources().publication(list.sourceId(), com.app.newspaperss.data.PublicationEntity.OWN)?.maxArticles })
+
+        compose.onNodeWithText("Use your edition setting").performClick()
+        waitFor("1 article from your reading list, then more if there's room")
+    }
+
     @Test
     fun aSavedLinkShowsItsReadingTimeAndOpensInTheBrowser() {
         val list = app.container.readingList
