@@ -223,6 +223,17 @@ class EditionBuilderTest {
         assertEquals("the second article of a capped source waits", ArticleState.NEW, stateOf("a1"))
     }
 
+    /** A link saved after a feed brought it in: the saved copy is the one kept, so it goes first. */
+    @Test
+    fun aSavedLinkAlsoInAFeedKeepsItsPlaceAtTheFront() = runTest {
+        source("c", "c1", "c2")
+        source("a", "a1")
+        ReadingListRepository(db, clock).save("https://c.example/c1", "Saved from c")
+
+        val built = builder.build(EditionSettings(minutes = 25, maxPerSource = 1, wordsPerMinute = 200)) as BuildResult.Built
+        assertEquals(listOf("Saved from c", "c c2", "a a1"), editions.observeArticles(built.editionId).first().map { it.title })
+    }
+
     /**
      * Saved links were picked on purpose, like stars: they go first, oldest saved first, though the
      * reading list was in the last edition and the feeds weren't. Held to one by default, more
