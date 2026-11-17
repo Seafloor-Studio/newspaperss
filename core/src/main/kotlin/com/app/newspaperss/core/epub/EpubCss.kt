@@ -40,8 +40,6 @@ th, td { border: 1px solid; padding: 0.2em 0.4em; vertical-align: top; }
 .totals { font-style: italic; }
 p.dateline { font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.12em; margin: 0 0 0.3em 0; }
 h1.contents-title { font-size: 1.6em; margin: 0 0 0.3em 0; }
-h2.section-title { font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.12em; border-bottom: 1px solid; padding-bottom: 0.2em; margin: 1.4em 0 0.6em 0; }
-h2.section-title span.meta { font-size: 1em; text-transform: none; letter-spacing: 0; font-weight: normal; }
 ol.contents { padding-left: 1.6em; margin: 0; }
 ol.contents li { margin-bottom: 0.7em; text-align: left; }
 .meta { font-size: 0.8em; letter-spacing: 0.03em; }

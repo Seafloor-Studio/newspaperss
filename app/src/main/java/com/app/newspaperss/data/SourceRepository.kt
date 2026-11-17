@@ -67,6 +67,10 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
     /** See [ArticleDao.observeHistory], by article. */
     fun observeHistory(id: Long): Flow<Map<Long, ArticleHistory>> = db.articles().observeHistory(id).map { rows -> rows.associateBy { it.articleId } }
 
+    /** What the source, or with [key] one of its tt-rss feeds, has done for the paper: see [PaperRecord]. */
+    fun observePaper(id: Long, key: String = PublicationEntity.OWN): Flow<PaperRecord> =
+        combine(db.articles().observeSent(id, key), db.articles().observeUnsent(id, key), db.articles().observeWaiting(id, key), ::PaperRecord)
+
     /**
      * A tt-rss account's feeds, A to Z. Once tt-rss has listed them, the feeds it takes articles
      * from (see [SourceEntity.feedsListedAt]), and any that has sent articles since: one subscribed
@@ -146,11 +150,12 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
         return if (id == -1L) sources.byUrl(url)!!.id else id
     }
 
-    suspend fun update(source: SourceEntity) = sources.update(source)
-
     suspend fun setPaused(id: Long, paused: Boolean) = sources.setPaused(id, paused)
 
     suspend fun setSkipPaidPosts(sourceId: Long, key: String, skip: Boolean) = editPublication(sourceId, key) { it.copy(skipPaidPosts = skip) }
+
+    /** Whether its posts' recordings play in Listen; from the next edition opened there. */
+    suspend fun setRecordingsOff(sourceId: Long, key: String, off: Boolean) = editPublication(sourceId, key) { it.copy(recordingsOff = off) }
 
     fun observePaidOnly(sourceId: Long, key: String): Flow<PaidOnlyCount> = db.articles().observePaidOnly(sourceId, key)
 
@@ -242,7 +247,7 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
         if (batch.starred) {
             ids.size - db.articles().unstarAll(ids, clock.instant().minus(BUILD_HOLD))
         } else {
-            batch.changed.count { it.starredAt == null || db.articles().star(it.articleId, it.starredAt) == 0 }
+            batch.changed.count { it.starredAt == null || db.articles().starAll(listOf(it.articleId), it.starredAt) == 0 }
         }
     }
 
@@ -316,7 +321,7 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
         val all = sources.all()
         val server = all.filter { it.kind == SourceKind.TTRSS }.flatMap { account ->
             sources.observePublicationsOf(account.id).first()
-                .filter { it.feedUrl != null && (it.listed || it.outsideCategory) }
+                .filter { it.feedUrl != null && it.inAccount }
                 .map { OpmlFeed(it.feedUrl!!, it.title, folder = it.category?.ifBlank { null }) }
         }
         val phone = all.filter { it.kind == SourceKind.FEED }.map { OpmlFeed(it.url, it.title, folder = null) }

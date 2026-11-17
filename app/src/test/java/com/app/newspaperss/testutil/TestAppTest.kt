@@ -1,5 +1,6 @@
 package com.app.newspaperss.testutil
 
+import com.app.newspaperss.data.connect
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.runBlocking

@@ -59,6 +59,9 @@ class TodayViewModelTest {
         assertEquals("Tomorrow at 6:30\u202fAM \u00b7 about 30 min", TodayViewModel.nextEdition(on, now.withHour(6).withMinute(10), started))
         val weekends = on.copy(schedule = on.schedule.copy(days = setOf(java.time.DayOfWeek.SATURDAY)))
         assertEquals("Saturday at 6:30\u202fAM \u00b7 about 30 min", TodayViewModel.nextEdition(weekends, now))
+        // An hour or more is said as the paper's other screens say it.
+        val long = on.copy(edition = on.edition.copy(minutes = 75))
+        assertEquals("Tomorrow at 6:30\u202fAM \u00b7 about 1 hr 15 min", TodayViewModel.nextEdition(long, now))
         // With the podcast, when to have the phone charging.
         val podcast = on.copy(listenVoice = com.app.newspaperss.settings.ListenVoice.PODCAST, podcastPace = 1.2f)
         assertEquals(

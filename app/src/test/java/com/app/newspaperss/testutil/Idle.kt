@@ -1,6 +1,7 @@
 package com.app.newspaperss.testutil
 
 import android.os.Looper
+import androidx.compose.ui.test.junit4.ComposeTestRule
 import kotlinx.coroutines.yield
 import org.robolectric.Shadows.shadowOf
 
@@ -12,7 +13,18 @@ import org.robolectric.Shadows.shadowOf
  * [timeoutMs] only guards against hanging: a passing condition returns at once, so a generous
  * deadline costs nothing and a tight one fails correct code on a loaded runner.
  */
-fun idleUntil(timeoutMs: Long = 30_000, condition: () -> Boolean) {
+fun idleUntil(timeoutMs: Long = 30_000, condition: () -> Boolean) = drainUntil(timeoutMs, condition)
+
+/**
+ * [idleUntil] in a Compose test: idles Compose too before each check. Under the v2 test rule a
+ * composition's effects run on a test dispatcher that only moves when Compose is idled, so
+ * draining the looper alone leaves a click's coroutine, or a state the screen must have drawn,
+ * waiting for good.
+ */
+fun ComposeTestRule.idleUntil(timeoutMs: Long = 30_000, condition: () -> Boolean) =
+    drainUntil(timeoutMs) { waitForIdle(); condition() }
+
+private fun drainUntil(timeoutMs: Long, condition: () -> Boolean) {
     val started = System.currentTimeMillis()
     val deadline = started + timeoutMs
     while (true) {

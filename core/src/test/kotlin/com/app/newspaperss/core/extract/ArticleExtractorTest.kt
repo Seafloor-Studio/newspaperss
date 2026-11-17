@@ -1,5 +1,6 @@
 package com.app.newspaperss.core.extract
 
+import com.app.newspaperss.core.ReadingTime
 import com.app.newspaperss.core.net.HttpBytes
 import com.app.newspaperss.core.net.HttpClient
 import com.app.newspaperss.core.net.HttpResponse
@@ -95,7 +96,6 @@ class ArticleExtractorTest {
         // Page furniture and the repeated title don't reach the reader.
         listOf("Comments (212)", "Share on Facebook", "Sign up for our newsletter", "technical storage", "<h1>", "Quiet Joy of")
             .forEach { assertFalse("\"$it\" leaked", it in article.html) }
-        assertEquals(article.wordCount / 238.0, article.minutes, 1e-9)
         assertEquals(ContentMode.PAGE, ArticleExtractor.suggestMode(article.feedWordCount, article.pageWordCount))
     }
 
@@ -317,6 +317,22 @@ class ArticleExtractorTest {
         assertTrue(article.pageBlocked)
     }
 
+    /** A site that turns the app away is described ([BlockedAnswer]); one that just fails isn't. */
+    @Test
+    fun aBlockedPageSaysWhatTheSiteAnswered() = runTest {
+        val refused = HttpResponse(403, url, "text/html", "<html>Forbidden</html>", headers = listOf("X-DataDome" to "protected"))
+        val article = ArticleExtractor(FakeHttp(mapOf(url to refused))).extract(input(teaser))
+        assertTrue(article.pageBlocked)
+        assertTrue(article.pageBlockedAnswer.orEmpty(), "x-datadome: protected" in article.pageBlockedAnswer.orEmpty())
+
+        val broken = ArticleExtractor(FakeHttp(mapOf(url to page("<html>Oops</html>", code = 500)))).extract(input(teaser))
+        assertEquals(null, broken.pageBlockedAnswer)
+
+        // A bot check that answers 200 is a refusal too.
+        val check = ArticleExtractor(FakeHttp(mapOf(url to page("<html><head><title>Just a moment...</title></head><body>Checking your browser</body></html>")))).extract(input(teaser))
+        assertTrue(check.pageBlockedAnswer.orEmpty(), check.pageBlockedAnswer.orEmpty().startsWith("HTTP 200"))
+    }
+
     @Test
     fun pageTitleIsUsedWhenTheItemHasNone() = runTest {
         val article = ArticleExtractor(FakeHttp(mapOf(url to page()))).extract(input(null, feedTitle = " "))
@@ -393,7 +409,7 @@ class ArticleExtractorTest {
 
         assertTrue(article.usedFeedContent)
         assertTrue(http.requested.isEmpty())
-        assertTrue("${article.minutes}", article.minutes > 3)
+        assertTrue("${article.wordCount}", ReadingTime.minutes(article.wordCount) > 3)
     }
 
     private fun words(n: Int, prefix: String) = (1..n).joinToString(" ") { "$prefix$it" }

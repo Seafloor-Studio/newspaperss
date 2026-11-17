@@ -3,7 +3,7 @@
 # screen. Run smoke.sh and delivery.sh make first, then these in this order: each starts from
 # where the one before left the app. Screenshots go to build/emulator/.
 #
-#   tools/emulator/journeys.sh two-editions   # make another without sending: the first is let go
+#   tools/emulator/journeys.sh two-editions   # make another without sending: the first is let go, its page still offers Listen
 #   tools/emulator/journeys.sh cold-send      # app killed; Send from its notification to EPUB sink
 #   tools/emulator/journeys.sh share          # a page saved, and a site subscribed, from a share (debug build)
 #   tools/emulator/journeys.sh mark-sent      # Send again, Mark as not sent and Mark as sent on cold-send's edition
@@ -95,7 +95,14 @@ case "${1:-}" in
     $ui shot 40-second-edition
     scroll_to "not sent" || { $ui shot 41-no-not-sent; echo "$first isn't marked not sent under Earlier editions" >&2; exit 1; }
     $ui shot 41-earlier-not-sent
-    echo "two-editions passed: $second made; $first marked not sent" ;;
+    # Its page still offers its book: Listen, and Mark as sent for a send the app didn't see.
+    $ui tap "$first" --exact > /dev/null
+    $ui wait "Listen ·" --timeout 30 > /dev/null || { $ui shot 42-no-listen; echo "$first's page offers no Listen; on screen:" >&2; $ui texts >&2; exit 1; }
+    $ui wait "Mark as sent" --exact --timeout 30 > /dev/null || { $ui shot 42-no-mark-sent; echo "$first's page offers no Mark as sent" >&2; exit 1; }
+    $ui shot 42-not-sent-page
+    adb shell input keyevent KEYCODE_BACK
+    $ui wait "Earlier editions" --timeout 30 > /dev/null
+    echo "two-editions passed: $second made; $first marked not sent, and its page offers Listen and Mark as sent" ;;
   cold-send)
     sink=${SINK_APK:-epubsink/build/outputs/apk/debug/epubsink-debug.apk}
     adb install -r "$sink" > /dev/null

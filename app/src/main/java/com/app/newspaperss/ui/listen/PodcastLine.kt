@@ -36,7 +36,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * Under Listen, while Kokoro is in use: how much of the edition's podcast is made, as a bar of its
- * articles filled as each is made, or, for an edition without one, **Make the podcast**.
+ * articles filled as each is made, or, for an edition without one, **Make the audio**.
  *
  * @param minutes each article's reading time, in book order.
  */

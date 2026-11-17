@@ -108,8 +108,10 @@ class PodcastMakerTest {
     private val threadsUsed = mutableListOf<Int>()
     private var threadsFor: (Long) -> Int = { KOKORO_THREADS }
     private val log by lazy { PodcastLog(tmp.newFolder("logs")) }
-    private val maker by lazy { PodcastMaker(editions, store, install, settings, engine, encoder, pieceSeconds, pieceWorkSeconds, lastExit = { exit }, threads = { threadsFor(it) }, now = { clock }, log = log) }
-    private val podcasts by lazy { Podcasts(store, settings, install) { started++ } }
+    private val maker by lazy { PodcastMaker(editions, store, install, settings, engine, encoder, pieceSeconds, pieceWorkSeconds, lastExit = { exit }, threads = { threadsFor(it) }, now = { clock }, log = log, spokenAround = { around }) }
+    private var around: List<String> = emptyList()
+    private var battery: String? = null
+    private val podcasts by lazy { Podcasts(store, settings, install, log, battery = { battery }) { started++ } }
 
     private val knots = EditionArticle(
         title = "Counting Knots", sourceTitle = "Quanta", url = "https://example.com/knots",
@@ -122,6 +124,11 @@ class PodcastMakerTest {
     private val lagos = EditionArticle(
         title = "Lagos Drivers", sourceTitle = "Rest of World", url = "https://example.com/lagos",
         bodyHtml = "<p>The drivers met.</p>", minutes = 1.0,
+    )
+
+    private val trains = EditionArticle(
+        title = "Night Trains", sourceTitle = "Rail Talk", url = "https://example.com/trains",
+        bodyHtml = "<p>The sleeper is back.</p>", minutes = 1.0,
     )
 
     private fun edition(title: String, vararg articles: EditionArticle): Long = runBlocking {
@@ -139,6 +146,61 @@ class PodcastMakerTest {
     private fun request(id: Long) = runBlocking { podcasts.request(id) }
 
     private fun make() = runBlocking { maker.makeAll() }
+
+    /** What's said around the edition's recordings is made too, once its pages are: in its voice, not the phone's. */
+    @Test
+    fun whatsSaidAroundTheRecordingsIsMadeAsClipsAfterThePages() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        around = listOf("After the edition, an episode.", "Now the episode itself, 58 minutes.")
+        make()
+
+        assertTrue(store.finished(id))
+        assertEquals(around, said.takeLast(2))
+        assertTrue(around.all { store.clip(id, it) != null })
+        assertNull("only what it was asked for", store.clip(id, "Counting Knots"))
+    }
+
+    /** One that took the app down while it was made, as a line can, isn't tried again: the phone's voice says it. */
+    @Test
+    fun aClipThatTookTheAppDownIsntTriedAgain() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        around = listOf("Rail Talk.", "After the edition, an episode.")
+        store.tryingClip(id, "Rail Talk.", true)
+        make()
+
+        assertTrue(store.finished(id))
+        assertNull(store.clip(id, "Rail Talk."))
+        assertTrue("Rail Talk." !in said)
+        assertTrue(store.clip(id, "After the edition, an episode.") != null)
+    }
+
+    /** One the encoder can't finish is left to the phone's voice; the podcast still finishes. */
+    @Test
+    fun aClipThatFailsLeavesItToThePhonesVoice() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        around = listOf("Now the episode itself, 58 minutes.", "After the edition, an episode.")
+        encoderBrokenOn = "Now the episode itself, 58 minutes."
+        make()
+
+        assertTrue(store.finished(id))
+        assertNull(store.clip(id, "Now the episode itself, 58 minutes."))
+        assertTrue(store.clip(id, "After the edition, an episode.") != null)
+    }
+
+    /** Asked for, the battery goes in the log: while it waits for the charger, nothing else is. */
+    @Test
+    fun theBatteryAsTheAudioIsAskedForIsLogged() {
+        inUse()
+        battery = "on battery, 41%"
+        request(edition("Thursday", knots))
+        assertTrue(log.read().toString(), log.read().any { it.endsWith("made once the phone charges (now on battery, 41%)") })
+    }
 
     @Test
     fun eachPageIsMadeInBookOrderWithWhenEachSentenceStarts() {
@@ -226,7 +288,7 @@ class PodcastMakerTest {
     fun aNewerEditionGoesFirstAndTheOlderOneCarriesOnAfter() {
         inUse()
         val older = edition("Wednesday", knots, lagos)
-        val newer = edition("Thursday", lagos)
+        val newer = edition("Thursday", trains)
         request(older)
         afterLine = { if (it == "Counting Knots") request(newer) }
         make()
@@ -234,8 +296,146 @@ class PodcastMakerTest {
         assertTrue(store.finished(older))
         assertTrue(store.finished(newer))
         // The older edition's first article, then all of the newer one, then the rest of the older.
-        val titles = said.filter { it == "Counting Knots" || it == "Lagos Drivers" }
-        assertEquals(listOf("Counting Knots", "Lagos Drivers", "Lagos Drivers"), titles)
+        val titles = said.filter { it == "Counting Knots" || it == "Lagos Drivers" || it == "Night Trains" }
+        assertEquals(listOf("Counting Knots", "Night Trains", "Lagos Drivers"), titles)
+    }
+
+    /**
+     * An article back in a later edition (one not sent gives its articles back) is said the same,
+     * so its audio is reused rather than made again: the same pieces, the same times.
+     */
+    @Test
+    fun anArticleBackInALaterEditionReusesItsAudio() {
+        inUse()
+        val wednesday = edition("Wednesday", knots, lagos)
+        request(wednesday)
+        make()
+        val made = store.pieces(wednesday, 1).single()
+
+        said.clear()
+        val thursday = edition("Thursday", trains, lagos)
+        request(thursday)
+        make()
+        assertTrue(store.finished(thursday))
+        // Night Trains and the closing page are made; Lagos Drivers isn't said again.
+        assertTrue(said.toString(), "Night Trains" in said)
+        assertFalse(said.toString(), "Lagos Drivers" in said)
+        val reused = store.pieces(thursday, 1).single()
+        assertEquals(made.starts, reused.starts)
+        assertEquals(made.audio.readText(), reused.audio.readText())
+        assertTrue(log.read().toString(), log.read().any { it.contains("Page 1: the same as edition $wednesday page 1, its audio reused") })
+
+        // Its audio stays when the edition it came from goes.
+        podcasts.delete(wednesday)
+        assertEquals(made.starts, store.pieces(thursday, 1).single().starts)
+        assertTrue(store.pieces(thursday, 1).single().audio.readText().isNotEmpty())
+    }
+
+    @Test
+    fun anArticleChangedOrInAnotherVoiceIsMadeAgain() {
+        inUse(PodcastVoice.HEART)
+        val wednesday = edition("Wednesday", lagos, knots)
+        request(wednesday)
+        make()
+
+        said.clear()
+        // A word changed in Lagos Drivers; Counting Knots the same, but in another voice.
+        inUse(PodcastVoice.GEORGE)
+        val thursday = edition("Thursday", lagos.copy(bodyHtml = "<p>The drivers met again.</p>"), knots)
+        request(thursday)
+        make()
+        assertTrue(said.toString(), "The drivers met again." in said)
+        assertTrue(said.toString(), "Counting Knots" in said)
+    }
+
+    /** Audio made before keys were noted is found from its edition's book, and reused all the same. */
+    @Test
+    fun audioMadeBeforeKeysWereNotedIsReusedToo() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos)
+        request(wednesday)
+        make()
+        // As an older app left it: no key beside the audio.
+        store.dir.walk().filter { it.name.endsWith(".said") }.forEach { it.delete() }
+        assertEquals(mapOf(wednesday to listOf(0, 1)), store.unsaid())
+
+        said.clear()
+        val thursday = edition("Thursday", lagos)
+        request(thursday)
+        make()
+        assertFalse(said.toString(), "Lagos Drivers" in said)
+        assertTrue(store.made(thursday, 0))
+    }
+
+    @Test
+    fun anEditionOfAudioAlreadyMadeNeverLoadsKokoroAndItsSpaceIsCountedOnce() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos)
+        request(wednesday)
+        make()
+        val loads = voices.size
+        val space = store.bytes()
+
+        // Made again from the same articles: the closing page says the same too.
+        said.clear()
+        val again = edition("Wednesday again", lagos)
+        request(again)
+        make()
+        assertTrue(store.finished(again))
+        assertTrue(said.toString(), said.isEmpty())
+        assertEquals("Kokoro isn't loaded for nothing to say", loads, voices.size)
+        // Linked, not copied: the total is what it was, though each edition holds it all.
+        assertEquals(space, store.bytes())
+        assertEquals(store.bytes(wednesday), store.bytes(again))
+    }
+
+    /** Older audio that doesn't cover its page as it's read today isn't passed on, nor looked at again. */
+    @Test
+    fun olderAudioThatDoesntMatchItsPageTodayIsMadeAfresh() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos)
+        request(wednesday)
+        make()
+        store.dir.walk().filter { it.name.endsWith(".said") }.forEach { it.delete() }
+        // As if the page was read with a line fewer when it was made.
+        val starts = store.dir.walk().first { it.name == "0-0.starts" }
+        starts.writeText(starts.readLines().dropLast(1).joinToString("\n", postfix = "\n"))
+
+        said.clear()
+        val thursday = edition("Thursday", lagos)
+        request(thursday)
+        make()
+        assertTrue(said.toString(), "Lagos Drivers" in said)
+        assertEquals(emptyMap<Long, List<Int>>(), store.unsaid())
+    }
+
+    @Test
+    fun olderAudioWhoseBookIsGoneIsntLookedAtAgain() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos)
+        request(wednesday)
+        make()
+        store.dir.walk().filter { it.name.endsWith(".said") }.forEach { it.delete() }
+        File(editionsDir, runBlocking { db.editions().byId(wednesday)!!.fileName!! }).delete()
+        make()
+        assertEquals(emptyMap<Long, List<Int>>(), store.unsaid())
+    }
+
+    /** Deleted and asked for again since the page was found, it's another podcast: nothing of the old is put in it. */
+    @Test
+    fun audioIsntReusedIntoAPodcastAskedForAgain() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos)
+        val thursday = edition("Thursday", lagos)
+        request(wednesday)
+        request(thursday)
+        val asked = store.asked(wednesday)
+        make()
+        podcasts.delete(wednesday)
+        request(wednesday)
+        assertFalse(store.reuse(thursday, 0, wednesday, 0, asked))
+        assertTrue(store.pieces(wednesday, 0).isEmpty())
+        assertTrue(store.reuse(thursday, 0, wednesday, 0, store.asked(wednesday)))
     }
 
     @Test
@@ -574,7 +774,7 @@ class PodcastMakerTest {
         val id = edition("Thursday", knots, lagos)
         request(id)
         encoderBrokenOn = "Quanta"
-        repeat(PodcastMaker.FAILURES - 1) { assertTrue(runCatching { make() }.exceptionOrNull() is IllegalStateException) }
+        repeat(PodcastMaker.FAILURES - 1) { assertTrue(runCatching { make() }.exceptionOrNull() is PodcastMaker.PageFailed) }
         assertFalse(store.settled(id, 0))
         make()
 
@@ -671,9 +871,9 @@ class PodcastMakerTest {
         assertEquals(1.5f, s.podcastPace!!, 0.02f)
         assertTrue(s.podcastPaceMeasured)
 
-        // The next, at 1.1×, moves it halfway there.
+        // The next, at 1.1×, moves it halfway there. Another article: the same one's audio would be reused, made at no pace.
         paceNow = 1.1
-        request(edition("Friday", long(125)))
+        request(edition("Friday", long(125).copy(title = "Counting Knots Again")))
         make()
         assertEquals(1.3f, runBlocking { settings.current() }.podcastPace!!, 0.02f)
     }

@@ -11,6 +11,7 @@ import com.app.newspaperss.core.edition.Reflection
 import com.app.newspaperss.testutil.FakeHttp
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleState
+import com.app.newspaperss.data.EditionArticleEntity
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionRepository
 import com.app.newspaperss.data.EditionStatus
@@ -36,6 +37,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import com.app.newspaperss.data.RowLimits
+import com.app.newspaperss.data.insertNew
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -45,6 +47,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import kotlin.random.Random
 import java.util.zip.ZipFile
 
 @RunWith(AndroidJUnit4::class)
@@ -193,7 +196,7 @@ class EditionBuilderTest {
 
         assertEquals(1, db.editions().byId(result.editionId)!!.articleCount)
         // The rest wait for the next edition.
-        assertEquals(2, db.articles().candidates().size)
+        assertEquals(2, db.articles().buildCandidates().size)
     }
 
     @Test
@@ -218,6 +221,82 @@ class EditionBuilderTest {
         assertEquals("Tuesday Morning Edition, Sep 29.epub", edition.fileName)
         assertEquals(ArticleState.IN_EDITION, stateOf("a2"))
         assertEquals("the second article of a capped source waits", ArticleState.NEW, stateOf("a1"))
+    }
+
+    /** A link saved after a feed brought it in: the saved copy is the one kept, so it goes first. */
+    @Test
+    fun aSavedLinkAlsoInAFeedKeepsItsPlaceAtTheFront() = runTest {
+        source("c", "c1", "c2")
+        source("a", "a1")
+        ReadingListRepository(db, clock).save("https://c.example/c1", "Saved from c")
+
+        val built = builder.build(EditionSettings(minutes = 25, maxPerSource = 1, wordsPerMinute = 200)) as BuildResult.Built
+        assertEquals(listOf("Saved from c", "c c2", "a a1"), editions.observeArticles(built.editionId).first().map { it.title })
+    }
+
+    /**
+     * Saved links were picked on purpose, like stars: they go first, oldest saved first, though the
+     * reading list was in the last edition and the feeds weren't. Held to one by default, more
+     * when there's room; held to the reader's own number when they set one.
+     */
+    @Test
+    fun savedLinksGoFirstAndTheReadingListHasItsOwnNumber() = runTest {
+        val list = ReadingListRepository(db, clock)
+        list.save("https://saved.example/one", "Saved one")
+        list.save("https://saved.example/two", "Saved two")
+        val listId = list.sourceId()
+        // The list was in yesterday's edition: by turns alone it would come last.
+        list.save("https://saved.example/before", "Saved before")
+        val before = db.articles().allForSource(listId).single { it.guid.endsWith("before") }
+        val yesterday = db.editions().insert(EditionEntity(title = "Yesterday", createdAt = clock.instant().minus(Duration.ofDays(1)), status = EditionStatus.DELIVERED))
+        db.editions().insertArticles(listOf(EditionArticleEntity(editionId = yesterday, articleId = before.id, position = 0, title = before.title, sourceTitle = "Your reading list", minutes = 1.0)))
+        db.articles().setState(listOf(before.id), ArticleState.DELIVERED)
+        source("a", "a1")
+        source("b", "b1")
+
+        suspend fun titles(minutes: Int): List<String> {
+            val built = builder.build(EditionSettings(minutes = minutes, maxPerSource = 1, wordsPerMinute = 200)) as BuildResult.Built
+            val titles = editions.observeArticles(built.editionId).first().map { it.title }
+            editions.delete(built.editionId)
+            return titles
+        }
+
+        assertEquals("first, and one by default", listOf("Saved one", "a a1", "b b1"), titles(25))
+        // Taken last, it's placed beside the first: the book keeps a source's articles together.
+        assertEquals("more when there's room", listOf("Saved one", "Saved two", "a a1", "b b1"), titles(35))
+        sources.setMaxArticles(listId, PublicationEntity.OWN, 2)
+        assertEquals("its own number", listOf("Saved one", "Saved two", "a a1"), titles(25))
+    }
+
+    /**
+     * Six sources last featured on six different days, room for one: the one featured longest ago
+     * has only an article that waits out its week before the next scheduled edition. Across draws
+     * it always goes in; with the next edition only a day away its article would still wait, so
+     * it's mixed like the rest.
+     */
+    @Test
+    fun anArticleThatWouldExpireBeforeTheNextEditionKeepsItsSourcesTurn() = runTest {
+        val ids = (0 until 6).map { i ->
+            val id = sources.addFeed("https://s$i.example/feed", "s$i")
+            db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "s$i-before", url = "https://s$i.example/before", title = "s$i before", discoveredAt = clock.instant().minus(Duration.ofDays(30)))))
+            val article = db.articles().allForSource(id).single()
+            val edition = db.editions().insert(EditionEntity(title = "Edition $i", createdAt = clock.instant().minus(Duration.ofDays(10L - i)), status = EditionStatus.DELIVERED))
+            db.editions().insertArticles(listOf(EditionArticleEntity(editionId = edition, articleId = article.id, position = 0, title = article.title, sourceTitle = "s$i", minutes = 1.0)))
+            db.articles().setState(listOf(article.id), ArticleState.DELIVERED)
+            id
+        }
+        ids.forEachIndexed { i, id ->
+            val found = if (i == 0) clock.instant().minus(Duration.ofDays(4)) else clock.instant().minus(Duration.ofHours(1))
+            db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "s$i-now", url = "https://s$i.example/now", title = "s$i now", discoveredAt = found)))
+        }
+        suspend fun firsts(nextEdition: Instant) = (0 until 20).map { seed ->
+            val built = EditionBuilder(db, content, tmp.root, clock, { ZoneOffset.UTC }, random = Random(seed))
+                .build(EditionSettings(minutes = 1), nextEdition = nextEdition) as BuildResult.Built
+            editions.observeArticles(built.editionId).first().map { it.title }.single()
+        }.toSet()
+
+        assertEquals("next edition in four days: its article would be gone", setOf("s0 now"), firsts(clock.instant().plus(Duration.ofDays(4))))
+        assertTrue("next edition tomorrow: it can wait, and is mixed", firsts(clock.instant().plus(Duration.ofDays(1))).size > 1)
     }
 
     @Test
@@ -325,6 +404,21 @@ class EditionBuilderTest {
         assertEquals(sourcesOf(unsent.editionId), sourcesOf(next.editionId))
     }
 
+    /** Never sent, but one of its articles was read or heard on the phone: that source had its turn. */
+    @Test
+    fun anArticleSentOnItsOwnFromAnUnsentEditionCountsAsItsSourcesTurn() = runTest {
+        for (name in listOf("a", "b", "c", "d")) source(name, "${name}1", "${name}2", "${name}3")
+        val settings = EditionSettings(minutes = 15, maxPerSource = 1, wordsPerMinute = 200)
+        fun sourcesOf(id: Long) = runBlocking { editions.observeArticles(id).first().map { it.title.substringBefore(' ') }.toSet() }
+
+        val unsent = builder.build(settings) as BuildResult.Built
+        val heard = editions.observeArticles(unsent.editionId).first().first()
+        assertTrue(editions.markFinished(unsent.editionId, heard.position))
+        val next = builder.build(settings) as BuildResult.Built
+
+        assertTrue(heard.title.substringBefore(' ') !in sourcesOf(next.editionId))
+    }
+
     @Test
     fun aStarredArticleDoesntUseUpItsSourcesTurn() = runTest {
         val a = source("a", "a1")
@@ -404,7 +498,7 @@ class EditionBuilderTest {
 
         unreadable += "b1"
         source("b", "b1")
-        db.articles().setState(listOf(db.articles().candidates().first { it.guid == "a2" }.id), ArticleState.SKIPPED)
+        db.articles().setState(listOf(db.articles().buildCandidates().first { it.guid == "a2" }.id), ArticleState.SKIPPED)
         editions.markDelivered(built.editionId)
         val failed = builder.build(EditionSettings()) as BuildResult.Failed
         assertEquals(EditionStatus.FAILED, db.editions().byId(failed.editionId)!!.status)
@@ -438,7 +532,7 @@ class EditionBuilderTest {
     @Test
     fun pausedSourcesAreLeftOut() = runTest {
         val id = source("a", "a1")
-        sources.update(db.sources().byId(id)!!.copy(paused = true))
+        sources.setPaused(id, true)
         assertEquals(BuildResult.NothingNew, builder.build(EditionSettings()))
     }
 
@@ -547,7 +641,7 @@ class EditionBuilderTest {
     @Test
     fun aBuildWithNothingToPickLeavesNoEditionBehindToHoldTheButtons() = runTest {
         assertEquals(BuildResult.NothingNew, builder.build(EditionSettings()))
-        assertEquals(0, db.editions().count())
+        assertEquals(0, EditionStatus.entries.sumOf { db.editions().withStatus(it).size })
         assertFalse(editions.observeBuilding().first())
     }
 
@@ -694,7 +788,6 @@ class EditionBuilderTest {
 
         val edition = db.editions().byId(built.editionId)!!
         val info = drawn!!
-        assertEquals(edition.title, info.title)
         assertEquals(java.time.LocalDate.of(2026, 9, 29), info.date)
         assertEquals(listOf(CoverHeadline("a a1", "a"), CoverHeadline("b b1", "b"), CoverHeadline("c c1", "c")), info.headlines)
         assertEquals(3, info.articleCount)
@@ -754,7 +847,7 @@ class EditionBuilderTest {
         val b = source("b", "b1")
         val list = ReadingListRepository(db)
         list.save("https://saved.example/post", "A saved post")
-        val saved = db.articles().candidates().single { it.url == "https://saved.example/post" }
+        val saved = db.articles().buildCandidates().single { it.url == "https://saved.example/post" }
         // Removed once its articles were read for the build, while it fetches the last one.
         var removed = false
         val removing = ArticleContentProvider { a, s, allowance, choice ->
@@ -1114,7 +1207,7 @@ class EditionBuilderTest {
         editions.delete(first.editionId)
 
         assertEquals(ArticleState.IN_EDITION, stateOf("a1"))
-        assertFalse("not offered to a third edition", db.articles().candidates().any { it.guid == "a1" })
+        assertFalse("not offered to a third edition", db.articles().buildCandidates().any { it.guid == "a1" })
     }
 
     /** An article that went out again in a newer edition was delivered: marking the old one as not sent mustn't send it a third time. */
@@ -1383,7 +1476,7 @@ class EditionBuilderTest {
         db.articles().insertNew(listOf(post("a", true), post("b", true)))
 
         assertEquals(BuildResult.NothingNew, tuned.build(EditionSettings(minutes = 600, maxPerSource = 10)))
-        assertEquals("no failed edition left behind", 0, db.editions().count())
+        assertEquals("no failed edition left behind", 0, EditionStatus.entries.sumOf { db.editions().withStatus(it).size })
     }
 
     private suspend fun paidSource(): Triple<EditionBuilder, Long, (String, Boolean) -> ArticleEntity> {

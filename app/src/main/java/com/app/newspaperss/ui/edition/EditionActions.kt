@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Button
@@ -18,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.app.newspaperss.data.EditionStatus
@@ -136,14 +138,33 @@ fun NextStepButton(
 
 /** For a send this app can't see: one line, its answer a link-sized button beside it. */
 @Composable
-fun MarkAsSentLine(preferOpen: Boolean, onSent: () -> Unit, modifier: Modifier = Modifier) {
-    FlowRow(modifier, itemVerticalAlignment = Alignment.CenterVertically) {
-        // Its own TalkBack stop, read just before its button, even inside Today's clickable card.
-        Text(
-            if (preferOpen) "Read it another way?" else "Sent it another way?",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.semantics(mergeDescendants = true) {},
-        )
-        TextButton(onClick = onSent, contentPadding = PaddingValues(horizontal = 8.dp)) { Text("Mark as sent") }
+fun MarkAsSentLine(preferOpen: Boolean, onSent: () -> Unit, modifier: Modifier = Modifier, waiting: Boolean = false) {
+    Column(modifier) {
+        FlowRow(itemVerticalAlignment = Alignment.CenterVertically) {
+            // Its own TalkBack stop, read just before its button, even inside Today's clickable card.
+            Text(
+                if (preferOpen) "Read it another way?" else "Sent it another way?",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.semantics(mergeDescendants = true) {},
+            )
+            // The reason on the button too: moving between controls, TalkBack would only say "disabled".
+            TextButton(
+                onClick = onSent,
+                enabled = !waiting,
+                contentPadding = PaddingValues(horizontal = 8.dp),
+                modifier = Modifier.semantics { if (waiting) stateDescription = MARK_SENT_WAITING },
+            ) { Text("Mark as sent") }
+        }
+        if (waiting) {
+            Text(
+                MARK_SENT_WAITING,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.semantics(mergeDescendants = true) {},
+            )
+        }
     }
 }
+
+/** Why a released edition's Mark as sent is greyed out (see EditionRepository.markSentByHand). */
+const val MARK_SENT_WAITING = "Unavailable while a new edition is being made"

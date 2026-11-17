@@ -8,7 +8,6 @@ import com.app.newspaperss.core.edition.Ordering
 import com.app.newspaperss.core.edition.PlanRules
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
-import com.app.newspaperss.core.epub.EditionSection
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.core.extract.ArticleExtractor
 import com.app.newspaperss.core.extract.ExtractInput
@@ -59,7 +58,7 @@ fun main(args: Array<String>) = runBlocking {
     }
     out.parentFile?.mkdirs()
     out.outputStream().use {
-        EpubWriter.write(EditionDoc("Live Test Edition", LocalDate.now(), "urn:uuid:${UUID.randomUUID()}", listOf(EditionSection(null, picked))), it)
+        EpubWriter.write(EditionDoc("Live Test Edition", LocalDate.now(), "urn:uuid:${UUID.randomUUID()}", picked), it)
     }
     println("wrote ${picked.size} articles, ${"%.0f".format(picked.sumOf { it.minutes })} min, to ${out.absolutePath}")
 }

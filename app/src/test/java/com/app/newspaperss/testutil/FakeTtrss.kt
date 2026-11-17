@@ -21,7 +21,7 @@ fun testCipher() = AesGcmCipher { SecretKeySpec(ByteArray(32) { it.toByte() }, "
  * articles read as the real API does.
  */
 class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt-rss/api/") {
-    data class Item(val id: Long, val title: String, val feedId: Int, val feedTitle: String, val content: String = "<p>Text of $title.</p>", val categoryId: Int = 0, val link: String = "https://news.example/$id", val updated: Long = 1_759_125_600L, val audio: String? = null)
+    data class Item(val id: Long, val title: String, val feedId: Int, val feedTitle: String, val content: String = "<p>Text of $title.</p>", val categoryId: Int = 0, val link: String = "https://news.example/$id", val updated: Long = 1_759_125_600L, val audio: String? = null, val siteUrl: String? = null)
 
     var user = "reader"
     var password = "secret"
@@ -90,8 +90,8 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
     private val live = mutableSetOf<String>()
 
     /** [updated] is when it was published, in epoch seconds. */
-    fun add(id: Long, title: String, feedId: Int, feedTitle: String, categoryId: Int = 0, updated: Long = 1_759_125_600L) {
-        unread += Item(id, title, feedId, feedTitle, categoryId = categoryId, updated = updated)
+    fun add(id: Long, title: String, feedId: Int, feedTitle: String, categoryId: Int = 0, updated: Long = 1_759_125_600L, siteUrl: String? = null) {
+        unread += Item(id, title, feedId, feedTitle, categoryId = categoryId, updated = updated, siteUrl = siteUrl)
     }
 
     /** The reader reads [id] in tt-rss itself. */
@@ -201,6 +201,7 @@ class FakeTtrss(http: FakeHttp, val apiUrl: String = "https://rss.example.com/tt
                                 put("updated", item.updated)
                                 put("feed_id", item.feedId)
                                 put("feed_title", item.feedTitle)
+                                item.siteUrl?.let { put("site_url", it) }
                                 put("unread", item in unread)
                                 if (withAttachments) {
                                     put(
