@@ -19,9 +19,12 @@ import androidx.work.ListenableWorker
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.WorkerFactory
+import androidx.work.WorkerParameters
 import androidx.work.impl.foreground.SystemForegroundService
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.WorkManagerTestInitHelper
+import com.app.newspaperss.listen.PodcastMaker
 import com.app.newspaperss.notify.Notifier
 import com.app.newspaperss.testutil.TestApp
 import com.app.newspaperss.testutil.idleUntil
@@ -110,6 +113,44 @@ class PodcastWorkerTest {
     private suspend fun run(updater: ForegroundUpdater) =
         TestListenableWorkerBuilder<PodcastWorker>(app).setForegroundUpdater(updater).build().doWork()
 
+    /** A worker whose making fails as [failure] says, as the maker's would. */
+    private suspend fun runFailing(failure: Exception): ListenableWorker.Result {
+        val factory = object : WorkerFactory() {
+            override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters) =
+                object : PodcastWorker(appContext, workerParameters) {
+                    override suspend fun make() = throw failure
+                }
+        }
+        return TestListenableWorkerBuilder<PodcastWorker>(app).setForegroundUpdater(allowed).setWorkerFactory(factory).build().doWork()
+    }
+
+    /**
+     * Overnight, nothing else asks for another run: a page that failed once would wait for the
+     * reader to open the app, and the podcast wouldn't be ready in the morning.
+     */
+    @Test
+    fun aRunThatFailsOnAPageRunsAgainAfterAWhile() = runTest {
+        unrestricted(true)
+
+        assertTrue(runFailing(PodcastMaker.PageFailed(IllegalStateException("codec"))) is ListenableWorker.Result.Success)
+
+        val again = WorkManager.getInstance(app).getWorkInfosForUniqueWork("podcast").get().filter { it.state == WorkInfo.State.ENQUEUED }
+        assertEquals(1, again.size)
+        assertEquals(5 * 60_000L, again.single().initialDelayMillis)
+        assertEquals(1, noted("Run failed: java.lang.IllegalStateException; trying again in 5 min"))
+    }
+
+    /** Kokoro not loading would fail every run: it waits to be asked again rather than loop all night. */
+    @Test
+    fun aRunThatFailsOtherwiseWaitsToBeAskedAgain() = runTest {
+        unrestricted(true)
+
+        assertTrue(runFailing(IllegalStateException("model")) is ListenableWorker.Result.Failure)
+
+        assertEquals(0, queued())
+        assertEquals(1, noted("Run failed: java.lang.IllegalStateException"))
+    }
+
     /**
      * A kill leaves no log of its own: the run simply stops mid-line. Android's record is read
      * back once per process, not once per run, so it doesn't crowd out the run that follows.
@@ -180,6 +221,20 @@ class PodcastWorkerTest {
         assertEquals(statuses.size, names.distinct().size)
         assertEquals("moderate", PodcastWorker.thermalName(PowerManager.THERMAL_STATUS_MODERATE))
         assertEquals("status 99", PodcastWorker.thermalName(99))
+    }
+
+    @Test
+    fun theBatteryIsSaidAsAndroidReportsIt() {
+        fun battery(plugged: Int, status: Int, level: Int) = app.sendStickyBroadcast(
+            Intent(Intent.ACTION_BATTERY_CHANGED).putExtra(BatteryManager.EXTRA_PLUGGED, plugged).putExtra(BatteryManager.EXTRA_STATUS, status)
+                .putExtra(BatteryManager.EXTRA_LEVEL, level).putExtra(BatteryManager.EXTRA_SCALE, 100),
+        )
+        battery(BatteryManager.BATTERY_PLUGGED_AC, BatteryManager.BATTERY_STATUS_CHARGING, 64)
+        assertEquals("plugged in, charging, 64%", PodcastWorker.batteryNow(app))
+        battery(BatteryManager.BATTERY_PLUGGED_USB, BatteryManager.BATTERY_STATUS_NOT_CHARGING, 80)
+        assertEquals("held at its limit, it's plugged in but not charging", "plugged in, not charging, 80%", PodcastWorker.batteryNow(app))
+        battery(0, BatteryManager.BATTERY_STATUS_DISCHARGING, 41)
+        assertEquals("on battery, 41%", PodcastWorker.batteryNow(app))
     }
 
     /** The number alone sent a session guessing at reason 6; reason 4 is the one that means heat. */

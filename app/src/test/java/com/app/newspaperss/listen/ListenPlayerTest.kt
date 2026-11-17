@@ -213,6 +213,54 @@ class ListenPlayerTest {
         assertEquals(ListenPosition(0, 0), state.at)
     }
 
+    /**
+     * A recording in an article's place (an episode, an author's reading), where a line can be
+     * minutes long: a pause or a change of speed plays on from where it got, and ↶ goes back to
+     * the line's start.
+     */
+    @Test
+    fun aRecordingPlaysOnFromWhereItWasPausedAndBackGoesToItsLinesStart() {
+        val audio = object : ReadingAudio {
+            override var listener: ReadingAudio.Listener? = null
+            val played = mutableListOf<Pair<Long, Float>>()
+            override fun play(url: String, fromMs: Long, speed: Float) { played += fromMs to speed }
+            override fun stop() {}
+            override fun release() {}
+        }
+        val choices = object : ReadingChoices {
+            override fun voiceInstead(editionId: Long, page: Int) = false
+            override fun setVoiceInstead(editionId: Long, page: Int, instead: Boolean) {}
+        }
+        val reading = Reading("https://cdn.example/episode.mp3", 100, own = true, bodyLine = 0, starts = listOf(0.0, 0.4, 0.8))
+        val recordings = ReadingSpeaker(speaker, audio, { _, page -> reading.takeIf { page == 0 } }, choices)
+        val player = ListenPlayer(recordings, progress, open = openBook, scope = TestScope(UnconfinedTestDispatcher()), now = { clock }, chime = chime)
+        progress.set(7, ListenPosition(0, 1))
+        player.start(7)
+        assertEquals(40_000L to 1f, audio.played.last())
+
+        audio.listener!!.onPosition(55_000, 100_000)
+        player.pause()
+        player.play()
+        assertEquals(55_000L to 1f, audio.played.last())
+
+        audio.listener!!.onPosition(61_000, 100_000)
+        player.setSpeed(1.5f)
+        assertEquals(61_000L to 1.5f, audio.played.last())
+
+        audio.listener!!.onPosition(70_000, 100_000)
+        clock = 10_000
+        player.back()
+        assertEquals(40_000L to 1.5f, audio.played.last())
+
+        // Paused, then a step back and forward to the same line: played, it's from the line's start.
+        audio.listener!!.onPosition(52_000, 100_000)
+        player.pause()
+        player.back()
+        player.forward()
+        player.play()
+        assertEquals(40_000L to 1.5f, audio.played.last())
+    }
+
     @Test
     fun backFromAnArticlesFirstSentenceGoesToTheEndOfTheOneBefore() {
         progress.set(7, ListenPosition(1, 0))
@@ -443,6 +491,42 @@ class ListenPlayerTest {
         assertTrue(holes.state.value.error!!.contains("can't be read"))
         assertFalse(progress.finished(5))
         assertEquals(ListenPosition(1, 0), progress.get(5))
+    }
+
+    private fun holes(vararg pages: ListenScript) = ListenPlayer(
+        speaker, progress,
+        open = { ListenBook(it, "E", pages.indices.map { i -> ListenPage("$i", null, 1.0) }, read = { i -> pages.getOrNull(i) }) },
+        scope = TestScope(UnconfinedTestDispatcher()),
+    )
+
+    /**
+     * Back onto a page with nothing to say goes on back past it, to the line asked for there: ⏮
+     * to the article before's start, ↶ to its last sentence. Forwards, and a page picked, go forwards.
+     */
+    @Test
+    fun backPastAPageWithNothingToSay() {
+        val player = holes(script("A one.", "A two.", "A three."), ListenScript(emptyList()), script("C one."))
+        player.start(5, ListenPosition(2, 0))
+        player.previous()
+        assertEquals("⏮: the article before's start", ListenPosition(0, 0), player.state.value.at)
+        player.next()
+        assertEquals("forward past it too", ListenPosition(2, 0), player.state.value.at)
+        player.playPage(1)
+        assertEquals("picked from below it: on to the next that has something, not back", ListenPosition(2, 0), player.state.value.at)
+        // Paused, ↶ at a page's first sentence goes to the one before (playing, it first says it again).
+        player.pause()
+        player.back()
+        assertEquals("↶: the article before's last sentence", ListenPosition(0, 2), player.state.value.at)
+    }
+
+    /** With nothing before it to say, back goes forwards after all: no loop between empty pages. */
+    @Test
+    fun backPastTwoEmptyPagesAtTheStart() {
+        val player = holes(ListenScript(emptyList()), ListenScript(emptyList()), script("C one.", "C two."))
+        player.start(5, ListenPosition(2, 0))
+        player.previous()
+        assertEquals(ListenPosition(2, 0), player.state.value.at)
+        assertTrue(player.state.value.playing)
     }
 
     @Test

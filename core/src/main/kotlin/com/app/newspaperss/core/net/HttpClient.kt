@@ -26,6 +26,8 @@ class HttpResponse(
     val body: String,
     /** The body is only the start of a longer one: see [HttpClient.getFeed]. */
     val truncated: Boolean = false,
+    /** The response's headers, names as the server sent them; a name can come more than once. */
+    val headers: List<Pair<String, String>> = emptyList(),
 ) {
     val isSuccessful get() = code in 200..299
 }
@@ -109,7 +111,7 @@ class OkHttpHttpClient(
         call.await().use { r ->
             if (r.isRedirect) {
                 val location = r.header("Location")?.let { r.request.url.resolve(it)?.toString() } ?: r.request.url.toString()
-                return@use HttpResponse(r.code, location, r.header("Content-Type"), "")
+                return@use HttpResponse(r.code, location, r.header("Content-Type"), "", headers = r.headers.toList())
             }
             val source = r.body.source()
             // Someone may paste a link to a video or a huge file; don't read it all into memory.
@@ -119,7 +121,7 @@ class OkHttpHttpClient(
             // Cancelled, not just closed: closing reads the rest to store the whole of it in the
             // cache, more than the cache holds, which would push every other feed out of it.
             if (tooLarge) call.cancel()
-            HttpResponse(r.code, r.request.url.toString(), r.header("Content-Type"), decode(bytes, r.body.contentType()?.charset()), truncated = tooLarge)
+            HttpResponse(r.code, r.request.url.toString(), r.header("Content-Type"), decode(bytes, r.body.contentType()?.charset()), truncated = tooLarge, headers = r.headers.toList())
         }
     }
 

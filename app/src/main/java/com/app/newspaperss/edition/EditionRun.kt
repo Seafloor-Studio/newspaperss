@@ -18,6 +18,7 @@ import com.app.newspaperss.settings.SettingsStore
 import kotlinx.coroutines.flow.first
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
 
 /** One edition from start to finish: sync, build, deliver, tell the reader. */
 class EditionRun(
@@ -45,7 +46,9 @@ class EditionRun(
     ): BuildResult {
         val s = settings.current()
         val synced = sync.syncAll()
-        val built = builder.build(s.edition, dueAt, deadline, onProgress)
+        // The edition after this one, which decides which articles have their last chance in this.
+        val next = if (s.scheduleEnabled) s.schedule.nextAfter((dueAt ?: now()).plusSeconds(60).atZone(ZoneId.systemDefault()))?.toInstant() else null
+        val built = builder.build(s.edition, dueAt, deadline, next, onProgress)
         // "Nothing new" when every source failed would hide the failure.
         val result = if (built == BuildResult.NothingNew && synced.sources > 0 && synced.failedSources == synced.sources) {
             BuildResult.Unreachable(synced.sources)

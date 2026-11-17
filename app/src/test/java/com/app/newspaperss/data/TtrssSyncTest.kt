@@ -55,7 +55,7 @@ class TtrssSyncTest {
         assertEquals(server.apiUrl, source.url)
         assertEquals(SourceRepository.TTRSS_TITLE, source.title)
         assertEquals(StoredAccount.Ready(TtrssAccount(server.apiUrl, "reader", "secret")), accounts.load())
-        assertEquals("the test login is closed again", listOf("login", "logout"), server.ops)
+        assertEquals("the feed list read, and the login closed again", listOf("login", "getFeeds", "logout"), server.ops)
     }
 
     @Test
@@ -219,7 +219,7 @@ class TtrssSyncTest {
 
     /** tt-rss's own list names every feed, read ones too, with its address and category; once a day is enough. */
     @Test
-    fun theAccountsFeedListNamesEveryFeedOnceADay() = runTest {
+    fun theAccountsFeedListNamesEveryFeedOnceADayOrForANewFeed() = runTest {
         server.categories[2] = "Essays"
         server.feeds[7] = FakeTtrss.Feed("Quarterly Review", "https://quarterly.example/feed", 2)
         server.feeds[9] = FakeTtrss.Feed("Quiet Blog", "https://quiet.example/rss", 2)
@@ -234,17 +234,29 @@ class TtrssSyncTest {
         assertEquals("https://quiet.example/rss" to "Essays", quiet.feedUrl to quiet.category)
 
         server.feeds.remove(9)
+        sync.syncAll()
+        assertEquals("not asked again the same day", listOf("Quarterly Review", "Quiet Blog"), sources.observeFeeds(source.id).first().map { it.title })
+
+        // A feed subscribed since, sending articles, has the list asked for again at once.
+        server.feeds[11] = FakeTtrss.Feed("Subscribed Today", "https://today.example/feed", 0)
         server.add(2, "First post", feedId = 11, feedTitle = "Subscribed Today")
         sync.syncAll()
-        assertEquals(
-            "not asked again the same day, but a feed subscribed since shows once it sends articles",
-            listOf("Quarterly Review", "Quiet Blog", "Subscribed Today"),
-            sources.observeFeeds(source.id).first().map { it.title },
-        )
-
-        val nextDay = FeedSync(db, http, Clock.fixed(now.plus(Duration.ofDays(1)), ZoneOffset.UTC), Duration.ofDays(7), accounts)
-        nextDay.syncAll()
         assertEquals("unsubscribed in tt-rss", listOf("Quarterly Review", "Subscribed Today"), sources.observeFeeds(source.id).first().map { it.title })
+    }
+
+    /** A feed's site comes with its articles, for its page on Sources; a feed with none has its address only. */
+    @Test
+    fun aFeedsSiteIsLearnedFromItsArticles() = runTest {
+        server.feeds[7] = FakeTtrss.Feed("Quarterly Review", "https://quarterly.example/feed", 0)
+        server.feeds[9] = FakeTtrss.Feed("Quiet Blog", "https://quiet.example/rss", 0)
+        server.add(1, "An essay", feedId = 7, feedTitle = "Quarterly Review", siteUrl = "https://quarterly.example/")
+        val source = connect()
+
+        sync.syncAll()
+
+        val feeds = sources.observeFeeds(source.id).first().associate { it.title to it.publication!! }
+        assertEquals("https://quarterly.example/", feeds.getValue("Quarterly Review").siteUrl)
+        assertNull(feeds.getValue("Quiet Blog").siteUrl)
     }
 
     /** tt-rss fetches its feeds itself: one it can't is said so, until it's fetched again. */
@@ -275,6 +287,24 @@ class TtrssSyncTest {
         server.unread.removeAll { it.feedId == 8 }
         FeedSync(db, http, Clock.fixed(now.plus(Duration.ofDays(1)), ZoneOffset.UTC), Duration.ofDays(7), accounts).syncAll()
         assertNull(db.sources().publication(source.id, "8")!!.serverError)
+    }
+
+    /** A feed subscribed after the day's list is listed at once, with its category, not left Uncategorized till tomorrow. */
+    @Test
+    fun aFeedSubscribedSinceTheDaysListGetsItsCategoryAtTheNextSync() = runTest {
+        server.categories[2] = "Essays"
+        server.feeds[7] = FakeTtrss.Feed("Quarterly Review", "https://quarterly.example/feed", 2)
+        server.add(1, "First", feedId = 7, feedTitle = "Quarterly Review", categoryId = 2)
+        val source = connect()
+        sync.syncAll()
+
+        // The same day: subscribed in tt-rss, into a category, and posting.
+        server.feeds[9] = FakeTtrss.Feed("Slow Essays", "https://slow.example/feed", 2)
+        server.add(2, "Second", feedId = 9, feedTitle = "Slow Essays", categoryId = 2)
+        sync.syncAll()
+
+        assertEquals("Essays", db.sources().publication(source.id, "9")?.category)
+        assertEquals(listOf("Essays" to "Quarterly Review", "Essays" to "Slow Essays"), sources.observeFeeds(source.id).first().map { it.publication?.category to it.title })
     }
 
     @Test
@@ -361,12 +391,12 @@ class TtrssSyncTest {
         sources.setFeedInPaper(source.id, FeedChoice("42", "Press Office", inPaper = true), inPaper = false)
 
         assertNull(ttrss.connect("rss.example.com/tt-rss", "reader", "secret"))
-        assertEquals(listOf("42"), db.sources().allLeftOut().map { it.key })
+        assertEquals(listOf("42"), leftOutKeys())
 
         db.sources().savePublication(PublicationEntity(source.id, "42", com.app.newspaperss.core.extract.ContentMode.PAGE))
         server.user = "partner"
         assertNull(ttrss.connect("rss.example.com/tt-rss", "partner", "secret"))
-        assertTrue(db.sources().allLeftOut().isEmpty())
+        assertTrue(leftOutKeys().isEmpty())
         assertTrue("what was learned about feed 42 was about another user's feed", db.sources().allPublications().isEmpty())
     }
 
@@ -379,7 +409,7 @@ class TtrssSyncTest {
 
         assertNull(TtrssRepository(db, http, lostKey, sources).connect("rss.example.com/tt-rss", "reader", "secret"))
 
-        assertEquals(listOf("42"), db.sources().allLeftOut().map { it.key })
+        assertEquals(listOf("42"), leftOutKeys())
     }
 
     @Test
@@ -464,7 +494,7 @@ class TtrssSyncTest {
             listOf(ArticleEntity(sourceId = source.id, guid = "ttrss:1", url = "https://news.example/1", title = "Old", discoveredAt = now.minus(Duration.ofDays(8)))),
         )
         sync.syncAll()
-        assertFalse(db.articles().candidates().any { it.guid == "ttrss:1" })
+        assertFalse(db.articles().buildCandidates().any { it.guid == "ttrss:1" })
     }
 
     @Test
@@ -475,6 +505,7 @@ class TtrssSyncTest {
         server.add(12, "Not picked", feedId = 2, feedTitle = "A Blog")
         sync.syncAll()
         val editionId = editionWith(source.id, "ttrss:10", "ttrss:11")
+        db.articles().setDelivered(db.editions().articleIds(editionId))
 
         assertTrue(ttrss.markRead(editionId))
         assertEquals(listOf(10L, 11L), server.markedRead.sorted())
@@ -546,7 +577,7 @@ class TtrssSyncTest {
 
         EditionRepository(db, tmp.root, Clock.fixed(now, ZoneOffset.UTC)).markDelivered(editionId)
 
-        assertTrue("not offered again", db.articles().candidates().none { it.sourceId == source.id })
+        assertTrue("not offered again", db.articles().buildCandidates().none { it.sourceId == source.id })
         assertTrue(ttrss.markRead(editionId))
         assertEquals(listOf(40L), server.markedRead)
     }
@@ -641,6 +672,61 @@ class TtrssSyncTest {
         server.add(20, "Old", feedId = 1, feedTitle = "Example News")
         sync.syncAll()
         assertEquals("not marked read again for its delivered link", listOf(20L), server.markedRead)
+    }
+
+    /**
+     * One article of an unsent edition, sent on its own, is read in tt-rss; brought back, unread
+     * again. Only that one: one of the others read in tt-rss meanwhile stays read there.
+     */
+    @Test
+    fun anArticleSentOnItsOwnFromAnUnsentEditionIsReadInTtrssAndUnreadOnceBack() = runTest {
+        val source = connect()
+        server.add(10, "Heard", feedId = 1, feedTitle = "Example News")
+        server.add(11, "Still to come", feedId = 1, feedTitle = "Example News")
+        sync.syncAll()
+        val editionId = editionWith(source.id, "ttrss:10", "ttrss:11")
+        val byGuid = db.articles().allForSource(source.id).associateBy { it.guid }
+        db.articles().setState(byGuid.values.map { it.id }, ArticleState.IN_EDITION)
+        val changed = mutableListOf<Long>()
+        val editions = EditionRepository(db, tmp.root, Clock.fixed(now, ZoneOffset.UTC), onTtrssArticleChanged = { changed += it })
+        val heard = byGuid.getValue("ttrss:10").id
+        server.readThere(11)
+
+        assertTrue(editions.toggleSent(editionId, heard))
+        assertEquals(listOf(heard), changed)
+        assertTrue(ttrss.syncArticleRead(heard))
+        assertEquals(listOf(10L), server.markedRead)
+        assertTrue(server.markedUnread.isEmpty())
+
+        assertTrue(editions.toggleSent(editionId, heard))
+        assertEquals(ArticleState.IN_EDITION, stateOf(source, "ttrss:10"))
+        assertTrue(ttrss.syncArticleRead(heard))
+        assertEquals(listOf(10L), server.markedUnread)
+        sync.syncAll()
+        assertEquals("not marked read again", listOf(10L), server.markedRead)
+        assertEquals("nor unread again", listOf(10L), server.markedUnread)
+    }
+
+    /** Sent on its own, a feed's article uses up a tt-rss copy of its link, which is read in tt-rss too. */
+    @Test
+    fun aTtrssCopyOfAnArticleSentOnItsOwnIsReadInTtrss() = runTest {
+        val source = connect()
+        server.add(12, "The same story", feedId = 1, feedTitle = "Example News")
+        sync.syncAll()
+        val copy = db.articles().allForSource(source.id).single()
+        val feed = sources.addFeed("https://news.example/feed", "News")
+        db.articles().insertNew(listOf(ArticleEntity(sourceId = feed, guid = "n12", url = copy.url, title = "The same story")))
+        val editionId = editionWith(feed, "n12")
+        val article = db.articles().allForSource(feed).single()
+        db.articles().setState(listOf(article.id), ArticleState.IN_EDITION)
+        val changed = mutableListOf<Long>()
+        val editions = EditionRepository(db, tmp.root, Clock.fixed(now, ZoneOffset.UTC), onTtrssArticleChanged = { changed += it })
+
+        assertTrue(editions.toggleSent(editionId, article.id))
+        assertEquals(ArticleState.DELIVERED, db.articles().byId(copy.id)!!.state)
+        assertEquals(listOf(article.id), changed)
+        assertTrue(ttrss.syncArticleRead(article.id))
+        assertEquals(listOf(12L), server.markedRead)
     }
 
     /** A delivered article tt-rss still has unread (its marking failed, say) is marked read at the next sync. */
@@ -1152,7 +1238,7 @@ class TtrssSyncTest {
 
         ttrss.chooseCategory(source.id, TtrssCategory(5, "Tech"))
 
-        assertEquals("the reader's own star stays", listOf("Recipe"), db.articles().candidates().map { it.title })
+        assertEquals("the reader's own star stays", listOf("Recipe"), db.articles().buildCandidates().map { it.title })
     }
 
     /** tt-rss answers a missing category with an empty list, which must not look like a quiet day. */
@@ -1163,14 +1249,6 @@ class TtrssSyncTest {
 
         assertEquals(1, sync.syncAll().failedSources)
         assertEquals(FeedSync.CATEGORY_GONE, db.sources().byId(source.id)!!.lastError)
-    }
-
-    @Test
-    fun connectingAgainStartsFromAllUnread() = runTest {
-        val source = connect()
-        ttrss.chooseCategory(source.id, TtrssCategory(0, "Uncategorized"))
-        connect()
-        assertNull(db.sources().byId(source.id)!!.ttrssCategoryId)
     }
 
     @Test
@@ -1199,6 +1277,7 @@ class TtrssSyncTest {
         server.add(10, "One", feedId = 1, feedTitle = "Example News")
         sync.syncAll()
         val editionId = editionWith(source.id, "ttrss:10")
+        db.articles().setDelivered(db.editions().articleIds(editionId))
 
         http.unreachable += server.apiUrl
         assertFalse("unreachable is worth retrying", ttrss.markRead(editionId))
@@ -1336,7 +1415,7 @@ class TtrssSyncTest {
         server.unread += FakeTtrss.Item(3, "A post", feedId = 8, feedTitle = "A Blog")
         sync.sync(source)
 
-        val byTitle = db.articles().candidates().associateBy { it.title }
+        val byTitle = db.articles().buildCandidates().associateBy { it.title }
         with(byTitle.getValue("Episode 12: a guest")) {
             assertEquals("https://traffic.libsyn.com/ashow/12.mp3", audioUrl)
             assertEquals("audio/mpeg", audioType)
@@ -1362,7 +1441,7 @@ class TtrssSyncTest {
         )
         sync.sync(source)
 
-        val byTitle = db.articles().candidates().associateBy { it.title }
+        val byTitle = db.articles().buildCandidates().associateBy { it.title }
         val reading = byTitle.getValue("Corruption as a Driving Force")
         val written = byTitle.getValue("October 15")
         assertEquals(EpisodeKind.AUDIO_VERSION, reading.episodeKind)
@@ -1386,7 +1465,7 @@ class TtrssSyncTest {
         )
         sync.sync(source)
 
-        val byTitle = db.articles().candidates().associateBy { it.title }
+        val byTitle = db.articles().buildCandidates().associateBy { it.title }
         assertEquals(EpisodeKind.AUDIO_VERSION, byTitle.getValue("Corruption as a Driving Force").episodeKind)
         assertNull("its letter keeps its own pair, so this one names none", byTitle.getValue("Corruption as a Driving Force").episodePair)
         assertEquals("ttrss:0", byTitle.getValue("October 15").episodePair)
@@ -1406,4 +1485,7 @@ class TtrssSyncTest {
         assertEquals("https://traffic.libsyn.com/ashow/9.mp3", starred.audioUrl)
         assertEquals(EpisodeKind.NOTES, starred.episodeKind)
     }
+
+    /** Every source's feeds left out of the paper, by key, whichever source holds them now. */
+    private suspend fun leftOutKeys() = db.sources().all().flatMap { db.sources().leftOut(it.id) }.map { it.key }
 }

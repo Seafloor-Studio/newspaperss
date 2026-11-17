@@ -20,8 +20,7 @@ import java.time.LocalDate
 class CoverRendererTest {
     private val renderer = CoverRenderer()
 
-    private fun info(headlines: List<CoverHeadline>, title: String = "Tuesday Morning Edition") = CoverInfo(
-        title = title,
+    private fun info(headlines: List<CoverHeadline>) = CoverInfo(
         date = LocalDate.of(2026, 9, 29),
         headlines = headlines,
         articleCount = headlines.size,
@@ -75,7 +74,7 @@ class CoverRendererTest {
 
     @Test
     fun longEmojiAndRightToLeftTextAndMissingSourcesStillMakeAFullSizeCover() {
-        val long = "A very long edition title that goes on and on ".repeat(20)
+        val long = "A very long headline that goes on and on ".repeat(20)
         val headlines = listOf(
             CoverHeadline("Breaking 🚀🔥 news with emoji 👩‍👩‍👧 and flags 🇯🇵", ""),
             CoverHeadline("أخبار الصباح من المصادر التي اخترتها بنفسك", "  "),
@@ -84,7 +83,7 @@ class CoverRendererTest {
             CoverHeadline(long, long),
         ) + List(40) { CoverHeadline("Headline $it", "") }
 
-        val bitmap = decode(renderer.render(info(headlines, title = "📰 $long")).bytes)
+        val bitmap = decode(renderer.render(info(headlines)).bytes)
 
         assertTrue("the footer is still drawn", bitmap.darkPixels(bitmap.height - 200, bitmap.height) > 2_000)
     }

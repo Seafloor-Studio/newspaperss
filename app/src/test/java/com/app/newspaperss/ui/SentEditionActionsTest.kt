@@ -8,7 +8,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -94,7 +94,7 @@ class SentEditionActionsTest {
     private fun today(device: Device, sentToKindle: Map<Long, KindleSend> = emptyMap(), onOpenEdition: (Long) -> Unit = {}) {
         val vm = viewModels.add(TodayViewModel(repo, flowOf(null), settings = flowOf(Settings(device = device)), sentToKindle = flowOf(sentToKindle)) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = onOpenEdition) }
-        idleUntil { compose.waitForIdle(); compose.onAllNodes(hasText("Tuesday Morning Edition")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasText("Tuesday Morning Edition")).fetchSemanticsNodes().isNotEmpty() }
     }
 
     private fun page(id: Long, device: Device) {
@@ -102,7 +102,7 @@ class SentEditionActionsTest {
         compose.setContent {
             EditionDetailScreen(vm, onBack = {}, preferOpen = device == Device.BOOX, offerOpen = device.offersOpen, kindleReader = device == Device.KINDLE)
         }
-        idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
+        compose.idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
     }
 
     private fun button(text: String) = compose.onNode(hasText(text) and hasClickAction())
@@ -228,7 +228,7 @@ class SentEditionActionsTest {
         compose.onNodeWithContentDescription(options).assertDoesNotExist()
 
         button("Mark as sent").performClick()
-        idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+        compose.idleUntil { statusOf(id) == EditionStatus.DELIVERED }
     }
 
     @Test
@@ -237,6 +237,31 @@ class SentEditionActionsTest {
         today(Device.KINDLE)
         compose.onNodeWithText("Try again").assertExists()
         compose.onNodeWithContentDescription(options).assertDoesNotExist()
+    }
+
+    /**
+     * The newest edition left on Today can be one released as not sent (the one made after it was
+     * deleted). It wasn't a failure: its card offers Mark as sent, as its page does, and making
+     * another, not Try again; without its book, it says the book is gone.
+     */
+    @Test
+    fun aReleasedEditionsCardOffersMarkAsSentNotTryAgain() {
+        val id = edition(EditionStatus.FAILED, error = EditionBuilder.NOT_SENT)
+        today(Device.KINDLE)
+        compose.onNodeWithText("Try again").assertDoesNotExist()
+        compose.onNodeWithText("Make another edition").assertExists()
+        button("Mark as sent").performClick()
+        compose.idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+    }
+
+    @Test
+    fun aReleasedEditionsCardWithoutItsBookSaysSo() {
+        edition(EditionStatus.FAILED, error = EditionBuilder.OLD_NOT_SENT)
+        editionsDir.resolve("e.epub").delete()
+        today(Device.KINDLE)
+        compose.onNodeWithText("has been deleted", substring = true).assertExists()
+        compose.onNodeWithText("Mark as sent").assertDoesNotExist()
+        compose.onNodeWithText("Try again").assertDoesNotExist()
     }
 
     @Test
@@ -261,7 +286,7 @@ class SentEditionActionsTest {
         button("Read").performClick()
 
         assertEquals(Intent.ACTION_VIEW, shadowOf(app).nextStartedActivity.action)
-        idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+        compose.idleUntil { statusOf(id) == EditionStatus.DELIVERED }
     }
 
     @Test

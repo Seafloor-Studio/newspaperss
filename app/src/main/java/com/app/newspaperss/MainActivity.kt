@@ -1,6 +1,8 @@
 package com.app.newspaperss
 
+import com.app.newspaperss.ui.edition.markedAtTheEnd
 import androidx.navigation.NavBackStackEntry
+import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.data.ArticleSource
 import com.app.newspaperss.data.EditionContent
 import com.app.newspaperss.data.FeedMoves
@@ -16,8 +18,9 @@ import androidx.compose.runtime.mutableStateOf
 import android.content.Intent
 import com.app.newspaperss.listen.KokoroSupport
 import com.app.newspaperss.listen.ListenPosition
+import com.app.newspaperss.ui.components.BannerLink
 import com.app.newspaperss.ui.components.episodeJudgement
-import com.app.newspaperss.ui.listen.ListenScreen
+import com.app.newspaperss.ui.components.listenBanner
 import android.os.Bundle
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.ComponentActivity
@@ -99,7 +102,6 @@ private const val LEFT_OUT = "source/{id}/left-out"
 private const val NOT_IN_PAPER = "source/{id}/not-in-paper"
 private const val SETTINGS_PAGE = "settings/{page}"
 private const val NATURAL_VOICE = "settings/listening/natural-voice"
-private const val LISTEN = "listen"
 private val FEEDS_FROM = "settings/${SettingsPage.FEEDS.slug}"
 
 class MainActivity : ComponentActivity() {
@@ -145,7 +147,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         val sources = viewModel { SourcesViewModel(container.sources, container.feedFinder) { SyncWorker.syncNow(context) } }
-                        val readingList = viewModel { ReadingListViewModel(container.readingList) }
+                        val readingList = viewModel { ReadingListViewModel(container.readingList, container.sources, container.settings.settings.map { it.edition.maxPerSource }) }
                         OnboardingScreen(vm, sources, readingList)
                     }
                     true -> App(
@@ -154,7 +156,6 @@ class MainActivity : ComponentActivity() {
                         offerOpen = settings?.device.offersOpen,
                         kindleReader = settings?.device == com.app.newspaperss.settings.Device.KINDLE,
                         kindleEmail = settings?.kindleEmailTarget,
-                        textSize = settings?.previewTextSize ?: com.app.newspaperss.settings.PreviewTextSize.DEFAULT,
                         opening = opening.value,
                         onOpened = { opening.value = null },
                     )
@@ -208,14 +209,25 @@ private fun App(
     offerOpen: Boolean,
     kindleReader: Boolean,
     kindleEmail: com.app.newspaperss.settings.KindleEmail?,
-    /** Settings › Article text size, known here before any screen draws. */
-    textSize: com.app.newspaperss.settings.PreviewTextSize,
     opening: String? = null,
     onOpened: () -> Unit = {},
 ) {
     val nav = rememberNavController()
+    // Listening is reading: the bar, the notification and the edition's Listen open the article the
+    // voice is on, with the player under it. Its page follows once the edition's open.
+    // The edition playing, else [fallback]: the edition page's Listen may have started an older one.
+    val openPlayer = { fallback: Long? ->
+        val now = container.listen.state.value
+        val id = now.editionId ?: fallback
+        // Nothing playing (a notification left from before): nothing to open.
+        if (id != null) {
+            // While it opens, its place isn't known to the player yet: where it was left.
+            val page = if (now.editionId == id && !now.loading && now.pages.isNotEmpty()) now.at.page else container.listening.saved(id)?.page ?: 0
+            nav.navigate("edition/$id/article/$page") { launchSingleTop = true }
+        }
+    }
     LaunchedEffect(opening) {
-        if (opening == MainActivity.OPEN_LISTENING) nav.navigate(LISTEN) { launchSingleTop = true }
+        if (opening == MainActivity.OPEN_LISTENING) openPlayer(null)
         if (opening != null) onOpened()
     }
     val current by nav.currentBackStackEntryAsState()
@@ -223,9 +235,10 @@ private fun App(
     Scaffold(
         bottomBar = {
             Column {
-                // Not over the playing screen, which is the same and more.
-                listenNow?.takeIf { showsListenBar(it) && current?.destination?.route != LISTEN }?.let { state ->
-                    ListenBar(state, onOpen = { nav.navigate(LISTEN) { launchSingleTop = true } }, onToggle = container.listening::toggle, onClose = container.listen::stop)
+                // Not over an article of the edition it's playing, which has the player under the page.
+                val onItsArticle = current?.destination?.route == ARTICLE && current?.arguments?.getLong("id") == listenNow?.editionId
+                listenNow?.takeIf { showsListenBar(it) && !onItsArticle }?.let { state ->
+                    ListenBar(state, onOpen = { openPlayer(null) }, onToggle = container.listening::toggle, onClose = container.listen::stop)
                 }
                 // The tab whose stack the screen is on: switching tabs pops back to Today, the start,
                 // and pushes the other tab's top, so at most one other tab's root is on the stack. Not
@@ -239,8 +252,6 @@ private fun App(
                             onClick = {
                                 // Tapping the tab you're in goes back to its top screen; restoring
                                 // saved state would otherwise reopen the detail screen you're on.
-                                // The player isn't kept in the tab left: coming back, the tab shows itself.
-                                if (!inTab && current?.destination?.route == LISTEN) nav.popBackStack()
                                 if (inTab) nav.popBackStack(tab.route, inclusive = false) else nav.navigate(tab.route) {
                                     popUpTo(nav.graph.findStartDestination().id) { saveState = true }
                                     launchSingleTop = true
@@ -277,7 +288,7 @@ private fun App(
             }
             composable(EDITION, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
                 val id = entry.idArg
-                val vm = viewModel { EditionDetailViewModel(container.editions, id, container.kindleSends.recent, container.notifier::dismissFor) }
+                val vm = viewModel { EditionDetailViewModel(container.editions, id, container.kindleSends.recent, container::episodesAfter, container.notifier::dismissFor) }
                 EditionDetailScreen(
                     vm,
                     preferOpen = preferOpen,
@@ -285,7 +296,12 @@ private fun App(
                     kindleReader = kindleReader,
                     kindleEmail = kindleEmail,
                     listening = container.listening,
-                    onOpenPlayer = { nav.navigate(LISTEN) { launchSingleTop = true } },
+                    onOpenPlayer = { openPlayer(id) },
+                    // Straight to the episode's page, which follows Listen once it's open.
+                    onPlayEpisode = { episode ->
+                        container.listening.start(id, episode = episode.audio)
+                        nav.navigate("edition/$id/article/${episode.page}") { launchSingleTop = true }
+                    },
                     onBack = { nav.navigateUp() },
                     onReadArticle = { position -> nav.navigate("edition/$id/article/$position") { launchSingleTop = true } },
                 )
@@ -302,8 +318,33 @@ private fun App(
                 // Resume that starts it fetching beside the tt-rss feed it became.
                 val moving by remember { container.feedMoves.state }.collectAsStateWithLifecycle(initialValue = FeedMoves.State())
                 val editionTitle by produceState<String?>(null, id) { value = container.editions.byId(id)?.title }
+                val edition by remember(id) { container.editions.observe(id) }.collectAsStateWithLifecycle(initialValue = null)
+                val building by remember { container.editions.observeBuilding() }.collectAsStateWithLifecycle(initialValue = false)
+                // A released one waits while an edition is being made, as on its page: a tap then would do nothing.
+                val markable = remember(edition, building) {
+                    edition?.let { it.status == EditionStatus.READY || (!building && container.editions.notSent(it)) } == true
+                }
                 val textSize by remember { container.settings.settings.map { it.previewTextSize } }.collectAsStateWithLifecycle(initialValue = null)
                 val recordings by remember { container.settings.settings.map { it.recordings } }.collectAsStateWithLifecycle(initialValue = com.app.newspaperss.settings.Recordings())
+                // What Listen would do with each page, worked out as it would open the edition: the
+                // banners say that, not a guess of their own. Again when the ticks change, or the
+                // screen comes back (a source's switch may have changed).
+                // Null while it's worked out, so no banner shows one thing then another; a failure
+                // leaves the banners to what the detector alone says.
+                // Keyed on what they're worked out from: a length measured or a label changed after
+                // delivery, not an article read, starred or synced, which would hide the banner each page.
+                val judged = remember(contents) { contents.map { listOf(it.entry.articleId, it.episodeKind, it.pair, it.audioSeconds, it.pairAudioSeconds, it.hasAudio, it.pairHasAudio) } }
+                val outcomes by produceState<Result<Map<Int, com.app.newspaperss.listen.Outcome>>?>(null, id, recordings, judged) {
+                    value = null
+                    if (contents.isEmpty()) return@produceState
+                    value = try {
+                        container.listenOutcomes(id)?.let { Result.success(it) } ?: Result.failure(IllegalStateException("no book"))
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Result.failure(e)
+                    }
+                }
                 ArticlePreviewScreen(
                     loadFile = { container.editions.byId(id)?.let(container.editions::fileOf) },
                     position = position,
@@ -311,22 +352,33 @@ private fun App(
                     onBack = { nav.navigateUp() },
                     textSize = textSize,
                     onTextSize = { size -> container.appScope.launch { container.settings.update { it.copy(previewTextSize = size) } } },
-                    onListen = { article ->
-                        container.listening.start(id, ListenPosition(article, 0))
-                        nav.navigate(LISTEN) { launchSingleTop = true }
-                    },
+                    // The player comes up under the page: reading and listening are one view.
+                    onListen = { article -> container.listening.start(id, ListenPosition(article, 0)) },
                     sourceAt = { position -> goTo(contents, moving, position)?.title },
                     onOpenSource = { position ->
                         goTo(contents, moving, position)?.let { nav.navigate(sourceRoute(it)) { launchSingleTop = true } }
                     },
                     episodeFor = { article -> contents.getOrNull(article)?.let { episodeJudgement(it, recordings) } },
-                )
-            }
-            composable(LISTEN) {
-                ListenScreen(
-                    container.listen, onBack = { nav.navigateUp() }, podcastVoice = container.podcastPlaying, instead = container.podcastInstead,
-                    reading = container.readingNow, onVoiceInstead = container::useVoiceInstead,
-                    textSize = textSize,
+                    bannersReady = outcomes != null,
+                    blockedAnswerFor = { url -> container.blockedAnswers?.find(url) },
+                    bannerFor = { article ->
+                        contents.getOrNull(article)?.let { c ->
+                            outcomes?.getOrNull()?.let { o -> listenBanner(c.episodeKind, c.pair, o[article]) { contents.getOrNull(it)?.entry?.title } }
+                                // A source with no page to go to (a feed kept paused after a move): no link.
+                                ?.let { b -> if (b.link == BannerLink.SOURCE && goTo(contents, moving, article) == null) b.copy(link = null) else b }
+                        }
+                    },
+                    onBannerLink = { article, link ->
+                        when (link) {
+                            BannerLink.LISTENING_SETTINGS -> nav.navigate("settings/${SettingsPage.LISTENING.slug}") { launchSingleTop = true }
+                            BannerLink.SOURCE -> goTo(contents, moving, article)?.let { nav.navigate(sourceRoute(it)) { launchSingleTop = true } }
+                        }
+                    },
+                    listen = container.listening,
+                    editionId = id,
+                    onMarkSent = if (markable) ({ container.appScope.launch { container.editions.markSentByHand(id) } }) else null,
+                    onFinished = { article -> container.appScope.launch { container.editions.markFinished(id, article) } },
+                    finished = { article -> markedAtTheEnd(contents.getOrNull(article), edition?.status, building) },
                 )
             }
             composable(Tab.SOURCES.route) {
@@ -376,7 +428,7 @@ private fun App(
                 SourceDetailScreen(vm, onBack = { nav.navigateUp() }, onGone = { nav.popBackStack(SOURCE, inclusive = true) })
             }
             composable(READING_LIST) {
-                val vm = viewModel { ReadingListViewModel(container.readingList) }
+                val vm = viewModel { ReadingListViewModel(container.readingList, container.sources, container.settings.settings.map { it.edition.maxPerSource }) }
                 ReadingListScreen(vm, onBack = { nav.navigateUp() })
             }
             composable(Tab.SETTINGS.route) {

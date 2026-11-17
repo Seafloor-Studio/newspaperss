@@ -84,7 +84,7 @@ class SessionPlayer(private val listen: ListenPlayer) : SimpleBasePlayer(Looper.
             Player.COMMAND_SEEK_FORWARD, Player.COMMAND_SEEK_TO_NEXT -> listen.forward()
             Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM -> listen.next()
             Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM -> listen.previous()
-            Player.COMMAND_SEEK_TO_MEDIA_ITEM -> listen.seek(ListenPosition(mediaItemIndex, 0))
+            Player.COMMAND_SEEK_TO_MEDIA_ITEM -> listen.playPage(mediaItemIndex)
         }
         return Futures.immediateVoidFuture()
     }

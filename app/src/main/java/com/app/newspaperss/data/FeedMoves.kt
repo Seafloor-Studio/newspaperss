@@ -217,17 +217,7 @@ class FeedMoves(
         // Read again inside the transaction: the list may have filled it in since.
         val current = sources.publication(target.sourceId, target.key) ?: target
         sources.savePublication(
-            current.copy(
-                contentMode = phone.contentMode,
-                fullTextEvidence = phone.fullTextEvidence,
-                fullTextStreak = phone.fullTextStreak,
-                fullTextDay = phone.fullTextDay,
-                checkedDay = phone.checkedDay,
-                chosenMode = phone.chosenMode,
-                maxArticles = phone.maxArticles,
-                skipPaidPosts = phone.skipPaidPosts,
-                leftOut = phone.leftOut || wasPaused,
-            ),
+            current.withSettingsOf(phone).copy(leftOut = phone.leftOut || wasPaused),
         )
         sources.setPaused(source.id, true)
         if (wasPaused) db.articles().expireWaiting(source.id)

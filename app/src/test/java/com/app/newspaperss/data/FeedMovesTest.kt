@@ -81,7 +81,7 @@ class FeedMovesTest {
         db.sources().savePublication(
             PublicationEntity(
                 aeon.id, PublicationEntity.OWN, contentMode = ContentMode.FEED, fullTextEvidence = FullTextEvidence.FEED_SHORT,
-                fullTextStreak = 3, fullTextDay = 20_360, checkedDay = 20_361, chosenMode = ContentMode.PAGE, maxArticles = 2, skipPaidPosts = true,
+                fullTextStreak = 3, fullTextDay = 20_360, checkedDay = 20_361, chosenMode = ContentMode.PAGE, maxArticles = 2, skipPaidPosts = true, recordingsOff = true,
             ),
         )
         val starred = article(aeon.id, "starred", starred = true)
@@ -97,6 +97,7 @@ class FeedMovesTest {
         assertEquals(ContentMode.PAGE, carried.chosenMode)
         assertEquals(2, carried.maxArticles)
         assertTrue(carried.skipPaidPosts)
+        assertTrue(carried.recordingsOff)
         assertEquals(ContentMode.FEED, carried.contentMode)
         assertEquals(FullTextEvidence.FEED_SHORT, carried.fullTextEvidence)
         assertEquals(3, carried.fullTextStreak)

@@ -69,7 +69,7 @@ class ReadingListTitlesTest {
     fun aTitleTheReaderGaveIsKept() = runTest {
         http.page("https://a.example/tides", page("How tides work"))
         list.save("https://a.example/tides", "Tides, for Sam")
-        val id = db.articles().candidates().single().id
+        val id = db.articles().buildCandidates().single().id
         assertTrue(titles.fetch(listOf(id)))
         assertEquals("Tides, for Sam", titleOf("https://a.example/tides"))
     }

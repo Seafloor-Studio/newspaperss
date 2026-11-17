@@ -12,6 +12,8 @@ class FakeSpeaker : Speaker {
 
     /** Every line asked for, in order. */
     val said = mutableListOf<Said>()
+    /** Whether each of [said] was asked for as a fresh start, the queue dropped. */
+    val flushed = mutableListOf<Boolean>()
     /** Lines queued and not yet finished, the one being said first. */
     val queue = ArrayDeque<Said>()
     /** Languages the voice has; anything else is "not installed". Null: all of them. */
@@ -20,6 +22,7 @@ class FakeSpeaker : Speaker {
 
     override fun speak(id: String, text: String, language: String?, rate: Float, flush: Boolean): Boolean {
         if (flush) queue.clear()
+        flushed += flush
         val line = Said(id, text, language, rate)
         said += line
         queue += line

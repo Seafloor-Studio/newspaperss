@@ -22,9 +22,6 @@ interface SourceDao {
     @Query("SELECT * FROM publications WHERE sourceId = :sourceId AND leftOut = 1")
     suspend fun leftOut(sourceId: Long): List<PublicationEntity>
 
-    @Query("SELECT * FROM publications WHERE leftOut = 1")
-    suspend fun allLeftOut(): List<PublicationEntity>
-
     /**
      * The feeds an aggregator's articles came from since [since], each with the name it was last
      * seen under (SQLite takes a bare column from the row that gave the MAX).
@@ -55,9 +52,6 @@ interface SourceDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(source: SourceEntity): Long
-
-    @Update
-    suspend fun update(source: SourceEntity)
 
     // Targeted updates: a sync holds a source row for up to a minute, and
     // writing the whole row back would undo a pause or rename made meanwhile.
@@ -97,6 +91,10 @@ interface SourceDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun savePublication(publication: PublicationEntity)
 
+    /** A tt-rss feed's site; a feed not listed yet gets it at a later sync. Unchanged, it's left alone, so nothing watching redraws. */
+    @Query("UPDATE publications SET siteUrl = :siteUrl WHERE sourceId = :sourceId AND `key` = :key AND siteUrl IS NOT :siteUrl")
+    suspend fun setSiteUrl(sourceId: Long, key: String, siteUrl: String)
+
     @Query("DELETE FROM publications WHERE sourceId = :sourceId")
     suspend fun clearPublications(sourceId: Long)
 
@@ -128,6 +126,10 @@ interface SourceDao {
 
     @Query("UPDATE sources SET ttrssSeenId = :id WHERE id = :sourceId")
     suspend fun setTtrssSeenId(sourceId: Long, id: Long)
+
+    /** The account's feeds as tt-rss last listed them (see [listTtrssFeeds]). */
+    @Query("SELECT `key` FROM publications WHERE sourceId = :sourceId AND listed = 1")
+    suspend fun listedKeys(sourceId: Long): List<String>
 
     /** tt-rss has fetched these feeds: they have unread articles there. */
     @Query("UPDATE publications SET awaitingFirstFetch = 0 WHERE sourceId = :sourceId AND `key` IN (:keys) AND awaitingFirstFetch = 1")
@@ -221,11 +223,7 @@ interface ArticleDao {
      * Inserts articles not already known for their source; returns how many were new. One whose
      * link was already delivered (see [DeliveredUrlEntity]) is left out: stored, it would count as
      * new activity on the Sources screen. Each is cut to [RowLimits] first, or left out if it can't be.
-     */
-    suspend fun insertNew(articles: List<ArticleEntity>): Int = insertFetched(articles.map { it to it.url })
-
-    /**
-     * [insertNew], each article with the link it was fetched with. That link, and a link post's own
+     * Each comes with the link it was fetched with. That link, and a link post's own
      * page, count as delivered too: stored links have tracking removed and link posts point to
      * their story, while delivered_urls may hold the link as it went out before, or as a page
      * saved to the reading list.
@@ -283,13 +281,6 @@ interface ArticleDao {
     suspend fun insertIgnoring(article: ArticleEntity): Long
 
     /**
-     * Waiting articles, and starred ones in any state but already in an unsent edition; not the
-     * saved links that can never be read ([ArticleEntity.unreadable]).
-     */
-    @Query("SELECT * FROM articles WHERE (state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')) AND unreadable IS NULL")
-    suspend fun candidates(): List<ArticleEntity>
-
-    /**
      * Marks a saved link as one that can never be read, and why (see [ArticleEntity.unreadable]);
      * null clears it. Not one in an edition, which was read after all.
      */
@@ -297,9 +288,10 @@ interface ArticleDao {
     suspend fun setUnreadable(id: Long, why: String?)
 
     /**
-     * [candidates] without their feed text, which a build reads one article at a time with
-     * [feedHtml]: up to 500,000 characters each, for every waiting article, is more than a small
-     * e-reader has to spare.
+     * Waiting articles, and starred ones in any state but already in an unsent edition, not the
+     * saved links that can never be read ([ArticleEntity.unreadable]). Without their feed text,
+     * which a build reads one article at a time with [feedHtml]: up to 500,000 characters each,
+     * for every waiting article, is more than a small e-reader has to spare.
      */
     @Query(
         """SELECT id, sourceId, guid, url, title, author, published, NULL AS feedHtml, discoveredAt, state, starredAt,
@@ -351,6 +343,40 @@ interface ArticleDao {
                          ORDER BY e2.createdAt DESC, e2.id DESC LIMIT 1)""",
     )
     fun observeHistory(sourceId: Long): Flow<List<ArticleHistory>>
+
+    /**
+     * A source's (or with [key], one tt-rss feed's) most recent delivered editions, newest first:
+     * when each went out and how many of its articles were in it. From the editions' contents,
+     * not the articles' states, which other sources' deliveries and the reader's marks change
+     * afterwards; and not the listed articles, which stop at the newest few: on a busy feed held
+     * to one an edition, yesterday's can be older than all of them. An article marked sent by hand
+     * was in no edition, so it isn't counted. CROSS JOIN keeps SQLite's order: the few editions
+     * first, then their contents by index and articles by key, not every article of a busy source.
+     */
+    @Query(
+        """SELECT e.deliveredAt AS sentAt, COUNT(*) AS count
+           FROM editions e CROSS JOIN edition_articles ea ON ea.editionId = e.id CROSS JOIN articles a ON a.id = ea.articleId
+           WHERE e.status = 'DELIVERED' AND e.deliveredAt IS NOT NULL
+             AND a.sourceId = :sourceId AND (:key = '' OR a.originId = :key)
+           GROUP BY e.id ORDER BY e.deliveredAt DESC LIMIT 20""",
+    )
+    fun observeSent(sourceId: Long, key: String): Flow<List<SentBatch>>
+
+    /** The newest unsent edition with any of the source's (or feed's) articles in it, and how many, as [observeSent]. */
+    @Query(
+        """SELECT e.title AS title, COUNT(*) AS count
+           FROM editions e CROSS JOIN edition_articles ea ON ea.editionId = e.id CROSS JOIN articles a ON a.id = ea.articleId
+           WHERE e.status IN ('READY', 'BUILDING') AND a.sourceId = :sourceId AND (:key = '' OR a.originId = :key)
+           GROUP BY e.id ORDER BY e.createdAt DESC, e.id DESC LIMIT 1""",
+    )
+    fun observeUnsent(sourceId: Long, key: String): Flow<UnsentCount?>
+
+    /** Whether any of the source's (or feed's) articles waits for an edition, starred ones included. */
+    @Query(
+        """SELECT EXISTS(SELECT 1 FROM articles WHERE sourceId = :sourceId AND (:key = '' OR originId = :key)
+           AND (state = 'NEW' OR (starredAt IS NOT NULL AND state != 'IN_EDITION')))""",
+    )
+    fun observeWaiting(sourceId: Long, key: String): Flow<Boolean>
 
     /**
      * A paid post an edition found next to nothing free in; [skip] leaves it out for good, as
@@ -485,20 +511,6 @@ interface ArticleDao {
     )
     suspend fun forgetDelivered(editionId: Long, deliveredAt: Instant)
 
-    /** Keeps the first star's time, so repeated taps don't move it back in line. Not while it's in an unsent edition. */
-    @Query("UPDATE articles SET starredAt = COALESCE(starredAt, :at) WHERE id = :id AND state != 'IN_EDITION'")
-    suspend fun star(id: Long, at: Instant): Int
-
-    /**
-     * Refused while an edition started after [buildingSince] is being made: it has taken the
-     * article as a candidate and may already have written it into the book.
-     */
-    @Query(
-        """UPDATE articles SET starredAt = NULL WHERE id = :id AND state != 'IN_EDITION'
-           AND NOT EXISTS (SELECT 1 FROM editions WHERE status = 'BUILDING' AND createdAt > :buildingSince)""",
-    )
-    suspend fun unstar(id: Long, buildingSince: Instant): Int
-
     /**
      * Stars a source's articles by guid, for stars taken from tt-rss. Not one already delivered:
      * starred there after it went out, it's being kept, not asked for again.
@@ -512,11 +524,14 @@ interface ArticleDao {
     @Query("SELECT guid FROM articles WHERE sourceId = :sourceId AND guid IN (:guids) AND state = 'IN_EDITION'")
     suspend fun inEditionAmong(sourceId: Long, guids: List<String>): List<String>
 
-    /** [star] for several articles at once. */
+    /** Keeps each first star's time, so repeated taps don't move it back in line. Not while it's in an unsent edition. */
     @Query("UPDATE articles SET starredAt = COALESCE(starredAt, :at) WHERE id IN (:ids) AND state != 'IN_EDITION'")
     suspend fun starAll(ids: Collection<Long>, at: Instant): Int
 
-    /** [unstar] for several articles at once, with the same hold during a build. */
+    /**
+     * Refused while an edition started after [buildingSince] is being made: it has taken the
+     * articles as candidates and may already have written them into the book.
+     */
     @Query(
         """UPDATE articles SET starredAt = NULL WHERE id IN (:ids) AND state != 'IN_EDITION'
            AND NOT EXISTS (SELECT 1 FROM editions WHERE status = 'BUILDING' AND createdAt > :buildingSince)""",
@@ -524,12 +539,12 @@ interface ArticleDao {
     suspend fun unstarAll(ids: Collection<Long>, buildingSince: Instant): Int
 
     suspend fun setStarred(id: Long, starred: Boolean, now: Instant): Boolean =
-        (if (starred) star(id, now) else unstar(id, now.minus(BUILD_HOLD))) > 0
+        (if (starred) starAll(listOf(id), now) else unstarAll(listOf(id), now.minus(BUILD_HOLD))) > 0
 
     /**
      * Waiting articles, and ones in an unsent edition: its book can't change, but the article
      * won't come back for another if it's never sent. Their stars go with them. Refused during a
-     * build, as for [unstar].
+     * build, as for [unstarAll].
      */
     @Query(
         """UPDATE articles SET state = 'SKIPPED', starredAt = NULL WHERE id IN (:ids) AND state IN ('NEW', 'IN_EDITION')
@@ -718,18 +733,19 @@ interface ArticleDao {
     suspend fun keepNewest(sourceId: Long, keep: Int): Int
 
     /**
-     * The edition's tt-rss articles to mark read on the server, and tt-rss copies of its links (a
-     * story that went out from another source is read too): none from an account set to leave
-     * them unread. A copy only while it's still used up: this runs when the marking worker does,
-     * possibly hours later, and a copy starred since is going out again.
+     * The edition's sent tt-rss articles to mark read on the server, and tt-rss copies of their
+     * links (a story that went out from another source is read too): none from an account set to
+     * leave them unread. Sent, as this runs when the marking worker does, possibly hours later: an
+     * article can be sent on its own from an unsent edition, or brought back from a sent one, and
+     * a copy starred since is going out again.
      */
     @Query(
         """SELECT articles.* FROM articles JOIN sources ON sources.id = articles.sourceId
-           WHERE sources.kind = 'TTRSS' AND sources.markReadOnServer = 1
+           WHERE sources.kind = 'TTRSS' AND sources.markReadOnServer = 1 AND articles.state = 'DELIVERED'
            AND (articles.id IN (SELECT articleId FROM edition_articles WHERE editionId = :editionId)
-                OR (articles.state = 'DELIVERED' AND articles.starredAt IS NULL AND articles.url != '' AND articles.url IN (
+                OR (articles.starredAt IS NULL AND articles.url != '' AND articles.url IN (
                     SELECT a.url FROM edition_articles ea JOIN articles a ON a.id = ea.articleId
-                    WHERE ea.editionId = :editionId AND a.url != '')))""",
+                    WHERE ea.editionId = :editionId AND a.url != '' AND a.state = 'DELIVERED')))""",
     )
     suspend fun ttrssInEdition(editionId: Long): List<ArticleEntity>
 
@@ -745,6 +761,25 @@ interface ArticleDao {
            AND articles.id IN (SELECT articleId FROM edition_articles WHERE editionId = :editionId)""",
     )
     suspend fun ttrssUnsentInEdition(editionId: Long): List<ArticleEntity>
+
+    /** The article if it's from tt-rss and its account marks what's sent read there. */
+    @Query(
+        """SELECT articles.* FROM articles JOIN sources ON sources.id = articles.sourceId
+           WHERE articles.id = :id AND sources.kind = 'TTRSS' AND sources.markReadOnServer = 1""",
+    )
+    suspend fun ttrssArticle(id: Long): ArticleEntity?
+
+    /**
+     * The article and the copies of its link that sending it used up (see [deliverCopies]), from
+     * tt-rss accounts that mark what's sent read there, as [ttrssInEdition] has them for an edition.
+     */
+    @Query(
+        """SELECT articles.* FROM articles JOIN sources ON sources.id = articles.sourceId
+           WHERE sources.kind = 'TTRSS' AND sources.markReadOnServer = 1 AND articles.state = 'DELIVERED'
+           AND (articles.id = :id OR (articles.starredAt IS NULL AND articles.url != ''
+                AND articles.url = (SELECT url FROM articles WHERE id = :id)))""",
+    )
+    suspend fun ttrssSentWithLink(id: Long): List<ArticleEntity>
 }
 
 /** tt-rss accounts that mark articles read there when they expire here (see [ArticleDao.expireOlderThan]). */
@@ -764,6 +799,18 @@ data class PaidOnlyCount(val found: Int, val skipped: Int)
 
 /** One fact about what happened to an article: when it went out, or which unsent edition holds it. */
 data class ArticleHistory(val articleId: Long, val sentAt: Instant?, val editionTitle: String?)
+
+/** One delivery's worth of a source's articles. */
+data class SentBatch(val sentAt: Instant, val count: Int)
+
+/** How many of a source's articles an unsent edition, by its title, holds. */
+data class UnsentCount(val title: String, val count: Int)
+
+/**
+ * What a source has done for the paper, for its page's first line: its last [sent] deliveries
+ * (newest first), the unsent edition holding some of it, and whether anything of it is [waiting].
+ */
+data class PaperRecord(val sent: List<SentBatch> = emptyList(), val unsent: UnsentCount? = null, val waiting: Boolean = false)
 
 /** A tt-rss article's guid and the tt-rss feed it came from. */
 data class TtrssRef(val guid: String, val originId: String?)
@@ -852,21 +899,23 @@ interface EditionDao {
     @Query("SELECT * FROM editions WHERE status = :status")
     suspend fun withStatus(status: EditionStatus): List<EditionEntity>
 
-    @Query("SELECT COUNT(*) FROM editions")
-    suspend fun count(): Int
-
     @Query("SELECT COUNT(*) FROM editions WHERE status = 'DELIVERED'")
     suspend fun countDelivered(): Int
 
     /**
      * When each source (and each tt-rss publication) last had an article in a ready or delivered
-     * edition. Starred articles don't count: they go in whatever the turns, and counting them
-     * would push the source's other articles to the back.
+     * edition, or one let go unsent that the reader marked sent there anyway (an article sent
+     * from it, or since with another edition, which is counted for that one too). Not read: an
+     * article goes to read for reasons that aren't the reader seeing it there. Starred
+     * articles don't count: they go in whatever the turns, and counting them would push the
+     * source's other articles to the back.
      */
     @Query(
         """SELECT a.sourceId AS sourceId, a.originId AS originId, MAX(e.createdAt) AS createdAt
            FROM edition_articles ea JOIN articles a ON a.id = ea.articleId JOIN editions e ON e.id = ea.editionId
-           WHERE e.status IN ('READY', 'DELIVERED') AND ea.starred = 0 GROUP BY a.sourceId, a.originId""",
+           WHERE ea.starred = 0 AND (e.status IN ('READY', 'DELIVERED')
+               OR (e.status = 'FAILED' AND a.state = 'DELIVERED'))
+           GROUP BY a.sourceId, a.originId""",
     )
     suspend fun lastFeatured(): List<Featured>
 
@@ -921,4 +970,7 @@ interface EditionDao {
 
     @Query("SELECT articleId FROM edition_articles WHERE editionId = :editionId AND articleId IS NOT NULL ORDER BY position")
     suspend fun articleIds(editionId: Long): List<Long>
+
+    @Query("SELECT articleId FROM edition_articles WHERE editionId = :editionId AND position = :position")
+    suspend fun articleIdAt(editionId: Long, position: Int): Long?
 }

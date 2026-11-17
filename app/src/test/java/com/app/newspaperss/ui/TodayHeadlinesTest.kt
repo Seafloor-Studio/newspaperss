@@ -3,7 +3,7 @@ package com.app.newspaperss.ui
 import android.app.Application
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.room.Room
@@ -50,7 +50,7 @@ class TodayHeadlinesTest {
             )
         }
         compose.setContent { TodayScreen(vm) }
-        idleUntil { compose.waitForIdle(); vm.state.value.editions?.isNotEmpty() == true }
+        compose.idleUntil { vm.state.value.editions?.isNotEmpty() == true }
     }
 
     @Test

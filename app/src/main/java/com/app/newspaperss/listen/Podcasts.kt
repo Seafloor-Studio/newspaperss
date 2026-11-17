@@ -42,6 +42,8 @@ class Podcasts(
     private val settings: SettingsStore,
     private val install: KokoroInstall,
     private val log: PodcastLog = PodcastLog(null),
+    /** The battery now, for the log ("plugged in, charging, 64%"), or null if Android won't say. */
+    private val battery: () -> String? = { null },
     /** Starts [PodcastMaker] once the phone charges. */
     private val start: () -> Unit,
 ) {
@@ -71,7 +73,9 @@ class Podcasts(
         val s = settings.current()
         if (s.listenVoice != ListenVoice.PODCAST || !withContext(Dispatchers.IO) { install.complete }) return
         withContext(Dispatchers.IO) { store.want(editionId, s.podcastVoice) }
-        log.add("Edition $editionId's audio asked for, in ${s.podcastVoice.label}; made once the phone charges")
+        // While it waits for the charger, Android holds the work and nothing is logged: a morning
+        // with no run says nothing of why, unless the battery as it was asked for is here.
+        log.add("Edition $editionId's audio asked for, in ${s.podcastVoice.label}; made once the phone charges" + (runCatching { battery() }.getOrNull()?.let { " (now $it)" } ?: ""))
         start()
     }
 
