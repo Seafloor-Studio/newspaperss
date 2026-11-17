@@ -181,7 +181,7 @@ class TtrssFeedsTest {
         compose.onNode(isHeading("Uncategorized, 2 feeds")).assertExists()
         compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading) and hasText("Still on this phone")).assertExists()
         compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading) and hasText("Curated lists")).assertExists()
-        assertTrue("its own settings, and nothing about the phone feed with its address", visible("At most 2") && visible("Skips paid posts"))
+        assertTrue("its own settings, and nothing about the phone feed with its address", visible("At most 2") && visible("Skips posts with nothing free"))
         assertFalse(visible("Also"))
         assertFalse("a left-out feed is counted, not listed", visible("Press Office"))
         assertFalse("nothing splits tt-rss from the phone", visible("From your tt-rss") || visible("On this phone"))
@@ -375,9 +375,9 @@ class TtrssFeedsTest {
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
         compose.idleUntil { hasSettingsRow() }
         openSettings()
-        compose.idleUntil { visible("Skip paid posts with nothing free") }
+        compose.idleUntil { visible("Skip posts with nothing free") }
 
-        compose.onNodeWithText("Skip paid posts with nothing free").performClick()
+        compose.onNodeWithText("Skip posts with nothing free").performClick()
         compose.idleUntil { runBlocking { db.sources().publication(account, "7")!!.skipPaidPosts } }
         assertFalse(runBlocking { db.sources().publication(account, "8")!!.skipPaidPosts })
     }
@@ -392,7 +392,7 @@ class TtrssFeedsTest {
         compose.idleUntil { compose.onAllNodes(row).fetchSemanticsNodes().isNotEmpty() }
         compose.onNode(row).performClick()
         compose.idleUntil { visible("Pause this") }
-        assertFalse(visible("Skip paid posts"))
+        assertFalse(visible("Skip posts with nothing free"))
     }
 
     /**
@@ -412,7 +412,7 @@ class TtrssFeedsTest {
 
         compose.idleUntil { runBlocking { db.sources().publication(account, "42")!!.leftOut } == false }
         compose.idleUntil { hasSettingsRow() }
-        compose.onNodeWithContentDescription("This site's settings: 1 article an edition, more if there's room. Skips paid posts").assertExists()
+        compose.onNodeWithContentDescription("This site's settings: 1 article an edition, more if there's room. Skips posts with nothing free").assertExists()
         assertFalse(visible("Bring back"))
     }
 
@@ -454,7 +454,7 @@ class TtrssFeedsTest {
         assertNull(feedNote(now = Instant.EPOCH, feed = feed(null)))
         assertNull(feedNote(now = Instant.EPOCH, feed = feed(PublicationEntity(1, "7", title = "Q", listed = true))))
         assertEquals(
-            "Feed's text · At most 1 · Skips paid posts",
+            "Feed's text · At most 1 · Skips posts with nothing free",
             feedNote(now = Instant.EPOCH, feed = feed(PublicationEntity(1, "7", chosenMode = ContentMode.FEED, maxArticles = 1, skipPaidPosts = true))),
         )
         assertEquals("Full page", feedNote(now = Instant.EPOCH, feed = feed(PublicationEntity(1, "7", chosenMode = ContentMode.PAGE))))
