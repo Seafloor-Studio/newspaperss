@@ -2,6 +2,10 @@ package com.app.newspaperss.ui
 
 import com.app.newspaperss.testutil.TestDataStores
 import androidx.compose.ui.test.hasText
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -301,13 +305,19 @@ class TtrssFeedsTest {
         val account = account()
         val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = "7"))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
-        compose.idleUntil { visible("In your tt-rss · category Essays") }
+        compose.idleUntil { visible("Quarterly Review story 1") }
 
         assertTrue(visible("quarterly.example"))
         assertEquals("only this feed's articles", setOf("7"), vm.detail.value!!.articles.map { it.originId }.toSet())
-        compose.onNodeWithContentDescription("More options").assertDoesNotExist()
+        // Its menu opens the feed; leaving it is the account's, in Settings.
+        compose.onNodeWithContentDescription("More options").performClick()
+        assertTrue(visible("Open feed"))
+        assertFalse(visible("Remove source"))
+        compose.onNodeWithText("Open feed").performClick()
         openSettings()
         assertFalse("no Pause or Remove: those are the account's", visible("Pause"))
+        // The path tapped through on Sources, at the foot of its settings.
+        assertTrue(visible("In your tt-rss · category Essays"))
 
         compose.onNodeWithContentDescription("More articles from this site").performClick()
         compose.idleUntil { runBlocking { db.sources().publication(account, "7")!!.maxArticles } == 2 }
@@ -320,18 +330,35 @@ class TtrssFeedsTest {
         compose.onNodeWithText("Leave out of the paper").performClick()
         compose.idleUntil { visible("its waiting articles go") }
         compose.onNodeWithText("Leave out").performClick()
-        compose.idleUntil { visible("Left out of the paper") }
+        compose.idleUntil { visible("Left out of your paper") }
         val left = runBlocking { db.sources().publication(account, "7")!! }
         assertTrue(left.leftOut)
         assertEquals("its settings stay for when it comes back", 2, left.maxArticles)
-        // Left out, its other settings are hidden, and the row says only that.
+        // Left out, the sheet closes and the page has no settings row: Bring back is all it would hold.
         compose.idleUntil { !visible("Article text") }
-        compose.onNodeWithContentDescription("This site's settings: Left out").assertExists()
+        assertFalse(hasSettingsRow())
 
         compose.onNodeWithText("Bring back").performClick()
         compose.idleUntil { runBlocking { db.sources().publication(account, "7")!!.leftOut } == false }
-        compose.idleUntil { visible("Article text") }
-        compose.onNodeWithContentDescription("This site's settings: Full page · At most 2 articles").assertExists()
+        compose.idleUntil { hasSettingsRow() }
+        compose.onNodeWithContentDescription("This site's settings: At most 2 articles an edition. Full page (your choice)").assertExists()
+    }
+
+    /** The row, as TalkBack reads it, whatever it says after its title. */
+    private fun hasSettingsRow() = compose.onAllNodes(hasContentDescription("This site's settings", substring = true)).fetchSemanticsNodes().isNotEmpty()
+
+    /** Every row on a feed's page is from that feed, so the rows don't repeat its name; the account's page mixes feeds, so its rows keep them. */
+    @Test
+    fun onlyAFeedsOwnPageDropsTheFeedsNameFromItsRows() {
+        val account = account()
+        var page by mutableStateOf(viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = "7")))
+        compose.setContent { key(page) { SourceDetailScreen(page, onBack = {}) } }
+        compose.idleUntil { visible("Quarterly Review story 1") }
+        assertFalse(visible("Quarterly Review ·"))
+
+        page = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1)))
+        compose.idleUntil { visible("Morning Wire story 1") }
+        assertTrue(visible("Morning Wire ·"))
     }
 
     private fun openSettings() {
@@ -346,7 +373,7 @@ class TtrssFeedsTest {
         runBlocking { repo.markPaidOnly(db.articles().allForSource(account).first { it.originId == "7" }.id, skip = false) }
         val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = "7"))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
-        compose.idleUntil { visible("In your tt-rss") }
+        compose.idleUntil { hasSettingsRow() }
         openSettings()
         compose.idleUntil { visible("Skip paid posts with nothing free") }
 
@@ -361,23 +388,32 @@ class TtrssFeedsTest {
         val account = account()
         val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1)))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
-        compose.idleUntil { vm.detail.value != null }
-        openSettings()
+        val row = hasContentDescription("This account's settings", substring = true)
+        compose.idleUntil { compose.onAllNodes(row).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(row).performClick()
         compose.idleUntil { visible("Pause this") }
         assertFalse(visible("Skip paid posts"))
     }
 
-    /** A left-out feed's page shows none of the settings about its writing, its paid posts included. */
+    /**
+     * A left-out feed's page has no settings at all, its paid posts' included: one button brings
+     * it back, and then they're there again.
+     */
     @Test
-    fun aLeftOutFeedHasNoPaidPostsSwitch() {
+    fun aLeftOutFeedHasOnlyBringBack() {
         val account = account()
         runBlocking { repo.setSkipPaidPosts(account, "42", true) }
         val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = "42"))
         compose.setContent { SourceDetailScreen(vm, onBack = {}) }
-        compose.idleUntil { visible("Left out of the paper") }
-        openSettings()
-        compose.idleUntil { visible("Bring back") }
-        assertFalse(visible("Skip paid posts"))
+        compose.idleUntil { visible("Left out of your paper") }
+        assertFalse(hasSettingsRow())
+
+        compose.onNodeWithText("Bring back").performClick()
+
+        compose.idleUntil { runBlocking { db.sources().publication(account, "42")!!.leftOut } == false }
+        compose.idleUntil { hasSettingsRow() }
+        compose.onNodeWithContentDescription("This site's settings: 1 article an edition, more if there's room. Skips paid posts").assertExists()
+        assertFalse(visible("Bring back"))
     }
 
     @Test
