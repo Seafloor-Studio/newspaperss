@@ -264,7 +264,7 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
                         historyLine(
                             article,
                             detail?.history?.get(article.id),
-                            // A curated list expires by count (its newest 12), so no day count there.
+                            // A curated list's link can go sooner, once it falls out of the newest 12, so no day count there.
                             expires = source.kind == SourceKind.FEED || source.kind == SourceKind.TTRSS,
                             paused = source.paused,
                             now = clock.instant(),
