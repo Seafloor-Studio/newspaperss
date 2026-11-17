@@ -64,9 +64,9 @@ class Listening(
         }
     }
 
-    /** Plays [editionId] from [from], or from where it was left. */
-    fun start(editionId: Long, from: ListenPosition? = null) {
+    /** Plays [editionId] from [from], or from where it was left; or [episode] after it (see [ListenPlayer.start]). */
+    fun start(editionId: Long, from: ListenPosition? = null, episode: String? = null) {
         connect()
-        player.start(editionId, from)
+        player.start(editionId, from, episode)
     }
 }

@@ -63,6 +63,9 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import com.app.newspaperss.settings.NotesEpisode
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -207,7 +210,7 @@ class SettingsScreenTest {
         compose.idleUntil { runBlocking { store.current().listenSpeed } == 1.5f }
         compose.onNodeWithText("1.5×").assertIsSelected()
 
-        compose.onNodeWithText("Hear it").performClick()
+        compose.onNodeWithText("Hear it").performScrollTo().performClick()
         assertEquals(listOf(SettingsViewModel.SAMPLE to 1.5f), heard)
 
         compose.onNodeWithText("Change the phone's voice ›").performScrollTo().assertHeightIsAtLeast(48.dp).performClick()
@@ -215,24 +218,25 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun recordingsCanBeSwitchedOffWhollyOrByKind() {
+    fun eachKindOfRecordingIsTickedOnItsOwn() {
         installVoice(ApplicationProvider.getApplicationContext())
         show(SettingsPage.LISTENING)
-        waitFor("Play a post's own recording")
-        compose.onNodeWithText("Readings").performScrollTo().assertIsSelected()
-        compose.onNodeWithText("Episodes").assertIsSelected().performClick()
+        waitFor("Recordings")
+        compose.onNodeWithText("Narrated articles").performScrollTo().assertIsOn()
+        compose.onNodeWithText("Transcripts").assertIsOn().performClick()
         compose.idleUntil { runBlocking { store.current().recordings } == Recordings(episodes = false) }
-        compose.onNodeWithText("Episodes").assertIsNotSelected()
+        compose.onNodeWithText("Transcripts").assertIsOff()
 
-        compose.onNodeWithText("Play a post's own recording").performClick()
-        compose.idleUntil { runBlocking { store.current().recordings } == Recordings(on = false, episodes = false) }
-        compose.onNodeWithText("Readings").assertDoesNotExist()
+        compose.onNodeWithText("Episode notes").performScrollTo().assertIsOn().performClick()
+        compose.idleUntil { runBlocking { store.current().recordings.notes } == NotesEpisode.OFF }
+        compose.onNodeWithText("Episode notes").assertIsOff()
 
-        // Back on, the kinds are as they were left.
-        compose.onNodeWithText("Play a post's own recording").performClick()
-        compose.idleUntil { runBlocking { store.current().recordings.on } }
-        compose.onNodeWithText("Readings").assertIsSelected()
-        compose.onNodeWithText("Episodes").assertIsNotSelected()
+        // The last one unticked: none play, and every kind is still there to tick again.
+        compose.onNodeWithText("Narrated articles").performScrollTo().performClick()
+        compose.idleUntil { runBlocking { store.current().recordings } == Recordings.NONE }
+        compose.onNodeWithText("Narrated articles").assertIsOff()
+        compose.onNodeWithText("Transcripts").performScrollTo().assertIsOff().performClick()
+        compose.idleUntil { runBlocking { store.current().recordings.episodes } }
     }
 
     @Test
@@ -242,7 +246,7 @@ class SettingsScreenTest {
         compose.onNodeWithText("Listening").performScrollTo().performClick()
         waitFor("no text-to-speech voice")
         compose.onNodeWithText("Hear it").assertDoesNotExist()
-        compose.onNodeWithText("Get Speech Services by Google").performClick()
+        compose.onNodeWithText("Get Speech Services by Google").performScrollTo().performClick()
         assertEquals("market://details?id=com.google.android.tts", shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedActivity.dataString)
     }
 

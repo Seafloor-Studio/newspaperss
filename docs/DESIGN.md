@@ -60,7 +60,7 @@ Sync feeds ─► Plan ─► Extract ─► Write the EPUB ─► Deliver ─�
 The pipeline follows the Python library's shape, in the pure-JVM `:core`
 module so it's all unit-tested without Android.
 
-- **Plan.** Starred articles go first, taking turns between the sources
+- **Plan.** Starred articles and saved links (the reading list's) go first, taking turns between the sources
   that have them (oldest star first within a source). Then everything
   else: take turns between sources, at most one article each by default,
   until the reading-time budget is reached. A star uses one of its
@@ -71,7 +71,13 @@ module so it's all unit-tested without Android.
   pass leaves time unfilled, a second pass adds more from sources whose own
   cap allows it. Turns start with the source featured longest ago (a tt-rss
   feed counts as a source), so with more sources than fit, the next edition
-  picks up the ones the last one left out.
+  picks up the ones the last one left out. An edition that's never sent
+  doesn't count as its sources' turn, except for an article in it the
+  reader marked sent anyway (read or heard on the phone). Taking turns, each source's turn
+  comes a random few editions later (up to half as many as the turns span),
+  so the sources of one edition don't come back together as a group every
+  cycle. A source whose waiting articles would all expire before the next
+  scheduled edition keeps its strict turn, since put off it would lose them.
 - **Extract.** Use the feed's own text when it's the full article;
   otherwise fetch the page, remove cookie banners and run Readability4J
   (Firefox's Reader View). schema.org JSON-LD is used instead when it has
@@ -101,9 +107,9 @@ module so it's all unit-tested without Android.
   paywall are removed. One with next to nothing free (under 50 words: a
   title and a picture) can be left out instead, per publication, with
   **Skip posts with nothing free** in its page's settings: a feed's or a curated
-  list's page, or each tt-rss feed's page. That switch shows once the
-  publication has had one, is off until turned on, and says how many it
-  has skipped. Only a first find is skipped: it counts as not picked
+  list's page, or each tt-rss feed's page. That switch is always there,
+  so it can be set before the first paid post arrives; it is off until
+  turned on, and says how many it has skipped. Only a first find is skipped: it counts as not picked
   ("Skipped: nothing free") and isn't fetched again. Starring it or marking it unread asks for it, so it goes
   in. An edition whose every new article was skipped is nothing new, not
   a failure.
@@ -205,7 +211,10 @@ module so it's all unit-tested without Android.
     ids they point at (they're paired up again by number). A marker points
     at the whole footnote, so a Kindle's popup shows its text, and markers
     side by side are split with a comma ("3, 4"). Notes a page keeps in a
-    `<footer>` or `<aside>` come along when the text links to them. Substack
+    `<footer>` or `<aside>` come along when the text links to them. Notes a
+    writer numbered by hand, with no links (a plain superscript 1, 2, 3… in
+    the text and paragraphs starting with the same numbers below), are
+    linked up too. Substack
     Notes quoted where the post embeds them, galleries as a figure of their
     pictures and caption, and @-mentions keep the name the page's script
     would have filled in. tt-rss strips all three, so a
@@ -424,7 +433,9 @@ phone restarts.
     too, with each feed's name, address and category. Until the first list,
     the feeds seen in the last month stand in. A failed list waits for the
     next sync; the sync itself has still succeeded. Changing the category
-    lists the feeds again.
+    lists the feeds again, and so does a feed sending articles that the
+    last list didn't have (subscribed since), so it shows under its category
+    at once rather than Uncategorized until the next day.
   - **Each feed is a publication** with its own page: leave it out or bring
     it back, its article text and cap, and its own recent
     articles. A feed left out isn't fetched, and its waiting articles go
@@ -608,7 +619,8 @@ whose Kindle and KOReader answers ask for more on the same page).
   article in place; the title and **Share** follow the page on screen.
   The headphones in the top bar (**Listen from here**) start Listen at the
   article on screen, from its beginning, in the same view: the player comes
-  up under the page. While Listen has this edition,
+  up under the page, with ✕ (**Stop listening**) at its bottom right, which
+  takes the player away and leaves the page to read. While Listen has this edition,
   the sentence being read is tinted and underlined and the page follows it
   (scrolling away stops that, until **Back to where it's reading**); a tap on
   a sentence reads from it while it plays, and does nothing but links while
@@ -633,7 +645,13 @@ whose Kindle and KOReader answers ask for more on the same page).
   only with a web link) is for an article that came out wrong: it first says the
   report is a public GitHub issue, then opens GitHub's new-issue form in the
   browser with "Extraction: *title*", the article's address and the app's version
-  filled in, for the issue check to compare with the page. On a post the episode
+  filled in, for the issue check to compare with the page. In debug builds, an
+  article whose site turned the app away (a refusal or a bot check) also carries
+  what the site answered the last time: the status, every header's name, the
+  values of a few that name a blocker or cache, which cookies it set (not their
+  values), and the start of the block page, with anything shaped like a network
+  address taken out; the dialog says so. The app keeps the last 20 such answers.
+  On a post the episode
   detector judged (debug builds), it first asks what's wrong: "The article came
   out wrong", or "It's labelled “Episode notes”, and it's…" with the other kinds
   to pick from. A wrong label opens "Episode label: *title*" with the post's
@@ -644,17 +662,55 @@ whose Kindle and KOReader answers ask for more on the same page).
   to the articles (an unsent edition's go back for the next one). An article that went in because it was starred says
   "You starred it". On delivered editions each article has a trailing **☆** to
   bring it back ("Didn't get to one? Tap ☆ to bring it back.").
+- Each article in an edition's contents has the same status mark as on a
+  source's page (`●` to come, `✓` sent, `○` read or not picked), but a tap
+  on `●` marks it **sent on its own**: it went out in this edition, read or
+  heard on the phone. It won't come back, its link is remembered as sent,
+  and tt-rss marks it read, whether or not the edition is ever sent; if a
+  newer edition lets this one go, only its `●` articles go back. A tap on `✓`
+  or `○` brings it back: into this edition while it's unsent, otherwise for
+  the next. In a ready edition, sent and read rows are dimmed so what's left
+  stands out; in a sent one, where every row is `✓`, none are. A waiting
+  article (its edition let go) can't be marked while an edition is being
+  made, which may be taking it. The app marks an article sent this way
+  itself when it's finished on the phone: Listen plays it to its end (not
+  ⏭, and not when the voice couldn't say a line of it), or its "Next" line
+  is followed in the article view. The last article has no "Next" line, so
+  it ends in **Mark as read** in its place, which says "Marked as read ✓"
+  once it is. Never the other way: going back to one doesn't
+  bring it back. tt-rss hears about only the article tapped, so a read
+  or unread made there since the last sync stays. Marking a whole sent
+  edition as not sent brings all its articles back, those marked sent on
+  their own before it went out included.
 - **Episode labels** (debug builds): a post the episode detector judged to be
   more than an article says so under its title, in an edition's contents and a
   source's newest articles: "Episode notes", "Transcript of …", "Audio version of
   “October 15”", or "Has an audio version" on the post a reading belongs to. The
-  article screen has the same as a line above the page, for the article on screen,
-  saying what Listen does with it as Settings › Listening has it: "Episode notes.
-  Listen reads them, then plays the episode after the edition." (only with audio of
-  their own and Episodes at the end on), or that a transcript plays its episode in
-  its place when it can. A transcript whose only audio is far too short for it
-  (under a third of it read aloud) says "Its audio is a 5-min preview, so Listen
-  reads it." A pair's title is cut to about 45 characters, so the line fits.
+  article screen has a banner above the page, for the article on screen, saying
+  what Listen does with it. It comes from the choices Listen makes as it opens the
+  edition (its Settings › Listening ticks, the source's switch, the audio's
+  length, a recording already played by another post), worked out again when the
+  article screen opens or the ticks change; none shows until then. So:
+  - "Episode notes. The episode itself plays after the edition.", or why not: "No
+    episode audio found.", "Its transcript, “…”, plays the episode in its place.",
+    "Its episode already plays after the edition, with “…”."
+  - "Transcript of “…”. Listen plays the episode in its place.", or why Listen
+    reads it: no audio, a 5-min preview, a length that isn't known or doesn't
+    match, or "Its episode plays with “…”."
+  - "Has an audio version, “…”." or, for an article whose own audio is a reading of
+    it, "Has a recorded reading.", then "Listen plays it in its place."
+  - Switched off in Settings, a banner says so with a link: "To play the episode
+    itself after the edition, turn on Episode notes in Settings › Listening."
+    Switched off for the source: "You've turned off episode audio for this source.",
+    "this source" a link to its page.
+  - An audio version (a narration posted beside its post): "Listen plays it with
+    that post." when its post is in the edition and plays it, and Listen passes over
+    its page, which counts no time of its own; "Listen plays it here." when its post
+    isn't, and its page plays the recording after its heading, as a narrated article
+    does. Switched off, or with no audio, it says so, and the voice reads its page.
+  - A page with nothing to say is passed over the way the listener was going: ⏮
+    goes on back past it.
+  A pair's title is cut to about 45 characters, so the banner fits.
   A source that posts episodes says how often, among its newest judged posts:
   "Posts episodes: 9 of the last 17 posts". Release builds never judge posts, so
   show none of this. See [episodes-design.md](research/episodes-design.md).
@@ -683,19 +739,23 @@ whose Kindle and KOReader answers ask for more on the same page).
     gone) hands back to the voice from where it got. See
     [episodes-design.md](research/episodes-design.md).
   - **Which recordings play** (debug builds) is set in Settings ›
-    Listening under Recordings: **Play a post's own recording**, on by
-    default, and under it three chips, **Readings**, **Episodes** and
-    **Episodes at the end**. The switch's line says a recording that needs a
-    subscription or a sign-in can't be reached, so the voice reads that post:
-    the app can't tell every such case, so it says the rule once. Off,
-    the chips go away and the voice reads everything. A change is used
-    from the next edition opened in Listen; one already open carries on
-    as it started, so the voice doesn't change part way through.
+    Listening under Recordings: a tick for each kind of post, all ticked by
+    default, named as its banner names it: **Transcripts** (play the episode
+    in the transcript's place), **Narrated articles** (play the narration in
+    the article's place: the article's own, or its audio version's), and
+    **Episode notes** (read the notes, then play the episode after the
+    edition). None ticked, the voice reads everything. The section's line
+    says a recording that needs a subscription or a sign-in can't be
+    reached, so the voice reads that post: the app can't tell every such
+    case, so it says the rule once. A change is used from the next edition
+    opened in Listen; one already open carries on as it started, so the
+    voice doesn't change part way through.
   - **Its recordings in Listen**, a switch in a source's settings (debug
     builds), shows on a source with a recent post that could play one (a
     reading, its audio version, or a transcript with an episode), or while
     it's off. Off, the voice reads that source's posts, readings and
-    episodes alike; on a tt-rss account it's each feed's own. It's read
+    episodes alike, and its notes posts' episodes don't play after the
+    edition; on a tt-rss account it's each feed's own. It's read
     each time an edition opens in Listen, so one already open carries on
     as it started. The per-article choice above stays for "not this one".
   - **Transcripts** (debug builds) play their episode in their place the
@@ -708,11 +768,20 @@ whose Kindle and KOReader answers ask for more on the same page).
     recording plays once an edition; a second post with the same one is
     read by the voice.
   - **Episode notes** (debug builds) are read by the voice in their place,
-    and their episode plays once the edition is over: after "That's all
-    for today", each on a page of its own, in book order. The voice reads
-    the show and the episode's title, says "Now the episode itself, 38
-    minutes.", and the episode plays, streamed. An episode a transcript
-    already plays in its place isn't played again.
+    with "The episode itself plays after the edition." after their title
+    (once, and in the natural voice too), and their episode plays once the
+    edition is over: after "That's all
+    for today", each on a page of its own, in book order. The first starts
+    with "After the edition, 2 episodes." (the closing page sounds like the
+    end). The voice reads the show and the episode's title, says "Now the
+    episode itself, 38 minutes.", and the episode plays, streamed. An
+    episode a transcript already plays in its place isn't played again.
+  - **In the natural voice**, what's said around a recording (its heading,
+    "Now the episode itself…", "After the edition…") isn't a line of a page,
+    so Kokoro makes it as short clips once an edition's pages are made, and
+    Listen plays a clip wherever there is one. Without one (not made yet,
+    not English, or one that took the app down while made), the phone's
+    voice says it.
     - The page shows a mark every 30 seconds ("0:00", "0:30"), tinted as
       the episode reaches it: a pause, a call or a speed change plays on
       from where it got, ↶ goes back to the last mark, ↷ skips 30 seconds,
@@ -725,8 +794,17 @@ whose Kindle and KOReader answers ask for more on the same page).
       flatten the articles. In the edition, "Then 2 episodes ›" under the
       bar goes to the first. On one, the times are its own ("Episode 1 of
       2 · 12 min in · 46 min left"), and "Tap a time to play from there."
-      sits above the marks. Past "That's all for today" the edition
-      counts as heard, and where it got to in an episode isn't kept.
+      sits above the marks. Past "That's all for today", reached from the
+      last article, the edition counts as heard; an episode played on its
+      own, or ⏮ back from one, leaves the edition's place alone.
+    - Each episode keeps its own place (by its audio's address), apart
+      from the edition's: run on into from the one before, it carries on
+      from there, and heard to its end it's marked heard (⏭ past it
+      isn't hearing it). The edition's page lists them under **After the
+      edition**, with how far each got ("23 min of 58 min heard",
+      "Heard", nothing until its audio has played); a tap on the row
+      plays one from its place, straight from the page. Picked from the
+      contents, "Then 2 episodes ›" or a car's list, it's from its place too.
     - There's no switch back to the voice, which has nothing to read for
       them. One that won't play (offline, gone): "The episode won't play
       right now.", and on to the next.
@@ -763,7 +841,9 @@ whose Kindle and KOReader answers ask for more on the same page).
     player under it (see the article preview above), on the tab it was
     tapped from; the bar isn't shown over that edition's articles. So do
     the media notification and the edition's Listen. There the closing page
-    and the episodes after the edition are drawn too, and **Contents** in
+    and the episodes after the edition are drawn too, the closing page with
+    **Mark as sent** under it while the edition is still to send (heard on
+    the phone, it's as good as sent), and **Contents** in
     the top bar lists the edition: picking one moves the page and the
     voice. After an error the bar goes: the article view says what's wrong. While an edition opens, as when
     switching to another, it stays and says "Opening the edition…" with a
@@ -832,15 +912,19 @@ whose Kindle and KOReader answers ask for more on the same page).
       no category go under **Uncategorized**, last. A line under a feed only
       when it says something: "tt-rss couldn't fetch it last time" for a feed
       tt-rss's own fetcher failed on, "Not fetched by tt-rss yet" for a feed
-      just added, "Nothing new in 3 weeks" for one that has stopped posting
+      just added, "Never fetched by tt-rss" once that has lasted a day (tt-rss
+      records a failed fetch as an error, so a feed never tried most likely has
+      its updates turned off; its page says so, with **Its settings in tt-rss ↗**
+      opening the feed's settings in tt-rss's preferences), "Nothing new in 3
+      weeks" for one that has stopped posting
       (in months past two), or its own settings ("Feed's text", "Full page",
       "At most 2", "Skips posts with nothing free"). For the quiet line, each sync looks
       at every article in the account since the last one it saw, read or
       not, in one request (the first looks back over the newest thousand):
       a feed read on the laptop still counts as posting. tt-rss deletes old
       articles, so a feed with none seen counts from when the app started
-      watching it, and says so only three weeks after that. Each opens its own page, which says "In your
-      tt-rss · category News", and for a feed tt-rss couldn't fetch, that if
+      watching it, and says so only three weeks after that. Each opens its own page (its settings end with
+      "In your tt-rss · category News"), which for a feed tt-rss couldn't fetch says that if
       this stays the feed may have moved or closed, with tt-rss's own words
       ("HTTP Code: 404"). "Last time", as tt-rss reports even a one-off
       timeout. A left-out feed doesn't say it: it isn't fetched for the paper.
@@ -867,39 +951,85 @@ whose Kindle and KOReader answers ask for more on the same page).
       serif in black like Settings' own (rust is for what you tap), and
       ends with a rule across the page. Shorter rules, starting at the
       text, divide the rows within one.
-  - A source's page leads with how it's doing and its recent articles; its
-    settings are behind one row above the articles. **Remove source** is in
-    its ⋮ menu. A tt-rss account has no page of its own: its settings, and
-    leaving it, are in Settings, and each of its feeds has a page.
-  - **The settings row** is one line between two pale rules: a tune icon, what's
-    set differently for this site, and ›. Nothing changed, it says "Default
-    settings"; otherwise only the differences, in the sheet's order, joined
-    by " · ": "Paused · At most 2 articles", "Full page · Recordings off". Most sites keep the defaults, so most rows stay quiet. TalkBack
-    reads it as "This site's settings: Default settings, button" ("This
-    list's settings" on a curated list or the reading list).
+  - A source's page answers "what has it done for my paper?" first, then
+    lists its newest articles; its settings are behind one row above them.
+    Its ⋮ menu has **Open feed** (the feed's own address, unless the site
+    link already opens it) and **Remove source**; with neither, there's no
+    ⋮. A tt-rss account has no page of its own: its settings, and leaving
+    it, are in Settings, and each of its feeds has a page.
+  - **Top to bottom**, the same for a phone source and a tt-rss feed: the
+    site's address as an underlined link (↗) under the title; the paper
+    line; small notes; at most one action; the settings row; one rule.
+  - **The paper line** is the first that applies: "Paused · nothing new
+    comes in", "Left out of your paper", the problem, "Not fetched by
+    tt-rss yet", "Checking…", "2 articles in Tuesday's edition, not sent
+    yet", "Last sent Sunday · 2 articles" (every article sent that day),
+    "Waiting for your next edition", "Nothing sent from here yet", or "No
+    articles yet". It never counts what's waiting. What went out, and what's
+    in an unsent edition, are read from the editions' contents for this
+    source (or tt-rss feed), not from the listed articles or their states:
+    a busy feed's last delivery counts even when it's older than every
+    listed article, another source's copy of the same link doesn't, and
+    marking an article read or unread later changes nothing. An article
+    marked sent by hand was in no edition, so it isn't counted.
+  - **A tt-rss feed's page** also says what its account is doing: "Your
+    tt-rss is paused · nothing new comes in" with **Start again** (which
+    starts the account), or the account's problem when it's failing. Left
+    out comes before both: it's the feed's own choice, and a left-out feed
+    isn't fetched either way.
+  - **A problem** (a failing feed, tt-rss couldn't fetch it, or never
+    fetched it) has a mark, a heavier weight and red, so it reads on e-ink.
+    Its notes say how long it has failed, what it means for the paper, and
+    tt-rss's own words; a failing feed's notes start with its last delivery.
+  - **The notes** say only what's worth saying: how recently it posted
+    ("New articles today", "Nothing new in 5 weeks"), "Last checked" only
+    when there's a problem, nothing listed or the check wasn't today, "Only
+    summaries: the site doesn't send full articles." in ink, and how often
+    it posts episodes. TalkBack reads the line and its notes as one.
+  - **The action**: **Start again** on a paused source, **Bring back** on
+    a left-out feed, **Its settings in tt-rss ↗** when tt-rss can't or
+    never fetched it.
+  - **The settings row** is a tune icon, the rule in force, and ›: "1
+    article an edition, more if there's room", or the site's own "At most 2
+    articles an edition". Under it, small, only what else differs, in the
+    sheet's order: "Summaries only", "Full page (your choice)", "Skips posts
+    with nothing free", "Recordings off". Paused and left out are on the page instead.
+    TalkBack reads it as "This site's settings: 1 article an edition, more
+    if there's room, button" ("This list's settings" on a curated list,
+    "This account's settings" on a tt-rss account). A left-out feed has no
+    row: Bring back is all its sheet would hold, so leaving a feed out
+    closes the sheet.
   - **Tapping it opens a sheet**, "This site's settings", fully open and
     scrolling at large text. In order, where each applies: **Pause this
-    site** (a tt-rss feed has **Leave out of the paper**, or **Bring back**
-    while left out, instead), **Article text ›** (a chooser of
-    Automatic, the feed's text or the full page), the article limit with − and +, **Skip posts with nothing
-    free**, and **Its recordings in Listen**. A left-out tt-rss feed offers
-    only Bring back. The sheet stays open across a rotation.
-  - **Paused** also leads the page, in the status line: "Paused · nothing
-    new comes in".
-  - A source's page opens with its site's address as an underlined link (↗), then
-    how it's doing (red when there's a problem), then small grey details.
-    When it's failing or has no articles yet, the details end with
-    **Feed: <address> ↗**, the feed's own address, since that's what to
-    check. A tt-rss feed's page links its feed address the same way.
+    site** (a tt-rss feed has **Leave out of the paper** instead),
+    **Article text ›** ("Automatic · full articles", "Automatic · summaries
+    only", "Automatic · still checking", "Feed's text" or "Full page"; a
+    chooser of Automatic, the feed's text or the full page), the article
+    limit with − and +, **Skip posts with nothing free**, and **Its
+    recordings in Listen**. A tt-rss feed's sheet ends with "In your tt-rss
+    · category Science". The sheet stays open across a rotation.
+  - The app learns a tt-rss feed's site from the unread articles it
+    fetches, so a feed left out, or one with nothing unread since, may not
+    have one yet. Until the app knows a feed's site, the link at the top is
+    the feed's front page (example.com for example.com/feed.xml).
   - These links open only web addresses. With no browser to take one, or
     on a long press, the address is copied and a snackbar says so.
+  The list is headed **Newest articles**, with no count (it stops at the
+  newest 30), and **Select** beside it, or under it at large text. With
+  nothing to list, there's no heading: one line says "No articles from here
+  yet.", or nothing when the paper line has said it.
   On a source's or feed's page, each article row is a status mark (`●` waiting, `✓` delivered, `○` read or not
   used), the title, a details line and a trailing **☆**; tapping the row
-  opens the original. Two toggles, one per question:
+  opens the original. The details line starts with where the article came
+  from on a page that mixes them (a curated list, a tt-rss account), but
+  not on a tt-rss feed's own page, whose title already says it. Two
+  toggles, one per question:
   - The status mark marks the article read (`●` → `○`) or unread (`○` or
     `✓` → `●`). A second tap undoes it, so there's no Undo. It has no
-    outline; the line above the list says it can be tapped. Its touch
-    area is 48dp, though the mark is narrower so titles line up.
+    outline; a legend under the last row says what the marks mean, that
+    they can be tapped, and how long an article waits before it's not
+    picked (7 days; a curated list's legend adds that it keeps its newest 12). Its
+    touch area is 48dp, though the mark is narrower so titles line up.
   - The star (a 48dp target) puts the article in the next edition and
     turns into **★** on an outlined disc.
   A row already in an unsent edition can still be marked read: its book
@@ -978,7 +1108,10 @@ whose Kindle and KOReader answers ask for more on the same page).
   so (and Both still saves). Cancel, or tapping outside, does nothing.
 - **Reading list:** links you shared into the app, each with its title,
   site and reading time (looked up in the background). They go first in
-  the next edition. A link saved when there was no lookup, or imported
+  the next edition, oldest saved first, as stars do. How many go in each
+  edition is set at the top of the list, as on any source's page: the
+  edition's number, which gives way when there's room, or the list's own,
+  a firm limit. A link saved when there was no lookup, or imported
   with its title, gets its reading time later: up to 20 a time, twice a
   day, only on Wi-Fi while charging. A page that won't load is tried on
   three passes through the list, then left without a time; a link saved

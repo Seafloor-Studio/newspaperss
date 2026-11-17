@@ -1,5 +1,10 @@
 package com.app.newspaperss.ui
 
+import com.app.newspaperss.ui.edition.markedAtTheEnd
+import com.app.newspaperss.data.EditionStatus
+import com.app.newspaperss.data.EditionContent
+import com.app.newspaperss.data.EditionArticleEntity
+import com.app.newspaperss.data.ArticleState
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +34,9 @@ import androidx.compose.ui.text.style.TextAlign
 import android.content.Intent
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.app.newspaperss.core.episodes.EpisodeKind
+import com.app.newspaperss.listen.Outcome
+import com.app.newspaperss.ui.components.BannerLink
+import com.app.newspaperss.ui.components.listenBanner
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
 import com.app.newspaperss.core.epub.EpubImage
@@ -46,8 +54,8 @@ import com.app.newspaperss.ui.edition.fillsWidth
 import com.app.newspaperss.ui.edition.lookIssueUrl
 import com.app.newspaperss.ui.edition.quoteOf
 import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.app.newspaperss.ui.edition.withNextLine
 import kotlinx.coroutines.CompletableDeferred
@@ -62,6 +70,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.io.File
 import java.time.LocalDate
+import androidx.compose.runtime.mutableStateListOf
 
 /** The preview, drawn by the app from the book's page: the article, its pictures and its "Next" line. */
 @RunWith(AndroidJUnit4::class)
@@ -242,17 +251,96 @@ class ArticlePreviewScreenTest {
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("That's all for today.", substring = true))
     }
 
-    /** The whole "Next" line is the link, a finger tall, not only its words: a tap at its far end turns too. */
+    /**
+     * The banner says what Listen decided, once that's known: none while it's worked out, so it
+     * doesn't say one thing then another. Its link goes where the switch is.
+     */
+    @Test
+    fun theBannerWaitsForListensDecisionAndItsLinkGoesToTheSwitch() {
+        val file = twoArticleEdition("Episode 12", "An essay")
+        var ready by mutableStateOf(false)
+        val followed = mutableListOf<Pair<Int, BannerLink>>()
+        val banner = listenBanner(EpisodeKind.NOTES, null, Outcome.Read(Outcome.Why.KIND_OFF)) { null }!!
+        compose.setContent {
+            ArticlePreviewScreen(
+                loadFile = { file }, position = 0, title = "Episode 12", onBack = {},
+                episodeFor = { if (it == 0) EpisodeJudgement(EpisodeKind.NOTES) else null },
+                bannerFor = { if (it == 0) banner else null },
+                bannersReady = ready,
+                onBannerLink = { article, link -> followed += article to link },
+            )
+        }
+        pageShown()
+        compose.onNodeWithText("Episode notes.", substring = true).assertDoesNotExist()
+
+        ready = true
+        compose.onNodeWithText(banner.text).assertIsDisplayed()
+        // The whole banner is the tap, not only its last words.
+        compose.onNode(hasText(banner.text) and hasClickAction()).performClick()
+        assertEquals(listOf(0 to BannerLink.LISTENING_SETTINGS), followed)
+    }
+
+    /**
+     * The whole "Next" line is the link, a finger tall, not only its words: a tap at its far end
+     * turns too. Followed, the article was read to its end.
+     */
     @Test
     fun theWholeNextLineTurnsThePage() {
         val file = twoArticleEdition()
-        compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "One", onBack = {}) }
+        val finished = mutableListOf<Int>()
+        compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 0, title = "One", onBack = {}, onFinished = { finished += it }) }
         pageShown()
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Next:", substring = true))
         val line = compose.onNode(hasText("Next:", substring = true) and hasClickAction())
         assertTrue(line.fetchSemanticsNode().size.height >= with(compose.density) { 48.dp.roundToPx() })
         line.performTouchInput { click(centerRight.copy(x = right - 2f)) }
         onArticle("Two")
+        assertEquals(listOf(0), finished)
+    }
+
+    /**
+     * The last article has no "Next" line to follow, so it ends in one marking it read, which says
+     * so once it is. Not on an article that has a "Next" line, nor one that can't be marked.
+     */
+    @Test
+    fun theLastArticleEndsInALineMarkingItRead() {
+        val file = twoArticleEdition()
+        val finished = mutableStateListOf<Int>()
+        compose.setContent {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = "One", onBack = {}, onFinished = { finished += it }, finished = { it in finished })
+        }
+        pageShown()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Next:", substring = true))
+        compose.onNodeWithText("Mark as read").assertDoesNotExist()
+
+        compose.onNodeWithText("Next:", substring = true).performClick()
+        onArticle("Two")
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Mark as read"))
+        compose.onNodeWithContentDescription("Mark Two as read").performClick()
+        assertEquals(listOf(0, 1), finished)
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Marked as read ✓"))
+    }
+
+    /** No line on a sent edition, nor on an edition let go while one is being made; done once it won't come back. */
+    @Test
+    fun whenTheLastArticleHasALine() {
+        fun content(state: ArticleState?, articleId: Long? = 1) = EditionContent(EditionArticleEntity(editionId = 1, articleId = articleId, position = 0, title = "x", sourceTitle = "x", minutes = 1.0), state)
+        assertEquals(false, markedAtTheEnd(content(ArticleState.IN_EDITION), EditionStatus.READY, building = true))
+        assertEquals(true, markedAtTheEnd(content(ArticleState.DELIVERED), EditionStatus.READY, building = false))
+        assertEquals(true, markedAtTheEnd(content(ArticleState.SKIPPED), EditionStatus.READY, building = false))
+        assertEquals(null, markedAtTheEnd(content(ArticleState.DELIVERED), EditionStatus.DELIVERED, building = false))
+        assertEquals(false, markedAtTheEnd(content(ArticleState.NEW), EditionStatus.FAILED, building = false))
+        assertEquals(null, markedAtTheEnd(content(ArticleState.NEW), EditionStatus.FAILED, building = true))
+        assertEquals(null, markedAtTheEnd(content(ArticleState.NEW, articleId = null), EditionStatus.READY, building = false))
+    }
+
+    @Test
+    fun aLastArticleThatCantBeMarkedHasNoLine() {
+        val file = twoArticleEdition()
+        compose.setContent { ArticlePreviewScreen(loadFile = { file }, position = 1, title = "Two", onBack = {}) }
+        pageShown()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("That's all for today.", substring = true))
+        compose.onNodeWithText("Mark as read").assertDoesNotExist()
     }
 
     @Test
@@ -483,6 +571,27 @@ class ArticlePreviewScreenTest {
         restoration.emulateSavedInstanceStateRestore()
 
         compose.idleUntil { compose.onAllNodesWithText("public issue on GitHub", substring = true).fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    /** An article a site turned away: the issue says what the site answered, set apart so it reads as it was. */
+    @Test
+    fun aBlockedArticlesIssueSaysWhatTheSiteAnswered() {
+        val answer = "HTTP 403\nx-datadome: protected\npage: Access ```blocked```"
+        val body = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", "https://a.example/1"), "1.0", answer)).getQueryParameter("body")!!
+        assertTrue(body, body.endsWith("What the site answered when it turned the app away:\n\n```\nHTTP 403\nx-datadome: protected\npage: Access '''blocked'''\n```\n"))
+        val plain = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", "https://a.example/1"), "1.0")).getQueryParameter("body")!!
+        assertFalse(plain, "turned the app away" in plain)
+
+        // Too long for the form with both: the address is left to paste, the answer kept.
+        val long = "https://a.example/" + "x".repeat(6_000)
+        val kept = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", long), "1.0", "HTTP 403\npage: " + "日".repeat(300)))
+        assertTrue(kept.toString().length <= 8_000)
+        assertTrue(kept.getQueryParameter("body")!!.contains("please paste it here"))
+        assertTrue(kept.getQueryParameter("body")!!.contains("turned the app away"))
+        // Too long even then: the address, as before, without it.
+        val dropped = android.net.Uri.parse(lookIssueUrl(ArticleLink("T", "https://a.example/1"), "1.0", "page: " + "日".repeat(1_000)))
+        assertTrue(dropped.toString().length <= 8_000)
+        assertFalse(dropped.getQueryParameter("body")!!.contains("turned the app away"))
     }
 
     @Test

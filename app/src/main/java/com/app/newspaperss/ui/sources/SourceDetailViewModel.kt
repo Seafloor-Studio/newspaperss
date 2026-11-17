@@ -8,6 +8,7 @@ import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.ArticleHistory
 import com.app.newspaperss.data.EpisodePair
 import com.app.newspaperss.data.PaidOnlyCount
+import com.app.newspaperss.data.PaperRecord
 import com.app.newspaperss.data.MarkedRead
 import com.app.newspaperss.data.StarBatch
 import com.app.newspaperss.core.plural
@@ -43,6 +44,8 @@ data class SourceDetail(
     val paidOnly: PaidOnlyCount = PaidOnlyCount(0, 0),
     /** The posts its articles are paired with, by guid (see [ArticleEntity.episodePair]). */
     val episodePairs: Map<String, EpisodePair> = emptyMap(),
+    /** What it has done for the paper, whatever the listed articles leave out. */
+    val paper: PaperRecord = PaperRecord(),
 )
 
 /**
@@ -69,9 +72,9 @@ class SourceDetailViewModel(
         combine(
             combine(repository.observe(id), repository.observeRecentArticles(id, key), defaultMax, ::Triple),
             repository.observePublication(id, key), repository.observeHistory(id), repository.observePaidOnly(id, key),
-            repository.observeEpisodePairs(id),
-        ) { (source, articles, max), publication, history, paidOnly, pairs ->
-            SourceDetail(source, articles, max, publication, history, paidOnly, pairs)
+            combine(repository.observeEpisodePairs(id), repository.observePaper(id, key), ::Pair),
+        ) { (source, articles, max), publication, history, paidOnly, (pairs, paper) ->
+            SourceDetail(source, articles, max, publication, history, paidOnly, pairs, paper)
         }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -101,6 +104,14 @@ class SourceDetailViewModel(
     fun togglePaused() {
         val source = detail.value?.source ?: return
         viewModelScope.launch { repository.setPaused(source.id, !source.paused) }
+    }
+
+    /**
+     * Unpauses the source, or on a tt-rss feed's page its account. Not a toggle: a second tap
+     * before the button goes would pause it again.
+     */
+    fun startAgain() {
+        viewModelScope.launch { repository.setPaused(id, false) }
     }
 
     fun setSkipPaidPosts(skip: Boolean) {

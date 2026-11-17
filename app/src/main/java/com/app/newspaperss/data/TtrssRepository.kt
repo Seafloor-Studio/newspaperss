@@ -588,6 +588,25 @@ class TtrssRepository(
     }
 
     /**
+     * Brings the server in line with one article marked sent on its own, with the copies of its
+     * link that used up, or brought back (see [EditionRepository.toggleSent]). Only those, and only
+     * what the server hasn't been told, so a read or unread made in tt-rss since the last sync
+     * stays. Decided when this runs, like [syncRead].
+     */
+    suspend fun syncArticleRead(articleId: Long): Boolean {
+        val article = db.articles().byId(articleId) ?: return true
+        return when (article.state) {
+            ArticleState.DELIVERED -> update(db.articles().ttrssSentWithLink(articleId).filter { !it.reportedRead }, read = true, "Delivered articles weren't marked read in tt-rss.") { markRead(it) }
+            ArticleState.NEW, ArticleState.IN_EDITION -> update(
+                listOfNotNull(db.articles().ttrssArticle(articleId)?.takeIf { it.reportedRead }),
+                read = false,
+                "Articles from an edition that wasn't sent weren't marked unread in tt-rss.",
+            ) { markUnread(it) }
+            else -> true
+        }
+    }
+
+    /**
      * Marks the edition's tt-rss articles read on the server. Returns false if it failed in a
      * way that may pass (the server unreachable), after noting the problem on the source.
      */

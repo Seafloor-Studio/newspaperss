@@ -65,6 +65,20 @@ What each screen offers by the edition's state wasn't tested past ready and sent
 - [ ] **Platform pass** *(you asked)*: a test corpus of real posts from the big blog and newsletter platforms, from their own feeds and through tt-rss, checked for footnotes, embeds, captions, paywall teasers and link posts; what breaks gets fixed and the corpus keeps it fixed (`PlatformCorpusTest`). Round 1 covered Substack, Ghost, WordPress, Medium, Blogger, Buttondown and Micro.blog; round 2 added a magazine with its own site (New Left Review), Stratechery and a MemberPress site, found by running `extractionSweep` over a real reading list and over `tools/sweep-feeds.opml`, public feeds picked for variety (news, other languages and scripts, static sites, microblogs). Run that list again before a change to extraction. Still to add: Tumblr (it answers 429 to the collector), beehiiv, posts with galleries, tweets and Bluesky embeds, and more footnote styles
 - [x] **Show tt-rss's own feed errors** *(you asked)*: tt-rss's `last_error` for each feed, on the feed's row and page and named in a banner on Sources
 - [ ] Paywalled and summary-only sites: warn when a site is added; keep stubs from eating the budget; drop metered sites from starter packs *(personas)*
+- [ ] **Sign in to a site so its articles are fetched as you** *(you asked)*: for a paid
+  subscription whose feed gives only a summary (the New York Times has no subscriber feed with the
+  text). Sign in once inside the app; its session goes with that site's article fetches; say when it
+  has expired. Mind the site's terms on automated access. What it would and wouldn't fix, from NYT
+  in November:
+  - **The paywall: yes.** Signed out, most NYT articles come whole (the page has the text and hides
+    it behind a script; 40 fetched back to back from a cloud machine, none paid), but a
+    subscriber-only one won't, and only a sign-in gets its text.
+  - **Bot blocking: no.** An NYT article came back 403 on the phone, on home Wi-Fi, yet the same
+    client got 200 for every article from that home network, both on the JVM and on an Android
+    emulator, and NYT cleared its DataDome cookie each time rather than challenging. So the 403
+    was the phone's moment, not the address or Android's network stack, and a session wouldn't
+    get past a block. Debug builds now keep what a site answered when it turned the app away, and
+    Send for a look carries it: the next blocked NYT article says which blocker and why.
 - [ ] **Skip paid posts' previews too** *(you asked)*: a source can already skip paid posts with nothing free (a title and a picture). Let it also skip the ones that come as a preview, only the free part before "Subscribe to read", so an edition carries whole articles only. Per source, beside the existing choice, with the count on its page.
 - [x] A feed over 10 MB was refused as too large: some static sites (a Hugo `index.xml`) put every post they ever wrote in one feed. Now it's read up to 10 MB, keeping the whole items before the cut *(sweep)*
 - [ ] Webtoons: episodes are one long strip of 84–140 lazily loaded panels (a phone is sent to m.webtoons.com, which lists them in a script; the desktop viewer has them in `data-url`), beyond the 20-image cap. Built and measured on `claude/today-d-c7` (D7), not shipped. Before it can ship: the image budget must take a strip whole or not at all (today it is shared and greedy, so a strip gets gaps mid-episode and starves later articles); no cap that cuts an ending silently; ask for `?type=opti` (PNG panels ignore `q90`: 800 KB vs 300 KB); drop the feed's two thumbnail panels, which otherwise repeat after the strip; panels contiguous in the book (no figure margins), with alt text. Re-encoded, an episode is about 6–9 MB *(device)*
@@ -79,7 +93,7 @@ What each screen offers by the edition's state wasn't tested past ready and sent
 - [ ] Boox: offer folder delivery into the Books folder, so editions stay in the library *(personas)*
 - [ ] Folder delivery: tt-rss marks articles read as soon as the file is saved, before Syncthing has synced; old editions pile up in the folder *(personas)*
 - [ ] Verify folder delivery and the chooser from the notification on a real device
-- [ ] **Your call: an edition listened to the end counts as read?** *(you asked)* Today finishing Listen only notes the edition as finished: it stays "Ready to send", so when the next edition is made it's marked not sent and its articles come back for the next paper. **Read** on a Boox already counts as sent. Options: mark it sent on reaching the closing page; or ask there once, "Finished. Count this edition as read?" (Yes / Not now), and never for one already sent or marked. Recommended: ask, since some listen and then send it to the e-reader too, and marking it sent also marks its articles read in tt-rss
+- [x] **An edition listened to the end counts as read** *(you asked)*: the closing page offers **Mark as sent**.
 - [ ] If lead time isn't enough on a real device, wake timed editions with an exact alarm (Doze defers WorkManager; expedited work can silently restart a long build). Measured on the emulator (#352, `doze.sh timed`): in deep sleep the timer is held until the next maintenance window, about a minute late there because the emulator grants one at once. On a phone overnight it's however long the next window takes, which the 30-minute lead may or may not cover; a phone's overnight run is what decides this
 
 ### tt-rss, for a returning reader *(personas)*
@@ -93,6 +107,15 @@ What each screen offers by the edition's state wasn't tested past ready and sent
 
 ### From the UX pass *(ux)*
 - [ ] Boox: consider turning off ripples on e-ink (they cause partial refreshes); Boox's own refresh modes may make it moot
+- [ ] **How long an unpicked article waits, for editions that aren't daily** *(you asked; wait for feedback)*. Articles wait 7 days, and expire at the sync just before an edition. A weekly edition's gap is the same 7 days, so whatever arrives in the hours after one edition is gone just before the next. Two ways, not exclusive:
+  - Wait at least two editions' gap: two weeks for a weekly paper, still 7 days for a daily one.
+  - Keep each feed's newest 4 waiting past the week, whichever is later, so a quiet feed always has something for its turn.
+  - The countdown under a waiting article ("3 days left") would follow the same rule.
+- [ ] **The player under an article shrinks while you scroll** *(you asked)*. Scrolling the page yourself shrinks the full player to the slim listening bar, which gives the page back while Listen plays on. Tapping the bar brings the full player back and jumps to the sentence being read, as **Back to where it's reading** does now. To settle when building it:
+  - Only a scroll you make shrinks it, not the page following the voice.
+  - It shrinks once, with no grow-back while you scroll up, so the page doesn't jump about, and e-ink isn't redrawn on every scroll.
+  - While it's shrunk, the page stops following the voice, but the sentence being read stays tinted.
+  - **Back to where it's reading** and the bar's tap become one control.
 
 ### Today
 - [ ] Boox: tell the app on the Boox from the app on a phone (Android's maker is Onyx). Today choosing Boox means **Read** wherever the app runs, so a reader sending with BooxDrop from a phone would read it on the phone, and that counts as sent *(you asked)*
@@ -122,6 +145,7 @@ A full pass over the app and the book, not just spot fixes:
 
 ### Performance *(resources)*
 - [ ] A floor device: Android 8, 2 GB RAM, slow CPU and storage (a 2018 budget phone or an older Boox) *(you asked)*. Measured so far (#352, CI's `low-end` job, a debug build): cold start about 1 s, the first edition about 10 s, the app about 90 MB. Still to do: a full 30-minute edition rather than the first small one, timed editions under Doze on Android 8 (#352 measured Doze on Android 16), whether long lists and the preview stay smooth, and budgets set from the numbers
+- [ ] A natural-voice run that crawls *(you asked)*. On 31 Oct, after the process before it was killed for memory, Kokoro took 35 to 211 s a line (12 s of audio in 176 s), with heat headroom at 0.33, far below the 0.95 that stops a run. The failure that followed now gets a retry, but a run that slow can't finish a night. Spot it from seconds of work per second of audio, and stop and start again fresh, as the heat check does. Wait for a second log showing it before building it.
 
 ### Recurring reviews *(audit)*
 Whole-codebase passes for what a review of one PR can't see. Each follows the audit's pattern: fresh-eyes reviewers, each finding checked, a PR per area.
@@ -150,6 +174,13 @@ From the N10 audit of the article view and Listen (30 Oct). Read against the cod
 - [ ] Listen sometimes stops at the paragraph instead of scrolling down to the sentence being read: its fine scroll needs the paragraph's text layout, which may not be recorded yet when the scroll runs. Seen as `11d-listen-larger-text` differing between two renders; likely on a phone too *(today B7)*
 
 ### Later
+
+- **Episode notes: play the episode in their place** *(device)*: a third choice under Settings ›
+  Listening › Episode notes, besides after the edition and not at all. Held back from the
+  Recordings redo: spread over the notes' few lines an hour's episode loses its place by minutes
+  after a restart, shows a minute's length when the feed gives none, and a notes post before its
+  transcript would take the transcript's episode. Do it on a page of 30-second marks, as the
+  episodes after the edition have, with the transcript winning over its notes.
 - [ ] When releases start, the live (debug) channel keeps self-updating; release builds never do.
 - [ ] Send the email itself (SMTP, an app password), so a Kindle edition arrives with no tap and from a chosen account; email delivery through the mail app is done (#123)
 

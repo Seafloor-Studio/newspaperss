@@ -16,7 +16,18 @@ interface ListenProgress {
 
     /** Editions started and not finished, the most recently heard first. */
     fun unfinished(): List<Long>
+
+    /**
+     * Where an episode after [editionId] was left, by its audio's address: its own place, apart
+     * from the edition's, so it can be played on its own and the edition's place stays.
+     */
+    fun episode(editionId: Long, audio: String): EpisodePlace? = null
+
+    fun setEpisode(editionId: Long, audio: String, place: EpisodePlace) {}
 }
+
+/** The [line] (a mark every 30 seconds) an episode got to, or [finished] once heard to its end. */
+data class EpisodePlace(val line: Int, val finished: Boolean = false)
 
 /** In SharedPreferences, for the few most recent editions: older ones are forgotten. */
 class StoredListenProgress(context: Context, private val now: () -> Long = System::currentTimeMillis) : ListenProgress {
@@ -31,6 +42,22 @@ class StoredListenProgress(context: Context, private val now: () -> Long = Syste
     override fun finished(editionId: Long): Boolean = prefs.getString(key(editionId), null)?.let(::decode)?.finished == true
 
     override fun unfinished(): List<Long> = entries().filter { !it.second.finished }.sortedByDescending { it.second.at }.map { it.first }
+
+    override fun episode(editionId: Long, audio: String): EpisodePlace? {
+        val parts = prefs.getString(episodeKey(editionId, audio), null)?.split(':') ?: return null
+        return EpisodePlace(parts.getOrNull(0)?.toIntOrNull() ?: return null, parts.getOrNull(1) == "1")
+    }
+
+    override fun setEpisode(editionId: Long, audio: String, place: EpisodePlace) {
+        prefs.edit {
+            putString(episodeKey(editionId, audio), "${place.line}:${if (place.finished) 1 else 0}:${now()}")
+            // The most recent few, as for editions: an episode's place is worth keeping for a while.
+            prefs.all.filterKeys { it.startsWith(EPISODE) }.mapValues { (_, v) -> (v as? String)?.split(':')?.getOrNull(2)?.toLongOrNull() ?: 0 }
+                .entries.filter { it.key != episodeKey(editionId, audio) }.sortedByDescending { it.value }.drop(KEEP_EPISODES - 1).forEach { remove(it.key) }
+        }
+    }
+
+    private fun episodeKey(editionId: Long, audio: String) = "$EPISODE$editionId-${audio.hashCode().toUInt()}"
 
     private fun write(editionId: Long, entry: Entry) {
         prefs.edit {
@@ -57,5 +84,7 @@ class StoredListenProgress(context: Context, private val now: () -> Long = Syste
     private companion object {
         const val PREFIX = "edition-"
         const val KEEP = 10
+        const val EPISODE = "episode-"
+        const val KEEP_EPISODES = 30
     }
 }

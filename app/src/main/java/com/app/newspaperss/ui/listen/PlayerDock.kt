@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
@@ -43,7 +44,6 @@ import androidx.compose.ui.unit.min
 import com.app.newspaperss.core.plural
 import com.app.newspaperss.listen.LISTEN_SPEEDS
 import com.app.newspaperss.listen.ListenPlayer
-import com.app.newspaperss.listen.ListenPosition
 import com.app.newspaperss.listen.ListenState
 import com.app.newspaperss.settings.PodcastVoice
 import androidx.compose.foundation.gestures.scrollBy
@@ -83,7 +83,7 @@ fun PlayerDock(state: ListenState, player: ListenPlayer, voice: PodcastVoice?) {
             // In the edition, the way to the episodes after it, which only Contents showed.
             if (episodes.isNotEmpty() && page?.episode != true) {
                 TextButton(
-                    onClick = { player.seek(ListenPosition(episodes.first(), 0)) },
+                    onClick = { player.playPage(episodes.first()) },
                     modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp)
                         .semantics { contentDescription = "Go to the ${plural(episodes.size, "episode")} after the edition" },
                     contentPadding = PaddingValues(horizontal = 8.dp),
@@ -119,6 +119,9 @@ fun PlayerDock(state: ListenState, player: ListenPlayer, voice: PodcastVoice?) {
                     "${minutes(state.secondsIn)} in · ${minutes((total - state.secondsIn).coerceAtLeast(0.0))} left"
                 }
                 Text(times, Modifier.weight(1f, fill = false).padding(start = 8.dp), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.End)
+                // As the bar's ✕ does elsewhere, which this dock takes the place of. In this row, which
+                // the speed button already makes a touch target tall, so the dock doesn't grow.
+                IconButton(onClick = player::stop) { Icon(Icons.Default.Close, contentDescription = "Stop listening") }
             }
         }
     }

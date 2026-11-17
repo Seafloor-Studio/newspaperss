@@ -48,11 +48,11 @@ private fun timeLeft(discoveredAt: Instant, now: Instant): String {
 }
 
 /** An edition's day, from its title ("Thursday Morning Edition, Oct 2"); titles are always English. */
-private fun editionDay(title: String?): String? =
+internal fun editionDay(title: String?): String? =
     title?.substringBefore(' ')?.takeIf { word -> DayOfWeek.entries.any { it.getDisplayName(TextStyle.FULL, Locale.ENGLISH) == word } }
 
 /** "today", "yesterday", a weekday within the last week, else a short date. The weekday is English, like the rest of the line. */
-private fun dayOf(at: Instant, now: Instant, zone: ZoneId, locale: Locale): String {
+internal fun dayOf(at: Instant, now: Instant, zone: ZoneId, locale: Locale): String {
     val date = at.atZone(zone).toLocalDate()
     val today = now.atZone(zone).toLocalDate()
     return when {

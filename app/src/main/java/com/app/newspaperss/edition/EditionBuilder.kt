@@ -30,6 +30,7 @@ import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.data.PublicationEntity
 import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.SourceKind
+import com.app.newspaperss.data.FeedSync
 import com.app.newspaperss.delivery.FolderDelivery
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -37,9 +38,11 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import kotlin.random.Random
 import java.util.UUID
 
 sealed interface BuildResult {
@@ -75,6 +78,8 @@ class EditionBuilder(
     private val retiring: suspend () -> Set<Long> = { emptySet() },
     /** An unsent edition was released for this one: its Ready notification would offer it still. */
     private val onReleased: (editionId: Long) -> Unit = {},
+    /** Moves sources' turns by a few editions, so the sources of one edition don't come back as a group. */
+    private val random: Random = Random.Default,
     private val cover: (CoverInfo) -> EpubImage? = { null },
 ) {
     /**
@@ -83,7 +88,7 @@ class EditionBuilder(
      *   goes out with what it has rather than WorkManager stopping the build at its time limit, to
      *   start it again from the top and run into the limit again.
      */
-    suspend fun build(settings: EditionSettings, dueAt: Instant? = null, deadline: Instant? = null, onProgress: (done: Int) -> Unit = {}): BuildResult {
+    suspend fun build(settings: EditionSettings, dueAt: Instant? = null, deadline: Instant? = null, nextEdition: Instant? = null, onProgress: (done: Int) -> Unit = {}): BuildResult {
         failInterrupted()
         releaseUndelivered()
         // tt-rss last, after what's on the phone, as Sources lists them.
@@ -107,19 +112,20 @@ class EditionBuilder(
             // Read only once the edition is BUILDING, which holds off "Mark as read" and unstarring
             // (see ArticleDao.markReadAll): the articles picked here are written into the book, so a
             // change made afterwards would be silently undone when they're marked IN_EDITION.
-            // The same link from two sources goes in once, and a starred copy is the one kept.
-            // A star is the reader asking for that article, even from a feed they left out.
+            // The same link from two sources goes in once, and a starred copy is the one kept, else
+            // a saved one: both are the reader asking for that article, even from a feed left out.
+            val readingList = sources.filter { it.kind == SourceKind.READING_LIST }.map { it.id }.toSet()
             val publications = db.sources().allPublications()
             val leftOut = publications.filter { it.leftOut }.map { publicationOf(it.sourceId, it.key) }.toSet()
             val articles = db.articles().buildCandidates()
                 .filter { it.sourceId in sourcesById && (it.starredAt != null || publicationOf(it) !in leftOut) }
-                .sortedBy { it.starredAt == null }
+                .sortedBy { if (it.starredAt != null) 0 else if (it.sourceId in readingList) 1 else 2 }
                 .distinctBy { it.url.ifBlank { "#${it.id}" } }
             if (articles.isEmpty()) {
                 db.editions().deleteEmpty(editionId)
                 BuildResult.NothingNew
             } else {
-                fill(editionId, title, now, zone, sources, publications, articles, settings, onProgress, deadline)
+                fill(editionId, title, now, zone, sources, publications, articles, settings, onProgress, deadline, nextEdition)
             }
         } catch (e: CancellationException) {
             withContext(NonCancellable) { fail(editionId, STOPPED) }
@@ -143,6 +149,7 @@ class EditionBuilder(
         settings: EditionSettings,
         onProgress: (done: Int) -> Unit,
         deadline: Instant?,
+        nextEdition: Instant?,
     ): BuildResult {
         val sourcesById = sources.associateBy { it.id }
         val byId = articles.associateBy { it.id }
@@ -152,14 +159,19 @@ class EditionBuilder(
             if (s.kind == SourceKind.TTRSS) articles.filter { it.sourceId == s.id }.map(::publicationOf).distinct().sorted()
             else listOf(s.id.toString())
         }
+        // A saved link was picked on purpose, like a star: it goes first, oldest saved first, and
+        // not after every feed has had its turn (it's featured nearly every edition, so its turn
+        // would come last). Its source's cap still holds, the reader's to set like any other.
+        fun pickedAt(a: ArticleEntity) = a.starredAt ?: a.discoveredAt.takeIf { sourcesById[a.sourceId]?.kind == SourceKind.READING_LIST }
         val ordered = EditionPlanner.order(
-            candidates = articles.map { Candidate(it.id.toString(), publicationOf(it), it.published ?: it.discoveredAt, it.starredAt) },
+            candidates = articles.map { Candidate(it.id.toString(), publicationOf(it), it.published ?: it.discoveredAt, pickedAt(it), lastChance = expiresBefore(it, sourcesById[it.sourceId], nextEdition)) },
             sourceOrder = publicationOrder,
             ordering = settings.ordering,
             lastFeatured = db.editions().lastFeatured().associate { publicationOf(it.sourceId, it.originId ?: PublicationEntity.OWN) to it.createdAt },
             // Delivered ones only: an edition that's never sent gives its articles back, and
             // mustn't move its sources' turns along either.
             rotation = db.editions().countDelivered(),
+            random = random,
         )
         var fetched = 0
         var kept = 0
@@ -343,6 +355,14 @@ class EditionBuilder(
     )
 
     /** The planner's source for [a]: the publication it came from. */
+    /**
+     * Its wait ([FeedSync.KEEP_WAITING]) is over before [nextEdition], or a day from now when no
+     * edition is scheduled: not picked now, it expires unpicked. A reading-list link waits for good.
+     */
+    private fun expiresBefore(a: ArticleEntity, source: SourceEntity?, nextEdition: Instant?) =
+        a.state == ArticleState.NEW && source != null && source.kind != SourceKind.READING_LIST &&
+            a.discoveredAt.plus(FeedSync.KEEP_WAITING).isBefore(nextEdition ?: clock.instant().plus(Duration.ofDays(1)))
+
     private fun publicationOf(a: ArticleEntity) = publicationOf(a.sourceId, PublicationEntity.keyOf(a))
 
     private fun publicationOf(sourceId: Long, key: String) = if (key == PublicationEntity.OWN) sourceId.toString() else "$sourceId/$key"

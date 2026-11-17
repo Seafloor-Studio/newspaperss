@@ -12,6 +12,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.text.font.FontWeight
@@ -74,6 +75,8 @@ import androidx.compose.ui.semantics.getOrNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -132,6 +135,36 @@ class ListenAppTest {
         id
     }
 
+    /** An article heard to its end is said to be; not one skipped with ⏭, nor one the voice couldn't say all of. */
+    @Test
+    fun anArticleHeardToItsEndIsSaidToBeNotOneSkipped() {
+        val id = edition()
+        val heard = mutableListOf<Pair<Long, Int>>()
+        val player = ListenPlayer(speaker, progress, open = { ListenBook.open(repo, it) }, CoroutineScope(SupervisorJob() + Dispatchers.Main), onHeard = { e, page -> heard += e to page })
+        player.start(id)
+        compose.idleUntil { player.state.value.script != null && speaker.queue.isNotEmpty() }
+        while (player.state.value.at.page == 0) {
+            speaker.sayNext()
+            compose.idleUntil { speaker.queue.isNotEmpty() || player.state.value.at.page != 0 }
+        }
+        compose.idleUntil { player.state.value.at.page == 1 && speaker.queue.isNotEmpty() }
+        assertEquals(listOf(id to 0), heard)
+
+        speaker.fail()
+        while (player.state.value.at.page == 1) {
+            compose.idleUntil { speaker.queue.isNotEmpty() || player.state.value.at.page != 1 }
+            if (player.state.value.at.page == 1) speaker.sayNext()
+        }
+        assertEquals("a line unsaid, not heard", listOf(id to 0), heard)
+
+        player.seek(ListenPosition(1, 0))
+        compose.idleUntil { player.state.value.at.page == 1 && player.state.value.script != null }
+        player.next()
+        compose.idleUntil { player.state.value.at.page == 2 }
+        assertEquals("skipped, not heard", listOf(id to 0), heard)
+        player.stop()
+    }
+
     /** Listen around [player], with what the article view says about the voice playing. */
     private fun listenOf(
         player: ListenPlayer,
@@ -172,6 +205,44 @@ class ListenAppTest {
 
         assertEquals(15.0, book.pages[0].minutes, 0.001)
         assertEquals(ListenTime.fromReading(2.0), book.pages[1].minutes, 0.001)
+    }
+
+    /** An audio version whose post plays it is passed over: nothing to say, and no time of its own. */
+    @Test
+    fun anAudioVersionWhosePostPlaysItIsPassedOver() = runBlocking {
+        val version = EditionArticle(title = "Audio version of October 15", sourceTitle = "The Example Letter", url = "https://example.com/v", bodyHtml = "<p>Listen to this post.</p>", minutes = 1.0)
+        val essay = EditionArticle(
+            title = "October 15", sourceTitle = "The Example Letter", url = "https://example.com/e",
+            bodyHtml = "<p>" + List(160) { (1..10).joinToString(" ") { "word" } + "." }.joinToString(" ") + "</p>", minutes = 8.0,
+        )
+        FileOutputStream(File(editionsDir, "v.epub")).use {
+            EpubWriter.write(EditionDoc("Friday Morning Edition", LocalDate.of(2026, 10, 2), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000021", listOf(version, essay)), it)
+        }
+        val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Letter"))
+        val versionId = db.articles().insertIgnoring(
+            ArticleEntity(sourceId = source, guid = "v", url = version.url, title = version.title, episodeKind = EpisodeKind.AUDIO_VERSION, audioUrl = "https://cdn.example/v.mp3", audioSeconds = 600, episodePair = "e"),
+        )
+        val essayId = db.articles().insertIgnoring(ArticleEntity(sourceId = source, guid = "e", url = essay.url, title = essay.title, episodeKind = EpisodeKind.ARTICLE, episodePair = "v"))
+        val id = db.editions().insert(EditionEntity(title = "Friday Morning Edition", status = EditionStatus.DELIVERED, fileName = "v.epub", articleCount = 2, minutes = 9.0))
+        db.editions().insertArticles(
+            listOf(
+                EditionArticleEntity(editionId = id, articleId = versionId, position = 0, title = version.title, sourceTitle = version.sourceTitle, minutes = version.minutes),
+                EditionArticleEntity(editionId = id, articleId = essayId, position = 1, title = essay.title, sourceTitle = essay.sourceTitle, minutes = essay.minutes),
+            ),
+        )
+
+        val readings = Readings(db, { Recordings() })
+        val book = ListenBook.open(repo, id, readings)!!
+
+        assertTrue(book.script(0)!!.lines.isEmpty())
+        assertEquals(0.0, book.pages[0].minutes, 0.001)
+        assertEquals("its recording counted on its post's page", 10.0, book.pages[1].minutes, 0.001)
+
+        // Opened again once its post no longer plays it (its label corrected): found as it is now, not as last time.
+        db.articles().setEpisodeKind(source, "e", EpisodeKind.TRANSCRIPT)
+        val again = ListenBook.open(repo, id, readings)!!
+        assertEquals("https://cdn.example/v.mp3", readings.at(id, 0)?.url)
+        assertTrue(again.script(0)!!.lines.isNotEmpty())
     }
 
     /**
@@ -259,6 +330,17 @@ class ListenAppTest {
         player.seek(ListenPosition(3, 2 + 38))
         compose.idleUntil { player.state.value.at == ListenPosition(3, 40) }
         compose.onNodeWithText("Episode 1 of 1 · 19 min in · 19 min left").assertIsDisplayed()
+        // Back in the edition, the episode picked again carries on from where it got.
+        player.seek(ListenPosition(1, 0))
+        compose.idleUntil { player.state.value.at.page == 1 && compose.onAllNodesWithText("Then 1 episode ›").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Then 1 episode ›").performClick()
+        compose.idleUntil { player.state.value.at.page == 3 }
+        assertEquals(ListenPosition(3, 40), player.state.value.at)
+        // So does Listen started at it from a closed player, as the article view's Listen does.
+        player.stop()
+        player.start(id, ListenPosition(3, 0))
+        compose.idleUntil { player.state.value.script != null }
+        assertEquals(ListenPosition(3, 40), player.state.value.at)
         player.stop()
     }
 
@@ -1183,6 +1265,104 @@ class ListenAppTest {
         assertEquals(0, shown("recorded reading", substring = true))
     }
 
+    /**
+     * Each episode after the edition keeps its own place, apart from the edition's: run on into
+     * from the one before, it carries on from there; heard to its end it's marked so, but not
+     * skipped past; and the edition's page lists them with how far each got.
+     */
+    @Test
+    fun eachEpisodeAfterTheEditionKeepsItsOwnPlace() {
+        val show = EditionArticle(title = "Episode 12: The ferry planner", sourceTitle = "The Example Show", url = "https://example.com/12", bodyHtml = "<p>A ferry planner.</p>", minutes = 1.0)
+        val rail = EditionArticle(title = "Episode 48: Night trains", sourceTitle = "Rail Talk", url = "https://example.com/48", bodyHtml = "<p>Night trains.</p>", minutes = 1.0)
+        FileOutputStream(File(editionsDir, "two.epub")).use {
+            EpubWriter.write(EditionDoc("Sunday Morning Edition", LocalDate.of(2026, 10, 4), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000040", listOf(show, rail, lagos)), it)
+        }
+        val id = runBlocking {
+            val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "Shows"))
+            fun notes(a: EditionArticle, guid: String, seconds: Int) = ArticleEntity(sourceId = source, guid = guid, url = a.url, title = a.title, episodeKind = EpisodeKind.NOTES, audioUrl = "https://cdn.example/$guid.mp3", audioSeconds = seconds)
+            val ids = listOf(db.articles().insertIgnoring(notes(show, "12", 120)), db.articles().insertIgnoring(notes(rail, "48", 1_800)), null)
+            db.editions().insert(EditionEntity(title = "Sunday Morning Edition", status = EditionStatus.DELIVERED, fileName = "two.epub", articleCount = 3, minutes = 4.0)).also { id ->
+                db.editions().insertArticles(listOf(show, rail, lagos).mapIndexed { i, a -> EditionArticleEntity(editionId = id, articleId = ids[i], position = i, title = a.title, sourceTitle = a.sourceTitle, minutes = a.minutes) })
+            }
+        }
+        val readings = Readings(db, { Recordings() })
+        val player = ListenPlayer(speaker, progress, open = { ListenBook.open(repo, it, readings) }, CoroutineScope(SupervisorJob() + Dispatchers.Main))
+        val listed = EpisodesAfter(repo, db, progress, { Recordings() }, player.state.map { it.at })
+        // Pages: the three articles, the closing page (3), then the two episodes (4 and 5).
+        player.start(id, ListenPosition(1, 0))
+        compose.idleUntil { player.state.value.script != null && player.state.value.pages.size == 6 }
+        progress.setEpisode(id, "https://cdn.example/48.mp3", EpisodePlace(12))
+
+        // Into the first episode at its last mark (2:00 in a two-minute episode has marks to 1:30), and heard to its end.
+        val lastMark = 2 + 3
+        player.seek(ListenPosition(4, lastMark))
+        compose.idleUntil { player.state.value.at == ListenPosition(4, lastMark) && speaker.queue.isNotEmpty() }
+        assertEquals("where it is in it is its own", EpisodePlace(lastMark), progress.episode(id, "https://cdn.example/12.mp3"))
+        while (player.state.value.at.page == 4) {
+            speaker.sayNext()
+            compose.idleUntil { speaker.queue.isNotEmpty() || player.state.value.at.page != 4 }
+        }
+        compose.idleUntil { player.state.value.at.page == 5 }
+        assertEquals("carries on from its own place", ListenPosition(5, 12), player.state.value.at)
+        assertEquals(EpisodePlace(0, finished = true), progress.episode(id, "https://cdn.example/12.mp3"))
+        assertEquals("the edition's place stays where it was", ListenPosition(1, 0), listening.saved(id))
+
+        // ⏭ past the second isn't hearing it, and the end of the last episode isn't the edition's.
+        player.next()
+        compose.idleUntil { player.state.value.finished }
+        assertEquals(EpisodePlace(12), progress.episode(id, "https://cdn.example/48.mp3"))
+        assertFalse(progress.finished(id))
+        assertEquals(ListenPosition(1, 0), listening.saved(id))
+        // So Resume, its button says, is the edition's place, not the start.
+        player.start(id)
+        compose.idleUntil { player.state.value.at == ListenPosition(1, 0) && player.state.value.script != null }
+
+        val episodes = runBlocking { listed.of(id).first() }
+        assertEquals(listOf(4, 5), episodes.map { it.page })
+        assertEquals(listOf("https://cdn.example/12.mp3", "https://cdn.example/48.mp3"), episodes.map { it.audio })
+        assertEquals(listOf(true, false), episodes.map { it.finished })
+        assertEquals("ten marks in, five minutes", listOf(null, 300), episodes.map { it.heardSeconds })
+
+        // Picked from the list, an episode is found by its audio and plays from its own place.
+        player.start(id, episode = "https://cdn.example/48.mp3")
+        compose.idleUntil { player.state.value.at == ListenPosition(5, 12) && player.state.value.script != null }
+
+        // ⏮ from an episode back to the closing page, and on: the edition still wasn't heard.
+        player.seek(ListenPosition(4, 0))
+        compose.idleUntil { player.state.value.at == ListenPosition(4, 0) && player.state.value.script != null }
+        player.previous()
+        compose.idleUntil { player.state.value.at.page == 3 && player.state.value.script != null }
+        player.next()
+        compose.idleUntil { player.state.value.at.page == 4 && player.state.value.script != null }
+        assertFalse(progress.finished(id))
+        assertEquals(ListenPosition(1, 0), listening.saved(id))
+        assertEquals("a visit to its heading isn't a start", null, runBlocking { listed.of(id).first() }[0].heardSeconds)
+        player.stop()
+    }
+
+    /** Heard to its closing page on the phone, the edition can be marked sent there, so its articles don't come back. */
+    @Test
+    fun theClosingPageOffersMarkAsSent() {
+        val id = edition()
+        runBlocking { db.editions().update(db.editions().byId(id)!!.copy(status = EditionStatus.READY)) }
+        startAndWait(id)
+        compose.setContent {
+            ArticlePreviewScreen(
+                loadFile = { repo.byId(id)?.let(repo::fileOf) }, position = 0, title = "An article", onBack = {},
+                onListen = { listening.start(id, ListenPosition(it, 0)) }, editionId = id, listen = listenOf(player),
+                onMarkSent = { runBlocking { repo.markSentByHand(id) } },
+            )
+        }
+        compose.idleUntil { shown("Nobody could say", substring = true) > 0 }
+        assertEquals("not on an article", 0, compose.onAllNodesWithText("Mark as sent").fetchSemanticsNodes().size)
+
+        player.seek(ListenPosition(2, 0))
+        compose.idleUntil { shown(EpubWriter.END_TITLE, substring = true) > 0 && shown("Mark as sent") > 0 }
+        compose.onNodeWithText("Mark as sent").performScrollTo().performClick()
+
+        compose.idleUntil { runBlocking { db.editions().byId(id)!!.status } == EditionStatus.DELIVERED }
+    }
+
     /** Listen stopped on the closing page, the view goes back to the last article. */
     @Test
     fun listenStoppedOnTheClosingPageGoesBackToTheLastArticle() {
@@ -1194,6 +1374,27 @@ class ListenAppTest {
         compose.idleUntil { shown(EpubWriter.END_TITLE, substring = true) > 0 }
         player.stop()
         compose.idleUntil { shown("The drivers met in a car park.") > 0 }
+    }
+
+    /**
+     * The article view has the player in the listening bar's place, so its ✕ with it: stopped, the
+     * page stays to be read, Listen is offered again, and where it was left is kept.
+     */
+    @Test
+    fun listenStopsFromTheArticleViewAndThePageStays() {
+        val id = edition()
+        startAndWait(id)
+        player.seek(ListenPosition(1, 0))
+        compose.idleUntil { player.state.value.at.page == 1 && player.state.value.script != null }
+        compose.setContent(playing(id))
+        compose.idleUntil { shown("The drivers met in a car park.") > 0 }
+
+        compose.onNodeWithContentDescription("Stop listening").performClick()
+
+        compose.idleUntil { player.state.value.editionId == null && compose.onAllNodesWithContentDescription("Listen from here").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals("the player goes with it", 0, compose.onAllNodesWithContentDescription("Next article").fetchSemanticsNodes().size)
+        assertTrue(shown("The drivers met in a car park.") > 0)
+        assertEquals(1, listening.saved(id)?.page)
     }
 
     /** Heard to the end, Play starts it again from the start, and says so. */
