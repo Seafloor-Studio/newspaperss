@@ -1051,8 +1051,8 @@ class ScreenshotTest {
             db.articles().setPageWords(saved.getValue("On walking").id, 3400)
             db.articles().setUnreadable(saved.getValue("Annual report 2025").id, "not a web page")
         }
-        val vm = com.app.newspaperss.ui.readinglist.ReadingListViewModel(list)
-        shoot("09a-reading-list", ready = { vm.items.value?.size == 3 }) { com.app.newspaperss.ui.readinglist.ReadingListScreen(vm, onBack = {}) }
+        val vm = com.app.newspaperss.ui.readinglist.ReadingListViewModel(list, SourceRepository(db, clock), kotlinx.coroutines.flow.flowOf(1))
+        shoot("09a-reading-list", ready = { vm.items.value?.size == 3 && vm.cap.value != null }) { com.app.newspaperss.ui.readinglist.ReadingListScreen(vm, onBack = {}) }
     }
 
     @Test
