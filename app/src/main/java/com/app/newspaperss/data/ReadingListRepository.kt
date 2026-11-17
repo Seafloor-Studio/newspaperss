@@ -14,9 +14,9 @@ import kotlinx.coroutines.flow.map
 import java.time.Clock
 
 /**
- * Links saved to read later. The list is a source of its own, so it takes
- * turns with the feeds and gets its own slot in each edition, and its items
- * never expire.
+ * Links saved to read later. The list is a source of its own, with its own
+ * number per edition like any source, but its links go first, as stars do
+ * (see EditionBuilder), and they never expire.
  *
  * [onUntitled] is given the ids of links to look up in the background (see
  * [ReadingListTitles]): each link saved, for its length, and imported links

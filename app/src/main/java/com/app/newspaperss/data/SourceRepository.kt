@@ -67,6 +67,10 @@ class SourceRepository(private val db: AppDatabase, private val clock: Clock = C
     /** See [ArticleDao.observeHistory], by article. */
     fun observeHistory(id: Long): Flow<Map<Long, ArticleHistory>> = db.articles().observeHistory(id).map { rows -> rows.associateBy { it.articleId } }
 
+    /** What the source, or with [key] one of its tt-rss feeds, has done for the paper: see [PaperRecord]. */
+    fun observePaper(id: Long, key: String = PublicationEntity.OWN): Flow<PaperRecord> =
+        combine(db.articles().observeSent(id, key), db.articles().observeUnsent(id, key), db.articles().observeWaiting(id, key), ::PaperRecord)
+
     /**
      * A tt-rss account's feeds, A to Z. Once tt-rss has listed them, the feeds it takes articles
      * from (see [SourceEntity.feedsListedAt]), and any that has sent articles since: one subscribed

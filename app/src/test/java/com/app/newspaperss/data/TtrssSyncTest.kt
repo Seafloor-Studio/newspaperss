@@ -219,7 +219,7 @@ class TtrssSyncTest {
 
     /** tt-rss's own list names every feed, read ones too, with its address and category; once a day is enough. */
     @Test
-    fun theAccountsFeedListNamesEveryFeedOnceADay() = runTest {
+    fun theAccountsFeedListNamesEveryFeedOnceADayOrForANewFeed() = runTest {
         server.categories[2] = "Essays"
         server.feeds[7] = FakeTtrss.Feed("Quarterly Review", "https://quarterly.example/feed", 2)
         server.feeds[9] = FakeTtrss.Feed("Quiet Blog", "https://quiet.example/rss", 2)
@@ -234,16 +234,13 @@ class TtrssSyncTest {
         assertEquals("https://quiet.example/rss" to "Essays", quiet.feedUrl to quiet.category)
 
         server.feeds.remove(9)
+        sync.syncAll()
+        assertEquals("not asked again the same day", listOf("Quarterly Review", "Quiet Blog"), sources.observeFeeds(source.id).first().map { it.title })
+
+        // A feed subscribed since, sending articles, has the list asked for again at once.
+        server.feeds[11] = FakeTtrss.Feed("Subscribed Today", "https://today.example/feed", 0)
         server.add(2, "First post", feedId = 11, feedTitle = "Subscribed Today")
         sync.syncAll()
-        assertEquals(
-            "not asked again the same day, but a feed subscribed since shows once it sends articles",
-            listOf("Quarterly Review", "Quiet Blog", "Subscribed Today"),
-            sources.observeFeeds(source.id).first().map { it.title },
-        )
-
-        val nextDay = FeedSync(db, http, Clock.fixed(now.plus(Duration.ofDays(1)), ZoneOffset.UTC), Duration.ofDays(7), accounts)
-        nextDay.syncAll()
         assertEquals("unsubscribed in tt-rss", listOf("Quarterly Review", "Subscribed Today"), sources.observeFeeds(source.id).first().map { it.title })
     }
 
@@ -290,6 +287,24 @@ class TtrssSyncTest {
         server.unread.removeAll { it.feedId == 8 }
         FeedSync(db, http, Clock.fixed(now.plus(Duration.ofDays(1)), ZoneOffset.UTC), Duration.ofDays(7), accounts).syncAll()
         assertNull(db.sources().publication(source.id, "8")!!.serverError)
+    }
+
+    /** A feed subscribed after the day's list is listed at once, with its category, not left Uncategorized till tomorrow. */
+    @Test
+    fun aFeedSubscribedSinceTheDaysListGetsItsCategoryAtTheNextSync() = runTest {
+        server.categories[2] = "Essays"
+        server.feeds[7] = FakeTtrss.Feed("Quarterly Review", "https://quarterly.example/feed", 2)
+        server.add(1, "First", feedId = 7, feedTitle = "Quarterly Review", categoryId = 2)
+        val source = connect()
+        sync.syncAll()
+
+        // The same day: subscribed in tt-rss, into a category, and posting.
+        server.feeds[9] = FakeTtrss.Feed("Slow Essays", "https://slow.example/feed", 2)
+        server.add(2, "Second", feedId = 9, feedTitle = "Slow Essays", categoryId = 2)
+        sync.syncAll()
+
+        assertEquals("Essays", db.sources().publication(source.id, "9")?.category)
+        assertEquals(listOf("Essays" to "Quarterly Review", "Essays" to "Slow Essays"), sources.observeFeeds(source.id).first().map { it.publication?.category to it.title })
     }
 
     @Test

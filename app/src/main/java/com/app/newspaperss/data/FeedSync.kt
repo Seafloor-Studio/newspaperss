@@ -48,7 +48,7 @@ class FeedSync(
     private val keepFor: Duration = KEEP_WAITING,
     private val ttrssAccounts: TtrssAccountStore? = null,
     /** How many unpicked links a curated list keeps; older ones expire as new ones arrive. */
-    private val listKeep: Int = 12,
+    private val listKeep: Int = LIST_KEEP,
     /**
      * Given the ids of curated-list links that came without a title, to look up in the background
      * (see [ReadingListTitles]): Arts & Letters Daily gives only a teaser, and a source's page
@@ -204,6 +204,10 @@ class FeedSync(
                     // fill those 200, and a feed that posts monthly would never reach the paper.
                     val leftOut = db.sources().leftOut(source.id).map { it.key }.toSet()
                     val withUnread = client.unreadFeeds(category).filter { it.unread > 0 }
+                    // Subscribed since the last list: listed again now for its name and category,
+                    // rather than shown under Uncategorized until tomorrow's.
+                    val listed = db.sources().listedKeys(source.id).toSet()
+                    val newFeed = withUnread.any { it.id.toString() !in listed }
                     // A feed with articles has been fetched, without waiting for tomorrow's feed list to say so,
                     // and its fetching error is current: one fixed in tt-rss stops showing as soon as it has posts.
                     db.sources().fetchedByServer(source.id, withUnread.map { it.id.toString() })
@@ -224,7 +228,7 @@ class FeedSync(
                         CATEGORY_GONE
                     } else {
                         db.sources().recordSuccess(source.id, now, null, null, source.title)
-                        listFeeds(client, source, now)
+                        listFeeds(client, source, now, force = newFeed)
                         noteSites(source, headlines)
                         watchPosts(client, source, now)
                         return added + if (source.takeTtrssStars) takeStars(client, source, now) else 0
@@ -254,8 +258,8 @@ class FeedSync(
     }
 
     /** Lists the account's feeds once a day (see [listTtrssFeeds]). */
-    private suspend fun listFeeds(client: TtrssClient, source: SourceEntity, now: Instant) {
-        if (source.feedsListedAt?.let { Duration.between(it, now) < LIST_FEEDS_EVERY } == true) return
+    private suspend fun listFeeds(client: TtrssClient, source: SourceEntity, now: Instant, force: Boolean = false) {
+        if (!force && source.feedsListedAt?.let { Duration.between(it, now) < LIST_FEEDS_EVERY } == true) return
         listTtrssFeeds(db, client, source, now)
     }
 
@@ -506,6 +510,9 @@ class FeedSync(
 
         /** How long an unpicked article waits, from when it was found, before it expires. */
         val KEEP_WAITING: Duration = Duration.ofDays(7)
+
+        /** How many unpicked links a curated list keeps by default. */
+        const val LIST_KEEP = 12
 
         const val LIST_LAYOUT_CHANGED =
             "This page has changed its layout, so NewspapeRSS can't tell which links are new and took none. An app update should fix it."

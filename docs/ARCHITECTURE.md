@@ -527,7 +527,7 @@ stays as a `DELETED` row to keep its title taken.
 | EPUBs | `files/editions/`; only the newest 14 keep their file (unsent ones always do) | `EditionRepository.pruneFiles` |
 | HTTP cache | `cache/http`, used to revalidate feeds | `AppContainer`, `core/net/HttpClient.kt` |
 
-Auto Backup leaves out the EPUBs, Kokoro, podcasts, the timer state and the tt-rss account
+Auto Backup leaves out the EPUBs, Kokoro, podcasts, the podcast's run logs, the timer state and the tt-rss account
 (`app/src/main/res/xml/backup_rules.xml`).
 
 **Where the feeds come from** is the setting `feedsFrom` (`PHONE` or

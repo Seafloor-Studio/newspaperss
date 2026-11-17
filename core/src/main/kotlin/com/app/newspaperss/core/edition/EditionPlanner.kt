@@ -9,8 +9,8 @@ data class Candidate(
     val sourceId: String,
     val published: Instant?,
     /**
-     * When the reader starred it for the next edition, or null. Starred articles go ahead of
-     * every unstarred one, oldest star first within a source.
+     * When the reader asked for it: starred it for the next edition, or saved it to their reading
+     * list; null otherwise. These go ahead of every other article, oldest first within a source.
      */
     val starredAt: Instant? = null,
     /**

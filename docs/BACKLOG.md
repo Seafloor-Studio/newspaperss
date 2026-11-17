@@ -11,6 +11,10 @@ Grouped by part of the app. The tag says where each item came from: *device* (yo
 *live* (building real editions), *a11y* (the accessibility audit), *ux* (the Day 3 UX pass),
 *audit* (the architecture audit, #163–#166).
 
+### First up *(you chose)*
+
+- [ ] **On a Boox, a not-sent edition offers Read,** as a ready edition does, since its book is still on the phone. Today it asks "Read it another way?" with no first way offered (no Read or Open). madCode chose this on the 31 Oct morning page, over rewording it as "Read it on your Boox?". *(from the 30 Oct test audit)*
+
 ### From the 16 Oct audit *(audit)*
 Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "checked" means read against the code, not yet reproduced.
 - [ ] Another tt-rss user, or another server, still meets the first one's delivered links: `delivered_urls` is shared, so a story the first user received is skipped for the second, and marked read on their server. Small, but partners often follow the same blogs. Forget the delivered links that came only from the old source when it goes? *(review, 16 Oct)*
@@ -50,14 +54,13 @@ Cycle G6. Fixed in #363 (CI) and #364 (nested JSON). Measured unless it says "re
 
 ### From the 30 Oct test audit *(audit)*
 
-What each screen offers by the edition's state wasn't tested past ready and sent editions, so a not-sent edition lost Listen (#401, #410). Robolectric unless it says otherwise. All built in cycles N2–N6 (#411–#416) but the Boox question.
+What each screen offers by the edition's state wasn't tested past ready and sent editions, so a not-sent edition lost Listen (#401, #410). Robolectric unless it says otherwise. All built in cycles N2–N6 (#411–#416); the Boox question is decided and leads Next.
 
 - [x] **The natural-voice audio line on the edition page, by status:** ready, sent and not sent, against audio asked for, part made and made. `PodcastLineTest` checks the line alone; only a screenshot shows it inside the page.
 - [x] **Deleting the edition you're listening to, or one that has audio:** through the real wiring in `AppContainer` (`listen.forget`, `podcastStore.delete`), and the clean-up after each run (`pruneFiles`). The bar should let go and the audio's space come back. The tests now check that a stand-in was called.
 - [x] **Today's card when the newest edition is a not-sent one** (after making another and deleting it): it offers only "Try again", while its page offers Mark as sent and Listen. Make the card match the page (EditionActions says they offer the same), with a test.
 - [x] **The status changing while the page is open or playing:** a ready edition released by the morning build keeps Listen and its audio line.
 - [x] **Emulator:** `journeys.sh two-editions` stops at Today's list; go on to open the not-sent edition and wait for "Listen ·" and "Mark as sent". *(device)*
-- [ ] **Your call: on a Boox, a not-sent edition asks "Read it another way?"** with no first way offered (no Read or Open). Offer Read there, or word it as "Read it on your Boox?" Recommended: offer Read, since its book is still here.
 
 ### Onboarding and setup
 
@@ -65,6 +68,20 @@ What each screen offers by the edition's state wasn't tested past ready and sent
 - [ ] **Platform pass** *(you asked)*: a test corpus of real posts from the big blog and newsletter platforms, from their own feeds and through tt-rss, checked for footnotes, embeds, captions, paywall teasers and link posts; what breaks gets fixed and the corpus keeps it fixed (`PlatformCorpusTest`). Round 1 covered Substack, Ghost, WordPress, Medium, Blogger, Buttondown and Micro.blog; round 2 added a magazine with its own site (New Left Review), Stratechery and a MemberPress site, found by running `extractionSweep` over a real reading list and over `tools/sweep-feeds.opml`, public feeds picked for variety (news, other languages and scripts, static sites, microblogs). Run that list again before a change to extraction. Still to add: Tumblr (it answers 429 to the collector), beehiiv, posts with galleries, tweets and Bluesky embeds, and more footnote styles
 - [x] **Show tt-rss's own feed errors** *(you asked)*: tt-rss's `last_error` for each feed, on the feed's row and page and named in a banner on Sources
 - [ ] Paywalled and summary-only sites: warn when a site is added; keep stubs from eating the budget; drop metered sites from starter packs *(personas)*
+- [ ] **Sign in to a site so its articles are fetched as you** *(you asked)*: for a paid
+  subscription whose feed gives only a summary (the New York Times has no subscriber feed with the
+  text). Sign in once inside the app; its session goes with that site's article fetches; say when it
+  has expired. Mind the site's terms on automated access. What it would and wouldn't fix, from NYT
+  in November:
+  - **The paywall: yes.** Signed out, most NYT articles come whole (the page has the text and hides
+    it behind a script; 40 fetched back to back from a cloud machine, none paid), but a
+    subscriber-only one won't, and only a sign-in gets its text.
+  - **Bot blocking: no.** An NYT article came back 403 on the phone, on home Wi-Fi, yet the same
+    client got 200 for every article from that home network, both on the JVM and on an Android
+    emulator, and NYT cleared its DataDome cookie each time rather than challenging. So the 403
+    was the phone's moment, not the address or Android's network stack, and a session wouldn't
+    get past a block. Debug builds now keep what a site answered when it turned the app away, and
+    Send for a look carries it: the next blocked NYT article says which blocker and why.
 - [ ] **Skip paid posts' previews too** *(you asked)*: a source can already skip paid posts with nothing free (a title and a picture). Let it also skip the ones that come as a preview, only the free part before "Subscribe to read", so an edition carries whole articles only. Per source, beside the existing choice, with the count on its page.
 - [x] A feed over 10 MB was refused as too large: some static sites (a Hugo `index.xml`) put every post they ever wrote in one feed. Now it's read up to 10 MB, keeping the whole items before the cut *(sweep)*
 - [ ] Webtoons: episodes are one long strip of 84–140 lazily loaded panels (a phone is sent to m.webtoons.com, which lists them in a script; the desktop viewer has them in `data-url`), beyond the 20-image cap. Built and measured on `claude/today-d-c7` (D7), not shipped. Before it can ship: the image budget must take a strip whole or not at all (today it is shared and greedy, so a strip gets gaps mid-episode and starves later articles); no cap that cuts an ending silently; ask for `?type=opti` (PNG panels ignore `q90`: 800 KB vs 300 KB); drop the feed's two thumbnail panels, which otherwise repeat after the strip; panels contiguous in the book (no figure margins), with alt text. Re-encoded, an episode is about 6–9 MB *(device)*
@@ -160,6 +177,13 @@ From the N10 audit of the article view and Listen (30 Oct). Read against the cod
 - [ ] Listen sometimes stops at the paragraph instead of scrolling down to the sentence being read: its fine scroll needs the paragraph's text layout, which may not be recorded yet when the scroll runs. Seen as `11d-listen-larger-text` differing between two renders; likely on a phone too *(today B7)*
 
 ### Later
+
+- **Episode notes: play the episode in their place** *(device)*: a third choice under Settings ›
+  Listening › Episode notes, besides after the edition and not at all. Held back from the
+  Recordings redo: spread over the notes' few lines an hour's episode loses its place by minutes
+  after a restart, shows a minute's length when the feed gives none, and a notes post before its
+  transcript would take the transcript's episode. Do it on a page of 30-second marks, as the
+  episodes after the edition have, with the transcript winning over its notes.
 - [ ] When releases start, the live (debug) channel keeps self-updating; release builds never do.
 - [ ] Send the email itself (SMTP, an app password), so a Kindle edition arrives with no tap and from a chosen account; email delivery through the mail app is done (#123)
 

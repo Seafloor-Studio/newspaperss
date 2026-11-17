@@ -11,6 +11,7 @@ import com.app.newspaperss.data.EditionContent
 import com.app.newspaperss.data.PublicationEntity
 import com.app.newspaperss.data.SourceEntity
 import com.app.newspaperss.data.SourceKind
+import com.app.newspaperss.settings.NotesEpisode
 import com.app.newspaperss.settings.Recordings
 import com.app.newspaperss.testutil.DbRule
 import com.app.newspaperss.testutil.TestApp
@@ -92,6 +93,7 @@ class ReadingsTest {
             post("untimed-transcript", EpisodeKind.TRANSCRIPT, audio = "https://cdn.example/untimed.mp3"),
             post("again-transcript", EpisodeKind.TRANSCRIPT, pair = "notes"),
             post("trailer-transcript", EpisodeKind.TRANSCRIPT, audio = "https://cdn.example/trailer.mp3", seconds = 120, pair = "full-notes"),
+            post("long-transcript", EpisodeKind.TRANSCRIPT, audio = "https://cdn.example/long.mp3", seconds = 30_000),
         )
         post("notes", EpisodeKind.NOTES, audio = "https://cdn.example/notes.mp3", seconds = 6_000, pair = "paired-transcript")
         post("full-notes", EpisodeKind.NOTES, audio = "https://cdn.example/full.mp3", seconds = 5_400, pair = "trailer-transcript")
@@ -112,8 +114,24 @@ class ReadingsTest {
             "Readings: edition 3, recorded readings: page 0 (its own audio, 11 min), page 1 (its episode, its own audio, 87 min), " +
                 "page 2 (its episode, its notes post's, 100 min), page 7 (its episode, its notes post's, 90 min); read by the voice instead: " +
                 "page 3 (transcript: no audio), page 4 (transcript: its own audio, 5 min against 99 min read aloud), " +
-                "page 5 (transcript: its own audio, length unknown), page 6 (its recording plays on page 2); episodes at the end: none",
+                "page 5 (transcript: its own audio, length unknown), page 6 (its recording plays on page 2), " +
+                "page 8 (transcript: its own audio, 500 min against 99 min read aloud); episodes at the end: none",
             logged.single(),
+        )
+        // What each page's banner says comes from the same decisions.
+        assertEquals(
+            mapOf(
+                0 to Outcome.Plays(640),
+                1 to Outcome.Plays(5_220),
+                2 to Outcome.Plays(6_000),
+                3 to Outcome.Read(Outcome.Why.NO_AUDIO),
+                4 to Outcome.Read(Outcome.Why.PREVIEW, 300),
+                5 to Outcome.Read(Outcome.Why.LENGTH_UNKNOWN),
+                6 to Outcome.PlaysWith(2),
+                7 to Outcome.Plays(5_400),
+                8 to Outcome.Read(Outcome.Why.LENGTH_MISMATCH),
+            ),
+            readings.outcomes(3),
         )
 
         readings.load(4, emptyList()) { null }
@@ -164,6 +182,8 @@ class ReadingsTest {
             post(account, "feed-on", origin = "8"),
             // Nothing to play, so nothing switched off: the log counts only recordings the switch kept out.
             post(off, "off-plain", seconds = null),
+            // Its episode doesn't play after the edition either.
+            post(off, "off-notes", EpisodeKind.NOTES, seconds = 2_280),
         )
         val contents = ids.mapIndexed { i, id -> EditionContent(EditionArticleEntity(editionId = 3, articleId = id, position = i, title = "$i", sourceTitle = "A", minutes = 7.0), state = null) }
 
@@ -179,6 +199,9 @@ class ReadingsTest {
                 "page 0 (its source's recordings are switched off), page 1 (its source's recordings are switched off), page 3 (its source's recordings are switched off); episodes at the end: none",
             logged.single(),
         )
+        assertEquals(emptyList<EndEpisode>(), readings.ending(3))
+        val sourceOff = Outcome.Read(Outcome.Why.SOURCE_OFF)
+        assertEquals(mapOf(0 to sourceOff, 1 to sourceOff, 2 to Outcome.Plays(640), 3 to sourceOff, 4 to Outcome.Plays(640), 6 to sourceOff), readings.outcomes(3))
     }
 
     /**
@@ -203,7 +226,9 @@ class ReadingsTest {
         )
         val contents = ids.mapIndexed { i, id -> EditionContent(EditionArticleEntity(editionId = 3, articleId = id, position = i, title = "Title $i", sourceTitle = "A", minutes = 2.0), state = null) }
         // The transcript 15,840 words: 99 minutes, its episode's length.
-        val load: suspend () -> Unit = { readings.load(3, contents) { page(if (it == 1) 15_840 else 100) } }
+        // A notes post: its show, a title of two sentences, its notes.
+        val notesPage = { p: Int -> ListenScript(listOf(Block.Text(Kind.KICKER, listOf("Show $p")), Block.Text(Kind.TITLE, listOf("Notes $p.", "Part two.")), Block.Text(Kind.PARAGRAPH, listOf("Show notes.")))) }
+        val load: suspend () -> Unit = { readings.load(3, contents) { if (it == 0 || it == 4) notesPage(it) else page(if (it == 1) 15_840 else 100) } }
 
         load()
         assertEquals("https://cdn.example/2.mp3", readings.at(3, 1)?.url)
@@ -225,10 +250,17 @@ class ReadingsTest {
         assertTrue(ending[0].reading.episode && ending[0].reading.atTheEnd)
         // The first says that episodes follow the edition; the closing page, from the book, doesn't.
         assertEquals(listOf("After the edition, 2 episodes.", null), ending.map { it.reading.prelude })
+        // Each notes post whose episode plays then says so after its title, out loud: not the
+        // notes post whose episode its transcript already plays, nor one with no audio.
+        // After the title's last line, not the show's name before it.
+        assertEquals(listOf(0, 4), (0..5).filter { readings.preludeAt(3, it) == Readings.Prelude(Readings.NOTES_PRELUDE, afterLine = 2) })
+        assertNull("another edition", readings.preludeAt(4, 0))
         // What's said around the recordings, for the natural voice to make ahead: the transcript's
         // heading is its page's (here the made-up page's first two lines), the ending's their own.
-        val around = readings.spokenAround(3) { p -> if (p >= 7) ending[p - 7].script else page(100) }
-        assertTrue(around.toString(), around.containsAll(listOf("After the edition, 2 episodes.", "A", "Title 0", "Now the episode itself, 38 minutes.", "Title 4", "Now the episode itself.")))
+        // A notes post's heading is said apart from its page, before the prelude, so it's made too.
+        val around = readings.spokenAround(3) { p -> if (p >= 7) ending[p - 7].script else if (p == 0 || p == 4) notesPage(p) else page(100) }
+        assertTrue(around.toString(), around.containsAll(listOf("After the edition, 2 episodes.", "A", "Title 0", "Now the episode itself, 38 minutes.", "Title 4", "Now the episode itself.", "Show 0", "Notes 0.", "Part two.", "Notes 4.", Readings.NOTES_PRELUDE)))
+        assertTrue("only a notes post's title, not its notes", "Show notes." !in around)
         assertTrue("the episode's marks are the recording's, not said", "0:00" !in around)
         // Kokoro speaks English: a heading in another language is left to the phone's voice.
         val french = readings.spokenAround(3) { p -> if (p >= 7) ending[p - 7].script.copy(language = "fr") else page(100) }
@@ -242,12 +274,70 @@ class ReadingsTest {
             "Readings: edition 3, recorded readings: page 1 (its episode, its notes post's, 99 min); episodes at the end: page 0's, 38 min, page 4's, length unknown",
             logged.last(),
         )
+        assertEquals(
+            mapOf(
+                0 to Outcome.AfterTheEdition,
+                1 to Outcome.Plays(5_940),
+                2 to Outcome.PlaysWith(1),
+                3 to Outcome.Read(Outcome.Why.NO_AUDIO),
+                4 to Outcome.AfterTheEdition,
+                5 to Outcome.PlaysWith(0, atTheEnd = true),
+            ),
+            readings.outcomes(3),
+        )
 
-        choices = Recordings(atTheEnd = false)
+        choices = Recordings(notes = NotesEpisode.OFF)
         load()
         assertEquals(emptyList<EndEpisode>(), readings.ending(3))
         assertNull(readings.at(3, 7))
+        assertNull("notes read by the voice", readings.at(3, 0))
         assertTrue(logged.last(), logged.last().endsWith("; episodes at the end: switched off"))
+        val kindOff = Outcome.Read(Outcome.Why.KIND_OFF)
+        // Not the one whose transcript plays its episode in its place: a tick wouldn't change that.
+        assertEquals(listOf(kindOff, Outcome.PlaysWith(1), Outcome.Read(Outcome.Why.NO_AUDIO), kindOff, kindOff), listOf(0, 2, 3, 4, 5).map { readings.outcomes(3)!![it] })
+        assertNull("an edition not opened: nothing known, not nothing to say", readings.outcomes(4))
+
+    }
+
+    /**
+     * An audio version is passed over when its post plays it; with its post not in the edition it
+     * plays on its own page, after its heading; with narrated articles off, or none, the voice reads it.
+     */
+    @Test
+    fun anAudioVersionPlaysWithItsPostOrOnItsOwnPage() = runTest {
+        var choices = Recordings()
+        val readings = Readings(db, { choices }, logged::add)
+        val source = db.sources().insert(SourceEntity(url = "https://a.example/feed", title = "A"))
+        suspend fun post(guid: String, kind: EpisodeKind, audio: String? = null, seconds: Int? = null, pair: String? = null) = db.articles().insertIgnoring(
+            ArticleEntity(sourceId = source, guid = guid, url = "https://a.example/$guid", title = guid, episodeKind = kind, audioUrl = audio, audioSeconds = seconds, episodePair = pair),
+        )
+        val ids = listOf(
+            post("narrated-version", EpisodeKind.AUDIO_VERSION, audio = "https://cdn.example/1.mp3", seconds = 640, pair = "essay"),
+            post("essay", EpisodeKind.ARTICLE, pair = "narrated-version"),
+            post("lone-version", EpisodeKind.AUDIO_VERSION, audio = "https://cdn.example/2.mp3", seconds = 720, pair = "not-here"),
+            post("silent-version", EpisodeKind.AUDIO_VERSION),
+        )
+        val contents = ids.mapIndexed { i, id -> EditionContent(EditionArticleEntity(editionId = 3, articleId = id, position = i, title = "$i", sourceTitle = "A", minutes = 7.0), state = null) }
+        val load: suspend () -> Unit = { readings.load(3, contents) { page(1_600) } }
+
+        load()
+        assertEquals("https://cdn.example/1.mp3", readings.at(3, 1)?.url)
+        assertEquals(setOf(0), readings.passedOver(3))
+        assertEquals("heard with the post that played it", listOf(0), readings.passedOverWith(3, 1))
+        assertEquals(emptyList<Int>(), readings.passedOverWith(3, 2))
+        assertTrue(logged.last(), logged.last().contains("; passed over: page 0 (its recording plays on page 1)"))
+        val lone = readings.at(3, 2)!!
+        assertEquals("on its own page, after its heading", Reading("https://cdn.example/2.mp3", 720, own = true, bodyLine = 2, starts = lone.starts), lone)
+        assertEquals(
+            mapOf(0 to Outcome.PlaysWith(1), 1 to Outcome.Plays(640), 2 to Outcome.Plays(720), 3 to Outcome.Read(Outcome.Why.NO_AUDIO)),
+            readings.outcomes(3),
+        )
+
+        choices = Recordings(readings = false)
+        load()
+        assertEquals("none passed over: the voice reads them all", emptySet<Int>(), readings.passedOver(3))
+        assertNull(readings.at(3, 2))
+        assertEquals(Outcome.Read(Outcome.Why.KIND_OFF), readings.outcomes(3)!![2])
     }
 
     @Test
@@ -275,9 +365,10 @@ class ReadingsTest {
         assertEquals("https://cdn.example/narrated.mp3", readings.at(3, 0)?.url)
         assertNull("episodes are off", readings.at(3, 1))
         assertEquals("Readings: edition 3, recorded readings: page 0 (its own audio, 11 min); read by the voice instead: page 1 (transcript: episodes are switched off); episodes at the end: none", logged.last())
+        assertEquals(mapOf(0 to Outcome.Plays(640), 1 to Outcome.Read(Outcome.Why.KIND_OFF)), readings.outcomes(3))
 
-        // Off, the kinds chosen under it don't count.
-        choices = Recordings(on = false)
+        // None ticked: the voice reads every post.
+        choices = Recordings.NONE
         load()
         assertNull(readings.at(3, 0))
         assertNull(readings.at(3, 1))

@@ -26,6 +26,7 @@ import com.app.newspaperss.data.TtrssAccountStore
 import com.app.newspaperss.data.TtrssRepository
 import com.app.newspaperss.data.TtrssSubscriptions
 import com.app.newspaperss.edition.AndroidImageEncoder
+import com.app.newspaperss.edition.BlockedAnswers
 import com.app.newspaperss.edition.CoverRenderer
 import com.app.newspaperss.edition.EditionBuilder
 import com.app.newspaperss.edition.EditionRun
@@ -47,6 +48,7 @@ import com.app.newspaperss.listen.AudioLengths
 import com.app.newspaperss.listen.KokoroDownload
 import com.app.newspaperss.listen.ListenPosition
 import com.app.newspaperss.listen.ReadingSpeaker
+import com.app.newspaperss.listen.Outcome
 import com.app.newspaperss.listen.Readings
 import com.app.newspaperss.listen.StoredReadingChoices
 import com.app.newspaperss.listen.StreamAudio
@@ -90,6 +92,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -157,8 +160,11 @@ class AppContainer(
     val ttrssSubscriptions = TtrssSubscriptions(ttrss, appScope)
     val feedMoves = FeedMoves(feedMovesData, db, ttrss, schedule = moveFeeds)
     val feedSync = FeedSync(db, http, ttrssAccounts = ttrssAccounts, onUntitled = fetchReadingListTitles, episodesOn = EPISODES)
+    /** What sites answered when they turned the app away, for Send for a look; kept in debug builds only. */
+    val blockedAnswers: BlockedAnswers? = if (EPISODES) BlockedAnswers(File(context.filesDir, "blocked-answers.json")) else null
     private val content = ExtractorContentProvider(
         ArticleExtractor(http), http, AndroidImageEncoder(), onPaidOnly = sources::markPaidOnly, onUnreadable = db.articles()::setUnreadable,
+        onBlocked = { url, answer -> blockedAnswers?.record(url, answer) },
     ) { sourceId, originId, evidence, text ->
         sources.recordFullText(sourceId, originId, evidence, text.check, text.day)
     }
@@ -202,7 +208,7 @@ class AppContainer(
     private val readingSpeaker by lazy {
         // What's said around a recording in the natural voice too, where it's made.
         val voice = ClipSpeaker(listenSpeaker, Media3Audio(podcastPlayer)) { editionId, text -> podcastStore.clip(editionId, text)?.takeIf { podcastInUse() } }
-        ReadingSpeaker(voice, StreamAudio(readingPlayer), readings::at, readingChoices, log = logPlaying)
+        ReadingSpeaker(voice, StreamAudio(readingPlayer), readings::at, readingChoices, log = logPlaying, preludeAt = readings::preludeAt)
     }
 
     /**
@@ -254,7 +260,11 @@ class AppContainer(
             savedSpeed = settings.settings.map { it.listenSpeed }.distinctUntilChanged(),
             saveSpeed = { speed -> settings.update { it.copy(listenSpeed = speed) } },
             chime = MediaPlayerChime(context),
-            onHeard = { id, page -> appScope.launch { editions.markFinished(id, page) } },
+            onHeard = { id, page ->
+                // An audio version passed over is heard with the post that played its recording.
+                val alsoHeard = if (EPISODES) readings.passedOverWith(id, page) else emptyList()
+                appScope.launch { (listOf(page) + alsoHeard).forEach { editions.markFinished(id, it) } }
+            },
         ).also { player ->
             // A recording that won't play: on from where it got, in the voice.
             if (EPISODES) readingSpeaker.restart = { line -> if (player.state.value.editionId == line.editionId) player.seek(ListenPosition(line.page, line.line)) }
@@ -333,6 +343,19 @@ class AppContainer(
     }
 
     fun kokoroDownload() = newKokoroDownload(kokoroInstall)
+
+    /**
+     * What Listen would do with each page of [editionId] that has a recording, as it would open
+     * it now: for the article view's banners. Its own Readings: Listen's has the edition being
+     * heard, which may be another. Empty in a release build, which plays none; null when the
+     * edition's book won't open, so nothing is known.
+     */
+    suspend fun listenOutcomes(editionId: Long): Map<Int, Outcome>? = withContext(Dispatchers.Default) {
+        if (!EPISODES) return@withContext emptyMap()
+        val own = Readings(db, choices = { settings.current().recordings })
+        // Null if the recordings couldn't be found: the banners then say only what the detector does.
+        ListenBook.open(editions, editionId, own)?.use { own.outcomes(editionId) }
+    }
 
     /** See [SettingsStore.settleFeedsFrom]: a tt-rss source from before the choice means the server setup. */
     suspend fun settleFeedsFrom() = settings.settleFeedsFrom { db.sources().ofKind(SourceKind.TTRSS).isNotEmpty() }
