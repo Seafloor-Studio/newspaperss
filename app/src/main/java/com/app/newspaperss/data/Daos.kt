@@ -345,24 +345,28 @@ interface ArticleDao {
     fun observeHistory(sourceId: Long): Flow<List<ArticleHistory>>
 
     /**
-     * A source's (or with [key], one tt-rss feed's) most recent deliveries, newest first: when each
-     * went out and how many of its articles. Not from the listed articles, which stop at the newest
-     * few: on a busy feed held to one an edition, yesterday's can be older than all of them. Each
-     * edition's links share one time, so a row is one delivery.
+     * A source's (or with [key], one tt-rss feed's) most recent delivered editions, newest first:
+     * when each went out and how many of its articles were in it. From the editions' contents,
+     * not the articles' states, which other sources' deliveries and the reader's marks change
+     * afterwards; and not the listed articles, which stop at the newest few: on a busy feed held
+     * to one an edition, yesterday's can be older than all of them. An article marked sent by hand
+     * was in no edition, so it isn't counted. CROSS JOIN keeps SQLite's order: the few editions
+     * first, then their contents by index and articles by key, not every article of a busy source.
      */
     @Query(
-        """SELECT d.deliveredAt AS sentAt, COUNT(*) AS count
-           FROM articles a JOIN delivered_urls d ON d.url = a.url
-           WHERE a.sourceId = :sourceId AND (:key = '' OR a.originId = :key) AND a.state = 'DELIVERED' AND a.url != ''
-           GROUP BY d.deliveredAt ORDER BY d.deliveredAt DESC LIMIT 20""",
+        """SELECT e.deliveredAt AS sentAt, COUNT(*) AS count
+           FROM editions e CROSS JOIN edition_articles ea ON ea.editionId = e.id CROSS JOIN articles a ON a.id = ea.articleId
+           WHERE e.status = 'DELIVERED' AND e.deliveredAt IS NOT NULL
+             AND a.sourceId = :sourceId AND (:key = '' OR a.originId = :key)
+           GROUP BY e.id ORDER BY e.deliveredAt DESC LIMIT 20""",
     )
     fun observeSent(sourceId: Long, key: String): Flow<List<SentBatch>>
 
-    /** The newest unsent edition holding any of the source's (or feed's) articles, and how many. */
+    /** The newest unsent edition with any of the source's (or feed's) articles in it, and how many, as [observeSent]. */
     @Query(
         """SELECT e.title AS title, COUNT(*) AS count
-           FROM edition_articles ea JOIN editions e ON e.id = ea.editionId JOIN articles a ON a.id = ea.articleId
-           WHERE a.sourceId = :sourceId AND (:key = '' OR a.originId = :key) AND a.state = 'IN_EDITION' AND e.status IN ('READY', 'BUILDING')
+           FROM editions e CROSS JOIN edition_articles ea ON ea.editionId = e.id CROSS JOIN articles a ON a.id = ea.articleId
+           WHERE e.status IN ('READY', 'BUILDING') AND a.sourceId = :sourceId AND (:key = '' OR a.originId = :key)
            GROUP BY e.id ORDER BY e.createdAt DESC, e.id DESC LIMIT 1""",
     )
     fun observeUnsent(sourceId: Long, key: String): Flow<UnsentCount?>

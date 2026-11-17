@@ -58,6 +58,8 @@ internal data class HeaderStatus(
 )
 
 internal const val PAUSED_LINE = "Paused · nothing new comes in"
+internal const val ACCOUNT_PAUSED_LINE = "Your tt-rss is paused · nothing new comes in"
+private const val UNTIL_CLEARED = "Nothing new comes from it until this clears."
 internal const val NO_ARTICLES_YET = "No articles yet"
 
 /** A phone source's page: a feed, a curated list, or a tt-rss account's own. */
@@ -78,19 +80,7 @@ internal fun phoneStatus(
     val summaries = summariesNote(learned).takeIf { source.kind == SourceKind.FEED }
     if (source.paused) return HeaderStatus(PAUSED_LINE, notes = listOfNotNull(fact?.let(::HeaderNote)), action = HeaderAction.StartAgain)
     if (hasProblem(source)) {
-        // What a failing feed means for the paper; a note from tt-rss about marking read stops nothing.
-        val meaning = "Nothing new comes from it until this clears.".takeIf { source.lastError != null }
-        return HeaderStatus(
-            (source.lastError ?: source.serverNote)!!,
-            problem = true,
-            notes = listOfNotNull(
-                fact?.let(::HeaderNote),
-                failingLine(source.failingSince, locale, now, zone)?.let { HeaderNote(it, HeaderNote.Tone.ERROR) },
-                listOfNotNull(meaning, checked).joinToString(" ").ifEmpty { null }?.let(::HeaderNote),
-                summaries,
-                episodes?.let(::HeaderNote),
-            ),
-        )
+        return failing(source, fact, checked, listOfNotNull(summaries, episodes?.let(::HeaderNote)), locale, now, zone)
     }
     if (source.lastFetchedAt == null) return HeaderStatus("Checking…", saysNoArticles = true)
     // "Last checked today" is the app saying it's working: only worth a line when the reader may doubt it.
@@ -99,7 +89,25 @@ internal fun phoneStatus(
     return healthy(record, hasArticles, freshnessNote(lastNew, lastNew, now, zone), doubt, summaries, episodes, now, zone, locale)
 }
 
-/** One of a tt-rss account's feeds, on its own page. */
+/**
+ * A source failing, or with a note from tt-rss: the problem, its last delivery, how long, and what
+ * it means for the paper. A note about marking read stops nothing, so it has no meaning line.
+ */
+private fun failing(source: SourceEntity, fact: String?, checked: String?, more: List<HeaderNote>, locale: Locale, now: Instant, zone: ZoneId) = HeaderStatus(
+    (source.lastError ?: source.serverNote)!!,
+    problem = true,
+    notes = listOfNotNull(
+        fact?.let(::HeaderNote),
+        failingLine(source.failingSince, locale, now, zone)?.let { HeaderNote(it, HeaderNote.Tone.ERROR) },
+        listOfNotNull(UNTIL_CLEARED.takeIf { source.lastError != null }, checked).joinToString(" ").ifEmpty { null }?.let(::HeaderNote),
+    ) + more,
+)
+
+/**
+ * One of a tt-rss account's feeds, on its own page. Left out comes first, being the feed's own
+ * choice and meaning it isn't fetched whatever the account does; then the account's own state,
+ * paused or failing, which stops every feed in it.
+ */
 internal fun feedStatus(
     publication: PublicationEntity?,
     account: SourceEntity?,
@@ -108,6 +116,7 @@ internal fun feedStatus(
     hasArticles: Boolean,
     episodes: String?,
     locale: Locale,
+    is24Hour: Boolean,
     now: Instant,
     zone: ZoneId,
 ): HeaderStatus {
@@ -120,6 +129,13 @@ internal fun feedStatus(
             notes = listOf(HeaderNote("It stays in your tt-rss and isn't fetched. Starred articles from it still go in.")),
             action = HeaderAction.BringBack,
         )
+        account?.paused == true -> HeaderStatus(
+            ACCOUNT_PAUSED_LINE,
+            notes = listOfNotNull(paperFact(record, now, zone, locale)?.let(::HeaderNote)),
+            action = HeaderAction.StartAgain,
+        )
+        account?.lastError != null ->
+            failing(account, paperFact(record, now, zone, locale), lastCheckedLine(account.lastFetchedAt, locale, is24Hour, now, zone), emptyList(), locale, now, zone)
         // tt-rss's own words, which can be technical ("HTTP Code: 404"), come after what they mean.
         publication?.serverError != null -> HeaderStatus(
             SERVER_CANT_FETCH,

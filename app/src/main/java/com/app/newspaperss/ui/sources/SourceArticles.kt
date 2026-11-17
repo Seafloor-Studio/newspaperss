@@ -118,9 +118,11 @@ internal fun ArticlesHeading(selecting: Boolean, onSelect: () -> Unit) {
  */
 @Composable
 internal fun ListLegend(kind: SourceKind) {
+    val waits = " An article waits ${plural(FeedSync.KEEP_WAITING.toDays().toInt(), "day")} for a place, then it's not picked."
+    // A curated list's links expire by age like a feed's, and also past its newest few.
     val ending = when (kind) {
-        SourceKind.FEED, SourceKind.TTRSS -> " An article waits ${plural(FeedSync.KEEP_WAITING.toDays().toInt(), "day")} for a place, then it's not picked."
-        SourceKind.LIST -> " The list keeps its newest ${FeedSync.LIST_KEEP}."
+        SourceKind.FEED, SourceKind.TTRSS -> waits
+        SourceKind.LIST -> "$waits The list keeps its newest ${FeedSync.LIST_KEEP}."
         else -> ""
     }
     val shown = "● waiting · ✓ sent · ○ read or not picked. Tap a mark to change it, and ☆ to put an article in your next edition.$ending"

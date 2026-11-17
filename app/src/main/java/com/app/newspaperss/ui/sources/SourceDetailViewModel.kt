@@ -106,6 +106,14 @@ class SourceDetailViewModel(
         viewModelScope.launch { repository.setPaused(source.id, !source.paused) }
     }
 
+    /**
+     * Unpauses the source, or on a tt-rss feed's page its account. Not a toggle: a second tap
+     * before the button goes would pause it again.
+     */
+    fun startAgain() {
+        viewModelScope.launch { repository.setPaused(id, false) }
+    }
+
     fun setSkipPaidPosts(skip: Boolean) {
         viewModelScope.launch { repository.setSkipPaidPosts(id, key, skip) }
     }

@@ -1533,6 +1533,15 @@ class ScreenshotTest {
         shoot("08i-phone-feed-settings", ready = { vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
+    /** [ids] went out in yesterday's edition. */
+    private suspend fun sentYesterday(ids: List<Long>) {
+        val at = clock.instant().minus(Duration.ofDays(1))
+        val edition = db.editions().insert(EditionEntity(title = "Monday Morning Edition", createdAt = at, status = EditionStatus.DELIVERED, deliveredAt = at))
+        db.editions().insertArticles(ids.mapIndexed { i, id -> EditionArticleEntity(editionId = edition, articleId = id, position = i, title = "An article", sourceTitle = "A source", minutes = 4.0) })
+        db.articles().setDelivered(ids)
+        db.articles().rememberDelivered(ids, at)
+    }
+
     /** The top of the page at twice the font size: every line wraps rather than squeezing. */
     @Test
     @Config(fontScale = 2f)
@@ -1546,9 +1555,7 @@ class ScreenshotTest {
     fun sourceDetailSummariesOnly() {
         val vm = letter { _, id ->
             db.sources().savePublication(PublicationEntity(id, PublicationEntity.OWN, ContentMode.FEED, FullTextEvidence.FEED_SHORT, 3))
-            val first = db.articles().allForSource(id).first().id
-            db.articles().setDelivered(listOf(first))
-            db.articles().rememberDelivered(listOf(first), clock.instant().minus(Duration.ofDays(1)))
+            sentYesterday(listOf(db.articles().allForSource(id).first().id))
         }
         shoot("06l-source-detail-summaries", ready = { vm.detail.value?.paper?.sent?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
     }
@@ -1569,9 +1576,7 @@ class ScreenshotTest {
                     ArticleEntity(sourceId = id, guid = "$i", url = "https://example.org/$i", title = title, originTitle = site, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1)))
                 },
             )
-            val delivered = db.articles().allForSource(id).single { it.guid == "2" }.id
-            db.articles().setDelivered(listOf(delivered))
-            db.articles().rememberDelivered(listOf(delivered), clock.instant().minus(Duration.ofDays(1)))
+            sentYesterday(listOf(db.articles().allForSource(id).single { it.guid == "2" }.id))
             db.sources().recordSuccess(id, clock.instant(), null, null, "")
             id
         }

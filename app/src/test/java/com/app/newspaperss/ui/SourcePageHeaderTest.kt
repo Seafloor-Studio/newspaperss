@@ -1,5 +1,10 @@
 package com.app.newspaperss.ui
 
+import android.os.Looper
+import androidx.compose.ui.semantics.SemanticsActions
+import org.robolectric.Shadows.shadowOf
+import kotlinx.coroutines.flow.first
+import com.app.newspaperss.data.PublicationEntity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -93,6 +98,76 @@ class SourcePageHeaderTest {
         id
     }
 
+    /** Delivers [ids] in an edition at [at], as sending one does, the other sources' copies of their links included. */
+    private fun deliver(ids: List<Long>, at: Instant = sunday, title: String = "Sunday Morning Edition") = runBlocking {
+        val edition = db.editions().insert(EditionEntity(title = title, createdAt = at, status = EditionStatus.DELIVERED, deliveredAt = at))
+        db.editions().insertArticles(ids.mapIndexed { i, id -> EditionArticleEntity(editionId = edition, articleId = id, position = i, title = "t", sourceTitle = "s", minutes = 1.0) })
+        db.articles().setDelivered(ids)
+        db.articles().rememberDelivered(ids, at)
+        db.articles().deliverCopies(ids)
+    }
+
+    private fun unsent(ids: List<Long>, title: String = "Tuesday Morning Edition") = runBlocking {
+        db.articles().setState(ids, ArticleState.IN_EDITION)
+        val edition = db.editions().insert(EditionEntity(title = title, createdAt = clock.instant(), status = EditionStatus.READY))
+        db.editions().insertArticles(ids.mapIndexed { i, id -> EditionArticleEntity(editionId = edition, articleId = id, position = i, title = "t", sourceTitle = "s", minutes = 1.0) })
+    }
+
+    private fun paper(id: Long, key: String = "") = runBlocking { repo.observePaper(id, key).first() }
+
+    private fun ids(source: Long) = runBlocking { db.articles().allForSource(source).sortedBy { it.guid }.map { it.id } }
+
+    /**
+     * What went out is what was in the source's delivered editions: not another source's copy of
+     * the same link that delivery used up, and not changed by the reader marking it unread later.
+     */
+    @Test
+    fun onlyTheSourcesOwnEditionsCountAsSentAndMarksDontChangeThem() {
+        val a = feed(articles = 1)
+        val b = runBlocking {
+            val b = repo.addFeed("https://example.org/feed", "Other")
+            db.articles().insertNew(listOf(ArticleEntity(sourceId = b, guid = "1", url = "https://example.com/1", title = "The same story")))
+            b
+        }
+        deliver(ids(a))
+
+        assertEquals(listOf(SentBatch(sunday, 1)), paper(a).sent)
+        assertEquals("the copy was used up, not sent from here", ArticleState.DELIVERED, runBlocking { db.articles().allForSource(b).single().state })
+        assertEquals(emptyList<SentBatch>(), paper(b).sent)
+
+        runBlocking { repo.toggleRead(ids(a).single()) }
+        assertEquals(ArticleState.NEW, runBlocking { db.articles().allForSource(a).single().state })
+        assertEquals("it still went out on Sunday", listOf(SentBatch(sunday, 1)), paper(a).sent)
+    }
+
+    /** Marking an unsent edition's articles read doesn't take them out of its book, so the count stays. */
+    @Test
+    fun theUnsentEditionsCountIsWhatsInItsBook() {
+        val id = feed(articles = 2)
+        unsent(ids(id))
+        runBlocking { repo.markRead(ids(id).take(1)) }
+        assertEquals(ArticleState.SKIPPED, runBlocking { db.articles().byId(ids(id).first())!!.state })
+        assertEquals(2, paper(id).unsent?.count)
+    }
+
+    /** tt-rss can give a headline no link; it still went out in the edition. Another feed of the account's doesn't count it. */
+    @Test
+    fun aTtrssFeedsArticleWithNoLinkCountsWhenSent() {
+        val account = runBlocking {
+            val account = repo.addTtrss("https://rss.example.org/tt-rss/api/")
+            db.articles().insertNew(
+                listOf(
+                    ArticleEntity(sourceId = account, guid = "ttrss:1", url = "", title = "A headline", originId = "5", originTitle = "Quanta"),
+                    ArticleEntity(sourceId = account, guid = "ttrss:2", url = "https://example.org/2", title = "Another", originId = "6", originTitle = "Other"),
+                ),
+            )
+            account
+        }
+        deliver(runBlocking { db.articles().allForSource(account).filter { it.originId == "5" }.map { it.id } })
+        assertEquals(listOf(SentBatch(sunday, 1)), paper(account, "5").sent)
+        assertEquals(emptyList<SentBatch>(), paper(account, "6").sent)
+    }
+
     private fun line(record: PaperRecord, hasArticles: Boolean = true) = paperLine(record, hasArticles, clock.instant(), ZoneOffset.UTC, Locale.US)
 
     /** The first that applies: an unsent edition, then the last delivery, then waiting, then nothing. Never a count of what waits. */
@@ -121,11 +196,7 @@ class SourcePageHeaderTest {
     @Test
     fun aBusyFeedsLastDeliveryCountsEvenPastTheListedArticles() {
         val id = feed(articles = 40)
-        runBlocking {
-            val oldest = db.articles().allForSource(id).single { it.guid == "40" }.id
-            db.articles().setDelivered(listOf(oldest))
-            db.articles().rememberDelivered(listOf(oldest), sunday)
-        }
+        deliver(listOf(runBlocking { db.articles().allForSource(id).single { it.guid == "40" }.id }))
         val vm = show(id, until = "Article 1")
 
         compose.idleUntil { visible("Last sent Sunday · 1 article") }
@@ -177,6 +248,83 @@ class SourcePageHeaderTest {
         compose.idleUntil { !visible("Start again") && !visible("Paused") }
     }
 
+    /**
+     * A second tap that lands after the source has started again but before the button has gone
+     * mustn't pause it again: Start again only ever starts.
+     */
+    @Test
+    fun aSecondTapOnStartAgainDoesNotPauseItAgain() {
+        val id = feed(articles = 1)
+        runBlocking { repo.setPaused(id, true) }
+        val vm = show(id, until = "Paused · nothing new comes in")
+        val tap = compose.onNodeWithText("Start again").fetchSemanticsNode().config[SemanticsActions.OnClick].action!!
+        // No frames from here, so the button stays while the change reaches the page's state.
+        compose.mainClock.autoAdvance = false
+        compose.runOnUiThread { tap() }
+        val deadline = System.currentTimeMillis() + 10_000
+        while (vm.detail.value?.source?.paused != false && System.currentTimeMillis() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+        assertEquals(false, vm.detail.value?.source?.paused)
+
+        compose.runOnUiThread { tap() }
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+        Thread.sleep(200)
+        compose.waitForIdle()
+        assertFalse(runBlocking { db.sources().byId(id)!!.paused })
+    }
+
+    /** A tt-rss account with one feed, "5", which has an article, and [change] made to them. */
+    private fun ttrssFeed(change: suspend (Long) -> Unit = {}): Long = runBlocking {
+        val account = repo.addTtrss("https://rss.example.org/tt-rss/api/")
+        db.sources().savePublication(PublicationEntity(account, "5", title = "Quanta Magazine", feedUrl = "https://www.quantamagazine.org/feed/", listed = true))
+        db.articles().insertNew(listOf(ArticleEntity(sourceId = account, guid = "ttrss:1", url = "https://example.org/1", title = "An article", originId = "5", originTitle = "Quanta Magazine")))
+        db.sources().recordSuccess(account, clock.instant(), null, null, SourceRepository.TTRSS_TITLE)
+        change(account)
+        account
+    }
+
+    private fun showFeed(account: Long, until: String) {
+        val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1), key = "5"))
+        compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
+        compose.idleUntil { visible(until) }
+    }
+
+    /** Editions leave a paused account's feeds out, so a feed's page says so, and starts the account again. */
+    @Test
+    fun aFeedOfAPausedAccountSaysSoAndStartsItAgain() {
+        val account = ttrssFeed { repo.setPaused(it, true) }
+        showFeed(account, until = "Your tt-rss is paused · nothing new comes in")
+        assertFalse(visible("Waiting for your next edition"))
+
+        compose.onNodeWithText("Start again").performClick()
+
+        compose.idleUntil { runBlocking { db.sources().byId(account)!!.paused } == false }
+        compose.idleUntil { visible("Waiting for your next edition") }
+    }
+
+    /** With the account failing, nothing comes from any of its feeds: each feed's page says the account's problem. */
+    @Test
+    fun aFeedOfAFailingAccountShowsTheAccountsProblem() {
+        val account = ttrssFeed { db.sources().recordFailure(it, clock.instant(), "Couldn't reach tt-rss.") }
+        showFeed(account, until = "Couldn't reach tt-rss.")
+        compose.onNode(hasContentDescription("Problem")).assertExists()
+        assertTrue(visible("Nothing new comes from it until this clears."))
+    }
+
+    /** Left out is the feed's own choice and means it isn't fetched at all, so it wins over the account's state. */
+    @Test
+    fun aLeftOutFeedSaysSoEvenUnderAPausedAccount() {
+        val account = ttrssFeed {
+            repo.setPaused(it, true)
+            db.sources().savePublication(db.sources().publication(it, "5")!!.copy(leftOut = true))
+        }
+        showFeed(account, until = "Left out of your paper")
+        assertFalse(visible("Your tt-rss is paused"))
+    }
+
     /** The legend sits under the last row and says why an article ends up "Not picked", which depends on the kind of source. */
     @Test
     fun theLegendUnderTheListSaysHowLongArticlesWait() {
@@ -195,7 +343,7 @@ class SourcePageHeaderTest {
         }
         show(list, until = "A pick")
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Tap a mark to change it", substring = true))
-        assertTrue(visible("The list keeps its newest 12."))
-        assertFalse(visible("waits 7 days"))
+        // Its links expire by age like a feed's, and also past its newest 12.
+        assertTrue(visible("An article waits 7 days for a place, then it's not picked. The list keeps its newest 12."))
     }
 }

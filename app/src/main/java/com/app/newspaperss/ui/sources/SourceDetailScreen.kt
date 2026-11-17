@@ -226,13 +226,13 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
                     val lastNew = articles.maxOfOrNull { it.discoveredAt }
                     val paper = detail?.paper ?: PaperRecord()
                     val status = if (viewModel.isFeed) {
-                        feedStatus(publication, source, lastNew, paper, articles.isNotEmpty(), episodes, locale, clock.instant(), clock.zone)
+                        feedStatus(publication, source, lastNew, paper, articles.isNotEmpty(), episodes, locale, is24Hour, clock.instant(), clock.zone)
                     } else {
                         phoneStatus(source, publication, lastNew, paper, articles.isNotEmpty(), episodes, locale, is24Hour, clock.instant(), clock.zone)
                     }
                     SourceHeader(siteLink(source, publication, viewModel.isFeed), status, onCopied) { action ->
                         when (action) {
-                            HeaderAction.StartAgain -> viewModel.togglePaused()
+                            HeaderAction.StartAgain -> viewModel.startAgain()
                             HeaderAction.BringBack -> viewModel.setInPaper(knownTitle, true)
                             // A link: it opens itself.
                             is HeaderAction.TtrssSettings -> {}
