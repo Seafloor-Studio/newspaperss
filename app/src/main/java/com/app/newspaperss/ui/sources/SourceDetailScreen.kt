@@ -420,15 +420,14 @@ private fun offeredSettings(
     val leftOut = viewModel.isFeed && publication?.leftOut == true
     // Each tt-rss feed has its own posts, on its page; the account's page has none.
     val ownsPosts = source.kind != SourceKind.READING_LIST && (source.kind != SourceKind.TTRSS || viewModel.isFeed) && !leftOut
-    val skip = publication?.skipPaidPosts == true
     val off = publication?.recordingsOff == true
     return SiteSettings(
         pause = !viewModel.isFeed,
         leaveOut = viewModel.isFeed,
         mode = !leftOut && (viewModel.isFeed || source.kind == SourceKind.FEED),
         cap = !leftOut && (viewModel.isFeed || source.kind != SourceKind.TTRSS),
-        // Only once the publication has had one: most never do. Kept while it's on, so it can be turned off.
-        paidPosts = ownsPosts && paidOnly != null && (skip || paidOnly.found > 0),
+        // Offered before any paid post arrives, so a reader who knows the publication can set it ahead.
+        paidPosts = ownsPosts && paidOnly != null,
         // Only on a source with a post that could play one in Listen (see Readings), as for paid posts.
         recordings = ownsPosts && viewModel.recordings && (off || articles.any(::mayPlayARecording)),
     )
@@ -523,7 +522,7 @@ private fun SettingsSheet(
                     ArticleCap(publication?.maxArticles, detail?.defaultMax ?: 1, viewModel::stepMaxArticles, viewModel::followEditionMax)
                 }
                 if (offered.paidPosts) add {
-                    PaidPostsOption(publication?.skipPaidPosts == true, detail?.paidOnly?.skipped ?: 0, viewModel::setSkipPaidPosts)
+                    PaidPostsOption(publication?.skipPaidPosts == true, detail?.paidOnly ?: PaidOnlyCount(0, 0), viewModel::setSkipPaidPosts)
                 }
                 if (offered.recordings) add {
                     SwitchRow(
@@ -573,13 +572,14 @@ private fun ChoiceRow(title: String, detail: String, onClick: () -> Unit, chevro
 }
 
 @Composable
-private fun PaidPostsOption(skip: Boolean, skipped: Int, onChange: (Boolean) -> Unit) {
+private fun PaidPostsOption(skip: Boolean, paidOnly: PaidOnlyCount, onChange: (Boolean) -> Unit) {
     SwitchRow(
         "Skip paid posts with nothing free",
         when {
-            skip && skipped > 0 -> "${plural(skipped, "paid post")} skipped so far: a title and a picture, nothing to read."
+            skip && paidOnly.skipped > 0 -> "${plural(paidOnly.skipped, "paid post")} skipped so far: a title and a picture, nothing to read."
             skip -> "A post that's only a title and a picture won't take a place."
-            else -> "Some of its posts are for paying subscribers, with only a title and a picture free."
+            paidOnly.found > 0 -> "Some of its posts are for paying subscribers, with only a title and a picture free."
+            else -> "Leaves out posts for paying subscribers that are only a title and a picture."
         },
         skip,
         onChange,
