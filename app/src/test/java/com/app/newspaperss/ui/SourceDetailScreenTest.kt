@@ -894,17 +894,18 @@ class SourceDetailScreenTest {
         val (id, ids) = sourceWithArticles()
         show(id)
         openSettings()
-        compose.idleUntil { visible("Skip paid posts with nothing free") }
-        assertTrue(visible("Leaves out posts for paying subscribers"))
+        compose.idleUntil { visible("Skip posts with nothing free") }
+        assertTrue(visible("Leaves out posts for subscribers"))
 
         runBlocking { repo.markPaidOnly(ids.getValue("delivered"), skip = false) }
-        compose.idleUntil { visible("Some of its posts are for paying subscribers") }
-        compose.onNodeWithText("Skip paid posts with nothing free").performClick()
+        compose.idleUntil { visible("Some of its posts are for subscribers") }
+        compose.onNodeWithText("Skip posts with nothing free").performClick()
         compose.idleUntil { runBlocking { db.sources().publication(id, PublicationEntity.OWN)?.skipPaidPosts == true } }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription(". Skips posts with nothing free", substring = true)).fetchSemanticsNodes().isNotEmpty() }
 
         runBlocking { repo.markPaidOnly(ids.getValue("waiting"), skip = true) }
-        compose.idleUntil { visible("1 paid post skipped so far") }
-        assertTrue(visible("Skipped: a paid post"))
+        compose.idleUntil { visible("1 post skipped so far") }
+        compose.idleUntil { visible("Skipped: nothing free") }
         assertEquals(ArticleState.EXPIRED, state(ids.getValue("waiting")))
     }
 }

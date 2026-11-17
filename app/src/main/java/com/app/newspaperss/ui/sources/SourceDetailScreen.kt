@@ -421,7 +421,7 @@ internal fun settingsSummary(offered: SiteSettings, publication: PublicationEnti
     }
     val extras = listOfNotNull(
         text,
-        "Skips paid posts".takeIf { offered.paidPosts && publication?.skipPaidPosts == true },
+        "Skips posts with nothing free".takeIf { offered.paidPosts && publication?.skipPaidPosts == true },
         "Recordings off".takeIf { offered.recordings && publication?.recordingsOff == true },
     ).joinToString(" · ").ifEmpty { null }
     return SettingsSummary(title, rule, extras)
@@ -566,12 +566,12 @@ private fun ChoiceRow(title: String, detail: String, onClick: () -> Unit, chevro
 @Composable
 private fun PaidPostsOption(skip: Boolean, paidOnly: PaidOnlyCount, onChange: (Boolean) -> Unit) {
     SwitchRow(
-        "Skip paid posts with nothing free",
+        "Skip posts with nothing free",
         when {
-            skip && paidOnly.skipped > 0 -> "${plural(paidOnly.skipped, "paid post")} skipped so far: a title and a picture, nothing to read."
+            skip && paidOnly.skipped > 0 -> "${plural(paidOnly.skipped, "post")} skipped so far: a title and a picture, nothing to read."
             skip -> "A post that's only a title and a picture won't take a place."
-            paidOnly.found > 0 -> "Some of its posts are for paying subscribers, with only a title and a picture free."
-            else -> "Leaves out posts for paying subscribers that are only a title and a picture."
+            paidOnly.found > 0 -> "Some of its posts are for subscribers, with only a title and a picture free."
+            else -> "Leaves out posts for subscribers that are only a title and a picture."
         },
         skip,
         onChange,
