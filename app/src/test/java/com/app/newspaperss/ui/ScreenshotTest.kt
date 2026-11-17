@@ -1120,7 +1120,7 @@ class ScreenshotTest {
         shoot("06b-source-detail", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, act = ::scrollToArticles) { SourceDetailScreen(vm, onBack = {}) }
     }
 
-    /** A newsletter that posts episodes: how often, and each one's label. */
+    /** A newsletter that posts episodes: each one's label. How often is in its settings sheet (06j). */
     @Test
     fun sourceDetailEpisodes() {
         val repo = SourceRepository(db, clock)
@@ -1143,9 +1143,7 @@ class ScreenshotTest {
             id
         }
         val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
-        shoot("06g-source-detail-episodes", ready = { vm.detail.value?.episodePairs?.isNotEmpty() == true }, act = {
-            compose.onNode(hasScrollAction()).performScrollToNode(hasText("Posts episodes", substring = true))
-        }) { SourceDetailScreen(vm, onBack = {}) }
+        shoot("06g-source-detail-episodes", ready = { vm.detail.value?.episodePairs?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
     /** A busy source lists only its newest articles, under a heading that says so and gives no count. */
@@ -1506,7 +1504,7 @@ class ScreenshotTest {
         shoot("06i-source-detail-paused", ready = { vm.detail.value?.source?.paused == true && vm.detail.value?.text?.maxArticles == 2 }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
-    /** The site's settings, opened from the row, with the switch for its recordings. */
+    /** The site's settings, opened from the row, with the switch for its recordings and how often it posts episodes. */
     @Test
     fun sourceDetailSettingsSheet() {
         val vm = letter()
@@ -1550,7 +1548,7 @@ class ScreenshotTest {
         shoot("06n-source-detail-top-200", ready = { vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
-    /** A site that sends only summaries: the page says so in ink, and the settings row where it's changed. */
+    /** A site that sends only summaries: the settings row says so, where it's changed. */
     @Test
     fun sourceDetailSummariesOnly() {
         val vm = letter { _, id ->

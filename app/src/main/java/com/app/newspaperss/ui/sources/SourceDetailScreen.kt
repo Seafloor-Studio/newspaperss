@@ -157,7 +157,6 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
     }
     val articles = detail?.articles.orEmpty()
     val publication = detail?.text
-    val episodes = episodesLine(articles)
     val offered = offeredSettings(viewModel, source, publication, detail?.paidOnly, articles)
     val knownTitle = publication?.title ?: articles.firstNotNullOfOrNull { it.originTitle }
     val feedTitle = knownTitle ?: "A feed"
@@ -226,9 +225,9 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
                     val lastNew = articles.maxOfOrNull { it.discoveredAt }
                     val paper = detail?.paper ?: PaperRecord()
                     val status = if (viewModel.isFeed) {
-                        feedStatus(publication, source, lastNew, paper, articles.isNotEmpty(), episodes, locale, is24Hour, clock.instant(), clock.zone)
+                        feedStatus(publication, source, lastNew, paper, articles.isNotEmpty(), locale, is24Hour, clock.instant(), clock.zone)
                     } else {
-                        phoneStatus(source, publication, lastNew, paper, articles.isNotEmpty(), episodes, locale, is24Hour, clock.instant(), clock.zone)
+                        phoneStatus(source, lastNew, paper, articles.isNotEmpty(), locale, is24Hour, clock.instant(), clock.zone)
                     }
                     SourceHeader(siteLink(source, publication, viewModel.isFeed), status, onCopied) { action ->
                         when (action) {
@@ -309,6 +308,7 @@ fun SourceDetailScreen(viewModel: SourceDetailViewModel, onBack: () -> Unit, onG
     if (settingsOpen && source != null) {
         SettingsSheet(
             offered, source, publication, detail,
+            episodes = episodesLine(articles),
             viewModel = viewModel,
             onChooseMode = { choosingMode = true },
             onLeaveOut = { leavingOut = true },
@@ -472,6 +472,7 @@ private fun SettingsSheet(
     source: SourceEntity,
     publication: PublicationEntity?,
     detail: SourceDetail?,
+    episodes: String?,
     viewModel: SourceDetailViewModel,
     onChooseMode: () -> Unit,
     onLeaveOut: () -> Unit,
@@ -520,18 +521,24 @@ private fun SettingsSheet(
                 if (i > 0) SettingsRule()
                 row()
             }
+            // Under the recordings switch, the last row, when there is one. Notes posts' episodes don't
+            // play in place, so a source posting only those has no switch but still says how often.
+            episodes?.let { SheetNote(it, Modifier.padding(top = if (offered.recordings) 0.dp else 12.dp)) }
             // The path the reader tapped through on Sources to get here.
             if (isFeed) {
-                Text(
-                    listOfNotNull("In your tt-rss", publication?.category?.let { "category $it" }).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp).padding(top = 12.dp),
-                )
+                SheetNote(listOfNotNull("In your tt-rss", publication?.category?.let { "category $it" }).joinToString(" · "), Modifier.padding(top = 12.dp))
             }
         }
     }
 }
+
+@Composable
+private fun SheetNote(text: String, modifier: Modifier) = Text(
+    text,
+    style = MaterialTheme.typography.bodySmall,
+    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    modifier = modifier.padding(horizontal = 16.dp),
+)
 
 @Composable
 private fun SwitchRow(title: String, detail: String, checked: Boolean, onChange: (Boolean) -> Unit) {
@@ -639,7 +646,8 @@ private fun modeLine(publication: PublicationEntity?) = when (publication?.chose
     else -> when (textFound(publication)) {
         TextFound.CHECKING -> "Automatic · still checking"
         TextFound.FULL -> "Automatic · full articles"
-        TextFound.SUMMARIES, TextFound.BLOCKED -> "Automatic · summaries only"
+        TextFound.SUMMARIES -> "Automatic · summaries only"
+        TextFound.BLOCKED -> "Automatic · summaries only: the site blocks fetching the full page"
     }
 }
 

@@ -705,9 +705,9 @@ whose Kindle and KOReader answers ask for more on the same page).
   - A page with nothing to say is passed over the way the listener was going: ⏮
     goes on back past it.
   A pair's title is cut to about 45 characters, so the banner fits.
-  A source that posts episodes says how often, among its newest judged posts:
-  "Posts episodes: 9 of the last 17 posts". Release builds never judge posts, so
-  show none of this. See [episodes-design.md](research/episodes-design.md).
+  A source that posts episodes says how often, among its newest judged posts, in
+  its settings sheet: "Posts episodes: 9 of the last 17 posts". Release builds
+  never judge posts, so show none of this. See [episodes-design.md](research/episodes-design.md).
 - **Listening:** an edition read aloud by the phone's own text-to-speech
   voice, made for a walk with the phone in a pocket and the odd glance at
   it.
@@ -975,11 +975,12 @@ whose Kindle and KOReader answers ask for more on the same page).
     fetched it) has a mark, a heavier weight and red, so it reads on e-ink.
     Its notes say how long it has failed, what it means for the paper, and
     tt-rss's own words; a failing feed's notes start with its last delivery.
-  - **The notes** say only what's worth saying: how recently it posted
-    ("New articles today", "Nothing new in 5 weeks"), "Last checked" only
-    when there's a problem, nothing listed or the check wasn't today, "Only
-    summaries: the site doesn't send full articles." in ink, and how often
-    it posts episodes. TalkBack reads the line and its notes as one.
+  - **The notes** say only what's worth saying about how it's doing: how
+    recently it posted ("New articles today", "Nothing new in 5 weeks"), and
+    "Last checked" only when there's a problem, nothing listed or the check
+    wasn't today. What reads like a setting (summaries only, how often it
+    posts episodes) is in the settings row and sheet instead. TalkBack reads
+    the line and its notes as one.
   - **The action**: **Start again** on a paused source, **Bring back** on
     a left-out feed, **Its settings in tt-rss ↗** when tt-rss can't or
     never fetched it.
@@ -997,11 +998,14 @@ whose Kindle and KOReader answers ask for more on the same page).
     scrolling at large text. In order, where each applies: **Pause this
     site** (a tt-rss feed has **Leave out of the paper** instead),
     **Article text ›** ("Automatic · full articles", "Automatic · summaries
-    only", "Automatic · still checking", "Feed's text" or "Full page"; a
+    only", "Automatic · summaries only: the site blocks fetching the full
+    page", "Automatic · still checking", "Feed's text" or "Full page"; a
     chooser of Automatic, the feed's text or the full page), the article
     limit with − and +, **Skip paid posts with nothing free**, and **Its
-    recordings in Listen**. A tt-rss feed's sheet ends with "In your tt-rss
-    · category Science". The sheet stays open across a rotation.
+    recordings in Listen**. Then, small, how often it posts episodes, if it
+    does: under the recordings switch, or on its own where a source's
+    episodes have nothing to play in place. A tt-rss feed's sheet ends with
+    "In your tt-rss · category Science". The sheet stays open across a rotation.
   - The app learns a tt-rss feed's site from the unread articles it
     fetches, so a feed left out, or one with nothing unread since, may not
     have one yet. Until the app knows a feed's site, the link at the top is
