@@ -32,7 +32,7 @@ class ReadingListTitleWorkerTest {
         .build()
         .doWork()
 
-    private suspend fun title() = container.db.articles().candidates().single().title
+    private suspend fun title() = container.db.articles().buildCandidates().single().title
 
     @Test
     fun retriesAnUnreachablePageAFewTimesThenLeavesTheLinkUntitled() = runTest {

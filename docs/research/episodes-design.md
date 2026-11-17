@@ -120,8 +120,10 @@ public feeds it hadn't seen and on one reader's own list of 91 feeds:
      audio is made again.
    - **The podcast log records each switch**: the post, its kind, the recording, and how far in.
      That shows which recordings people turn off, and whether some source's always are.
-   - **A per-source switch can come later**, if the log shows one source switched off again and
-     again.
+   - **A per-source switch** ("Its recordings in Listen", in a source's settings) is for a show
+     whose audio you never want. madCode asked for it with the Settings switches
+     ([#384](https://github.com/Seafloor-Studio/newspaperss/issues/384)) rather than waiting for
+     the log.
 
 ### Streaming and downloading
 
@@ -222,10 +224,10 @@ Step 3 starts once two weeks of labels in real use show:
 
 - Is 25% the right margin for "narrated"? Measure it on the corpus once lengths are fetched.
 - Should episodes download by default?
-- **Recorded audio on or off, at three levels:** for everything, per source, and per kind
-  (narrations and audio versions, transcripts, episode notes). Transcripts sit between the
-  other two: their episode is the same words, but with a show's ads and intros. The UX is
-  undecided: where the switches live, and whether they sit with Listen's per-article switch.
+- **Recorded audio on or off:** settled as a tick per kind in Settings › Listening
+  (Transcripts, Narrated articles, Episode notes), a switch per source in its settings, and
+  Listen's per-article switch. Still open: whether episode notes' episodes should also be able
+  to play in the notes' place.
 - The line on an episode post in the paper: worth it, or noise?
 - A post of 700–1,000 words with audio and no timestamps (a long guest introduction) is
   called an article. Now that notes are read too, the only difference is whether its episode

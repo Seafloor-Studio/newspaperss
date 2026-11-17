@@ -1,6 +1,5 @@
 package com.app.newspaperss.core.extract
 
-import com.app.newspaperss.core.ReadingTime
 import com.app.newspaperss.core.feed.LinkPosts
 import com.app.newspaperss.core.net.ErrorAnswers
 import com.app.newspaperss.core.net.TooLargeException
@@ -44,7 +43,6 @@ data class ExtractedArticle(
     /** Cleaned XHTML fragment, ready for an EPUB chapter. */
     val html: String,
     val wordCount: Int,
-    val minutes: Double,
     val usedFeedContent: Boolean,
     /** Shown to the reader above the article, e.g. when the page couldn't be fetched. */
     val note: String?,
@@ -64,6 +62,8 @@ data class ExtractedArticle(
     val pageFailure: PageFailure? = null,
     /** Why the page couldn't be read, in a few words ("not a web page"), when [pageFailure] is set. */
     val pageFailureReason: String? = null,
+    /** What the site answered when it turned the app away ([pageBlocked]): see [BlockedAnswer]. */
+    val pageBlockedAnswer: String? = null,
     /** The article's language as a BCP 47 tag, if the text or the page says. */
     val language: String? = null,
     /** The name of the site the story is from, if its page was read and says. */
@@ -149,8 +149,10 @@ class ArticleExtractor(private val http: HttpClient) {
 
         return when (val page = fetchPage(input, prefetched).also { if (it is PageResult.Fetched) onPage(it) }) {
             is PageResult.Failed ->
-                if (feed != null) fromFeed(feed, "Couldn't fetch the full article (${page.reason}); showing the feed's version.", null, page.blocked, failure = page.failure)
-                else failed(input, page.reason, page.blocked, page.failure)
+                (
+                    if (feed != null) fromFeed(feed, "Couldn't fetch the full article (${page.reason}); showing the feed's version.", null, page.blocked, failure = page.failure)
+                    else failed(input, page.reason, page.blocked, page.failure)
+                ).copy(pageBlockedAnswer = page.answer)
             is PageResult.Fetched -> {
                 val words = page.clean.wordCount
                 // The page holds this item among others (one of a day's posts on a blog's page for the day,
@@ -226,7 +228,8 @@ class ArticleExtractor(private val http: HttpClient) {
     private sealed interface PageResult {
         /** @param anchoredText the whole page's text, [normalized], when it has the element the address's fragment names. */
         class Fetched(val content: PageContent, val clean: CleanResult, val url: String, val anchoredText: String? = null) : PageResult
-        class Failed(val reason: String, val blocked: Boolean = false, permanent: Boolean = false) : PageResult {
+        /** @param answer what a site that turned the app away answered: see [BlockedAnswer]. */
+        class Failed(val reason: String, val blocked: Boolean = false, permanent: Boolean = false, val answer: String? = null) : PageResult {
             val failure: PageFailure? = when {
                 blocked -> null
                 permanent -> PageFailure.PERMANENT
@@ -288,10 +291,10 @@ class ArticleExtractor(private val http: HttpClient) {
     }
 
     private fun unusable(response: HttpResponse): PageResult.Failed? {
-        if (response.code in ErrorAnswers.BLOCKED) return PageResult.Failed("the site turned the app away (error ${response.code})", blocked = true)
+        if (response.code in ErrorAnswers.BLOCKED) return PageResult.Failed("the site turned the app away (error ${response.code})", blocked = true, answer = BlockedAnswer.of(response))
         permanentFailure(response)?.let { return PageResult.Failed(it, permanent = true) }
         if (!response.isSuccessful) return PageResult.Failed("error ${response.code}")
-        if (isBotCheck(response.body)) return PageResult.Failed("the site asked for a bot check", blocked = true)
+        if (isBotCheck(response.body)) return PageResult.Failed("the site asked for a bot check", blocked = true, answer = BlockedAnswer.of(response))
         return null
     }
 
@@ -307,7 +310,6 @@ class ArticleExtractor(private val http: HttpClient) {
             author = PageExtractor.cleanAuthor(input.feedAuthor),
             html = html,
             wordCount = 0,
-            minutes = 0.0,
             usedFeedContent = false,
             note = "Couldn't fetch this article.",
             imageUrls = emptyList(),
@@ -388,7 +390,6 @@ class ArticleExtractor(private val http: HttpClient) {
         author = author,
         html = clean.html,
         wordCount = clean.wordCount,
-        minutes = ReadingTime.minutes(clean.wordCount),
         usedFeedContent = usedFeed,
         note = note,
         imageUrls = clean.imageUrls,

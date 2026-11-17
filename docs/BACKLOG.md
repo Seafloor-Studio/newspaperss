@@ -11,6 +11,10 @@ Grouped by part of the app. The tag says where each item came from: *device* (yo
 *live* (building real editions), *a11y* (the accessibility audit), *ux* (the Day 3 UX pass),
 *audit* (the architecture audit, #163–#166).
 
+### First up *(you chose)*
+
+- [ ] **On a Boox, a not-sent edition offers Read,** as a ready edition does, since its book is still on the phone. Today it asks "Read it another way?" with no first way offered (no Read or Open). madCode chose this on the 31 Oct morning page, over rewording it as "Read it on your Boox?". *(from the 30 Oct test audit)*
+
 ### From the 16 Oct audit *(audit)*
 Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "checked" means read against the code, not yet reproduced.
 - [ ] Another tt-rss user, or another server, still meets the first one's delivered links: `delivered_urls` is shared, so a story the first user received is skipped for the second, and marked read on their server. Small, but partners often follow the same blogs. Forget the delivered links that came only from the old source when it goes? *(review, 16 Oct)*
@@ -48,12 +52,37 @@ Cycle G6. Fixed in #363 (CI) and #364 (nested JSON). Measured unless it says "re
   - **Feed images can point at local-network addresses.** As in any feed reader.
   - **tt-rss in Docker uses `:latest` on purpose,** and the emulator's KOReader is F-Droid's latest.
 
+### From the 30 Oct test audit *(audit)*
+
+What each screen offers by the edition's state wasn't tested past ready and sent editions, so a not-sent edition lost Listen (#401, #410). Robolectric unless it says otherwise. All built in cycles N2–N6 (#411–#416); the Boox question is decided and leads Next.
+
+- [x] **The natural-voice audio line on the edition page, by status:** ready, sent and not sent, against audio asked for, part made and made. `PodcastLineTest` checks the line alone; only a screenshot shows it inside the page.
+- [x] **Deleting the edition you're listening to, or one that has audio:** through the real wiring in `AppContainer` (`listen.forget`, `podcastStore.delete`), and the clean-up after each run (`pruneFiles`). The bar should let go and the audio's space come back. The tests now check that a stand-in was called.
+- [x] **Today's card when the newest edition is a not-sent one** (after making another and deleting it): it offers only "Try again", while its page offers Mark as sent and Listen. Make the card match the page (EditionActions says they offer the same), with a test.
+- [x] **The status changing while the page is open or playing:** a ready edition released by the morning build keeps Listen and its audio line.
+- [x] **Emulator:** `journeys.sh two-editions` stops at Today's list; go on to open the not-sent edition and wait for "Listen ·" and "Mark as sent". *(device)*
+
 ### Onboarding and setup
 
 ### Sources and fetching
 - [ ] **Platform pass** *(you asked)*: a test corpus of real posts from the big blog and newsletter platforms, from their own feeds and through tt-rss, checked for footnotes, embeds, captions, paywall teasers and link posts; what breaks gets fixed and the corpus keeps it fixed (`PlatformCorpusTest`). Round 1 covered Substack, Ghost, WordPress, Medium, Blogger, Buttondown and Micro.blog; round 2 added a magazine with its own site (New Left Review), Stratechery and a MemberPress site, found by running `extractionSweep` over a real reading list and over `tools/sweep-feeds.opml`, public feeds picked for variety (news, other languages and scripts, static sites, microblogs). Run that list again before a change to extraction. Still to add: Tumblr (it answers 429 to the collector), beehiiv, posts with galleries, tweets and Bluesky embeds, and more footnote styles
 - [x] **Show tt-rss's own feed errors** *(you asked)*: tt-rss's `last_error` for each feed, on the feed's row and page and named in a banner on Sources
 - [ ] Paywalled and summary-only sites: warn when a site is added; keep stubs from eating the budget; drop metered sites from starter packs *(personas)*
+- [ ] **Sign in to a site so its articles are fetched as you** *(you asked)*: for a paid
+  subscription whose feed gives only a summary (the New York Times has no subscriber feed with the
+  text). Sign in once inside the app; its session goes with that site's article fetches; say when it
+  has expired. Mind the site's terms on automated access. What it would and wouldn't fix, from NYT
+  in November:
+  - **The paywall: yes.** Signed out, most NYT articles come whole (the page has the text and hides
+    it behind a script; 40 fetched back to back from a cloud machine, none paid), but a
+    subscriber-only one won't, and only a sign-in gets its text.
+  - **Bot blocking: no.** An NYT article came back 403 on the phone, on home Wi-Fi, yet the same
+    client got 200 for every article from that home network, both on the JVM and on an Android
+    emulator, and NYT cleared its DataDome cookie each time rather than challenging. So the 403
+    was the phone's moment, not the address or Android's network stack, and a session wouldn't
+    get past a block. Debug builds now keep what a site answered when it turned the app away, and
+    Send for a look carries it: the next blocked NYT article says which blocker and why.
+- [ ] **Skip paid posts' previews too** *(you asked)*: a source can already skip paid posts with nothing free (a title and a picture). Let it also skip the ones that come as a preview, only the free part before "Subscribe to read", so an edition carries whole articles only. Per source, beside the existing choice, with the count on its page.
 - [x] A feed over 10 MB was refused as too large: some static sites (a Hugo `index.xml`) put every post they ever wrote in one feed. Now it's read up to 10 MB, keeping the whole items before the cut *(sweep)*
 - [ ] Webtoons: episodes are one long strip of 84–140 lazily loaded panels (a phone is sent to m.webtoons.com, which lists them in a script; the desktop viewer has them in `data-url`), beyond the 20-image cap. Built and measured on `claude/today-d-c7` (D7), not shipped. Before it can ship: the image budget must take a strip whole or not at all (today it is shared and greedy, so a strip gets gaps mid-episode and starves later articles); no cap that cuts an ending silently; ask for `?type=opti` (PNG panels ignore `q90`: 800 KB vs 300 KB); drop the feed's two thumbnail panels, which otherwise repeat after the strip; panels contiguous in the book (no figure margins), with alt text. Re-encoded, an episode is about 6–9 MB *(device)*
 - [ ] Webtoons: episodes are one long strip of dozens of lazy images (`data-url`), beyond the 20-image cap, and its mobile site hides the feed. Support strips properly *(device)*
@@ -67,7 +96,7 @@ Cycle G6. Fixed in #363 (CI) and #364 (nested JSON). Measured unless it says "re
 - [ ] Boox: offer folder delivery into the Books folder, so editions stay in the library *(personas)*
 - [ ] Folder delivery: tt-rss marks articles read as soon as the file is saved, before Syncthing has synced; old editions pile up in the folder *(personas)*
 - [ ] Verify folder delivery and the chooser from the notification on a real device
-- [ ] **Your call: an edition listened to the end counts as read?** *(you asked)* Today finishing Listen only notes the edition as finished: it stays "Ready to send", so when the next edition is made it's marked not sent and its articles come back for the next paper. **Read** on a Boox already counts as sent. Options: mark it sent on reaching the closing page; or ask there once, "Finished. Count this edition as read?" (Yes / Not now), and never for one already sent or marked. Recommended: ask, since some listen and then send it to the e-reader too, and marking it sent also marks its articles read in tt-rss
+- [x] **An edition listened to the end counts as read** *(you asked)*: the closing page offers **Mark as sent**.
 - [ ] If lead time isn't enough on a real device, wake timed editions with an exact alarm (Doze defers WorkManager; expedited work can silently restart a long build). Measured on the emulator (#352, `doze.sh timed`): in deep sleep the timer is held until the next maintenance window, about a minute late there because the emulator grants one at once. On a phone overnight it's however long the next window takes, which the 30-minute lead may or may not cover; a phone's overnight run is what decides this
 
 ### tt-rss, for a returning reader *(personas)*
@@ -81,6 +110,15 @@ Cycle G6. Fixed in #363 (CI) and #364 (nested JSON). Measured unless it says "re
 
 ### From the UX pass *(ux)*
 - [ ] Boox: consider turning off ripples on e-ink (they cause partial refreshes); Boox's own refresh modes may make it moot
+- [ ] **How long an unpicked article waits, for editions that aren't daily** *(you asked; wait for feedback)*. Articles wait 7 days, and expire at the sync just before an edition. A weekly edition's gap is the same 7 days, so whatever arrives in the hours after one edition is gone just before the next. Two ways, not exclusive:
+  - Wait at least two editions' gap: two weeks for a weekly paper, still 7 days for a daily one.
+  - Keep each feed's newest 4 waiting past the week, whichever is later, so a quiet feed always has something for its turn.
+  - The countdown under a waiting article ("3 days left") would follow the same rule.
+- [ ] **The player under an article shrinks while you scroll** *(you asked)*. Scrolling the page yourself shrinks the full player to the slim listening bar, which gives the page back while Listen plays on. Tapping the bar brings the full player back and jumps to the sentence being read, as **Back to where it's reading** does now. To settle when building it:
+  - Only a scroll you make shrinks it, not the page following the voice.
+  - It shrinks once, with no grow-back while you scroll up, so the page doesn't jump about, and e-ink isn't redrawn on every scroll.
+  - While it's shrunk, the page stops following the voice, but the sentence being read stays tinted.
+  - **Back to where it's reading** and the bar's tap become one control.
 
 ### Today
 - [ ] Boox: tell the app on the Boox from the app on a phone (Android's maker is Onyx). Today choosing Boox means **Read** wherever the app runs, so a reader sending with BooxDrop from a phone would read it on the phone, and that counts as sent *(you asked)*
@@ -110,6 +148,7 @@ A full pass over the app and the book, not just spot fixes:
 
 ### Performance *(resources)*
 - [ ] A floor device: Android 8, 2 GB RAM, slow CPU and storage (a 2018 budget phone or an older Boox) *(you asked)*. Measured so far (#352, CI's `low-end` job, a debug build): cold start about 1 s, the first edition about 10 s, the app about 90 MB. Still to do: a full 30-minute edition rather than the first small one, timed editions under Doze on Android 8 (#352 measured Doze on Android 16), whether long lists and the preview stay smooth, and budgets set from the numbers
+- [ ] A natural-voice run that crawls *(you asked)*. On 31 Oct, after the process before it was killed for memory, Kokoro took 35 to 211 s a line (12 s of audio in 176 s), with heat headroom at 0.33, far below the 0.95 that stops a run. The failure that followed now gets a retry, but a run that slow can't finish a night. Spot it from seconds of work per second of audio, and stop and start again fresh, as the heat check does. Wait for a second log showing it before building it.
 
 ### Recurring reviews *(audit)*
 Whole-codebase passes for what a review of one PR can't see. Each follows the audit's pattern: fresh-eyes reviewers, each finding checked, a PR per area.
@@ -120,9 +159,31 @@ Whole-codebase passes for what a review of one PR can't see. Each follows the au
 - [ ] **Check on a phone: a background install while an edition sent from its notification is in another app's hands.** Send on the notification starts the mail app or e-reader from `SendEditionActivity`, outside `MainActivity`, and nothing waits for it. If an install then replaces the app, can that app still read the book? Steps: tap Send, leave the mail draft open, let the next build install, then send the mail. *(device)*
 
 ### Tech debt
+From the N12 audit of sync and the data layer (30 Oct). Mostly lean; no reader-facing bug.
+- [x] **Every tt-rss call opens and logs out by hand:** one `TtrssClient.session { }` now holds the logout, `subscribe`'s included (cycle T2).
+- [x] **Code only tests keep alive:** `connect`, `check`'s category reading, `candidates`, `insertNew` (now a test helper), `allLeftOut`, `EditionDao.count` and the whole-row `SourceDao.update` are gone; tests use what the app calls (cycle T3). `markRead`/`markUnread` stay public: private, seven tests would go through `syncRead` for no lines saved.
+- [x] **The same lookups spelled several times in `TtrssRepository`:** `accountSource()`, `PublicationEntity.inAccount`, and one headline page request and id parser in `TtrssClient` (cycle T2). The `Pair`/`Login` double stays: small.
+- [ ] A link saved or shared over 4,000 characters isn't held to `RowLimits` as feed articles are. Nothing breaks (the row fits), and refusing it needs its own message ("already on your list" would be wrong), so left until a reader meets it.
+
+From the N11 audit of making an edition (30 Oct). The build flow itself (failure, cancellation, the commit, releasing unsent editions, the deadline) held up.
+- [x] **Titled sections in the book are built for and never used:** `EditionDoc` takes a flat list of articles; the book is byte for byte the same but for two unused CSS rules (cycle T1).
+- **Left as is (T1): only JPEG pictures are ever made, yet the writer allows PNG and GIF.** Dropping it would save about 10 lines and touch the encoder's interface and 42 test call sites, and lose the check that keeps a picture's media type honest in the book.
+- [ ] `Budget.Articles` and a null `maxPerSource` exist only for `EditionPlannerTest`; the app always budgets minutes with a cap.
+
+From the N10 audit of the article view and Listen (30 Oct). Read against the code; none is a bug a reader meets today.
+- [x] **The article view takes six Listen parameters:** it takes one `Listening`, which carries the voice's flows; the bar and the article route hand over the same object (cycle L).
+- [x] **"Listen has this edition" is worked out once** in `ArticlePreviewScreen` (cycle L). Its error stays drawn in two places on purpose: one place would move it on screen, above a recording's note or with other spacing, for about 3 lines. The test this item asked for exists (`anEditionWhoseBookIsGoneSaysSoAboveThePageOnce`, `aVoiceThatStopsWorkingSaysSoOnce…`).
+- [ ] **The view reads the edition's articles from three places:** the EPUB's article files (how many, which decides where the closing page starts), its contents page (the "Next" line) and the database (title, episodes, Listen's pages). They agree while positions run 0 to n-1, which every edition so far does; one list would remove the guess at the closing page's boundary.
 - [ ] Listen sometimes stops at the paragraph instead of scrolling down to the sentence being read: its fine scroll needs the paragraph's text layout, which may not be recorded yet when the scroll runs. Seen as `11d-listen-larger-text` differing between two renders; likely on a phone too *(today B7)*
 
 ### Later
+
+- **Episode notes: play the episode in their place** *(device)*: a third choice under Settings ›
+  Listening › Episode notes, besides after the edition and not at all. Held back from the
+  Recordings redo: spread over the notes' few lines an hour's episode loses its place by minutes
+  after a restart, shows a minute's length when the feed gives none, and a notes post before its
+  transcript would take the transcript's episode. Do it on a page of 30-second marks, as the
+  episodes after the edition have, with the transcript winning over its notes.
 - [ ] When releases start, the live (debug) channel keeps self-updating; release builds never do.
 - [ ] Send the email itself (SMTP, an app password), so a Kindle edition arrives with no tap and from a chosen account; email delivery through the mail app is done (#123)
 
@@ -289,25 +350,65 @@ The phone's voice reading an edition, and Settings › Listening for it, are bui
 - **A sleep timer**, and a way in from Today's card.
 - **Save as audio:** the edition as a file with a chapter per article, for a podcast or audiobook app. With the audio made, it's already most of the way there.
 
+### Naming the recording chips *(you asked)*
+
+- [ ] **Your call: the chip names in Settings › Listening › Recordings,** one for each way a recording takes the voice's place:
+  1. a transcript's episode in its place;
+  2. an author's reading in its place;
+  3. a notes post's episode at the end of the edition;
+  4. maybe a notes post's episode in place of its show notes (not built).
+
+  Suggested: **Episode instead of its transcript**, **Author's reading**, **Episode after the paper**, **Episode instead of its show notes**. For 3 and 4, one three-way choice (notes read / episode at the end / episode in their place) might be clearer than two chips. Waiting on madCode's pick; then rename the chips, the note above the page and DESIGN.md.
+
 ### Listening in the reading view *(you asked)*
 The article preview (the book's page in a WebView) and the playing screen (the article redrawn
 in Compose, a sentence at a time) are separate, and the playing screen loses the article's
 formatting. Step 1, the bar along the bottom of every screen, is built (#398).
 
-**Step 2, decided: one renderer for both**, drawn by the app from `ListenScript`, not a WebView
-with JavaScript. Each step its own PR:
+**Step 2, decided: one view for reading and listening**, drawn by the app from `ListenScript`,
+not a WebView with JavaScript: one renderer, one language, all of it testable on the JVM.
+madCode chose it on 2026-10-28 as the ideal. Each step its own PR:
 - [x] **The page model:** `ListenScript` holds what's shown as well as what's said (styles, list
-  numbers, tables, furniture), each sentence knowing where it's shown. Spoken lines unchanged.
-- [ ] **The playing screen draws it:** bold, italics, links, numbered lists, tables, code, the
-  byline's date; the book's typeface and Aa size.
-- [ ] **The preview switches to it:** quote sharing rebuilt on Compose's selection, wide tables
-  and code scrolling sideways, pictures at their size. Pinch zoom goes (Aa covers it), and the
-  preview stops claiming to be exactly the e-reader's page. Check on the CI emulator: the old
-  WebView preview and the new one side by side from the same book; and on a Boox by madCode.
-- [ ] **Later, madCode's call: one view for both.** The decisions from the first plan that still
-  hold: contents a pop-up; the view and the voice stay on one article; while playing, a tap plays
-  from there and real links open; on e-ink, turn a screen at a time rather than scroll.
-
+  numbers, tables, furniture), each sentence knowing where it's shown. Spoken lines unchanged (#400).
+- [x] **The playing screen draws it** (`ui/listen/PageText.kt`): bold, links, numbered lists,
+  tables, code, the byline's date and the page's furniture, at the Aa size (#401).
+- [x] **The preview drawn from the page model,** no WebView. It keeps all it does now, with
+  nothing of Listen's added yet:
+  - Aa, Share, Go to source and Send for a look in the top bar; the episode label line; the
+    "Next" line at the end; pictures at their size (as `imageSizes` sizes them now).
+  - Quote sharing rebuilt on Compose's text selection, with the same "where it's from" line.
+  - Pinch zoom goes (Aa covers it). DESIGN.md stops saying the page is exactly the e-reader's:
+    each e-reader sets its own fonts and margins; `tools/render-epub.sh` is how to check the book.
+  - Checks: before/after screenshots of every preview shot (the WebView ones come out blank on the
+    JVM, so "before" comes from the CI emulator, drawn from the same book), and on a Boox by madCode.
+- [x] **One view for both:** the preview becomes the playing screen, and the separate playing
+  screen goes (#417, #418 and N9's PR). Left from it, in the next item. Opening an article, the bar along the bottom, or the media notification all land
+  in it.
+  - **The player** sits under the page while Listen has this edition open: the dock as now
+    (edition bar, ↶ ↷ ⏮ ⏭, speed, times, episodes after the edition). Otherwise the top bar's
+    **Listen from here** starts it at this article.
+  - **The view and the voice stay on one article.** Scrolling within it is free (it stops
+    following until "Back to where it's reading"). Going to another article while listening, by
+    "Next", a link in the book or the contents, moves the voice to its start; when the voice
+    finishes an article, the view turns to the next.
+  - **Contents stay a pop-up** over the article, as on the playing screen now: the voice plays on
+    while it's open, and picking an article moves both.
+  - **Taps:** while Listen plays, a tap on a sentence reads from it and a web link opens. Not
+    playing, taps do nothing but links. Long-press selects text, with quote sharing and **Listen
+    from here** in its menu.
+  - **The sentence being read** is tinted and underlined, and the page follows the voice.
+  - **E-ink:** turn a screen at a time when the voice reaches the bottom, not scroll with it:
+    each scroll there is a full refresh.
+  - **Pages that aren't articles,** the closing page and the episodes after the edition, are drawn
+    from their scripts in the same view, as the playing screen does now.
+  - **Rotation and restore:** where the page was, the sentence tinted, an open contents pop-up or
+    text selection; `StateRestorationTester` for what must happen once.
+  - Checks: TalkBack (each paragraph a stop that can "Read from here", links as actions), 200% font,
+    landscape (the dock's height), and a Boox by madCode.
+- [ ] **What one view left:** TalkBack's "Read from here" as an action of each paragraph while
+  playing (a tap does it now; links are already actions); **Listen from here** in the long-press
+  selection menu (the top bar's headphones do it now); and checking a screen at a time on a Boox,
+  by madCode.
 
 ### Podcast episodes in feeds *(you asked)*
 The plan is [research/episodes-design.md](research/episodes-design.md); the research and the
@@ -321,7 +422,7 @@ labelled corpus are [research/podcast-episodes.md](research/podcast-episodes.md)
 - [ ] **Readings for editions made before #322:** their audio was never timed, so an article's own audio isn't played. Time what's missing when Listen opens an edition
 - [x] **Step 4, transcripts:** a transcript plays its episode in its place, streamed
 - [x] **Switches for recordings** in Settings › Listening: all of them, or by kind (#384)
-- [ ] **A source's own switch for its recordings** (#384): madCode wants it, with a shorter source page; the layout is still being chosen on the issue
+- [x] **A source's own switch for its recordings**, in its settings sheet, with the source page's settings behind one row (#384)
 - [x] **Step 4, notes: their episode plays at the end**, after the closing page, streamed
 - [ ] **Keep the place in an episode after the edition:** paused there, it plays on while the app is running, but if Android ends the app the edition starts again from the top (it counts as heard) and the episode has to be found in the contents. Which episodes there are can change by the next opening, so it has to be kept by the episode's address, not its page
 - [ ] **Step 4, notes read without their furniture:** timestamps, sponsor blocks, link lists and subscribe lines left out when the voice reads notes
@@ -427,6 +528,7 @@ A first step, if wanted: move `:core` to Kotlin Multiplatform, which also keeps 
 
 ## Done
 
+- [x] **A not-sent edition made the real way** *(N1)*: `ListenAppTest.anEditionReleasedByTheNextBuildStillOffersItsBook` builds two editions with the real builder and checks the first's page offers Resume where it was left, Mark as sent, its articles and Save a copy. A note the builder writes that the screens don't know turns it red. The audio line on the page is the next item's
 - [x] **Feeds: a linear entity check, and at most 1,000 items** *(H3, #376)*: the check reads the prolog once, past comments, and Android's parser is held to not expanding declared entities (`FeedParserEntityTest`); a feed keeps its 1,000 newest items by date
 - [x] **`AccessibilityChecksTest` no longer hangs the device job** *(H1, #374)*: the tap after switching to 200% text landed on the activity Android was about to recreate, and the new one's splash waited on a frame from the test's clock. It now waits for the new activity. 4 failures in 10 runs before, under the same 10-emulator matrix; 0 in 20 after
 - [x] **Accessibility tooling** *(a11y)*: Google's accessibility checks (the engine Accessibility Scanner uses) run on every screen a new reader meets, on the emulator in CI (#347). Not in the Robolectric tests: there the checks run on nothing and pass

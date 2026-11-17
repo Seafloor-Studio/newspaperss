@@ -21,6 +21,8 @@ import com.app.newspaperss.listen.Reading
 import com.app.newspaperss.listen.Readings
 import com.app.newspaperss.listen.ReadingSpeaker
 import com.app.newspaperss.core.episodes.EpisodeKind
+import com.app.newspaperss.ui.components.listenBanner
+import com.app.newspaperss.listen.Outcome
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.runtime.CompositionLocalProvider
 import com.app.newspaperss.testutil.TestDataStores
@@ -33,7 +35,7 @@ import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.isDialog
 import com.app.newspaperss.ui.components.LocalClock
@@ -105,12 +107,11 @@ import com.app.newspaperss.listen.PodcastStore
 import com.app.newspaperss.listen.Podcasts
 import com.app.newspaperss.listen.StoredListenProgress
 import com.app.newspaperss.testutil.FakeSpeaker
-import com.app.newspaperss.ui.listen.ListenScreen
 import com.app.newspaperss.core.epub.EditionArticle
 import com.app.newspaperss.core.epub.EditionDoc
-import com.app.newspaperss.core.epub.EditionSection
 import com.app.newspaperss.core.epub.EpubWriter
 import com.app.newspaperss.ui.edition.EditionDetailViewModel
+import com.app.newspaperss.listen.EpisodeAfter
 import com.app.newspaperss.ui.onboarding.OnboardingScreen
 import com.app.newspaperss.ui.onboarding.OnboardingViewModel
 import com.app.newspaperss.ui.onboarding.Step
@@ -139,6 +140,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import com.app.newspaperss.data.TtrssSubscriptions
 import com.app.newspaperss.data.FeedMoves
+import com.app.newspaperss.data.connect
+import com.app.newspaperss.data.insertNew
 import com.app.newspaperss.ui.sources.PhoneFeeds
 import kotlinx.coroutines.launch
 import com.app.newspaperss.ui.sources.AddState
@@ -200,7 +203,7 @@ class ScreenshotTest {
         compose.setContent { NewspaperssTheme { CompositionLocalProvider(LocalClock provides clock, LocalRippleConfiguration provides null, content = content) } }
         // Recomposing on each check: some screens only start loading part of what [ready] waits
         // for once they're drawn (Sources' folded categories).
-        idleUntil { compose.waitForIdle(); ready() }
+        compose.idleUntil { ready() }
         compose.waitForIdle()
         act()
         compose.waitForIdle()
@@ -272,7 +275,7 @@ class ScreenshotTest {
     /** At the import step, after the question was answered with another reader app. */
     private fun atTheImportStep(): OnboardingViewModel = onboarding().apply {
         next(); chooseDevice(Device.KOBO); next(); answer(FeedsAnswer.OTHER_APP)
-        idleUntil { state.value.step == Step.IMPORT }
+        compose.idleUntil { state.value.step == Step.IMPORT }
     }
 
     @Test
@@ -306,7 +309,7 @@ class ScreenshotTest {
     private fun onboardingOnThePhone(vm: OnboardingViewModel) = vm.apply {
         next(); chooseDevice(Device.KINDLE); editKindleEmail("name_abc123@kindle.com"); next()
         answer(FeedsAnswer.SITES)
-        idleUntil { state.value.step == Step.SOURCES }
+        compose.idleUntil { state.value.step == Step.SOURCES }
     }
 
     /** A site with no feed: its page can go to the reading list instead. */
@@ -350,7 +353,7 @@ class ScreenshotTest {
         OnboardingViewModel(store, SourceRepository(db, clock), FeedFinder(ttrssHttp), ttrss) {}.apply {
             next(); chooseDevice(Device.KINDLE); editKindleEmail("name_abc123@kindle.com"); next()
             answer(FeedsAnswer.SERVER)
-            idleUntil { state.value.step == Step.SIGN_IN }
+            compose.idleUntil { state.value.step == Step.SIGN_IN }
         }
 
     @Test
@@ -366,10 +369,10 @@ class ScreenshotTest {
             editSignIn(state.value.signIn.copy(address = "rss.example.com/tt-rss", user = server.user, password = "wrong"))
             signIn()
         }
-        idleUntil { vm.state.value.signIn.error != null }
+        compose.idleUntil { vm.state.value.signIn.error != null }
         vm.editSignIn(vm.state.value.signIn.copy(password = server.password))
         vm.signIn()
-        idleUntil { vm.state.value.signIn.error == TtrssRepository.REFUSED_SOON_AFTER }
+        compose.idleUntil { vm.state.value.signIn.error == TtrssRepository.REFUSED_SOON_AFTER }
         shoot("03b-onboarding-sign-in-too-soon") { OnboardingScreen(vm) }
     }
 
@@ -390,7 +393,7 @@ class ScreenshotTest {
             editSignIn(state.value.signIn.copy(address = "rss.example.com/tt-rss", user = server.user, password = server.password))
             signIn()
         }
-        idleUntil { vm.state.value.signedIn }
+        compose.idleUntil { vm.state.value.signedIn }
         vm.next()
         val readingList = com.app.newspaperss.ui.readinglist.ReadingListViewModel(com.app.newspaperss.data.ReadingListRepository(db, clock))
         shoot("03d-onboarding-extras") { OnboardingScreen(vm, readingList = readingList) }
@@ -493,6 +496,21 @@ class ScreenshotTest {
         if (compose.onAllNodes(menu).fetchSemanticsNodes().isNotEmpty()) compose.onNode(menu).performClick()
     }
 
+    /** The newest edition left is one released as not sent: Mark as sent, and making another. */
+    @Test
+    fun todayNotSent() {
+        val files = tmp.newFolder().apply { resolve("x.epub").writeText("epub") }
+        runBlocking {
+            val now = Instant.parse("2026-09-29T06:30:00Z")
+            db.editions().insert(EditionEntity(title = "Monday Morning Edition", createdAt = now.minusSeconds(86_400), status = EditionStatus.DELIVERED, articleCount = 7, minutes = 31.0))
+            db.editions().insert(
+                EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.FAILED, error = com.app.newspaperss.edition.EditionBuilder.NOT_SENT, fileName = "x.epub", articleCount = 8, minutes = 33.4),
+            ).also { db.editions().insertArticles(sampleArticles(it)) }
+        }
+        val vm = viewModels.add(TodayViewModel(EditionRepository(db, files, clock), flowOf(null), now = { clock.instant().atZone(clock.zone) }) {})
+        shoot("05l-today-not-sent", ready = { vm.state.value.editions?.isNotEmpty() == true }) { TodayScreen(vm) }
+    }
+
     @Test
     fun todaySentKindle() = todaySent("05d-today-sent-kindle", Device.KINDLE, kindleNote = true)
 
@@ -507,6 +525,13 @@ class ScreenshotTest {
         val vm = sentEdition()
         val listening = listening()
         shoot("05b-edition-detail", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}, listening = listening) }
+    }
+
+    /** A ready edition: its second article heard to its end in Listen (sent on its own), its last marked read on its source's page. */
+    @Test
+    fun editionDetailReadyPartRead() {
+        val vm = sentEdition(ready = true)
+        shoot("05b3-edition-detail-ready-part-read", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}) }
     }
 
     /** Posts the episode detector judged: a letter and its reading, show notes, a transcript, and an article. */
@@ -538,11 +563,48 @@ class ScreenshotTest {
         }) { EditionDetailScreen(vm, onBack = {}) }
     }
 
+    /** The episodes after the edition, on its page: one not started, one part heard, one heard. */
+    @Test
+    fun editionDetailEpisodesAfter() {
+        val id = runBlocking {
+            val now = Instant.parse("2026-09-29T06:30:00Z")
+            val edition = db.editions().insert(EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.DELIVERED, fileName = "e.epub", articleCount = 3, minutes = 14.0, deliveredAt = now))
+            db.editions().insertArticles(
+                listOf("Episode 212: The ferry planner" to "The Example Show", "What do octopuses dream about?" to "Nautilus", "Episode 48: Night trains" to "Rail Talk").mapIndexed { i, (title, source) ->
+                    EditionArticleEntity(editionId = edition, articleId = null, position = i, title = title, sourceTitle = source, minutes = listOf(2.0, 9.0, 3.0)[i])
+                },
+            )
+            edition
+        }
+        val episodes = listOf(
+            EpisodeAfter(4, "https://cdn.example/12.mp3", "Episode 212: The ferry planner", "The Example Show", 3_480, heardSeconds = 1_380),
+            EpisodeAfter(5, "https://cdn.example/48.mp3", "Episode 48: Night trains", "Rail Talk", 2_700),
+            EpisodeAfter(6, "https://cdn.example/11.mp3", "Episode 11: Lighthouses", "Coastlines", 2_160, finished = true),
+        )
+        val vm = viewModels.add(EditionDetailViewModel(EditionRepository(db, tmp.newFolder().apply { resolve("e.epub").writeText("epub") }, clock), id, episodesAfter = { kotlinx.coroutines.flow.flowOf(episodes) }) {})
+        val listening = listening()
+        shoot("05k2-edition-detail-episodes-after", ready = { vm.detail.value?.contents?.isNotEmpty() == true && vm.episodes.value.isNotEmpty() }, act = {
+            compose.onNode(hasScrollAction()).performScrollToNode(hasText("Episode 11: Lighthouses"))
+        }) { EditionDetailScreen(vm, onBack = {}, listening = listening) }
+    }
+
     /** Not sent before the next was made: released, and can still be marked as sent. */
     @Test
     fun editionDetailNotSent() {
         val vm = sentEdition(notSent = true)
-        shoot("05j-edition-detail-not-sent", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}) }
+        val listening = listening()
+        shoot("05j-edition-detail-not-sent", ready = { vm.detail.value?.contents?.isNotEmpty() == true }) { EditionDetailScreen(vm, onBack = {}, listening = listening) }
+    }
+
+    /** Released as not sent while a newer edition is being made: Mark as sent waits, and says why. */
+    @Test
+    fun editionDetailNotSentWhileOneIsMade() {
+        val vm = sentEdition(notSent = true)
+        runBlocking { db.editions().insert(EditionEntity(title = "Wednesday Morning Edition", createdAt = clock.instant(), status = EditionStatus.BUILDING)) }
+        val listening = listening()
+        shoot("05j2-edition-detail-not-sent-while-one-is-made", ready = { vm.detail.value?.contents?.isNotEmpty() == true && vm.building.value }) {
+            EditionDetailScreen(vm, onBack = {}, listening = listening)
+        }
     }
 
     /** Kokoro in use, the first two of four articles made: the bar under Listen. */
@@ -629,6 +691,29 @@ class ScreenshotTest {
     @Config(fontScale = 2f)
     fun todayWithTheListenBarAtTwiceTheFontSize() = todayWithListenBar("11h3-listen-bar-font-200", playing = true)
 
+    /** One view: the article preview while Listen plays it, the quote being read and the player under the page. */
+    @Test
+    fun articlePreviewListening() {
+        val files = tmp.newFolder()
+        val article = FORMATTED
+        File(files, "f.epub").outputStream().use {
+            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000013", listOf(article)), it)
+        }
+        val id = runBlocking {
+            val id = db.editions().insert(EditionEntity(title = "Thursday Morning Edition", status = EditionStatus.DELIVERED, fileName = "f.epub", articleCount = 1, minutes = 3.0))
+            db.editions().insertArticles(listOf(EditionArticleEntity(editionId = id, articleId = null, position = 0, title = article.title, sourceTitle = article.sourceTitle, minutes = 3.0)))
+            id
+        }
+        val (player, speaker) = listenPlayer(files)
+        player.start(id, ListenPosition(0, 4))
+        compose.idleUntil { player.state.value.script != null }
+        speaker.startNext()
+        val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock)) {}
+        shoot("05c3-article-preview-listening", ready = { player.state.value.at.line == 4 && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(loadFile = { File(files, "f.epub") }, position = 0, title = article.title, onBack = {}, onListen = {}, listen = listen, editionId = id)
+        }
+    }
+
     /** Listening to an article, two sentences in, its picture just ahead. */
     @Test
     fun listenPlaying() = shootListening("11a-listen-playing", voice = null)
@@ -662,8 +747,12 @@ class ScreenshotTest {
     @Test
     fun listenPlayingAnEditionWithEpisodesAfterIt() = shootEditionWithEpisodes("11g2-listen-episodes-after", page = 1)
 
+    /** The closing page of an edition not sent yet: Mark as sent under it. */
+    @Test
+    fun listenOnTheClosingPage() = shootEditionWithEpisodes("11g3-listen-closing-page", page = 3, unsent = true)
+
     /** Three articles, two of them notes posts: the closing page is page 3, their episodes 4 and 5. */
-    private fun shootEditionWithEpisodes(name: String, page: Int) {
+    private fun shootEditionWithEpisodes(name: String, page: Int, unsent: Boolean = false) {
         val files = tmp.newFolder()
         val articles = listOf(
             EditionArticle(title = "Episode 212: The ferry planner", sourceTitle = "The Example Show", url = "https://example.com/212", bodyHtml = "<p>This week, a ferry planner.</p>", minutes = 1.0),
@@ -671,7 +760,7 @@ class ScreenshotTest {
             EditionArticle(title = "Episode 48: Night trains", sourceTitle = "Rail Talk", url = "https://example.com/48", bodyHtml = "<p>Night trains are back.</p>", minutes = 1.0),
         )
         File(files, "e.epub").outputStream().use {
-            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000011", listOf(EditionSection(null, articles))), it)
+            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000011", articles), it)
         }
         val id = runBlocking {
             val show = db.sources().insert(SourceEntity(url = "https://example.com/show.xml", title = "The Example Show"))
@@ -686,11 +775,13 @@ class ScreenshotTest {
         val readings = Readings(db, { Recordings() })
         val (player, speaker) = listenPlayer(files, readings)
         player.start(id, ListenPosition(page, 0))
-        idleUntil { player.state.value.script != null }
+        compose.idleUntil { player.state.value.script != null }
         speaker.startNext()
         val now = readings.at(id, page)?.let { ReadingSpeaker.Now(id, page, it, voiceInstead = false) }
-        shoot(name, ready = { player.state.value.at.page == page }) {
-            ListenScreen(player, onBack = {}, reading = MutableStateFlow(now))
+        val title = player.state.value.pages[page].title
+        val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock), reading = MutableStateFlow(now)) {}
+        shoot(name, ready = { player.state.value.at.page == page && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(loadFile = { File(files, "e.epub") }, position = page, title = title, onBack = {}, onListen = {}, listen = listen, editionId = id, onMarkSent = if (unsent) ({}) else null)
         }
     }
 
@@ -718,7 +809,7 @@ class ScreenshotTest {
         ).map { (st, minutes) -> EditionArticle(title = st.second, sourceTitle = st.first, url = "https://example.com/x", bodyHtml = "<p>Text.</p>", minutes = minutes) }
         val articles = listOf(EditionArticle(title = "Flooding forces thousands from their homes in northern Italy", sourceTitle = "BBC News", url = "https://example.com/f", bodyHtml = "<p>Text.</p>", minutes = 3.0), knots) + others
         File(files, "l.epub").outputStream().use {
-            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000010", listOf(EditionSection(null, articles))), it)
+            EpubWriter.write(EditionDoc("Thursday Morning Edition", LocalDate.of(2026, 10, 1), "urn:uuid:5b1f3c8e-0000-4000-8000-000000000010", articles), it)
         }
         val id = runBlocking {
             val id = db.editions().insert(EditionEntity(title = "Thursday Morning Edition", status = EditionStatus.DELIVERED, fileName = "l.epub", articleCount = articles.size, minutes = articles.sumOf { it.minutes }))
@@ -727,11 +818,16 @@ class ScreenshotTest {
         }
         val (player, speaker) = listenPlayer(files)
         player.start(id, ListenPosition(1, 6))
-        idleUntil { player.state.value.script != null }
+        compose.idleUntil { player.state.value.script != null }
         speaker.startNext()
         val now = ReadingSpeaker.Now(id, 1, Reading("https://example.com/knots.mp3", if (episode) 5_220 else 540, own = episode, bodyLine = 3, starts = listOf(0.0), episode = episode), voiceInstead = false).takeIf { recording }
-        shoot(name, ready = { player.state.value.at.line == 6 }) {
-            ListenScreen(player, onBack = {}, podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), textSize = textSize, reading = MutableStateFlow(now))
+        val listen = Listening(player, StoredListenProgress(ApplicationProvider.getApplicationContext()), EditionRepository(db, tmp.newFolder(), clock), podcastVoice = MutableStateFlow(voice), instead = MutableStateFlow(instead), reading = MutableStateFlow(now)) {}
+        shoot(name, ready = { player.state.value.at.line == 6 && compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(
+                loadFile = { File(files, "l.epub") }, position = 1, title = knots.title, onBack = {}, onListen = {}, textSize = textSize,
+                listen = listen,
+                editionId = id,
+            )
         }
     }
 
@@ -744,7 +840,7 @@ class ScreenshotTest {
         }
     }
 
-    private fun sentEdition(notSent: Boolean = false): EditionDetailViewModel {
+    private fun sentEdition(notSent: Boolean = false, ready: Boolean = false): EditionDetailViewModel {
         val id = runBlocking {
             val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "The Example Review"))
             val titles = listOf(
@@ -756,14 +852,21 @@ class ScreenshotTest {
             val articles = titles.mapIndexed { i, title ->
                 db.articles().insertIgnoring(
                     ArticleEntity(
-                        sourceId = source, guid = "$i", url = "https://example.com/$i", title = title, state = if (notSent) ArticleState.NEW else ArticleState.DELIVERED,
-                        starredAt = if (i == 1) Instant.parse("2026-09-29T08:00:00Z") else null,
+                        sourceId = source, guid = "$i", url = "https://example.com/$i", title = title,
+                        state = when {
+                            ready -> when (i) { 1 -> ArticleState.DELIVERED; 3 -> ArticleState.SKIPPED; else -> ArticleState.IN_EDITION }
+                            notSent -> ArticleState.NEW
+                            else -> ArticleState.DELIVERED
+                        },
+                        starredAt = if (i == 1 && !ready) Instant.parse("2026-09-29T08:00:00Z") else null,
                     ),
                 )
             }
             val now = Instant.parse("2026-09-29T06:30:00Z")
             val edition = db.editions().insert(
-                if (notSent) {
+                if (ready) {
+                    EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.READY, fileName = "e.epub", articleCount = 4, minutes = 27.5)
+                } else if (notSent) {
                     EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.FAILED, error = com.app.newspaperss.edition.EditionBuilder.NOT_SENT, fileName = "e.epub", articleCount = 4, minutes = 27.5)
                 } else {
                     EditionEntity(title = "Tuesday Morning Edition", createdAt = now, status = EditionStatus.DELIVERED, fileName = "e.epub", articleCount = 4, minutes = 27.5, deliveredAt = now)
@@ -784,9 +887,29 @@ class ScreenshotTest {
         val file = tmp.newFile("p.epub")
         val article = EditionArticle(title = "The quiet return of the night train", sourceTitle = "The Example Review", url = "https://example.com/night-train", bodyHtml = "<p>Sleeper services are coming back.</p>", minutes = 4.0)
         file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
-        // The page itself is a WebView, which Robolectric doesn't draw; this shoots the top bar.
         shoot("05c-article-preview", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
             ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {})
+        }
+    }
+
+    /** The edition's last article, with no "Next" line: one marking it read in its place. */
+    @Test
+    fun articlePreviewLastArticle() {
+        val file = tmp.newFile("last.epub")
+        val article = EditionArticle(title = "The quiet return of the night train", sourceTitle = "The Example Review", url = "https://example.com/night-train", bodyHtml = "<p>Sleeper services are coming back.</p>", minutes = 4.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05c3-article-preview-last-article", ready = { compose.onAllNodes(hasText("Mark as read")).fetchSemanticsNodes().isNotEmpty() }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, onFinished = {}, finished = { false })
+        }
+    }
+
+    /** An article with its formatting: bold, a link, a quote, a numbered list, a table and code. */
+    @Test
+    fun articlePreviewFormatted() {
+        val file = tmp.newFile("pf.epub")
+        file.writeEpub(listOf(FORMATTED), title = "Tuesday Morning Edition")
+        shoot("05c2-article-preview-formatted", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = FORMATTED.title, onBack = {}, onListen = {})
         }
     }
 
@@ -810,7 +933,52 @@ class ScreenshotTest {
         val article = EditionArticle(title = "How a ferry timetable is made, with its planner", sourceTitle = "The Example Letter", url = "https://example.com/ferry", bodyHtml = "<p>This week's guest plans ferries.</p>", minutes = 2.0)
         file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
         shoot("05c-article-preview-episode", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
-            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, episodeFor = { EpisodeJudgement(EpisodeKind.NOTES) })
+            ArticlePreviewScreen(
+                loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {},
+                bannerFor = { listenBanner(EpisodeKind.NOTES, null, Outcome.AfterTheEdition) { null } },
+            )
+        }
+    }
+
+    /** A video-only episode's transcript: the line says there's no audio to play. */
+    @Test
+    fun articlePreviewTranscriptNoAudio() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "Transcript: the ferry planner", sourceTitle = "The Example Letter", url = "https://example.com/ferry-transcript", bodyHtml = "<p>This week's guest plans ferries.</p>", minutes = 40.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05c4-article-preview-transcript-no-audio", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(
+                loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {},
+                bannerFor = { listenBanner(EpisodeKind.TRANSCRIPT, null, Outcome.Read(Outcome.Why.NO_AUDIO)) { null } },
+            )
+        }
+    }
+
+    /** An audio version whose post isn't in the edition: it plays on its own page. */
+    @Test
+    fun articlePreviewAudioVersionPlaysHere() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "Audio version of How a ferry timetable is made", sourceTitle = "The Example Letter", url = "https://example.com/ferry-audio", bodyHtml = "<p>Listen to this post.</p>", minutes = 1.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05c6-article-preview-audio-version", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(
+                loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {},
+                bannerFor = { listenBanner(EpisodeKind.AUDIO_VERSION, com.app.newspaperss.data.EpisodePair("g", "How a ferry timetable is made", EpisodeKind.ARTICLE), Outcome.Plays(720)) { null } },
+            )
+        }
+    }
+
+    /** Episode notes switched off in Settings: the banner says where to switch them on, a link there. */
+    @Test
+    fun articlePreviewNotesSwitchedOff() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "How a ferry timetable is made, with its planner", sourceTitle = "The Example Letter", url = "https://example.com/ferry", bodyHtml = "<p>This week's guest plans ferries.</p>", minutes = 2.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05c5-article-preview-notes-switched-off", ready = { compose.onAllNodes(hasText("Opening…")).fetchSemanticsNodes().isEmpty() }) {
+            ArticlePreviewScreen(
+                loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {},
+                bannerFor = { listenBanner(EpisodeKind.NOTES, null, Outcome.Read(Outcome.Why.KIND_OFF)) { null } },
+            )
         }
     }
 
@@ -844,6 +1012,20 @@ class ScreenshotTest {
         }
     }
 
+    /** Send for a look on an article its site turned away: it says the site's answer goes too. */
+    @Test
+    fun articlePreviewSendForALookBlocked() {
+        val file = tmp.newFile("p.epub")
+        val article = EditionArticle(title = "The quiet return of the night train", sourceTitle = "The Example Review", url = "https://example.com/night-train", bodyHtml = "<p>Sleeper services are coming back.</p>", minutes = 4.0)
+        file.writeEpub(listOf(article), title = "Tuesday Morning Edition")
+        shoot("05e3-article-preview-look-blocked", ready = { compose.onAllNodes(hasContentDescription("More")).fetchSemanticsNodes().isNotEmpty() }, act = {
+            compose.onNodeWithContentDescription("More").performClick()
+            compose.onNodeWithText("Send for a look…").performClick()
+        }) {
+            ArticlePreviewScreen(loadFile = { file }, position = 0, title = article.title, onBack = {}, onListen = {}, blockedAnswerFor = { "HTTP 403" })
+        }
+    }
+
     /** The top bar at twice the font size: the title stays on one line beside Back and Share. */
     @Test
     @Config(fontScale = 2f)
@@ -869,8 +1051,8 @@ class ScreenshotTest {
             db.articles().setPageWords(saved.getValue("On walking").id, 3400)
             db.articles().setUnreadable(saved.getValue("Annual report 2025").id, "not a web page")
         }
-        val vm = com.app.newspaperss.ui.readinglist.ReadingListViewModel(list)
-        shoot("09a-reading-list", ready = { vm.items.value?.size == 3 }) { com.app.newspaperss.ui.readinglist.ReadingListScreen(vm, onBack = {}) }
+        val vm = com.app.newspaperss.ui.readinglist.ReadingListViewModel(list, SourceRepository(db, clock), kotlinx.coroutines.flow.flowOf(1))
+        shoot("09a-reading-list", ready = { vm.items.value?.size == 3 && vm.cap.value != null }) { com.app.newspaperss.ui.readinglist.ReadingListScreen(vm, onBack = {}) }
     }
 
     @Test
@@ -910,7 +1092,7 @@ class ScreenshotTest {
                 "The quiet return of the paperback",
             )
             db.articles().insertNew(titles.mapIndexed { i, t -> ArticleEntity(sourceId = id, guid = "$i", url = "https://www.theguardian.com/$i", title = t, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1))) })
-            val ids = db.articles().candidates().sortedBy { it.guid }.map { it.id }
+            val ids = db.articles().buildCandidates().sortedBy { it.guid }.map { it.id }
             repo.setStarred(ids[1], true)
             db.articles().setState(listOf(ids[2]), ArticleState.SKIPPED)
             db.articles().setState(listOf(ids[3]), ArticleState.IN_EDITION)
@@ -966,7 +1148,7 @@ class ScreenshotTest {
         }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
-    /** A busy source lists only its newest articles, and the heading says so rather than looking like a total. */
+    /** A busy source lists only its newest articles, under a heading that says so and gives no count. */
     @Test
     fun sourceDetailNewest() {
         val repo = SourceRepository(db, clock)
@@ -1048,7 +1230,7 @@ class ScreenshotTest {
             feed("2", "BBC News", "https://feeds.bbci.co.uk/news/rss.xml", "News").copy(maxArticles = 1),
             feed("3", "Aeon", "https://aeon.co/feed.rss", "Essays"),
             feed("4", "Longreads", "https://longreads.com/feed/", "Essays").copy(chosenMode = ContentMode.PAGE),
-            feed("5", "Quanta Magazine", "https://www.quantamagazine.org/feed/", "Science"),
+            feed("5", "Quanta Magazine", "https://www.quantamagazine.org/feed/", "Science").copy(siteUrl = "https://www.quantamagazine.org/"),
             feed("6", "The Marginalian", "https://www.themarginalian.org/feed/", "Essays"),
             feed("7", "Hacker News", "https://news.ycombinator.com/rss", "Tech").copy(leftOut = true),
             feed("8", "Slashdot", "https://rss.slashdot.org/Slashdot/slashdotMain", "Tech").copy(leftOut = true),
@@ -1185,6 +1367,19 @@ class ScreenshotTest {
         shoot("08c-ttrss-feed-page", ready = { vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
+    /** A day on, a feed tt-rss has never tried: its updates are most likely off there. */
+    @Test
+    fun ttrssFeedPageNeverFetched() {
+        val vm = feedPage("3")
+        runBlocking {
+            val account = db.sources().ofKind(com.app.newspaperss.data.SourceKind.TTRSS).single().id
+            val p = db.sources().publication(account, "3")!!
+            db.sources().savePublication(p.copy(awaitingFirstFetch = true, watchedSince = clock.instant().minusSeconds(3 * 86_400L)))
+            db.sources().setFeedsListed(account, clock.instant())
+        }
+        shoot("08s-ttrss-feed-never-fetched", ready = { vm.detail.value?.text?.awaitingFirstFetch == true }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
     @Test
     fun ttrssFeedPageTtrssCantFetch() {
         val vm = feedPage("6")
@@ -1226,7 +1421,10 @@ class ScreenshotTest {
         val vm = feedPage("5")
         shoot(
             "08e-leave-out-dialog", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, dialog = true,
-            act = { compose.onNodeWithText("Leave out").performClick() },
+            act = {
+                openSiteSettings()
+                compose.onNodeWithText("Leave out of the paper").performClick()
+            },
         ) { SourceDetailScreen(vm, onBack = {}) }
     }
 
@@ -1235,7 +1433,10 @@ class ScreenshotTest {
         val vm = feedPage("5")
         shoot(
             "08g-article-text-dialog", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, dialog = true,
-            act = { compose.onNodeWithText("Article text: Automatic").performClick() },
+            act = {
+                openSiteSettings()
+                compose.onNodeWithText("Article text").performClick()
+            },
         ) { SourceDetailScreen(vm, onBack = {}) }
     }
 
@@ -1247,7 +1448,7 @@ class ScreenshotTest {
         shoot("08h-left-out-list", ready = { vm.feeds.value.any { !it.inPaper } }) { LeftOutScreen(vm, onBack = {}, onOpenFeed = {}) }
     }
 
-    /** A failing feed's page from the top, where its own address is offered to check. */
+    /** A failing feed's page from the top: the problem with its mark, how long, and what it means for the paper. */
     @Test
     fun sourceDetailFailing() {
         val repo = SourceRepository(db, clock)
@@ -1262,11 +1463,125 @@ class ScreenshotTest {
         shoot("06g-source-detail-failing", ready = { vm.detail.value?.source?.lastError != null }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
+    /** A newsletter that posts episodes and readings, set apart from the defaults with [change]. */
+    private fun letter(change: suspend (SourceRepository, Long) -> Unit = { _, _ -> }): SourceDetailViewModel {
+        val repo = SourceRepository(db, clock)
+        val id = runBlocking {
+            val id = repo.addFeed("https://example.com/feed", "The Example Letter")
+            val posts = listOf("How a ferry timetable is made", "The case for slower trains", "October 15", "What the harbour master saw")
+            db.articles().insertNew(
+                posts.mapIndexed { i, title ->
+                    ArticleEntity(
+                        sourceId = id, guid = title, url = "https://example.com/$i", title = title, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1)),
+                        audioUrl = "https://example.com/$i.mp3".takeIf { i == 0 || i == 2 },
+                    )
+                },
+            )
+            db.articles().setEpisodeKind(id, posts[0], EpisodeKind.NOTES)
+            posts.drop(1).forEach { db.articles().setEpisodeKind(id, it, EpisodeKind.ARTICLE) }
+            db.sources().recordSuccess(id, clock.instant(), null, "https://example.com", "")
+            change(repo, id)
+            id
+        }
+        return viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
+    }
+
+    /** Two settings changed: the row says the limit as its rule, and the other under it. */
+    @Test
+    fun sourceDetailSettingsChanged() {
+        val vm = letter { repo, id ->
+            repo.setMaxArticles(id, PublicationEntity.OWN, 2)
+            repo.setRecordingsOff(id, PublicationEntity.OWN, true)
+        }
+        shoot("06h-source-detail-settings-changed", ready = { vm.detail.value?.text?.recordingsOff == true && vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** Paused: the page says so first, with Start again; the settings row keeps to the rule. */
+    @Test
+    fun sourceDetailPaused() {
+        val vm = letter { repo, id ->
+            repo.setMaxArticles(id, PublicationEntity.OWN, 2)
+            repo.setPaused(id, true)
+        }
+        shoot("06i-source-detail-paused", ready = { vm.detail.value?.source?.paused == true && vm.detail.value?.text?.maxArticles == 2 }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** The site's settings, opened from the row, with the switch for its recordings. */
+    @Test
+    fun sourceDetailSettingsSheet() {
+        val vm = letter()
+        shoot("06j-source-settings-sheet", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, act = ::openSiteSettings) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** The site's settings at twice the font size: the sheet scrolls, and the limit's buttons get their own line. */
+    @Test
+    @Config(fontScale = 2f)
+    fun sourceDetailSettingsSheetAtTwiceTheFontSize() {
+        val vm = letter()
+        shoot("06k-source-settings-sheet-200", ready = { vm.detail.value?.articles?.isNotEmpty() == true }, act = ::openSiteSettings) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    private fun openSiteSettings() {
+        compose.onNode(hasContentDescription("This site's settings:", substring = true)).performClick()
+        compose.waitForIdle()
+    }
+
     /** A phone feed's page from the top: its settings. */
     @Test
     fun phoneFeedSettings() {
         val vm = sourceWithArticles()
         shoot("08i-phone-feed-settings", ready = { vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** [ids] went out in yesterday's edition. */
+    private suspend fun sentYesterday(ids: List<Long>) {
+        val at = clock.instant().minus(Duration.ofDays(1))
+        val edition = db.editions().insert(EditionEntity(title = "Monday Morning Edition", createdAt = at, status = EditionStatus.DELIVERED, deliveredAt = at))
+        db.editions().insertArticles(ids.mapIndexed { i, id -> EditionArticleEntity(editionId = edition, articleId = id, position = i, title = "An article", sourceTitle = "A source", minutes = 4.0) })
+        db.articles().setDelivered(ids)
+        db.articles().rememberDelivered(ids, at)
+    }
+
+    /** The top of the page at twice the font size: every line wraps rather than squeezing. */
+    @Test
+    @Config(fontScale = 2f)
+    fun sourceDetailTopAtTwiceTheFontSize() {
+        val vm = sourceWithArticles()
+        shoot("06n-source-detail-top-200", ready = { vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** A site that sends only summaries: the page says so in ink, and the settings row where it's changed. */
+    @Test
+    fun sourceDetailSummariesOnly() {
+        val vm = letter { _, id ->
+            db.sources().savePublication(PublicationEntity(id, PublicationEntity.OWN, ContentMode.FEED, FullTextEvidence.FEED_SHORT, 3))
+            sentYesterday(listOf(db.articles().allForSource(id).first().id))
+        }
+        shoot("06l-source-detail-summaries", ready = { vm.detail.value?.paper?.sent?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
+    }
+
+    /** A curated list's page: each pick keeps its site's name, and the legend says how many the list keeps. */
+    @Test
+    fun sourceDetailCuratedList() {
+        val repo = SourceRepository(db, clock)
+        val id = runBlocking {
+            val id = repo.addList(com.app.newspaperss.core.lists.CuratedLists.all.first())
+            val picks = listOf(
+                "A long piece about how ferries keep time" to "Example Magazine",
+                "What the harbour master saw" to "The Example Review",
+                "Why city trees are planted in pairs" to "Example Weekly",
+            )
+            db.articles().insertNew(
+                picks.mapIndexed { i, (title, site) ->
+                    ArticleEntity(sourceId = id, guid = "$i", url = "https://example.org/$i", title = title, originTitle = site, discoveredAt = clock.instant().minusSeconds(3_600L * (i + 1)))
+                },
+            )
+            sentYesterday(listOf(db.articles().allForSource(id).single { it.guid == "2" }.id))
+            db.sources().recordSuccess(id, clock.instant(), null, null, "")
+            id
+        }
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
+        shoot("06m-source-detail-list", ready = { vm.detail.value?.articles?.isNotEmpty() == true }) { SourceDetailScreen(vm, onBack = {}) }
     }
 
     @Test
@@ -1353,11 +1668,11 @@ class ScreenshotTest {
         shoot("07o3-settings-listening-font-200", ready = { vm.settings.value != null }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
     }
 
-    /** Recordings switched off: the kinds go away. */
+    /** No recordings ticked: the voice reads every post. */
     @Test
     fun settingsListeningRecordingsOff() {
         installVoice(ApplicationProvider.getApplicationContext())
-        runBlocking { store.update { it.copy(listenSpeed = 1.2f, recordings = Recordings(on = false)) } }
+        runBlocking { store.update { it.copy(listenSpeed = 1.2f, recordings = Recordings.NONE) } }
         val vm = SettingsViewModel(store) {}
         shoot("07o2-settings-listening-recordings-off", ready = { vm.settings.value != null }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
     }
@@ -1408,7 +1723,7 @@ class ScreenshotTest {
             install.finishDownload()
             runBlocking { store.update { it.copy(podcastPace = 1.2f) } }
             checked.value = null
-            idleUntil { compose.waitForIdle(); vm.kokoro.value is KokoroState.Ready }
+            compose.idleUntil { vm.kokoro.value is KokoroState.Ready }
         }) { SettingsPageScreen(vm, SettingsPage.LISTENING, onBack = {}) }
     }
 
@@ -1455,7 +1770,7 @@ class ScreenshotTest {
             ready = { vm.kokoro.value is KokoroState.Ready },
             act = {
                 compose.onNodeWithText("Audio log").performScrollTo().performClick()
-                idleUntil { compose.onAllNodes(hasText("Stopped: unplugged", substring = true)).fetchSemanticsNodes().isNotEmpty() }
+                compose.idleUntil { compose.onAllNodes(hasText("Stopped: unplugged", substring = true)).fetchSemanticsNodes().isNotEmpty() }
             },
             dialog = true,
         ) { NaturalVoiceScreen(vm, onBack = {}) }
@@ -1545,7 +1860,7 @@ class ScreenshotTest {
                 name, ready = { vm.screen.value?.server != null }, dialog = true,
                 act = {
                     act(vm)
-                    idleUntil { compose.waitForIdle(); state(vm) }
+                    compose.idleUntil { state(vm) }
                 },
             ) { SourcesScreen(vm) }
         } finally {
@@ -1569,7 +1884,7 @@ class ScreenshotTest {
     fun addingASiteWithAServerPickingACategory() =
         shootServerAdd("09b-add-server-category", categoriesLoaded) {
             it.typeAndFind("quantamagazine.org")
-            idleUntil { compose.waitForIdle(); categoriesLoaded(it) }
+            compose.idleUntil { categoriesLoaded(it) }
             compose.onNodeWithContentDescription("Category, Science").performClick()
         }
 
@@ -1577,7 +1892,7 @@ class ScreenshotTest {
     fun addingASiteWithAServerAsking() =
         shootServerAdd("09c-add-server-asking", { it.add.value is AddState.Asking }, server = { subscribeGate = CompletableDeferred() }) {
             it.typeAndFind("quantamagazine.org")
-            idleUntil { compose.waitForIdle(); categoriesLoaded(it) }
+            compose.idleUntil { categoriesLoaded(it) }
             it.subscribeInTtrss()
         }
 
@@ -1585,7 +1900,7 @@ class ScreenshotTest {
     fun addingASiteAlreadyInTtrss() =
         shootServerAdd("09d-add-server-already", { it.add.value is AddState.AlreadyIn }, server = { feeds[6] = FakeTtrss.Feed("Quanta Magazine", "https://www.quantamagazine.org/feed/", categoryId = 3) }) {
             it.typeAndFind("quantamagazine.org")
-            idleUntil { compose.waitForIdle(); categoriesLoaded(it) }
+            compose.idleUntil { categoriesLoaded(it) }
             it.subscribeInTtrss()
         }
 
@@ -1597,7 +1912,7 @@ class ScreenshotTest {
                 """<html><head><link rel="alternate" type="application/rss+xml" title="Quanta Magazine" href="https://www.quantamagazine.org/feed/"></head></html>""",
             )
             it.typeAndFind("https://www.quantamagazine.org/a-new-proof-20261001/")
-            idleUntil { compose.waitForIdle(); categoriesLoaded(it) }
+            compose.idleUntil { categoriesLoaded(it) }
             it.subscribeInTtrss()
         }
 
@@ -1631,9 +1946,9 @@ class ScreenshotTest {
                 "09g-add-server-added", ready = { vm.screen.value?.server != null },
                 act = {
                     vm.typeAndFind("quantamagazine.org")
-                    idleUntil { compose.waitForIdle(); categoriesLoaded(vm) }
+                    compose.idleUntil { categoriesLoaded(vm) }
                     vm.subscribeInTtrss()
-                    idleUntil { compose.waitForIdle(); compose.onAllNodes(hasText("Undo")).fetchSemanticsNodes().isNotEmpty() }
+                    compose.idleUntil { compose.onAllNodes(hasText("Undo")).fetchSemanticsNodes().isNotEmpty() }
                 },
             ) { SourcesScreen(vm) }
         } finally {
@@ -1679,7 +1994,7 @@ class ScreenshotTest {
                 name, ready = { vm.screen.value?.phoneFeeds != null }, dialog = dialog,
                 act = {
                     act(vm, moves, scope)
-                    idleUntil { compose.waitForIdle(); ready(vm) }
+                    compose.idleUntil { ready(vm) }
                 },
             ) { SourcesScreen(vm) }
         } finally {
@@ -1741,9 +2056,22 @@ class ScreenshotTest {
         }
         shoot(
             "10e-move-offer", ready = { feeds.offer.value != null && feeds.form.value == null },
-            act = { idleUntil { compose.waitForIdle(); compose.onAllNodes(hasText("Move 3")).fetchSemanticsNodes().isNotEmpty() } },
+            act = { compose.idleUntil { compose.onAllNodes(hasText("Move 3")).fetchSemanticsNodes().isNotEmpty() } },
         ) {
             SettingsPageScreen(settingsVm, SettingsPage.FEEDS, onBack = {}, feedsFrom = feeds)
         }
+    }
+
+    private companion object {
+        /** An article with bold, a link, a quote, a numbered list, a table and code: for the article view, read and listened to. */
+        val FORMATTED = EditionArticle(
+            title = "How a Retired Teacher Counted the Knots", sourceTitle = "Quanta Magazine", url = "https://example.com/count",
+            bodyHtml = "<p>The count took <b>a week</b> of computer time, and the <a href=\"https://example.com/paper\">paper</a> ran to <em>forty pages</em>.</p>" +
+                "<blockquote><p>We thought it would take a century.</p></blockquote>" +
+                "<p>The method came in three steps:</p><ol><li>Draw every knot with few crossings.</li><li>Throw out the ones that are the same.</li><li>Check what's left by hand.</li></ol>" +
+                "<table><tr><th>Crossings</th><th>Knots</th></tr><tr><td>3</td><td>1</td></tr><tr><td>4</td><td>1</td></tr><tr><td>5</td><td>2</td></tr></table>" +
+                "<pre>for knot in knots:\n    if new(knot):\n        keep(knot)</pre>",
+            minutes = 3.0, author = "Erica Klarreich", published = LocalDate.of(2026, 9, 30),
+        )
     }
 }

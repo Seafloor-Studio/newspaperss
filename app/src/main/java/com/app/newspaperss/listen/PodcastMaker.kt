@@ -50,6 +50,8 @@ class PodcastMaker(
     private val threads: (editionId: Long) -> Int = { KOKORO_THREADS },
     private val now: () -> Long = System::nanoTime,
     private val log: PodcastLog = PodcastLog(null),
+    /** What the voice says around an edition's recordings (see [Readings.spokenAround]), made as clips once its pages are. */
+    private val spokenAround: suspend (editionId: Long) -> List<String> = { emptyList() },
 ) {
     /** Makes every podcast asked for, until they're all finished, Kokoro is turned off, or it's stopped. */
     suspend fun makeAll() = withContext(Dispatchers.Default) {
@@ -62,6 +64,14 @@ class PodcastMaker(
             val waited = seconds(now() - asked)
             if (waited >= 1) log.add("Waited ${waited}s for the last run's sentence to end")
             store.dropScratch()
+            // Best effort: without it, audio made before keys were noted is only made again.
+            try {
+                noteKeys()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log.add("Couldn't note what earlier audio says: ${e.javaClass.simpleName}")
+            }
             makeUnderLock()
         }
     }
@@ -80,9 +90,73 @@ class PodcastMaker(
         }
     }
 
+    /**
+     * Notes the key of each page made before keys were, from its edition's book, so a later edition
+     * can reuse it. Only where its audio covers the page's lines as they're read today: audio from
+     * a page read differently then isn't passed on. A page that can't be keyed is marked so, and
+     * not tried again; one edition's book failing doesn't stop the rest.
+     */
+    private suspend fun noteKeys() {
+        for ((editionId, pages) in store.unsaid()) {
+            try {
+                val voice = store.voice(editionId)
+                val book = voice?.let { ListenBook.open(editions, editionId) }
+                if (book == null) {
+                    pages.forEach { store.saidKey(editionId, it, PodcastStore.NO_KEY) }
+                    continue
+                }
+                book.use {
+                    for (page in pages) {
+                        val lines = script(book, page)?.lines?.takeIf { it.isNotEmpty() && store.linesMade(editionId, page) == it.size }
+                        store.saidKey(editionId, page, lines?.let { saidKey(voice, it) } ?: PodcastStore.NO_KEY)
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log.add("Couldn't note what edition $editionId's audio says: ${e.javaClass.simpleName}")
+            }
+        }
+    }
+
+    /**
+     * Notes [page]'s key and, if another edition has made a page that says the same, takes its
+     * audio: before Kokoro is loaded, so an edition whose articles are all reused never loads it.
+     * True if the page is now made.
+     */
+    private fun reused(editionId: Long, asked: String?, page: Int, script: ListenScript?, voice: PodcastVoice): Boolean {
+        if (script == null || script.lines.isEmpty() || !english(script.language)) return false
+        val key = saidKey(voice, script.lines)
+        store.saidKey(editionId, page, key)
+        if (store.linesMade(editionId, page) > 0) return false
+        val (other, otherPage) = store.madeElsewhere(key, editionId) ?: return false
+        return try {
+            store.reuse(other, otherPage, editionId, page, asked).also {
+                if (it) log.add("Page $page: the same as edition $other page $otherPage, its audio reused")
+            }
+        } catch (e: IOException) {
+            // A full disk, most likely: Kokoro makes the page instead, and meets the same.
+            log.add("Page $page: couldn't reuse edition $other's audio (${e.javaClass.simpleName}), made instead")
+            false
+        }
+    }
+
     private suspend fun makeUnderLock() {
         // Loaded once, and again only for a podcast in another voice: loading takes seconds.
         var kokoro: Triple<PodcastVoice, Int, PodcastEngine>? = null
+        fun kokoroFor(editionId: Long, voice: PodcastVoice): PodcastEngine {
+            val threads = threads(editionId)
+            if (kokoro?.first != voice || kokoro?.second != threads) {
+                kokoro?.third?.release()
+                kokoro = null
+                // Loading is part of what a podcast costs: each of Android's stops means another.
+                val began = now()
+                kokoro = Triple(voice, threads, engine(voice, threads))
+                store.addCost(editionId, now() - began, 0.0)
+                log.add("Kokoro loaded (${voice.label}, $threads threads) in ${seconds(now() - began)}s")
+            }
+            return kokoro!!.third
+        }
         try {
             while (true) {
                 val editionId = store.waiting().firstOrNull()
@@ -112,17 +186,25 @@ class PodcastMaker(
                         }
                         // A newer edition asked for since: it goes first, and this one carries on after.
                         if (store.waiting().firstOrNull() != editionId || !store.wanted(editionId, asked)) return@use
-                        val threads = threads(editionId)
-                        if (kokoro?.first != voice || kokoro?.second != threads) {
-                            kokoro?.third?.release()
-                            kokoro = null
-                            // Loading is part of what a podcast costs: each of Android's stops means another.
-                            val began = now()
-                            kokoro = Triple(voice, threads, engine(voice, threads))
-                            store.addCost(editionId, now() - began, 0.0)
-                            log.add("Kokoro loaded (${voice.label}, $threads threads) in ${seconds(now() - began)}s")
-                        }
-                        makePage(editionId, asked, page, script(book, page), kokoro!!.third)
+                        val script = script(book, page)
+                        if (reused(editionId, asked, page, script, voice)) continue
+                        makePage(editionId, asked, page, script, kokoroFor(editionId, voice))
+                    }
+                    // Best effort: without its clips, what's said around a recording is the phone's voice.
+                    val around = try {
+                        spokenAround(editionId)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        log.add("Couldn't find what's said around the recordings: ${e.javaClass.simpleName}")
+                        emptyList()
+                    }
+                    for (text in around) {
+                        // One that took the app down, as a line can, is the phone's from then on.
+                        if (store.clip(editionId, text) != null || store.clipTried(editionId, text)) continue
+                        currentCoroutineContext().ensureActive()
+                        if (!inUse() || !store.wanted(editionId, asked)) return@use
+                        makeClip(editionId, asked, text, kokoroFor(editionId, voice))
                     }
                     // Stopped during its last page: not finished, so Make the rest can carry on.
                     if (!store.wanted(editionId, asked)) return@use
@@ -151,6 +233,28 @@ class PodcastMaker(
     } catch (e: StackOverflowError) {
         // An article nested deeper than the parser's stack.
         null
+    }
+
+    /** A clip of [text], in one go: a sentence or two, so nothing to keep part way. A failure leaves it to the phone's voice. */
+    private fun makeClip(editionId: Long, asked: String?, text: String, kokoro: PodcastEngine) {
+        val file = store.clipScratch(editionId, text)
+        store.tryingClip(editionId, text, true)
+        try {
+            val speech = kokoro.speak(text)
+            val sink = encoder.open(file, speech.sampleRate)
+            try {
+                // An encoder given no audio at all can't finish its file.
+                sink.write(speech.samples.takeIf { it.isNotEmpty() } ?: FloatArray(speech.sampleRate / 10))
+            } finally {
+                sink.close()
+            }
+            store.keepClip(editionId, asked, text, file)
+        } catch (e: Exception) {
+            file.delete()
+            log.add("A clip wasn't made: ${e.javaClass.name}")
+        } finally {
+            store.tryingClip(editionId, text, false)
+        }
     }
 
     private suspend fun makePage(editionId: Long, asked: String?, page: Int, script: ListenScript?, kokoro: PodcastEngine) {
@@ -238,7 +342,7 @@ class PodcastMaker(
             // the pages after it, and older podcasts, aren't held up for good.
             val failures = store.failed(editionId, page)
             log.add("Page $page failed ($failures of $FAILURES): ${e.javaClass.name}")
-            if (failures < FAILURES) throw e
+            if (failures < FAILURES) throw PageFailed(e)
             log.add("Page $page left to the phone's voice")
             store.leaveLive(editionId, page)
         } finally {
@@ -286,6 +390,9 @@ class PodcastMaker(
     /** Kokoro failed on a line, as opposed to the phone (a full disk, the encoder) failing around it. */
     private class Unsayable(cause: Exception) : Exception(cause)
 
+    /** A page failed, and counted against it: the next run tries it again, until [FAILURES]. */
+    class PageFailed(cause: Exception) : Exception(cause)
+
     companion object {
         /** Seconds of quiet between paragraphs, as a reader takes a breath. */
         private const val PAUSE = 0.35
@@ -305,6 +412,23 @@ class PodcastMaker(
 
         /** Runs failing on the same page before it's left to the phone's voice. */
         internal const val FAILURES = 3
+
+        /**
+         * What a page's audio says and how: the voice, each line, and where the breath between
+         * paragraphs falls. Pages with the same key have the same audio, whatever edition they're in.
+         * [SAID_VERSION] goes up when what's said changes in a way the lines don't show.
+         */
+        fun saidKey(voice: PodcastVoice, lines: List<ListenScript.Line>): String {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            digest.update("$SAID_VERSION\n${voice.name}\n".toByteArray())
+            lines.forEachIndexed { i, line ->
+                val pause = i > 0 && lines[i - 1].block != line.block
+                digest.update("${if (pause) "¶" else ""}${line.spoken}\n".toByteArray())
+            }
+            return digest.digest().joinToString("") { "%02x".format(it) }
+        }
+
+        private const val SAID_VERSION = 1
 
         /** Kokoro's voices here are English ones; a page with no language is taken to be English. */
         fun english(language: String?): Boolean = language == null || Locale.forLanguageTag(language).language == "en"

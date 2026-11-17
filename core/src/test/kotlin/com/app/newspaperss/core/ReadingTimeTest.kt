@@ -10,6 +10,13 @@ class ReadingTimeTest {
     }
 
     @Test
+    fun anEditionOfArticlesWithNoWordsStillTakesAMinute() {
+        assertEquals("1 article · about 1 min", ReadingTime.summary(1, 0.0))
+        assertEquals("8 articles · about 1 hr 15 min", ReadingTime.summary(8, 75.0))
+        assertEquals("0 articles · about 0 min", ReadingTime.summary(0, 0.0))
+    }
+
+    @Test
     fun formattedMinutesAreRoundedButNeverZeroForARealArticle() {
         val cases = listOf(
             0.0 to "0 min",

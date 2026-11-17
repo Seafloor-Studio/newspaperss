@@ -53,6 +53,114 @@ class ReadingSpeakerTest {
 
     private fun id(line: Int, page: Int = 0) = LineId(1, 7, page, line, 6).toString()
 
+    private fun notesSpeaker(afterLine: Int = 1) =
+        ReadingSpeaker(voice, audio, { _, _ -> null }, choices, preludeAt = { e, p -> Readings.Prelude(Readings.NOTES_PRELUDE, afterLine).takeIf { e == 7L && p == 3 } }).also {
+            it.listener = object : Speaker.Listener {
+                override fun onStart(id: String) { heard += "start $id" }
+                override fun onDone(id: String) { heard += "done $id" }
+                override fun onError(id: String) { heard += "error $id" }
+            }
+        }
+
+    /**
+     * A notes post whose episode plays after the edition says so after its title, once: after the
+     * show's name and the title, not between them. Its heading is said apart from the page, and
+     * the lines after wait for the prelude, then go on with the first as a fresh start: a podcast
+     * voice given a line of the page would play on through it, and only starts one afresh.
+     */
+    @Test
+    fun aNotesPostSaysItsEpisodePlaysAfterTheEditionAfterItsTitle() {
+        val notes = notesSpeaker()
+        notes.speak(id(0, page = 3), "The Example Show.", null, 1f, flush = true)
+        notes.speak(id(1, page = 3), "Ferries, again.", null, 1f, flush = false)
+        notes.speak(id(2, page = 3), "This week, a ferry planner.", null, 1f, flush = false)
+        assertEquals(listOf("The Example Show.", "Ferries, again.", Readings.NOTES_PRELUDE), voice.said.map { it.text })
+        assertTrue("the heading isn't the page's lines to a podcast voice", voice.said.all { LineId.parse(it.id) == null })
+
+        voice.sayNext()
+        voice.sayNext()
+        assertEquals(listOf("start ${id(0, page = 3)}", "done ${id(0, page = 3)}", "start ${id(1, page = 3)}"), heard)
+        voice.sayNext()
+        assertEquals("the title's over with its prelude", "done ${id(1, page = 3)}", heard.last())
+        assertEquals("This week, a ferry planner.", voice.said.last().text)
+        assertEquals("the line after starts afresh", listOf(true, false, false, true), voice.flushed)
+
+        // Once: back to the page's start, straight into its lines.
+        notes.speak(id(0, page = 3), "The Example Show.", null, 1f, flush = true)
+        assertEquals(id(0, page = 3), voice.said.last().id)
+        // Nor on a page without one.
+        notes.speak(id(0, page = 4), "Another article.", null, 1f, flush = true)
+        assertEquals("Another article.", voice.said.last().text)
+    }
+
+    /** A page with nothing after its title: its end waits for the prelude, or the player would move on over it. */
+    @Test
+    fun aNotesPostThatEndsAtItsTitleStillSaysItsPrelude() {
+        val notes = notesSpeaker(afterLine = 0)
+        notes.speak(id(0, page = 3), "Ferries, again.", null, 1f, flush = true)
+        voice.sayNext()
+        assertEquals(listOf("start ${id(0, page = 3)}"), heard)
+        assertEquals(Readings.NOTES_PRELUDE, voice.sayNext())
+        assertEquals("done ${id(0, page = 3)}", heard.last())
+    }
+
+    /** A prelude the voice can't say ends the title all the same, and the page goes on. */
+    @Test
+    fun aNotesPreludeThatFailsLetsThePageGoOn() {
+        val notes = notesSpeaker(afterLine = 0)
+        notes.speak(id(0, page = 3), "Ferries, again.", null, 1f, flush = true)
+        notes.speak(id(1, page = 3), "This week, a ferry planner.", null, 1f, flush = false)
+        voice.sayNext()
+        voice.fail()
+        assertEquals("done ${id(0, page = 3)}", heard.last())
+        assertEquals(id(1, page = 3), voice.said.last().id)
+    }
+
+    /**
+     * The title's last line fails before it starts, before the player has asked for the next: that
+     * line starts afresh when it comes, not queued behind the prelude, where a podcast voice would
+     * never play it.
+     */
+    @Test
+    fun aTitleThatWontSayLetsTheNextLineStartAfresh() {
+        val notes = notesSpeaker(afterLine = 0)
+        notes.speak(id(0, page = 3), "Ferries, again.", null, 1f, flush = true)
+        voice.fail()
+        assertEquals("error ${id(0, page = 3)}", heard.last())
+        notes.speak(id(1, page = 3), "This week, a ferry planner.", null, 1f, flush = false)
+        assertEquals(id(1, page = 3), voice.said.last().id)
+        assertEquals(true, voice.flushed.last())
+        notes.speak(id(2, page = 3), "Its stops.", null, 1f, flush = false)
+        assertEquals("only the one", false, voice.flushed.last())
+    }
+
+    /** Paused before the prelude was said, it's said on playing again; started past the title, it isn't. */
+    @Test
+    fun aNotesPreludeCutShortIsSaidAgain() {
+        val notes = notesSpeaker()
+        notes.speak(id(0, page = 3), "The Example Show.", null, 1f, flush = true)
+        notes.speak(id(1, page = 3), "Ferries, again.", null, 1f, flush = false)
+        notes.stop()
+        notes.speak(id(0, page = 3), "The Example Show.", null, 1f, flush = true)
+        notes.speak(id(1, page = 3), "Ferries, again.", null, 1f, flush = false)
+        assertEquals(Readings.NOTES_PRELUDE, voice.said.last().text)
+
+        val fresh = notesSpeaker()
+        voice.said.clear()
+        fresh.speak(id(2, page = 3), "This week, a ferry planner.", null, 1f, flush = true)
+        assertEquals(listOf(id(2, page = 3)), voice.said.map { it.id })
+    }
+
+    /** Moved on while the prelude is said, its held lines are dropped, not said over the new place. */
+    @Test
+    fun aMoveDuringTheNotesPreludeDropsWhatWasHeld() {
+        val notes = notesSpeaker(afterLine = 0)
+        notes.speak(id(0, page = 3), "The Example Show.", null, 1f, flush = true)
+        notes.speak(id(1, page = 3), "This week, a ferry planner.", null, 1f, flush = false)
+        notes.speak(id(0, page = 4), "Another article.", null, 1f, flush = true)
+        assertEquals(listOf("The Example Show.", Readings.NOTES_PRELUDE, "Another article."), voice.said.map { it.text })
+    }
+
     @Test
     fun theVoiceReadsTheHeadingSaysWhatsComingAndTheRecordingPlaysTheRest() {
         listen()
@@ -78,6 +186,26 @@ class ReadingSpeakerTest {
             heard,
         )
         assertEquals(ReadingSpeaker.Now(7, 0, reading, voiceInstead = false), speaker.now.value)
+    }
+
+    /** The first episode after the edition says first that episodes follow, once, before its heading. */
+    @Test
+    fun theFirstEpisodeAfterTheEditionIsAnnouncedBeforeItsHeading() {
+        val first = Reading("https://cdn.example/12.mp3", 3_480, own = true, bodyLine = 2, starts = listOf(0.0), episode = true, atTheEnd = true, prelude = "After the edition, 2 episodes.")
+        val ending = ReadingSpeaker(voice, audio, { _, p -> first.takeIf { p == 4 } }, choices)
+        // Paused before the prelude was over: it's said again.
+        ending.speak(id(0, page = 4), "Rail Talk.", null, 1f, flush = true)
+        voice.stop()
+        ending.speak(id(0, page = 4), "Rail Talk.", null, 1f, flush = true)
+        ending.speak(id(1, page = 4), "Episode 48: Night trains.", null, 1f, flush = false)
+        assertEquals(listOf("After the edition, 2 episodes.", "Rail Talk.", "Episode 48: Night trains."), voice.queue.map { it.text })
+        repeat(3) { voice.sayNext() }
+        ending.speak(id(2, page = 4), "0:00", null, 1f, flush = true)
+        assertEquals("Now the episode itself, 58 minutes.", voice.said.last().text)
+
+        // Back to its start, the heading again but not the prelude.
+        ending.speak(id(0, page = 4), "Rail Talk.", null, 1f, flush = true)
+        assertEquals(listOf("Rail Talk."), voice.queue.map { it.text })
     }
 
     @Test
@@ -129,7 +257,7 @@ class ReadingSpeakerTest {
         assertEquals("a choice kept for the page doesn't silence it", "Now the episode itself, 2 minutes.", voice.said.last().text)
         assertEquals(Triple(episode.url, 0L, 1f), audio.played.last())
 
-        // Paused at 1:10, then played: on from the mark it reached, a minute in. By the clock its
+        // Stopped at 1:10, then played from the mark it reached: a minute in. By the clock its
         // marks show, though the file turns out twice as long as its feed said.
         audio.listener!!.onPosition(70_000, 240_000)
         speaker.stop()
@@ -150,6 +278,20 @@ class ReadingSpeakerTest {
         assertEquals("from the line it was playing when it failed", listOf(LineId(1, 7, 4, 3, 6)), skipped)
         assertTrue("the voice doesn't read its marks instead", restarted.isEmpty())
         assertTrue(logged.toString(), logged.any { "failed (offline); an episode after the edition" in it })
+    }
+
+    /** A recording paused before the player knew its length hadn't sought yet: played again, it still seeks to the line. */
+    @Test
+    fun aRecordingPausedBeforeItsLengthWasKnownStillSeeksToTheLine() {
+        val untimed = reading.copy(seconds = null)
+        val speaker = ReadingSpeaker(voice, audio, { _, _ -> untimed }, choices, logged::add)
+        speaker.speak(id(4), "It took a week.", null, 1f, flush = true)
+        speaker.pause()
+        speaker.pause()
+        speaker.speak(id(4), "It took a week.", null, 1f, flush = true)
+        assertEquals(0L, audio.played.last().second)
+        audio.listener!!.onPosition(0, 200_000)
+        assertEquals(100_000L, audio.played.last().second)
     }
 
     @Test

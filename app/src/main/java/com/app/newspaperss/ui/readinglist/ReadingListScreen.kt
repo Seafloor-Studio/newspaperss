@@ -63,12 +63,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.app.newspaperss.data.ArticleEntity
 import com.app.newspaperss.data.SourceRepository
+import com.app.newspaperss.ui.sources.ArticleCap
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReadingListScreen(viewModel: ReadingListViewModel, onBack: () -> Unit) {
     val items by viewModel.items.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
+    val cap by viewModel.cap.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val context = LocalContext.current
@@ -131,6 +133,13 @@ fun ReadingListScreen(viewModel: ReadingListViewModel, onBack: () -> Unit) {
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
             item { AddLink(viewModel) }
+            // How many saved links go in each edition, as on any source's page.
+            item {
+                cap?.let { c ->
+                    ArticleCap(c.own, c.default, viewModel::stepCap, viewModel::followDefault, from = "your reading list")
+                    HorizontalDivider()
+                }
+            }
             val list = items.orEmpty()
             if (items != null && list.isEmpty()) {
                 item {

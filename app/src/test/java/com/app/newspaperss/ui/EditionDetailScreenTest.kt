@@ -1,35 +1,41 @@
 package com.app.newspaperss.ui
 
-import com.app.newspaperss.settings.offersOpen
-import com.app.newspaperss.settings.Settings
-import com.app.newspaperss.settings.Device
 import android.app.Application
 import android.content.Intent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
-import androidx.compose.ui.test.hasAnyAncestor
-import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.work.WorkInfo
+import androidx.work.workDataOf
 import com.app.newspaperss.core.episodes.EpisodeKind
 import com.app.newspaperss.data.AppDatabase
 import com.app.newspaperss.data.ArticleEntity
@@ -39,42 +45,49 @@ import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionRepository
 import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.data.SourceEntity
-import com.app.newspaperss.edition.EditionBuilder
 import com.app.newspaperss.delivery.KindleSend
+import com.app.newspaperss.edition.EditionBuilder
+import com.app.newspaperss.listen.EpisodeAfter
+import com.app.newspaperss.listen.ListenPlayer
+import com.app.newspaperss.listen.Listening
+import com.app.newspaperss.listen.StoredListenProgress
+import com.app.newspaperss.settings.Device
+import com.app.newspaperss.settings.Settings
+import com.app.newspaperss.settings.offersOpen
+import com.app.newspaperss.testutil.FakeSpeaker
 import com.app.newspaperss.testutil.TestApp
 import com.app.newspaperss.testutil.ViewModels
-import com.app.newspaperss.testutil.closeAfter
 import com.app.newspaperss.testutil.clearFileProviderCache
+import com.app.newspaperss.testutil.closeAfter
 import com.app.newspaperss.testutil.idleUntil
 import com.app.newspaperss.ui.edition.EditionDetailScreen
+import com.app.newspaperss.ui.edition.EditionDetailViewModel
 import com.app.newspaperss.ui.edition.KINDLE_NOTE
 import com.app.newspaperss.ui.edition.MARK_NOT_SENT
-import com.app.newspaperss.ui.edition.EditionDetailViewModel
+import com.app.newspaperss.ui.edition.MARK_SENT_WAITING
+import com.app.newspaperss.ui.today.BUILD_STATUS
+import com.app.newspaperss.ui.today.BuildState
 import com.app.newspaperss.ui.today.TodayScreen
 import com.app.newspaperss.ui.today.TodayViewModel
-import com.app.newspaperss.ui.today.BuildState
-import com.app.newspaperss.ui.today.BUILD_STATUS
 import com.app.newspaperss.work.EditionWorker
-import androidx.work.WorkInfo
-import androidx.work.workDataOf
+import java.io.File
+import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.After
-import org.junit.Before
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import java.io.File
-import java.time.Instant
 
 @RunWith(AndroidJUnit4::class)
 // Tall enough that every row of these short editions is composed without scrolling.
@@ -99,13 +112,15 @@ class EditionDetailScreenTest {
         titles: List<String>,
         articleState: ArticleState = if (status == EditionStatus.DELIVERED) ArticleState.DELIVERED else ArticleState.IN_EDITION,
         withFile: Boolean = true,
+        error: String? = null,
+        name: String = "e",
         minutes: (Int) -> Double = { 4.0 },
     ): Pair<Long, List<Long>> = runBlocking {
-        val source = db.sources().insert(SourceEntity(url = "https://example.com/feed", title = "Example News"))
+        val source = db.sources().insert(SourceEntity(url = "https://example.com/$name/feed", title = "Example News"))
         val ids = titles.map { db.articles().insertIgnoring(ArticleEntity(sourceId = source, guid = it, url = "https://example.com/$it", title = it, state = articleState)) }
-        if (withFile) editionsDir.resolve("e.epub").writeText("epub")
+        if (withFile) editionsDir.resolve("$name.epub").writeText("epub")
         val editionId = db.editions().insert(
-            EditionEntity(title = "Tuesday Morning Edition", status = status, fileName = "e.epub", articleCount = titles.size, minutes = 12.0),
+            EditionEntity(title = "Tuesday Morning Edition", status = status, fileName = "$name.epub", articleCount = titles.size, minutes = 12.0, error = error),
         )
         db.editions().insertArticles(
             titles.mapIndexed { i, title ->
@@ -118,12 +133,49 @@ class EditionDetailScreenTest {
     private fun show(editionId: Long, preferOpen: Boolean = false, offerOpen: Boolean = true): EditionDetailViewModel {
         val vm = viewModels.add(EditionDetailViewModel(repo, editionId) {})
         compose.setContent { EditionDetailScreen(vm, onBack = {}, preferOpen = preferOpen, offerOpen = offerOpen) }
-        idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
+        compose.idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
         return vm
     }
 
-    private fun waitFor(text: String) = idleUntil {
+    private fun waitFor(text: String) = compose.idleUntil {
         compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    /** The episodes after the edition, listed under it with how far each got: a tap plays the one tapped. */
+    @Test
+    fun theEpisodesAfterTheEditionAreListedAndPlayFromTheList() {
+        val (id, _) = edition(EditionStatus.DELIVERED, listOf("Episode 12", "An essay"))
+        val episodes = listOf(
+            EpisodeAfter(3, "https://cdn.example/12.mp3", "Episode 12: The ferry planner", "The Example Show", 3_480, heardSeconds = 1_380),
+            EpisodeAfter(4, "https://cdn.example/48.mp3", "Episode 48: Night trains", "Rail Talk", 2_700, finished = true),
+        )
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val player = ListenPlayer(FakeSpeaker(), StoredListenProgress(app), open = { null }, scope = kotlinx.coroutines.MainScope())
+        var played: EpisodeAfter? = null
+        fun screen(listen: Boolean) {
+            val vm = viewModels.add(EditionDetailViewModel(repo, id, episodesAfter = { flowOf(episodes) }) {})
+            compose.setContent {
+                EditionDetailScreen(vm, onBack = {}, listening = if (listen) Listening(player, StoredListenProgress(app), repo) {} else null, onPlayEpisode = { played = it })
+            }
+            compose.idleUntil { vm.detail.value?.contents?.isNotEmpty() == true && vm.episodes.value.isNotEmpty() }
+        }
+
+        screen(listen = true)
+        compose.onNodeWithText("After the edition").performScrollTo().assertExists()
+        compose.onNodeWithText("23 min of 58 min heard").assertExists()
+        compose.onNodeWithText("Heard").assertExists()
+        compose.onNodeWithText("Episode 12: The ferry planner").performScrollTo().performClick()
+        assertEquals(episodes[0], played)
+    }
+
+    /** Without Listen (a release build), no list: nothing could play them. */
+    @Test
+    fun withoutListenTheEpisodesArentListed() {
+        val (id, _) = edition(EditionStatus.DELIVERED, listOf("Episode 12"))
+        val vm = viewModels.add(EditionDetailViewModel(repo, id, episodesAfter = { flowOf(listOf(EpisodeAfter(2, "https://cdn.example/12.mp3", "Episode 12", null, 60))) }) {})
+        compose.setContent { EditionDetailScreen(vm, onBack = {}) }
+        compose.idleUntil { vm.detail.value?.contents?.isNotEmpty() == true && vm.episodes.value.isNotEmpty() }
+        compose.onNodeWithText("After the edition").assertDoesNotExist()
     }
 
     @Test
@@ -173,10 +225,10 @@ class EditionDetailScreenTest {
         waitFor("Starred for your next edition")
         compose.onNodeWithContentDescription("Put Missed one in your next edition").assertIsOn()
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Starred"))
-        assertEquals(listOf(articles[1]), runBlocking { db.articles().candidates() }.map { it.id })
+        assertEquals(listOf(articles[1]), runBlocking { db.articles().buildCandidates() }.map { it.id })
 
         compose.onNodeWithContentDescription("Put Missed one in your next edition").performClick()
-        idleUntil { runBlocking { db.articles().candidates() }.isEmpty() }
+        compose.idleUntil { runBlocking { db.articles().buildCandidates() }.isEmpty() }
         assertEquals("unstarred, it's delivered as before", ArticleState.DELIVERED, runBlocking { db.articles().byId(articles[1]) }?.state)
     }
 
@@ -216,12 +268,12 @@ class EditionDetailScreenTest {
         val (_, articles) = edition(EditionStatus.DELIVERED, listOf("One", "Two"))
         val vm = viewModels.add(TodayViewModel(repo, flowOf(null)) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
-        idleUntil { vm.state.value.editions != null }
+        compose.idleUntil { vm.state.value.editions != null }
         assertEquals(0, compose.onAllNodes(hasContentDescription("starred", substring = true)).fetchSemanticsNodes().size)
 
         runBlocking { articles.forEach { repo.setStarred(it, true) } }
 
-        idleUntil { compose.onAllNodes(hasContentDescription("2 starred articles are waiting for your next edition")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasContentDescription("2 starred articles are waiting for your next edition")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithContentDescription("2 starred articles are waiting for your next edition").assertIsDisplayed()
     }
 
@@ -250,7 +302,7 @@ class EditionDetailScreenTest {
         edition(EditionStatus.READY, listOf("A story"))
         val vm = viewModels.add(TodayViewModel(repo, flowOf(null), settings = flowOf(Settings(device = Device.KINDLE))) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
-        idleUntil { compose.waitForIdle(); compose.onAllNodes(hasText("Send")).fetchSemanticsNodes().isNotEmpty() }
+        compose.idleUntil { compose.onAllNodes(hasText("Send")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Open").assertDoesNotExist()
     }
 
@@ -261,7 +313,7 @@ class EditionDetailScreenTest {
 
         compose.onNodeWithText("Read").performClick()
 
-        idleUntil { runBlocking { db.editions().byId(id) }?.status == EditionStatus.DELIVERED }
+        compose.idleUntil { runBlocking { db.editions().byId(id) }?.status == EditionStatus.DELIVERED }
         assertEquals(ArticleState.DELIVERED, runBlocking { db.articles().byId(articles[0]) }?.state)
     }
 
@@ -273,7 +325,7 @@ class EditionDetailScreenTest {
         compose.onNodeWithText("Mark as sent").performClick()
 
         // Not waitFor("Sent"): a ready edition already shows "Sent it another way?".
-        idleUntil { runBlocking { db.editions().byId(id) }?.status == EditionStatus.DELIVERED }
+        compose.idleUntil { runBlocking { db.editions().byId(id) }?.status == EditionStatus.DELIVERED }
         assertEquals(ArticleState.DELIVERED, runBlocking { db.articles().byId(articles[0]) }?.state)
     }
 
@@ -286,8 +338,142 @@ class EditionDetailScreenTest {
 
         compose.onNodeWithText("Mark as sent").performClick()
 
-        idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+        compose.idleUntil { statusOf(id) == EditionStatus.DELIVERED }
         assertEquals(ArticleState.DELIVERED, runBlocking { db.articles().byId(articles[0]) }?.state)
+    }
+
+    /**
+     * What a page offers by its edition's status, its note and whether its book is still here. A
+     * released edition, in either wording of its note, offers what a ready one does while its book
+     * is here, and says so when it's gone; a build that failed has no book to offer.
+     */
+    @Test
+    fun eachKindOfEditionOffersWhatItsBookAllows() {
+        data class Case(val status: EditionStatus, val error: String?, val withFile: Boolean, val markAsSent: Boolean, val fileGone: Boolean)
+        val cases = listOf(
+            Case(EditionStatus.READY, null, withFile = true, markAsSent = true, fileGone = false),
+            Case(EditionStatus.READY, null, withFile = false, markAsSent = true, fileGone = true),
+            Case(EditionStatus.DELIVERED, null, withFile = true, markAsSent = false, fileGone = false),
+            Case(EditionStatus.DELIVERED, null, withFile = false, markAsSent = false, fileGone = true),
+            Case(EditionStatus.FAILED, EditionBuilder.NOT_SENT, withFile = true, markAsSent = true, fileGone = false),
+            Case(EditionStatus.FAILED, EditionBuilder.OLD_NOT_SENT, withFile = true, markAsSent = true, fileGone = false),
+            Case(EditionStatus.FAILED, EditionBuilder.NOT_SENT, withFile = false, markAsSent = false, fileGone = true),
+            Case(EditionStatus.FAILED, EditionBuilder.OLD_NOT_SENT, withFile = false, markAsSent = false, fileGone = true),
+            Case(EditionStatus.FAILED, EditionBuilder.INTERRUPTED, withFile = false, markAsSent = false, fileGone = false),
+            Case(EditionStatus.FAILED, EditionBuilder.STOPPED, withFile = false, markAsSent = false, fileGone = false),
+            Case(EditionStatus.FAILED, EditionBuilder.UNEXPECTED, withFile = false, markAsSent = false, fileGone = false),
+        )
+        // One screen, shown each edition in turn: a test can set its content only once.
+        var shown by mutableStateOf<EditionDetailViewModel?>(null)
+        compose.setContent { shown?.let { vm -> key(vm) { EditionDetailScreen(vm, onBack = {}) } } }
+        cases.forEachIndexed { i, case ->
+            val state = if (case.status == EditionStatus.FAILED) ArticleState.NEW else ArticleState.IN_EDITION
+            val (id, _) = edition(case.status, listOf("Story $i"), articleState = state, withFile = case.withFile, error = case.error, name = "e$i")
+            val vm = viewModels.add(EditionDetailViewModel(repo, id) {})
+            shown = vm
+            val label = case.toString()
+            // Through the compose rule, which applies the change of screen; the looper alone doesn't.
+            compose.idleUntil { vm.detail.value?.edition?.id == id }
+            compose.waitForIdle()
+            assertEquals(label, case.markAsSent, compose.onAllNodesWithText("Mark as sent").fetchSemanticsNodes().isNotEmpty())
+            assertEquals(label, case.fileGone, compose.onAllNodesWithText("has been deleted", substring = true).fetchSemanticsNodes().isNotEmpty())
+            if (case.markAsSent) compose.onNodeWithText("Mark as sent").assertIsEnabled()
+        }
+    }
+
+    /**
+     * A released edition can't be marked as sent while another is being made, which may be taking
+     * its articles: its button is greyed out and says why, and comes back once the build is over.
+     * A ready edition's isn't held back.
+     */
+    @Test
+    fun aReleasedEditionsMarkAsSentWaitsForAnEditionBeingMade() {
+        val (id, articles) = edition(EditionStatus.FAILED, listOf("A story"), articleState = ArticleState.NEW, error = EditionBuilder.NOT_SENT)
+        val building = runBlocking { db.editions().insert(EditionEntity(title = "Wednesday Morning Edition", status = EditionStatus.BUILDING)) }
+        show(id)
+        waitFor(MARK_SENT_WAITING)
+        compose.onNodeWithText("Mark as sent").assertIsNotEnabled()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, MARK_SENT_WAITING))
+
+        runBlocking { db.editions().update(db.editions().byId(building)!!.copy(status = EditionStatus.READY)) }
+        compose.idleUntil { compose.onAllNodesWithText(MARK_SENT_WAITING).fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithText("Mark as sent").assertIsEnabled().performClick()
+        compose.idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+        assertEquals(ArticleState.DELIVERED, runBlocking { db.articles().byId(articles[0]) }?.state)
+    }
+
+    /**
+     * Each article's mark: ● sent on its own with a tap, so when the edition is let go unsent it
+     * stays out of the next one while the rest go back; ✓ brought back with another.
+     */
+    @Test
+    fun anArticleIsMarkedSentOnItsOwnAndBroughtBack() {
+        val (id, articles) = edition(EditionStatus.READY, listOf("Heard", "Still to come"))
+        show(id)
+        compose.onNodeWithContentDescription("Mark Heard as sent").performClick()
+        compose.idleUntil { runBlocking { db.articles().byId(articles[0]) }?.state == ArticleState.DELIVERED }
+        compose.idleUntil { compose.onAllNodesWithContentDescription("Mark Heard as not sent").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(EditionStatus.READY, statusOf(id))
+        assertEquals("its link is remembered as sent", listOf("https://example.com/Heard"), runBlocking { db.articles().deliveredAmong(listOf("https://example.com/Heard", "https://example.com/Still to come")) })
+
+        // A newer edition lets this one go unsent: only what's still to come goes back.
+        runBlocking {
+            db.articles().release(id)
+            db.editions().update(db.editions().byId(id)!!.copy(status = EditionStatus.FAILED, error = EditionBuilder.NOT_SENT))
+        }
+        assertEquals(listOf(ArticleState.DELIVERED, ArticleState.NEW), runBlocking { articles.map { db.articles().byId(it)!!.state } })
+
+        compose.onNodeWithContentDescription("Mark Heard as not sent").performClick()
+        compose.idleUntil { runBlocking { db.articles().byId(articles[0]) }?.state == ArticleState.NEW }
+        compose.idleUntil { compose.onAllNodesWithContentDescription("Mark Heard as sent").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    /** Read or heard to its end, an article is sent on its own; reading one already done again changes nothing. */
+    @Test
+    fun anArticleFinishedOnThePhoneIsSentButNeverBroughtBack() = runBlocking {
+        val (id, articles) = edition(EditionStatus.READY, listOf("Heard", "Read before"))
+        db.articles().markReadAll(listOf(articles[1]), Instant.EPOCH)
+
+        assertTrue(repo.markFinished(id, 0))
+        assertEquals(ArticleState.DELIVERED, db.articles().byId(articles[0])!!.state)
+        assertFalse("already sent", repo.markFinished(id, 0))
+        assertEquals(ArticleState.DELIVERED, db.articles().byId(articles[0])!!.state)
+        assertFalse(repo.markFinished(id, 1))
+        assertEquals(ArticleState.SKIPPED, db.articles().byId(articles[1])!!.state)
+    }
+
+    /** A waiting article's mark waits for an edition being made, which may be taking it; one still in its edition doesn't. */
+    @Test
+    fun aWaitingArticlesMarkWaitsForAnEditionBeingMade() {
+        val (id, articles) = edition(EditionStatus.FAILED, listOf("Let go"), articleState = ArticleState.NEW, error = EditionBuilder.NOT_SENT)
+        val (ready, inIt) = edition(EditionStatus.READY, listOf("In its edition"), name = "r")
+        runBlocking { db.editions().insert(EditionEntity(title = "Wednesday Morning Edition", status = EditionStatus.BUILDING)) }
+        show(id)
+        waitFor("Let go")
+        compose.onNodeWithContentDescription("Mark Let go as sent").assertIsNotEnabled().performClick()
+        compose.waitForIdle()
+        assertEquals(ArticleState.NEW, runBlocking { db.articles().byId(articles[0]) }?.state)
+        assertFalse(runBlocking { repo.toggleSent(id, articles[0]) })
+
+        assertTrue(runBlocking { repo.toggleSent(ready, inIt[0]) })
+    }
+
+    @Test
+    fun anEditionReleasedUnderTheOlderWordingCanBeMarkedAsSent() {
+        val (id, articles) = edition(EditionStatus.FAILED, listOf("A story"), articleState = ArticleState.NEW, error = EditionBuilder.OLD_NOT_SENT)
+        show(id)
+        compose.onNodeWithText("Mark as sent").performClick()
+        compose.idleUntil { statusOf(id) == EditionStatus.DELIVERED }
+        assertEquals(ArticleState.DELIVERED, runBlocking { db.articles().byId(articles[0]) }?.state)
+    }
+
+    @Test
+    fun aReadyEditionCanBeMarkedAsSentWhileAnotherIsBeingMade() {
+        val (id, _) = edition(EditionStatus.READY, listOf("A story"))
+        runBlocking { db.editions().insert(EditionEntity(title = "Wednesday Morning Edition", status = EditionStatus.BUILDING)) }
+        show(id)
+        compose.onNodeWithText("Mark as sent").assertIsEnabled()
+        compose.onNodeWithText(MARK_SENT_WAITING).assertDoesNotExist()
     }
 
     @Test
@@ -320,7 +506,7 @@ class EditionDetailScreenTest {
         val vm = viewModels.add(TodayViewModel(repo, flowOf(null)) {})
         var opened: Long? = null
         compose.setContent { TodayScreen(vm, onOpenEdition = { opened = it }) }
-        idleUntil { vm.state.value.editions?.size == 2 }
+        compose.idleUntil { vm.state.value.editions?.size == 2 }
 
         compose.onNodeWithText("Monday Morning Edition").performClick()
 
@@ -336,7 +522,7 @@ class EditionDetailScreenTest {
         val work = MutableStateFlow<WorkInfo?>(null)
         val vm = viewModels.add(TodayViewModel(repo, work) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
-        idleUntil { vm.state.value.editions != null }
+        compose.idleUntil { vm.state.value.editions != null }
         // TalkBack announces a live region whose text changes, not one that appears, so the status
         // must stay the same node from the tap to the result.
         val status = compose.onNodeWithTag(BUILD_STATUS).fetchSemanticsNode().id
@@ -344,21 +530,21 @@ class EditionDetailScreenTest {
         fun text() = statusNode().config.getOrNull(SemanticsProperties.Text)?.joinToString { it.text }
 
         work.value = work(WorkInfo.State.ENQUEUED)
-        idleUntil { vm.state.value.build == BuildState.Syncing }
+        compose.idleUntil { vm.state.value.build == BuildState.Syncing }
         compose.waitForIdle()
         assertEquals(status, statusNode().id)
         assertEquals("Checking your sources for new articles…", text())
         assertTrue(SemanticsProperties.LiveRegion in statusNode().config)
 
         work.value = work(WorkInfo.State.RUNNING, progress = workDataOf(EditionWorker.STAGE to EditionWorker.STAGE_FETCHING, EditionWorker.FETCHED to 3))
-        idleUntil { vm.state.value.build is BuildState.Fetching }
+        compose.idleUntil { vm.state.value.build is BuildState.Fetching }
         compose.waitForIdle()
         assertEquals(status, statusNode().id)
         assertEquals("Making your edition", text())
         compose.onNode(hasText("3 articles so far") and SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion)).assertDoesNotExist()
 
         work.value = work(WorkInfo.State.SUCCEEDED)
-        idleUntil { vm.state.value.build == BuildState.Idle }
+        compose.idleUntil { vm.state.value.build == BuildState.Idle }
         compose.waitForIdle()
         assertEquals(status, statusNode().id)
         assertEquals("Your edition is ready.", text())
@@ -369,10 +555,12 @@ class EditionDetailScreenTest {
         val work = MutableStateFlow<WorkInfo?>(work(WorkInfo.State.ENQUEUED))
         val vm = viewModels.add(TodayViewModel(repo, work) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
-        idleUntil { vm.state.value.build == BuildState.Syncing }
+        compose.idleUntil { vm.state.value.build == BuildState.Syncing }
+        compose.waitForIdle()
 
         work.value = work(WorkInfo.State.FAILED, output = workDataOf(EditionWorker.ERROR to "Couldn't reach any of your sources."))
-        idleUntil { vm.state.value.build is BuildState.Failed }
+        compose.idleUntil { vm.state.value.build is BuildState.Failed }
+        compose.waitForIdle()
         compose.onNode(hasText("Couldn't reach any of your sources.") and SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion)).assertExists()
     }
 
@@ -382,11 +570,11 @@ class EditionDetailScreenTest {
         val vm = viewModels.add(TodayViewModel(repo, flowOf(work(WorkInfo.State.ENQUEUED)), online = online) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
 
-        idleUntil { vm.state.value.build == BuildState.WaitingForNetwork }
+        compose.idleUntil { vm.state.value.build == BuildState.WaitingForNetwork }
         compose.onNodeWithText("Waiting for an internet connection…").assertExists()
 
         online.value = true
-        idleUntil { vm.state.value.build == BuildState.Syncing }
+        compose.idleUntil { vm.state.value.build == BuildState.Syncing }
         compose.onNodeWithText("Checking your sources for new articles…").assertExists()
     }
 
@@ -395,7 +583,7 @@ class EditionDetailScreenTest {
         val failed = work(WorkInfo.State.FAILED, output = workDataOf(EditionWorker.ERROR to "Couldn't reach any of your sources."))
         val vm = viewModels.add(TodayViewModel(repo, flowOf(failed)) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
-        idleUntil { vm.state.value.build is BuildState.Failed }
+        compose.idleUntil { vm.state.value.build is BuildState.Failed }
 
         compose.onNodeWithText("Couldn't reach any of your sources.").assertExists()
         compose.onNode(hasText("Couldn't reach any of your sources.") and SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion)).assertDoesNotExist()
@@ -408,7 +596,7 @@ class EditionDetailScreenTest {
         var started = 0
         val vm = viewModels.add(TodayViewModel(repo, flowOf(null)) { started++ })
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
-        idleUntil { vm.state.value.editions?.size == 1 }
+        compose.idleUntil { vm.state.value.editions?.size == 1 }
 
         compose.onNodeWithText("Make an edition now").assertDoesNotExist()
         compose.onNodeWithText("Make another edition").performClick()
@@ -422,7 +610,7 @@ class EditionDetailScreenTest {
         val failed = work(WorkInfo.State.FAILED, output = workDataOf(EditionWorker.ERROR to EditionBuilder.UNEXPECTED))
         val vm = viewModels.add(TodayViewModel(repo, flowOf(failed)) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
-        idleUntil { vm.state.value.editions?.size == 1 && vm.state.value.build is BuildState.Failed }
+        compose.idleUntil { vm.state.value.editions?.size == 1 && vm.state.value.build is BuildState.Failed }
 
         assertEquals("said once", 1, compose.onAllNodes(hasText(EditionBuilder.UNEXPECTED)).fetchSemanticsNodes().size)
         // In the status line, where TalkBack announces a build's result.
@@ -440,7 +628,7 @@ class EditionDetailScreenTest {
         val failed = work(WorkInfo.State.FAILED, output = workDataOf(EditionWorker.ERROR to "Something went wrong."))
         val vm = viewModels.add(TodayViewModel(repo, flowOf(failed)) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
-        idleUntil { vm.state.value.build is BuildState.Failed && vm.state.value.editions?.size == 1 }
+        compose.idleUntil { vm.state.value.build is BuildState.Failed && vm.state.value.editions?.size == 1 }
 
         compose.onNodeWithText("Try again").assertDoesNotExist()
         compose.onNodeWithText("Make another edition").assertExists()
@@ -453,7 +641,7 @@ class EditionDetailScreenTest {
         val failed = work(WorkInfo.State.FAILED, output = workDataOf(EditionWorker.ERROR to "Couldn't reach any of your sources."))
         val vm = viewModels.add(TodayViewModel(repo, flowOf(failed)) { started++ })
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
-        idleUntil { vm.state.value.build is BuildState.Failed }
+        compose.idleUntil { vm.state.value.build is BuildState.Failed }
 
         compose.onNodeWithText("Try again").performClick()
         assertEquals(1, started)
@@ -465,13 +653,13 @@ class EditionDetailScreenTest {
         val (id, _) = edition(EditionStatus.DELIVERED, listOf("A story"))
         val vm = viewModels.add(TodayViewModel(repo, flowOf(null)) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
-        idleUntil { vm.state.value.editions?.size == 1 }
+        compose.idleUntil { vm.state.value.editions?.size == 1 }
         fun below() = compose.onNodeWithText("Make another edition").fetchSemanticsNode().boundsInRoot.top >
             compose.onNodeWithText("Tuesday Morning Edition").fetchSemanticsNode().boundsInRoot.bottom
         assertTrue("below a sent edition", below())
 
         runBlocking { db.editions().update(db.editions().byId(id)!!.copy(status = EditionStatus.READY)) }
-        idleUntil { vm.state.value.editions?.single()?.status == EditionStatus.READY }
+        compose.idleUntil { vm.state.value.editions?.single()?.status == EditionStatus.READY }
         compose.waitForIdle()
         assertTrue("below a ready edition", below())
     }
@@ -482,7 +670,7 @@ class EditionDetailScreenTest {
         val nothing = work(WorkInfo.State.SUCCEEDED, output = workDataOf(EditionWorker.NOTHING_NEW to true))
         val vm = viewModels.add(TodayViewModel(repo, flowOf(nothing)) {})
         compose.setContent { TodayScreen(vm, onOpenEdition = {}) }
-        idleUntil { vm.state.value.build == BuildState.NothingNew && vm.state.value.editions?.size == 1 }
+        compose.idleUntil { vm.state.value.build == BuildState.NothingNew && vm.state.value.editions?.size == 1 }
 
         // Not "add sources": this reader has an edition, and there's just nothing since.
         compose.onNodeWithTag(BUILD_STATUS).assertTextEquals("Nothing new since your last edition. Check back later.")
@@ -496,7 +684,7 @@ class EditionDetailScreenTest {
         val vm = viewModels.add(TodayViewModel(repo, flowOf(null)) {})
         var opened: Long? = null
         compose.setContent { TodayScreen(vm, onOpenEdition = { opened = it }) }
-        idleUntil { vm.state.value.editions?.size == 1 }
+        compose.idleUntil { vm.state.value.editions?.size == 1 }
 
         compose.onNodeWithText("See what's inside").assertDoesNotExist()
         compose.onNode(hasText("Tuesday Morning Edition") and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
@@ -528,7 +716,7 @@ class EditionDetailScreenTest {
 
         markNotSent("More options")
 
-        idleUntil { statusOf(id) == EditionStatus.READY }
+        compose.idleUntil { statusOf(id) == EditionStatus.READY }
         assertEquals(ArticleState.IN_EDITION, runBlocking { db.articles().byId(articles[0]) }?.state)
         waitFor("Mark as sent")
         compose.onNodeWithText("Send").assertExists()
@@ -552,7 +740,7 @@ class EditionDetailScreenTest {
 
         markNotSent(todaysOptions)
 
-        idleUntil { statusOf(id) == EditionStatus.READY }
+        compose.idleUntil { statusOf(id) == EditionStatus.READY }
         waitFor("Mark as sent")
     }
 
@@ -581,7 +769,7 @@ class EditionDetailScreenTest {
         val kindle = MutableStateFlow(mapOf(id + 1 to KindleSend.APP))
         val vm = viewModels.add(EditionDetailViewModel(repo, id, sentToKindle = kindle) {})
         compose.setContent { EditionDetailScreen(vm, onBack = {}) }
-        idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
+        compose.idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
         compose.waitForIdle()
         compose.onNodeWithText(KINDLE_NOTE).assertDoesNotExist()
 
@@ -596,12 +784,12 @@ class EditionDetailScreenTest {
         var left = false
         val vm = viewModels.add(EditionDetailViewModel(repo, id) { dismissed += it })
         compose.setContent { EditionDetailScreen(vm, onBack = { left = true }) }
-        idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
+        compose.idleUntil { vm.detail.value?.contents?.isNotEmpty() == true }
         compose.onNodeWithContentDescription("More options").performClick()
         compose.onNodeWithText("Delete edition").performClick()
         compose.onNode(hasText("Delete edition") and hasAnyAncestor(isDialog())).performClick()
         // The screen leaves once it sees the deletion, on its next frame.
-        idleUntil { compose.waitForIdle(); left }
+        compose.idleUntil { left }
     }
 
     private fun isGone(id: Long) = runBlocking { repo.observeAll().first().none { it.id == id } && repo.observe(id).first() == null }
@@ -660,7 +848,7 @@ class EditionDetailScreenTest {
         assertFalse(runBlocking { repo.delete(building) })
         val vm = viewModels.add(EditionDetailViewModel(repo, building) {})
         compose.setContent { EditionDetailScreen(vm, onBack = {}) }
-        idleUntil { vm.detail.value?.edition != null }
+        compose.idleUntil { vm.detail.value?.edition != null }
         compose.onNodeWithContentDescription("More options").assertDoesNotExist()
         assertEquals(EditionStatus.BUILDING, runBlocking { db.editions().byId(building) }?.status)
     }

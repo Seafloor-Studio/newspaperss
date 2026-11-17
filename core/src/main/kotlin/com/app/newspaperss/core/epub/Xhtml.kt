@@ -76,9 +76,8 @@ internal fun languageAttributes(language: String?, pageLanguage: String): String
 }
 
 /** A complete XHTML content document around [body], which must already be escaped markup. */
-internal fun xhtmlPage(title: String, language: String, body: String, bodyClass: String? = null): String {
+internal fun xhtmlPage(title: String, language: String, body: String): String {
     val lang = esc(language)
-    val cls = if (bodyClass == null) "" else " class=\"${esc(bodyClass)}\""
     return """<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="$lang" lang="$lang">
@@ -87,7 +86,7 @@ internal fun xhtmlPage(title: String, language: String, body: String, bodyClass:
 <title>${esc(title)}</title>
 <link rel="stylesheet" type="text/css" href="style.css"/>
 </head>
-<body$cls>
+<body>
 $body
 </body>
 </html>
