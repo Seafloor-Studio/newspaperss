@@ -959,9 +959,18 @@ whose Kindle and KOReader answers ask for more on the same page).
     tt-rss yet", "Checking…", "2 articles in Tuesday's edition, not sent
     yet", "Last sent Sunday · 2 articles" (every article sent that day),
     "Waiting for your next edition", "Nothing sent from here yet", or "No
-    articles yet". It never counts what's waiting. It's worked out from the
-    whole source, not the listed articles, so a busy feed's last delivery
-    counts even when it's older than all of them.
+    articles yet". It never counts what's waiting. What went out, and what's
+    in an unsent edition, are read from the editions' contents for this
+    source (or tt-rss feed), not from the listed articles or their states:
+    a busy feed's last delivery counts even when it's older than every
+    listed article, another source's copy of the same link doesn't, and
+    marking an article read or unread later changes nothing. An article
+    marked sent by hand was in no edition, so it isn't counted.
+  - **A tt-rss feed's page** also says what its account is doing: "Your
+    tt-rss is paused · nothing new comes in" with **Start again** (which
+    starts the account), or the account's problem when it's failing. Left
+    out comes before both: it's the feed's own choice, and a left-out feed
+    isn't fetched either way.
   - **A problem** (a failing feed, tt-rss couldn't fetch it, or never
     fetched it) has a mark, a heavier weight and red, so it reads on e-ink.
     Its notes say how long it has failed, what it means for the paper, and
@@ -1013,7 +1022,7 @@ whose Kindle and KOReader answers ask for more on the same page).
     `✓` → `●`). A second tap undoes it, so there's no Undo. It has no
     outline; a legend under the last row says what the marks mean, that
     they can be tapped, and how long an article waits before it's not
-    picked (7 days; on a curated list, that it keeps its newest 12). Its
+    picked (7 days; a curated list's legend adds that it keeps its newest 12). Its
     touch area is 48dp, though the mark is narrower so titles line up.
   - The star (a 48dp target) puts the article in the next edition and
     turns into **★** on an outlined disc.
