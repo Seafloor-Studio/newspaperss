@@ -263,13 +263,45 @@ class SourceDetailScreenTest {
         compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
         compose.idleUntil { visible("Newest articles") }
 
-        // One episode, its notes and transcript counted once; a reading isn't an episode, and the
-        // article never judged doesn't count either way.
-        compose.onNodeWithText("Posts episodes: 1 of the last 5 posts").assertExists()
         val list = compose.onNode(hasScrollAction())
         list.performScrollToNode(hasText("Audio version of “October 15”"))
         list.performScrollToNode(hasText("Has an audio version"))
         list.performScrollToNode(hasText("Transcript of “Episode 12”"))
+
+        // How often is a fact about the source's settings, not its health: in the sheet, under the
+        // recordings switch. One episode, its notes and transcript counted once; a reading isn't an
+        // episode, and the article never judged doesn't count either way.
+        list.performScrollToIndex(0)
+        assertFalse("not on the page", visible("Posts episodes"))
+        openSettings()
+        settle { visible("Its recordings in Listen") }
+        compose.onNodeWithText("Posts episodes: 1 of the last 5 posts").assertExists()
+    }
+
+    /**
+     * A site found to send only summaries says so in its settings row and sheet, not in the header,
+     * which keeps to how it's doing; the sheet says when it's because the site blocks fetching.
+     */
+    @Test
+    fun summariesOnlyIsSaidInTheSettingsNotTheHeader() {
+        val id = runBlocking {
+            val id = repo.addFeed("https://example.com/feed", "Example")
+            db.articles().insertNew(listOf(ArticleEntity(sourceId = id, guid = "1", url = "https://example.com/1", title = "A summary", discoveredAt = clock.instant())))
+            db.sources().recordSuccess(id, clock.instant(), null, null, "")
+            db.sources().savePublication(PublicationEntity(id, PublicationEntity.OWN, ContentMode.FEED, FullTextEvidence.BLOCKED))
+            id
+        }
+        val vm = viewModels.add(SourceDetailViewModel(repo, id, flowOf(1)))
+        compose.setContent { atClock { SourceDetailScreen(vm, onBack = {}) } }
+        settle { hasSettingsRow("1 article an edition, more if there's room. Summaries only") }
+
+        assertTrue(visible("New articles today"))
+        assertFalse("not in the header", visible("Only summaries"))
+        assertFalse("not in the header", visible("blocks fetching"))
+        openSettings()
+        compose.idleUntil {
+            compose.onAllNodes(hasText("Article text") and hasText("Automatic · summaries only: the site blocks fetching the full page")).fetchSemanticsNodes().isNotEmpty()
+        }
     }
 
     /** A site's own number stays put when the edition setting changes, until the reader hands it back. */
