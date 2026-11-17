@@ -382,6 +382,19 @@ class TtrssFeedsTest {
         assertFalse(runBlocking { db.sources().publication(account, "8")!!.skipPaidPosts })
     }
 
+    /** The account's own page has no posts of its own, so nothing to skip, though its feeds' pages offer it ahead. */
+    @Test
+    fun theAccountsPageHasNoPaidPostsSwitch() {
+        val account = account()
+        val vm = viewModels.add(SourceDetailViewModel(repo, account, flowOf(1)))
+        compose.setContent { SourceDetailScreen(vm, onBack = {}) }
+        val row = hasContentDescription("This account's settings", substring = true)
+        compose.idleUntil { compose.onAllNodes(row).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(row).performClick()
+        compose.idleUntil { visible("Pause this") }
+        assertFalse(visible("Skip paid posts"))
+    }
+
     /**
      * A left-out feed's page has no settings at all, its paid posts' included: one button brings
      * it back, and then they're there again.

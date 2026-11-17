@@ -884,18 +884,21 @@ class SourceDetailScreenTest {
         assertEquals("Failing for 4 days, since Dec 30, 2026", failingLine(Instant.parse("2026-12-30T08:00:00Z"), Locale.US, Instant.parse("2027-01-03T10:00:00Z"), utc))
     }
 
-    /** The paid-posts switch only shows on a source that's had one, and says how many it left out. */
+    /**
+     * The paid-posts switch shows before any paid post arrives, so it can be set ahead; once one
+     * has, it says so, and how many it left out.
+     */
     @Test
     @Config(qualifiers = "w411dp-h1600dp")
     fun aSourceWithPaidPostsCanSkipTheOnesWithNothingFree() {
         val (id, ids) = sourceWithArticles()
         show(id)
         openSettings()
-        assertFalse("not on a source that's never had one", visible("Skip paid posts"))
+        compose.idleUntil { visible("Skip paid posts with nothing free") }
+        assertTrue(visible("Leaves out posts for paying subscribers"))
 
         runBlocking { repo.markPaidOnly(ids.getValue("delivered"), skip = false) }
-        compose.idleUntil { visible("Skip paid posts with nothing free") }
-        assertTrue(visible("Some of its posts are for paying subscribers"))
+        compose.idleUntil { visible("Some of its posts are for paying subscribers") }
         compose.onNodeWithText("Skip paid posts with nothing free").performClick()
         compose.idleUntil { runBlocking { db.sources().publication(id, PublicationEntity.OWN)?.skipPaidPosts == true } }
 
