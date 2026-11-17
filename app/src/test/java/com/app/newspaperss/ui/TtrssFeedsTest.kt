@@ -344,7 +344,8 @@ class TtrssFeedsTest {
         compose.onNodeWithContentDescription("This site's settings: At most 2 articles an edition. Full page (your choice)").assertExists()
     }
 
-    private fun hasSettingsRow() = compose.onAllNodes(hasContentDescription("This site's settings:", substring = true)).fetchSemanticsNodes().isNotEmpty()
+    /** The row, as TalkBack reads it, whatever it says after its title. */
+    private fun hasSettingsRow() = compose.onAllNodes(hasContentDescription("This site's settings", substring = true)).fetchSemanticsNodes().isNotEmpty()
 
     /** Every row on a feed's page is from that feed, so the rows don't repeat its name; the account's page mixes feeds, so its rows keep them. */
     @Test
