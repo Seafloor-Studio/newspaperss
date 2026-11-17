@@ -60,7 +60,7 @@ Sync feeds ─► Plan ─► Extract ─► Write the EPUB ─► Deliver ─�
 The pipeline follows the Python library's shape, in the pure-JVM `:core`
 module so it's all unit-tested without Android.
 
-- **Plan.** Starred articles go first, taking turns between the sources
+- **Plan.** Starred articles and saved links (the reading list's) go first, taking turns between the sources
   that have them (oldest star first within a source). Then everything
   else: take turns between sources, at most one article each by default,
   until the reading-time budget is reached. A star uses one of its
@@ -1061,7 +1061,10 @@ whose Kindle and KOReader answers ask for more on the same page).
   so (and Both still saves). Cancel, or tapping outside, does nothing.
 - **Reading list:** links you shared into the app, each with its title,
   site and reading time (looked up in the background). They go first in
-  the next edition. A link saved when there was no lookup, or imported
+  the next edition, oldest saved first, as stars do. How many go in each
+  edition is set at the top of the list, as on any source's page: the
+  edition's number, which gives way when there's room, or the list's own,
+  a firm limit. A link saved when there was no lookup, or imported
   with its title, gets its reading time later: up to 20 a time, twice a
   day, only on Wi-Fi while charging. A page that won't load is tried on
   three passes through the list, then left without a time; a link saved

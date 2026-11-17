@@ -147,7 +147,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         val sources = viewModel { SourcesViewModel(container.sources, container.feedFinder) { SyncWorker.syncNow(context) } }
-                        val readingList = viewModel { ReadingListViewModel(container.readingList) }
+                        val readingList = viewModel { ReadingListViewModel(container.readingList, container.sources, container.settings.settings.map { it.edition.maxPerSource }) }
                         OnboardingScreen(vm, sources, readingList)
                     }
                     true -> App(
@@ -428,7 +428,7 @@ private fun App(
                 SourceDetailScreen(vm, onBack = { nav.navigateUp() }, onGone = { nav.popBackStack(SOURCE, inclusive = true) })
             }
             composable(READING_LIST) {
-                val vm = viewModel { ReadingListViewModel(container.readingList) }
+                val vm = viewModel { ReadingListViewModel(container.readingList, container.sources, container.settings.settings.map { it.edition.maxPerSource }) }
                 ReadingListScreen(vm, onBack = { nav.navigateUp() })
             }
             composable(Tab.SETTINGS.route) {
