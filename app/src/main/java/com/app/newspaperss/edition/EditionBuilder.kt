@@ -158,8 +158,12 @@ class EditionBuilder(
             if (s.kind == SourceKind.TTRSS) articles.filter { it.sourceId == s.id }.map(::publicationOf).distinct().sorted()
             else listOf(s.id.toString())
         }
+        // A saved link was picked on purpose, like a star: it goes first, oldest saved first, and
+        // not after every feed has had its turn (it's featured nearly every edition, so its turn
+        // would come last). Its source's cap still holds, the reader's to set like any other.
+        fun pickedAt(a: ArticleEntity) = a.starredAt ?: a.discoveredAt.takeIf { sourcesById[a.sourceId]?.kind == SourceKind.READING_LIST }
         val ordered = EditionPlanner.order(
-            candidates = articles.map { Candidate(it.id.toString(), publicationOf(it), it.published ?: it.discoveredAt, it.starredAt, lastChance = expiresBefore(it, sourcesById[it.sourceId], nextEdition)) },
+            candidates = articles.map { Candidate(it.id.toString(), publicationOf(it), it.published ?: it.discoveredAt, pickedAt(it), lastChance = expiresBefore(it, sourcesById[it.sourceId], nextEdition)) },
             sourceOrder = publicationOrder,
             ordering = settings.ordering,
             lastFeatured = db.editions().lastFeatured().associate { publicationOf(it.sourceId, it.originId ?: PublicationEntity.OWN) to it.createdAt },

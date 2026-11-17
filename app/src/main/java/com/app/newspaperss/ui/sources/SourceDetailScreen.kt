@@ -589,18 +589,22 @@ private fun PaidPostsOption(skip: Boolean, skipped: Int, onChange: (Boolean) -> 
 /** The font scale from which rows stack rather than squeeze. */
 internal const val LARGE_TEXT = 1.3f
 
+/**
+ * How many articles a source puts in each edition: the edition's number, which gives way when
+ * there's room, or its own, a hard limit. [from] names the source in the sentence ("this site",
+ * "your reading list").
+ */
 @Composable
-private fun ArticleCap(own: Int?, default: Int, onStep: (Int) -> Unit, onFollowDefault: () -> Unit) {
+internal fun ArticleCap(own: Int?, default: Int, onStep: (Int) -> Unit, onFollowDefault: () -> Unit, from: String = "this site") {
     val max = own ?: default
-    // The edition's number gives way when there's room; a site's own number is a hard limit.
     val words: @Composable (Modifier) -> Unit = { modifier ->
         Column(modifier) {
             Text(
-                if (own == null) "${plural(default, "article")} from this site, then more if there's room"
-                else "At most ${plural(own, "article")} from this site in each edition",
+                if (own == null) "${plural(default, "article")} from $from, then more if there's room"
+                else "At most ${plural(own, "article")} from $from in each edition",
             )
             Text(
-                if (own == null) "Your edition setting. Choose fewer or more to give this site a firm limit."
+                if (own == null) "Your edition setting. Choose fewer or more to give it a firm limit."
                 else "Your edition setting: ${plural(default, "article")} from each source, then more if there's room",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -608,13 +612,13 @@ private fun ArticleCap(own: Int?, default: Int, onStep: (Int) -> Unit, onFollowD
         }
     }
     val buttons: @Composable () -> Unit = {
-        OutlinedButton(onClick = { onStep(-1) }, enabled = own == null || own > 1, modifier = Modifier.semantics { contentDescription = "Fewer articles from this site" }) {
+        OutlinedButton(onClick = { onStep(-1) }, enabled = own == null || own > 1, modifier = Modifier.semantics { contentDescription = "Fewer articles from $from" }) {
             Text("−")
         }
         OutlinedButton(
             onClick = { onStep(1) },
             enabled = max < SettingsViewModel.MAX_PER_SOURCE,
-            modifier = Modifier.padding(start = 8.dp).semantics { contentDescription = "More articles from this site" },
+            modifier = Modifier.padding(start = 8.dp).semantics { contentDescription = "More articles from $from" },
         ) { Text("+") }
     }
     val padding = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = if (own == null) 12.dp else 0.dp)

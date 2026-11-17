@@ -224,6 +224,40 @@ class EditionBuilderTest {
     }
 
     /**
+     * Saved links were picked on purpose, like stars: they go first, oldest saved first, though the
+     * reading list was in the last edition and the feeds weren't. Held to one by default, more
+     * when there's room; held to the reader's own number when they set one.
+     */
+    @Test
+    fun savedLinksGoFirstAndTheReadingListHasItsOwnNumber() = runTest {
+        val list = ReadingListRepository(db, clock)
+        list.save("https://saved.example/one", "Saved one")
+        list.save("https://saved.example/two", "Saved two")
+        val listId = list.sourceId()
+        // The list was in yesterday's edition: by turns alone it would come last.
+        list.save("https://saved.example/before", "Saved before")
+        val before = db.articles().allForSource(listId).single { it.guid.endsWith("before") }
+        val yesterday = db.editions().insert(EditionEntity(title = "Yesterday", createdAt = clock.instant().minus(Duration.ofDays(1)), status = EditionStatus.DELIVERED))
+        db.editions().insertArticles(listOf(EditionArticleEntity(editionId = yesterday, articleId = before.id, position = 0, title = before.title, sourceTitle = "Your reading list", minutes = 1.0)))
+        db.articles().setState(listOf(before.id), ArticleState.DELIVERED)
+        source("a", "a1")
+        source("b", "b1")
+
+        suspend fun titles(minutes: Int): List<String> {
+            val built = builder.build(EditionSettings(minutes = minutes, maxPerSource = 1, wordsPerMinute = 200)) as BuildResult.Built
+            val titles = editions.observeArticles(built.editionId).first().map { it.title }
+            editions.delete(built.editionId)
+            return titles
+        }
+
+        assertEquals("first, and one by default", listOf("Saved one", "a a1", "b b1"), titles(25))
+        // Taken last, it's placed beside the first: the book keeps a source's articles together.
+        assertEquals("more when there's room", listOf("Saved one", "Saved two", "a a1", "b b1"), titles(35))
+        sources.setMaxArticles(listId, PublicationEntity.OWN, 2)
+        assertEquals("its own number", listOf("Saved one", "Saved two", "a a1"), titles(25))
+    }
+
+    /**
      * Six sources last featured on six different days, room for one: the one featured longest ago
      * has only an article that waits out its week before the next scheduled edition. Across draws
      * it always goes in; with the next edition only a day away its article would still wait, so
