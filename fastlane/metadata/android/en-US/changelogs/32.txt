@@ -1,0 +1,5 @@
+• Links you save go first in each edition, and your reading list sets how many go in.
+• A source's page now says what it put in your paper ("Last sent Sunday · 2 articles"), and its settings row says the rule in words.
+• "Skip posts with nothing free" can be turned on for any feed before a paid post arrives, and covers Substack posts kept to free subscribers.
+• Posts for free subscribers go in as their open part, with a note.
+• Many smaller fixes.
