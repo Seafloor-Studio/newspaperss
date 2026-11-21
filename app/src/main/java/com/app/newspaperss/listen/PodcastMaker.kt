@@ -111,15 +111,15 @@ class PodcastMaker(
         }
 
         /**
-         * Why the next line shouldn't start, or null: it may not end before the run is stopped,
-         * and a line in flight then is lost whole (once 178s, which took the run past Android's
-         * limit and had it killed). Lines vary, so it keeps [BACKGROUND_RESERVE_SECONDS] in hand
-         * whatever the slowest of late.
+         * Why the next line shouldn't start, or null: it may not end, and be kept, before the run
+         * is stopped. A line in flight then is lost whole, and one has taken 178s, which took the
+         * run past Android's limit and had it killed. So the next line is given the slowest of
+         * late, and never less than [SLOWEST_LINE_SECONDS], with keeping's [keepOnStopMs] on top.
          */
         fun tooLate(): String? {
             val left = secondsLeft() ?: return null
             val slowest = recent.maxOrNull() ?: 0.0
-            if (left >= maxOf(slowest, BACKGROUND_RESERVE_SECONDS)) return null
+            if (left >= maxOf(slowest, SLOWEST_LINE_SECONDS) + keepOnStopMs / 1000.0) return null
             return "${left.toInt()}s left in the background, the slowest of the last ${recent.size} lines ${slowest.toInt()}s"
         }
     }
@@ -400,6 +400,7 @@ class PodcastMaker(
             piece = null
             val resumes = if (stopped == null) "resumes at line $next" else when (keepOnStop(stopped, editionId, page, asked)) {
                 Kept.KEPT -> "resumes at line $next"
+                Kept.DROPPED -> "the podcast deleted or asked for again since, its piece dropped"
                 Kept.FAILED -> "${stopped.seconds.toInt()}s of audio couldn't be kept, resumes at line ${stopped.firstLine}"
                 Kept.LATE -> "still keeping lines ${stopped.firstLine}–${next - 1} after ${keepOnStopMs}ms; resumes at line $next if they're kept"
             }
@@ -423,7 +424,7 @@ class PodcastMaker(
         }
     }
 
-    private enum class Kept { KEPT, FAILED, LATE }
+    private enum class Kept { KEPT, DROPPED, FAILED, LATE }
 
     /**
      * Keeps [piece] as the run is stopped, whatever the stop: closing the file and the one write
@@ -433,17 +434,14 @@ class PodcastMaker(
      */
     private suspend fun keepOnStop(piece: Piece, editionId: Long, page: Int, asked: String?): Kept = withContext(NonCancellable) {
         val keeping = keepers.async {
-            runCatching { piece.keep(editionId, page, asked) }.onFailure {
+            runCatching { if (piece.keep(editionId, page, asked)) Kept.KEPT else Kept.DROPPED }.getOrElse {
                 piece.drop()
                 log.add("Couldn't keep page $page lines from ${piece.firstLine} as the run stopped: ${it.javaClass.simpleName}")
-            }.isSuccess
+                Kept.FAILED
+            }
         }
         stillKeeping = keeping
-        when (withTimeoutOrNull(keepOnStopMs) { keeping.await() }) {
-            null -> Kept.LATE
-            true -> Kept.KEPT
-            false -> Kept.FAILED
-        }
+        withTimeoutOrNull(keepOnStopMs) { keeping.await() } ?: Kept.LATE
     }
 
     /** A piece being written: opened on its first line, kept once it's long enough or the page ends. */
@@ -463,17 +461,26 @@ class PodcastMaker(
             samples += audio.size
         }
 
-        /** Keeps it, unless the podcast was deleted (and maybe asked for again) since [asked]: then it's dropped. */
-        fun keep(editionId: Long, page: Int, asked: String?) {
-            if (store.asked(editionId) != asked) return drop()
+        /** Keeps it, unless the podcast was deleted (and maybe asked for again) since [asked]: then it's dropped, and false. */
+        fun keep(editionId: Long, page: Int, asked: String?): Boolean {
+            val lines = "page $page lines $firstLine–${firstLine + starts.size - 1}"
+            if (store.asked(editionId) != asked) {
+                drop()
+                log.add("Dropped $lines: the podcast deleted or asked for again since")
+                return false
+            }
             // Lines Kokoro made nothing of (a row of symbols): an encoder given no audio at all
             // can't finish its file.
             if (samples == 0L) write(FloatArray(rate / 10))
             val began = now()
             sink.close()
-            store.keep(editionId, page, firstLine, file, starts)
+            if (!store.keep(editionId, asked, page, firstLine, file, starts)) {
+                log.add("Dropped $lines: the podcast deleted or asked for again since")
+                return false
+            }
             store.addCost(editionId, work + now() - began, spoken.toDouble() / rate)
-            log.add("Kept page $page lines $firstLine–${firstLine + starts.size - 1}: ${seconds.toInt()}s of audio in ${seconds(work + now() - began)}s")
+            log.add("Kept $lines: ${seconds.toInt()}s of audio in ${seconds(work + now() - began)}s")
+            return true
         }
 
         fun drop() {
@@ -500,17 +507,13 @@ class PodcastMaker(
         /** Rather over what a phone at background speed takes for a line or two, so a stop loses at most this much work. */
         const val BACKGROUND_PIECE_WORK_SECONDS = 75.0
 
-        /**
-         * No line starts in the background with less than this left before the run is stopped:
-         * at 7 of the 9 minutes. The slowest line seen took 178s, and Android kills a run still
-         * going at 10.
-         */
-        const val BACKGROUND_RESERVE_SECONDS = 120.0
+        /** Rather over the slowest line seen (178s): in the background, no line starts without this left. */
+        const val SLOWEST_LINE_SECONDS = 180.0
 
         /** Lines whose time says how long the next may take. */
         private const val RECENT_LINES = 20
 
-        private const val KEEP_ON_STOP_MS = 5_000L
+        internal const val KEEP_ON_STOP_MS = 5_000L
 
         /** Where a stopped run keeps its piece, outside the run, so it isn't cancelled with it. */
         private val keepers = CoroutineScope(SupervisorJob() + Dispatchers.IO)

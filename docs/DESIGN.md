@@ -1185,7 +1185,7 @@ whose Kindle and KOReader answers ask for more on the same page).
     Android lets long work run only so. From Android 12 that's allowed
     overnight only if the app's battery use is Unrestricted, and from
     Android 15 for 6 hours a day; otherwise it's made slowly, in runs of
-    about 7 minutes that end before Android's 10, keeping what's made
+    about 6 minutes that end well before Android's 10, keeping what's made
     about every minute.
     English articles only; the rest are left
     to the phone's voice. An article that comes back in a later edition

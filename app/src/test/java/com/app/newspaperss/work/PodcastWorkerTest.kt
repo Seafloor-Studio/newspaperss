@@ -48,6 +48,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowActivityManager
+import org.robolectric.shadows.ShadowSystemClock
+import java.time.Duration
 import org.robolectric.annotation.Config
 import java.util.UUID
 
@@ -117,14 +119,41 @@ class PodcastWorkerTest {
     private suspend fun runFailing(failure: Exception) = runMaking { throw failure }
 
     /** A worker whose making is [making], given the seconds-left the worker hands the maker. */
-    private suspend fun runMaking(making: (secondsLeft: () -> Double?) -> Boolean): ListenableWorker.Result {
+    private suspend fun runMaking(updater: ForegroundUpdater = allowed, making: (secondsLeft: () -> Double?) -> Boolean): ListenableWorker.Result {
         val factory = object : WorkerFactory() {
             override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters) =
                 object : PodcastWorker(appContext, workerParameters) {
                     override suspend fun make(secondsLeft: () -> Double?) = making(secondsLeft)
                 }
         }
-        return TestListenableWorkerBuilder<PodcastWorker>(app).setForegroundUpdater(allowed).setWorkerFactory(factory).build().doWork()
+        return TestListenableWorkerBuilder<PodcastWorker>(app).setForegroundUpdater(updater).setWorkerFactory(factory).build().doWork()
+    }
+
+    /** Android's 10 minutes start with the work: time spent getting the foreground counts. */
+    @Test
+    fun theTimeLeftCountsFromTheStartOfTheWork() = runTest {
+        unrestricted(true)
+        val slow = ForegroundUpdater { _: Context, _: UUID, info: ForegroundInfo ->
+            shown = info
+            ShadowSystemClock.advanceBy(Duration.ofMinutes(2))
+            Futures.immediateFuture(null)
+        }
+        var given: Double? = null
+
+        assertTrue(runMaking(slow) { left -> given = left(); false } is ListenableWorker.Result.Success)
+        assertEquals(420.0, given!!, 1.0)
+    }
+
+    /** In the foreground for most of a long run and then not, it says so: not "short of 9 min". */
+    @Test
+    fun aRunThatLosesTheForegroundLateSaysSo() = runTest {
+        unrestricted(true)
+
+        assertTrue(runMaking { ShadowSystemClock.advanceBy(Duration.ofMinutes(40)); true } is ListenableWorker.Result.Success)
+
+        assertEquals(1, noted("Stopped: out of the foreground 40 min into the run; not asking again for 12 hours"))
+        assertEquals(0, noted("Stopped short of"))
+        assertEquals(1, queued())
     }
 
     /**

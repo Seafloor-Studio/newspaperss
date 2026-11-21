@@ -95,6 +95,7 @@ class PodcastMakerTest {
             override fun write(samples: FloatArray) { count += samples.size }
             override fun close() {
                 hold?.await(10, java.util.concurrent.TimeUnit.SECONDS)
+                onClose()
                 if (diskFull) throw java.io.IOException("No space left on device")
                 // As MediaMuxer does, given nothing to put in the file.
                 check(count > 0 && !broken) { "Failed to stop the muxer" }
@@ -106,6 +107,8 @@ class PodcastMakerTest {
     /** Held by pieces opened while it's set, which can't be closed until it's let go. */
     private var holdClose: java.util.concurrent.CountDownLatch? = null
     private var keepOnStopMs = 5_000L
+    /** Called as each piece's file is closed, which can be slow. */
+    private var onClose: () -> Unit = {}
     private var started = 0
     private var pieceSeconds = PodcastMaker.PIECE_SECONDS
     private var pieceWorkSeconds = PodcastMaker.PIECE_WORK_SECONDS
@@ -168,7 +171,9 @@ class PodcastMakerTest {
 
         assertTrue(stoppedItself)
         val stoppedAt = clock / 1e9
-        assertTrue("stopped at ${stoppedAt}s", stoppedAt >= 540 - PodcastMaker.BACKGROUND_RESERVE_SECONDS && stoppedAt <= 540 - PodcastMaker.BACKGROUND_RESERVE_SECONDS + 15)
+        // The slowest line seen, and keeping it: 185s in hand, then one line of at most 15s.
+        val reserve = PodcastMaker.SLOWEST_LINE_SECONDS + PodcastMaker.KEEP_ON_STOP_MS / 1000.0
+        assertTrue("stopped at ${stoppedAt}s", stoppedAt >= 540 - reserve && stoppedAt <= 540 - reserve + 15)
         assertFalse(store.made(id, 0))
         assertEquals("every line said is kept", said.size, store.linesMade(id, 0))
         // A piece every 75s of work, not 240: what a stop it didn't see coming would lose.
@@ -184,6 +189,45 @@ class PodcastMakerTest {
         assertTrue(said.none { it in first })
         // The closing page is said after it.
         assertEquals(store.pieces(id, 0).sumOf { it.starts.size }, first.size + said.count { it.startsWith("xxxx") })
+    }
+
+    /** Keeping what's made as the run is stopped takes time too, and is left time for. */
+    @Test
+    fun inTheBackgroundKeepingIsLeftTimeFor() {
+        inUse()
+        keepOnStopMs = 60_000
+        val id = edition("Thursday", long(125))
+        request(id)
+        assertTrue(runBlocking { maker.makeAll(inTheBackground()) })
+
+        val stoppedAt = clock / 1e9
+        assertTrue("stopped at ${stoppedAt}s", stoppedAt >= 540 - 240 && stoppedAt <= 540 - 240 + 15)
+    }
+
+    /**
+     * A piece whose file is still closing as the podcast is deleted and asked for again is the
+     * old podcast's: it isn't kept in the new one, and the log doesn't say it was.
+     */
+    @Test
+    fun aPieceClosedAsThePodcastIsAskedForAgainIsntKeptInTheNewOne() {
+        inUse()
+        pieceSeconds = 0.001
+        val id = edition("Thursday", knots)
+        request(id)
+        onClose = {
+            onClose = {}
+            podcasts.delete(id)
+            request(id)
+        }
+        make()
+
+        // The new one is made in the same run, from its first line: the old piece isn't in it.
+        assertTrue(store.made(id, 0))
+        assertEquals(2, said.count { it == "Quanta" })
+        assertEquals((0..4).toList(), store.pieces(id, 0).map { it.firstLine })
+        val entries = log.read()
+        assertEquals(entries.toString(), 1, entries.count { it.contains("Kept page 0 lines 0–0") })
+        assertTrue(entries.toString(), entries.any { it.contains("Dropped page 0 lines 0–0: the podcast deleted or asked for again since") })
     }
 
     /** A line far slower than the rest (once 178s) keeps that much in hand from then on. */

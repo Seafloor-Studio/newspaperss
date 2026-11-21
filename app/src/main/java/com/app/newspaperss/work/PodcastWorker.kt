@@ -55,6 +55,9 @@ open class PodcastWorker(context: Context, params: WorkerParameters) : Coroutine
     private var timedOut = false
 
     override suspend fun doWork(): Result = try {
+        // Android's 10 minutes start with the work, not once it's ready to make.
+        val began = SystemClock.elapsedRealtime()
+        fun backgroundLeft() = (BACKGROUND_MS - (SystemClock.elapsedRealtime() - began)) / 1000.0
         noteLastExit()
         val holdBack = holdBack()
         if (!plugged()) {
@@ -71,12 +74,11 @@ open class PodcastWorker(context: Context, params: WorkerParameters) : Coroutine
             if (asked && !goForeground()) {
                 enqueue(applicationContext)
             } else {
-                val started = SystemClock.elapsedRealtime()
                 var checked = false
                 var cooling = false
                 var outOfTime = false
                 // Asked for each line: the maker stops short of the guard below rather than lose a line to it.
-                val secondsLeft = { if (inForeground()) null else (BACKGROUND_MS - (SystemClock.elapsedRealtime() - started)) / 1000.0 }
+                val secondsLeft = { if (inForeground()) null else backgroundLeft() }
                 val stopped = makeWhile(CHECK_MS, { outOfTime = make(secondsLeft) }, ::noteTimeout) {
                     val foreground = inForeground()
                     if (!checked) {
@@ -90,7 +92,7 @@ open class PodcastWorker(context: Context, params: WorkerParameters) : Coroutine
                             cooling = true
                             log.add("Stopped: $hot; trying again in ${COOL_OFF_MS / 60_000} min")
                         }
-                        foreground || SystemClock.elapsedRealtime() - started < BACKGROUND_MS -> true
+                        foreground || backgroundLeft() > 0 -> true
                         else -> {
                             // Asked, and refused silently inside WorkManager's service: Android 15's
                             // 6 hours a day used up, most likely.
@@ -103,7 +105,12 @@ open class PodcastWorker(context: Context, params: WorkerParameters) : Coroutine
                 if (outOfTime && !stopped) {
                     // As the guard does at 9 minutes, and for the same reason.
                     if (asked) holdOff(TIMED_OUT_MS)
-                    log.add("Stopped short of ${BACKGROUND_MS / 60_000} min, not in the foreground" + if (asked) "; not asking again for 12 hours" else "")
+                    val held = if (asked) "; not asking again for 12 hours" else ""
+                    // Past 9 minutes the run was in the foreground until lately, and lost it.
+                    log.add(
+                        if (backgroundLeft() > 0) "Stopped short of ${BACKGROUND_MS / 60_000} min, not in the foreground$held"
+                        else "Stopped: out of the foreground ${(BACKGROUND_MS / 1000 - backgroundLeft()).toInt() / 60} min into the run$held",
+                    )
                 }
                 if (!stopped && !outOfTime) log.add("Run ended")
                 if (stopped || outOfTime) enqueue(applicationContext, if (cooling) COOL_OFF_MS else 0L)

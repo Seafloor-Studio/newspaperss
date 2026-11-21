@@ -427,7 +427,7 @@ class ReadingSpeakerTest {
         val store = PodcastStore(folder)
         store.want(7, com.app.newspaperss.settings.PodcastVoice.EMMA)
         val scratch = store.scratch(7, 0, 0).apply { writeText("audio") }
-        store.keep(7, 0, 0, scratch, listOf(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
+        store.keep(7, store.asked(7), 0, 0, scratch, listOf(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
         store.complete(7, 0)
         val kokoro = object : PodcastAudio {
             override var listener: PodcastAudio.Listener? = null

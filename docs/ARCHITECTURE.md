@@ -331,9 +331,10 @@ flowchart LR
     can't be cancelled, but the run waits only 5 s for it; the next run
     waits for the rest.
   - In the background the worker tells the maker how long it has before
-    9 minutes. No line starts with less than 2 minutes left, or less than
-    the slowest of the last 20 lines took: the maker keeps what's made and
-    stops, and the worker queues itself again.
+    9 minutes, counted from the start of the work. No line starts without
+    3 minutes left (or the slowest of the last 20 lines, if longer), plus
+    the 5 s keeping may take: the maker keeps what's made and stops, and
+    the worker queues itself again.
   - A page not in English, or with a line Kokoro fails on, is left to the
     phone's voice. So is one where the app died twice saying the same line:
     a crash in Kokoro's native code would otherwise repeat on every charge.

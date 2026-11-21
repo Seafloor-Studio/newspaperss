@@ -107,7 +107,7 @@ class EditionPageAudioTest {
         // Each audio state, as the store holds it, with what the line says then.
         val states: List<Pair<String, (Long) -> Unit>> = listOf(
             "Waiting to make the audio" to { id -> store.want(id, PodcastVoice.HEART) },
-            "min made" to { id -> store.want(id, PodcastVoice.HEART); store.making(id); store.lines(id, 0, 2); store.keep(id, 0, 0, store.scratch(id, 0, 0).apply { writeText("audio") }, listOf(0.0)) },
+            "min made" to { id -> store.want(id, PodcastVoice.HEART); store.making(id); store.lines(id, 0, 2); store.keep(id, store.asked(id), 0, 0, store.scratch(id, 0, 0).apply { writeText("audio") }, listOf(0.0)) },
             "Audio ready." to { id -> store.want(id, PodcastVoice.HEART); store.complete(id, 0); store.finish(id) },
         )
         // One screen shown each edition in turn: a test can set its content only once.
