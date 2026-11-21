@@ -5,6 +5,9 @@ import android.app.ApplicationExitInfo
 import android.content.Context
 import android.os.Build
 import androidx.annotation.RequiresApi
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * What Android says ended the app's last process.
@@ -26,8 +29,14 @@ data class LastExit(
     val crash: Boolean,
     /** Worth a line in the log; a process that ended normally isn't. */
     val abnormal: Boolean,
+    /** Android's own words for it ([ApplicationExitInfo.getDescription]), made safe to share: see [ProcessDeaths.shareable]. */
+    val androidSays: String? = null,
 ) {
-    val description: String get() = "$name, ${rssKb / 1024} MB resident, ${pssKb / 1024} MB proportional"
+    /** For the audio log, which the reader shares: when, in the phone's time, so it can be set against the runs logged. */
+    val description: String get() {
+        val at = SimpleDateFormat("d MMM HH:mm", Locale.ROOT).format(Date(atMs))
+        return "$name at $at, ${rssKb / 1024} MB resident, ${pssKb / 1024} MB proportional" + (androidSays?.let { "; Android says: $it" } ?: "")
+    }
 }
 
 object ProcessDeaths {
@@ -49,8 +58,25 @@ object ProcessDeaths {
             atMs = info.timestamp,
             crash = crash(info.reason, info.status),
             abnormal = abnormal(info.reason),
+            androidSays = shareable(info.description),
         )
     }
+
+    /**
+     * Android's description, as the shared log may carry it: on one line, at most [SAYS_LENGTH]
+     * characters, and with any address's sign-in and query cut, where a key would be. It's mostly
+     * a few words ("excessive cpu usage"), but a not-responding one names what was waited on, and
+     * nothing promises what else it holds.
+     */
+    internal fun shareable(said: String?): String? {
+        val line = said?.replace(Regex("""\s+"""), " ")?.trim()?.replace(SIGN_IN, "$1")?.replace(QUERY, "$1")
+        if (line.isNullOrEmpty()) return null
+        return if (line.length <= SAYS_LENGTH) line else line.take(SAYS_LENGTH - 1) + "…"
+    }
+
+    private const val SAYS_LENGTH = 200
+    private val SIGN_IN = Regex("""(\b[a-zA-Z][a-zA-Z0-9+.-]*://)[^\s/@]*@""")
+    private val QUERY = Regex("""(\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s?#]*)[?#]\S*""")
 
     /**
      * Whether the app fell over, rather than Android ending it. A signal is both: SIGKILL is

@@ -114,14 +114,44 @@ class PodcastWorkerTest {
         TestListenableWorkerBuilder<PodcastWorker>(app).setForegroundUpdater(updater).build().doWork()
 
     /** A worker whose making fails as [failure] says, as the maker's would. */
-    private suspend fun runFailing(failure: Exception): ListenableWorker.Result {
+    private suspend fun runFailing(failure: Exception) = runMaking { throw failure }
+
+    /** A worker whose making is [making], given the seconds-left the worker hands the maker. */
+    private suspend fun runMaking(making: (secondsLeft: () -> Double?) -> Boolean): ListenableWorker.Result {
         val factory = object : WorkerFactory() {
             override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters) =
                 object : PodcastWorker(appContext, workerParameters) {
-                    override suspend fun make() = throw failure
+                    override suspend fun make(secondsLeft: () -> Double?) = making(secondsLeft)
                 }
         }
         return TestListenableWorkerBuilder<PodcastWorker>(app).setForegroundUpdater(allowed).setWorkerFactory(factory).build().doWork()
+    }
+
+    /**
+     * Not really in the foreground, the maker is told how long it has before the 9-minute stop,
+     * and stopping short of it is a stop like the guard's: queued to go on, and Android's refusal
+     * noted as the guard notes it.
+     */
+    @Test
+    fun aBackgroundRunThatStopsItselfShortOfTheLimitGoesOnLater() = runTest {
+        unrestricted(true)
+        var given: Double? = null
+
+        assertTrue(runMaking { left -> given = left(); true } is ListenableWorker.Result.Success)
+
+        assertEquals(540.0, given!!, 1.0)
+        assertEquals(1, queued())
+        assertEquals(1, noted("Stopped short of 9 min, not in the foreground; not asking again for 12 hours"))
+        assertEquals(0, noted("Run ended"))
+        assertTrue(PodcastWorker.holdOffUntil > 0)
+    }
+
+    @Test
+    fun aRunThatFinishesIsntQueuedAgain() = runTest {
+        unrestricted(true)
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        assertEquals(0, queued())
+        assertEquals(1, noted("Run ended"))
     }
 
     /**
@@ -167,6 +197,36 @@ class PodcastWorkerTest {
 
         assertTrue(run(allowed) is ListenableWorker.Result.Success)
         assertEquals("the same death shouldn't be logged twice", before + 1, noted("out of memory"))
+    }
+
+    /**
+     * When, so a death can be set against the runs logged around it, and in Android's words, which
+     * say what a "not responding" was waiting on. The log is shared: an address's sign-in and
+     * query, where a key would be, are cut.
+     */
+    @Test
+    fun aDeathSaysWhenAndWhatAndroidSaid() = runTest {
+        val zone = java.util.TimeZone.getDefault()
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("UTC"))
+        try {
+            unrestricted(true)
+            val info = ShadowActivityManager.ApplicationExitInfoBuilder.newBuilder()
+                .setProcessName(app.packageName)
+                .setReason(ApplicationExitInfo.REASON_ANR)
+                .setTimestamp(1_760_000_000_000L)
+                .setDescription("Input dispatching timed out\n(waiting on https://reader:hunter2@example.com/feed?token=s3cret)")
+                .build()
+            shadowOf(app.getSystemService(ActivityManager::class.java)).addApplicationExitInfo(info)
+
+            assertTrue(run(allowed) is ListenableWorker.Result.Success)
+
+            val line = app.container.podcastLog.read().single { it.contains("The process before this one ended") }
+            assertTrue(line, line.contains("not responding at 9 Oct 08:53, "))
+            assertTrue(line, line.endsWith("; Android says: Input dispatching timed out (waiting on https://example.com/feed"))
+            assertFalse(line, line.contains("hunter2") || line.contains("s3cret"))
+        } finally {
+            java.util.TimeZone.setDefault(zone)
+        }
     }
 
     @Test

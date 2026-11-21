@@ -147,6 +147,69 @@ class PodcastMakerTest {
 
     private fun make() = runBlocking { maker.makeAll() }
 
+    /** Seconds left of a 9-minute background run, by the fake clock: each line of [long] takes 7.5s or 15s. */
+    private fun inTheBackground(seconds: Double = 540.0): () -> Double? = { seconds - clock / 1e9 }
+
+    /**
+     * In the background Android stops a run at 10 minutes, and a line in flight then is lost
+     * whole: no line starts once it might not end in time, and what's made is kept as it stops.
+     */
+    @Test
+    fun inTheBackgroundNoLineStartsTooCloseToTheStop() {
+        inUse()
+        val id = edition("Thursday", long(125))
+        request(id)
+        val stoppedItself = runBlocking { maker.makeAll(inTheBackground()) }
+
+        assertTrue(stoppedItself)
+        val stoppedAt = clock / 1e9
+        assertTrue("stopped at ${stoppedAt}s", stoppedAt >= 540 - PodcastMaker.BACKGROUND_RESERVE_SECONDS && stoppedAt <= 540 - PodcastMaker.BACKGROUND_RESERVE_SECONDS + 15)
+        assertFalse(store.made(id, 0))
+        assertEquals("every line said is kept", said.size, store.linesMade(id, 0))
+        // A piece every 75s of work, not 240: what a stop it didn't see coming would lose.
+        val pieces = store.pieces(id, 0)
+        assertTrue(pieces.map { it.starts.size }.toString(), pieces.size >= 5 && pieces.all { it.starts.size <= 11 })
+        assertTrue(log.read().toString(), log.read().any { it.contains("Stopped on page 0 before line ${said.size}: ") })
+
+        // Carried on from the line after the last kept: none said twice, none missed.
+        val first = said.toList()
+        said.clear()
+        make()
+        assertTrue(store.made(id, 0))
+        assertTrue(said.none { it in first })
+        // The closing page is said after it.
+        assertEquals(store.pieces(id, 0).sumOf { it.starts.size }, first.size + said.count { it.startsWith("xxxx") })
+    }
+
+    /** A line far slower than the rest (once 178s) keeps that much in hand from then on. */
+    @Test
+    fun inTheBackgroundASlowLineKeepsMoreInHand() {
+        inUse()
+        val id = edition("Thursday", long(125))
+        request(id)
+        afterLine = { if (said.size == 3) clock += 200_000_000_000L }
+        val stoppedItself = runBlocking { maker.makeAll(inTheBackground()) }
+
+        assertTrue(stoppedItself)
+        val stoppedAt = clock / 1e9
+        // Lines after it take 7.5s or 15s, so the last starts with the slow one's 200s and more left.
+        assertTrue("stopped at ${stoppedAt}s", stoppedAt > 300 && stoppedAt <= 345)
+        assertEquals(said.size, store.linesMade(id, 0))
+    }
+
+    /** In the foreground there's no limit to keep to, and pieces are as they were. */
+    @Test
+    fun inTheForegroundAPageIsMadeWhole() {
+        inUse()
+        val id = edition("Thursday", long(125))
+        request(id)
+        assertFalse(runBlocking { maker.makeAll { null } })
+
+        assertTrue(store.finished(id))
+        // Its 2 minutes of audio, in 180s of work: about 20 lines, where the background's 75s is about 10.
+        assertTrue(store.pieces(id, 0).map { it.starts.size }.toString(), store.pieces(id, 0).dropLast(1).all { it.starts.size >= 20 })
+    }
+
     /** What's said around the edition's recordings is made too, once its pages are: in its voice, not the phone's. */
     @Test
     fun whatsSaidAroundTheRecordingsIsMadeAsClipsAfterThePages() {
@@ -255,7 +318,6 @@ class PodcastMakerTest {
         assertTrue(stopped is CancellationException)
         assertTrue(store.made(id, 0))
         assertFalse(store.settled(id, 1))
-        assertTrue(store.pieces(id, 1).isEmpty())
         assertFalse(store.finished(id))
         assertTrue("no half-made page is left", store.dir.list()!!.none { it.endsWith(".part") })
 
@@ -263,7 +325,36 @@ class PodcastMakerTest {
         said.clear()
         make()
         assertTrue(store.finished(id))
-        assertEquals("Rest of World", said.first())
+        assertEquals("the line said as it stopped is kept, not said again", "Lagos Drivers", said.first())
+    }
+
+    /**
+     * Stopped mid-piece (Android's stop, the 9-minute guard, unplugged), every line in it is kept,
+     * the one Kokoro was saying as the stop came included: dropped, each stop lost a piece's work.
+     */
+    @Test
+    fun aStopKeepsEveryLineMadeTheOneInFlightIncluded() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        val job = Job()
+        // Mid-sentence, as the stop comes: Kokoro finishes it whatever the coroutine says.
+        afterLine = { if (it == "Nobody knew.") job.cancel() }
+        runBlocking { runCatching { withContext(job) { maker.makeAll() } } }
+
+        val piece = store.pieces(id, 0).single()
+        assertEquals(0, piece.firstLine)
+        assertEquals(3, piece.starts.size)
+        assertEquals("Quanta, Counting Knots and Nobody knew.", 3, store.linesMade(id, 0))
+        assertFalse(store.made(id, 0))
+        assertTrue("no half-made piece is left", store.dir.list()!!.none { it.endsWith(".part") })
+
+        afterLine = {}
+        said.clear()
+        make()
+        assertTrue(store.made(id, 0))
+        assertEquals("Then a teacher counted.", said.first())
+        assertEquals(5, store.pieces(id, 0).sumOf { it.starts.size })
     }
 
     @Test
@@ -281,7 +372,8 @@ class PodcastMakerTest {
         // The fake Kokoro says nothing: each line's silence is named, with where it sits in its piece.
         assertTrue(entries.toString(), entries.any { it.contains("  Page 0 line 1, ") && it.contains("s into piece 0: no sound in ") && it.contains("; Kokoro was given: ") })
         // Where it left off, and what it lost by stopping: the clue to runs that never keep a piece.
-        assertTrue(entries.toString(), entries.last().contains("Stopped on page 1 before line 1; 0s of unkept audio dropped, resumes at line 0"))
+        assertTrue(entries.toString(), entries.any { it.contains("Kept page 1 lines 0–0") })
+        assertTrue(entries.toString(), entries.last().contains("Stopped on page 1 before line 1; resumes at line 1"))
     }
 
     @Test

@@ -74,7 +74,10 @@ open class PodcastWorker(context: Context, params: WorkerParameters) : Coroutine
                 val started = SystemClock.elapsedRealtime()
                 var checked = false
                 var cooling = false
-                val stopped = makeWhile(CHECK_MS, { make() }, ::noteTimeout) {
+                var outOfTime = false
+                // Asked for each line: the maker stops short of the guard below rather than lose a line to it.
+                val secondsLeft = { if (inForeground()) null else (BACKGROUND_MS - (SystemClock.elapsedRealtime() - started)) / 1000.0 }
+                val stopped = makeWhile(CHECK_MS, { outOfTime = make(secondsLeft) }, ::noteTimeout) {
                     val foreground = inForeground()
                     if (!checked) {
                         checked = true
@@ -97,8 +100,13 @@ open class PodcastWorker(context: Context, params: WorkerParameters) : Coroutine
                         }
                     }
                 }
-                if (!stopped) log.add("Run ended")
-                if (stopped) enqueue(applicationContext, if (cooling) COOL_OFF_MS else 0L)
+                if (outOfTime && !stopped) {
+                    // As the guard does at 9 minutes, and for the same reason.
+                    if (asked) holdOff(TIMED_OUT_MS)
+                    log.add("Stopped short of ${BACKGROUND_MS / 60_000} min, not in the foreground" + if (asked) "; not asking again for 12 hours" else "")
+                }
+                if (!stopped && !outOfTime) log.add("Run ended")
+                if (stopped || outOfTime) enqueue(applicationContext, if (cooling) COOL_OFF_MS else 0L)
             }
         }
         Result.success()
@@ -122,8 +130,8 @@ open class PodcastWorker(context: Context, params: WorkerParameters) : Coroutine
         Result.failure()
     }
 
-    /** Makes what's asked for; a test's worker fails here as the maker would. */
-    protected open suspend fun make() = applicationContext.container.podcastMaker.makeAll()
+    /** Makes what's asked for; true if it stopped short of [secondsLeft] running out. A test's worker fails here as the maker would. */
+    protected open suspend fun make(secondsLeft: () -> Double?): Boolean = applicationContext.container.podcastMaker.makeAll(secondsLeft)
 
     /**
      * If the process before this one ended badly, say so once. A kill leaves no log of its own:
