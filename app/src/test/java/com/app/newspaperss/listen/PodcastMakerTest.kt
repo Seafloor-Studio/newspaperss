@@ -89,10 +89,12 @@ class PodcastMakerTest {
     private val encoder = AudioEncoder { file, rate ->
         assertEquals(RATE, rate)
         val broken = encoderBrokenOn != null && said.lastOrNull() == encoderBrokenOn
+        val hold = holdClose
         object : AudioSink {
             var count = 0
             override fun write(samples: FloatArray) { count += samples.size }
             override fun close() {
+                hold?.await(10, java.util.concurrent.TimeUnit.SECONDS)
                 if (diskFull) throw java.io.IOException("No space left on device")
                 // As MediaMuxer does, given nothing to put in the file.
                 check(count > 0 && !broken) { "Failed to stop the muxer" }
@@ -101,6 +103,9 @@ class PodcastMakerTest {
         }
     }
 
+    /** Held by pieces opened while it's set, which can't be closed until it's let go. */
+    private var holdClose: java.util.concurrent.CountDownLatch? = null
+    private var keepOnStopMs = 5_000L
     private var started = 0
     private var pieceSeconds = PodcastMaker.PIECE_SECONDS
     private var pieceWorkSeconds = PodcastMaker.PIECE_WORK_SECONDS
@@ -108,7 +113,7 @@ class PodcastMakerTest {
     private val threadsUsed = mutableListOf<Int>()
     private var threadsFor: (Long) -> Int = { KOKORO_THREADS }
     private val log by lazy { PodcastLog(tmp.newFolder("logs")) }
-    private val maker by lazy { PodcastMaker(editions, store, install, settings, engine, encoder, pieceSeconds, pieceWorkSeconds, lastExit = { exit }, threads = { threadsFor(it) }, now = { clock }, log = log, spokenAround = { around }) }
+    private val maker by lazy { PodcastMaker(editions, store, install, settings, engine, encoder, pieceSeconds, pieceWorkSeconds, lastExit = { exit }, threads = { threadsFor(it) }, now = { clock }, log = log, spokenAround = { around }, keepOnStopMs = keepOnStopMs) }
     private var around: List<String> = emptyList()
     private var battery: String? = null
     private val podcasts by lazy { Podcasts(store, settings, install, log, battery = { battery }) { started++ } }
@@ -355,6 +360,35 @@ class PodcastMakerTest {
         assertTrue(store.made(id, 0))
         assertEquals("Then a teacher counted.", said.first())
         assertEquals(5, store.pieces(id, 0).sumOf { it.starts.size })
+    }
+
+    /**
+     * Keeping can't be cut short, but a run stopped by Android ends within its grace all the same;
+     * the next run waits for the piece rather than write the same one under the same name.
+     */
+    @Test
+    fun aStoppedRunWaitsOnlySoLongForItsPieceAndTheNextWaitsForTheRest() {
+        inUse()
+        keepOnStopMs = 100
+        val id = edition("Thursday", knots)
+        request(id)
+        val closing = java.util.concurrent.CountDownLatch(1)
+        holdClose = closing
+        val job = Job()
+        afterLine = { if (it == "Nobody knew.") job.cancel() }
+        val began = System.nanoTime()
+        runBlocking { runCatching { withContext(job) { maker.makeAll() } } }
+        assertTrue("the stopped run should end without the piece kept", (System.nanoTime() - began) / 1e9 < 5)
+        assertTrue(store.pieces(id, 0).isEmpty())
+        assertTrue(log.read().toString(), log.read().any { it.contains("still keeping lines 0–2 after 100ms") })
+
+        holdClose = null
+        afterLine = {}
+        said.clear()
+        Thread { Thread.sleep(300); closing.countDown() }.start()
+        make()
+        assertEquals("Then a teacher counted.", said.first())
+        assertEquals(listOf(0, 3), store.pieces(id, 0).map { it.firstLine })
     }
 
     @Test

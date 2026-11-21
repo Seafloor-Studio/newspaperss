@@ -63,6 +63,8 @@ class PodcastMaker(
     private val log: PodcastLog = PodcastLog(null),
     /** What the voice says around an edition's recordings (see [Readings.spokenAround]), made as clips once its pages are. */
     private val spokenAround: suspend (editionId: Long) -> List<String> = { emptyList() },
+    /** How long a stopped run waits for its piece to be kept: milliseconds, usually. Within Android's grace after a stop. */
+    private val keepOnStopMs: Long = KEEP_ON_STOP_MS,
 ) {
     /**
      * Makes every podcast asked for, until they're all finished, Kokoro is turned off, or it's
@@ -399,7 +401,7 @@ class PodcastMaker(
             val resumes = if (stopped == null) "resumes at line $next" else when (keepOnStop(stopped, editionId, page, asked)) {
                 Kept.KEPT -> "resumes at line $next"
                 Kept.FAILED -> "${stopped.seconds.toInt()}s of audio couldn't be kept, resumes at line ${stopped.firstLine}"
-                Kept.LATE -> "still keeping lines ${stopped.firstLine}–${next - 1} after ${KEEP_ON_STOP_MS / 1000}s; resumes at line $next if they're kept"
+                Kept.LATE -> "still keeping lines ${stopped.firstLine}–${next - 1} after ${keepOnStopMs}ms; resumes at line $next if they're kept"
             }
             log.add("Stopped on page $page before line $next; $resumes")
             throw e
@@ -425,7 +427,7 @@ class PodcastMaker(
 
     /**
      * Keeps [piece] as the run is stopped, whatever the stop: closing the file and the one write
-     * that keeps it can't be cut short part way. Waited for only [KEEP_ON_STOP_MS], so the run
+     * that keeps it can't be cut short part way. Waited for only [keepOnStopMs], so the run
      * ends within Android's grace after a stop; one still keeping then finishes on its own, and the
      * next run waits for it ([stillKeeping]).
      */
@@ -437,7 +439,7 @@ class PodcastMaker(
             }.isSuccess
         }
         stillKeeping = keeping
-        when (withTimeoutOrNull(KEEP_ON_STOP_MS) { keeping.await() }) {
+        when (withTimeoutOrNull(keepOnStopMs) { keeping.await() }) {
             null -> Kept.LATE
             true -> Kept.KEPT
             false -> Kept.FAILED
@@ -508,7 +510,6 @@ class PodcastMaker(
         /** Lines whose time says how long the next may take. */
         private const val RECENT_LINES = 20
 
-        /** How long a stopped run waits for its piece to be kept: milliseconds, usually. */
         private const val KEEP_ON_STOP_MS = 5_000L
 
         /** Where a stopped run keeps its piece, outside the run, so it isn't cancelled with it. */
