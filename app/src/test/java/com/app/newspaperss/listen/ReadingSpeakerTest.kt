@@ -225,6 +225,20 @@ class ReadingSpeakerTest {
         assertEquals("nothing playing, nothing to log", count, logged.size)
     }
 
+    /** A private feed's episode carries the subscriber's key in its address; the log, which readers share, leaves it out. */
+    @Test
+    fun aPrivateFeedsKeyNeverReachesTheLog() {
+        val secret = "9f86d081-0000-4000-8000-00000000abcd"
+        val private = reading.copy(url = "https://user:pass@api.example.com/feed/podcast/42/episode.mp3?token=$secret#t=5")
+        val speaker = ReadingSpeaker(voice, audio, { _, _ -> private }, choices, logged::add)
+        speaker.speak(id(3), "Line three.", null, 1f, flush = true)
+        assertEquals("the player still gets the whole address", private.url, audio.played.last().first)
+        audio.listener!!.onError("offline")
+        assertTrue(logged.toString(), logged.any { "https://api.example.com/feed/podcast/42/episode.mp3 at" in it })
+        assertTrue(logged.toString(), logged.any { "episode.mp3 failed (offline)" in it })
+        assertTrue(logged.toString(), logged.none { secret in it || "pass@" in it || "#t=5" in it })
+    }
+
     @Test
     fun aRecordingWhoseLengthWasntKnownLogsWhereItSoughtTo() {
         val untimed = reading.copy(seconds = null)
