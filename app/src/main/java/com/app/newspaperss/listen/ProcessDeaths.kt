@@ -69,14 +69,12 @@ object ProcessDeaths {
      * nothing promises what else it holds.
      */
     internal fun shareable(said: String?): String? {
-        val line = said?.replace(Regex("""\s+"""), " ")?.trim()?.replace(SIGN_IN, "$1")?.replace(QUERY, "$1")
+        val line = said?.replace(Regex("""\s+"""), " ")?.trim()?.let(::withoutKeys)
         if (line.isNullOrEmpty()) return null
         return if (line.length <= SAYS_LENGTH) line else line.take(SAYS_LENGTH - 1) + "…"
     }
 
     private const val SAYS_LENGTH = 200
-    private val SIGN_IN = Regex("""(\b[a-zA-Z][a-zA-Z0-9+.-]*://)[^\s/@]*@""")
-    private val QUERY = Regex("""(\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s?#]*)[?#]\S*""")
 
     /**
      * Whether the app fell over, rather than Android ending it. A signal is both: SIGKILL is
