@@ -617,7 +617,7 @@ class ScreenshotTest {
         val made = PodcastStore(tmp.newFolder())
         val id = runBlocking { db.editions().observeAll().first().first().id }
         made.want(id, PodcastVoice.HEART)
-        made.keep(id, 0, 0, made.scratch(id, 0, 0).apply { writeBytes(ByteArray(4_000_000)) }, listOf(0.0))
+        made.keep(id, made.asked(id), 0, 0, made.scratch(id, 0, 0).apply { writeBytes(ByteArray(4_000_000)) }, listOf(0.0))
         made.complete(id, 0)
         made.complete(id, 1)
         val listening = Listening(
@@ -1741,7 +1741,7 @@ class ScreenshotTest {
         val made = PodcastStore(tmp.newFolder())
         listOf(7L, 8L).forEach { id ->
             made.want(id, PodcastVoice.HEART)
-            made.keep(id, 0, 0, made.scratch(id, 0, 0).apply { writeBytes(ByteArray(19_000_000)) }, listOf(0.0))
+            made.keep(id, made.asked(id), 0, 0, made.scratch(id, 0, 0).apply { writeBytes(ByteArray(19_000_000)) }, listOf(0.0))
         }
         return podcastSettings(pace = 1.2f, inUse = true, podcasts = made)
     }

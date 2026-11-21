@@ -323,9 +323,18 @@ flowchart LR
   `PodcastWorker` while the phone charges. It reads the book a page at a time (articles, then
   the closing page), says each line with `KokoroEngine`, and encodes it
   with `AacEncoder` (AAC in MP4, through `MediaCodec`).
-  - `PodcastStore` keeps a page in pieces of about 2 minutes, each whole or
-    not at all, with each line's start time. Work stopped part way
-    (unplugged, or Android's limits) carries on from the last piece.
+  - `PodcastStore` keeps a page in pieces of about 2 minutes (or 4 minutes'
+    work; 75 s of work in the background), each whole or not at all, with
+    each line's start time. A stop (unplugged, heat, Android's limits, the
+    9-minute guard) keeps the piece under way, the line Kokoro was saying
+    included, so the next run carries on from the line after. Keeping it
+    can't be cancelled, but the run waits only 5 s for it; the next run
+    waits for the rest.
+  - In the background the worker tells the maker how long it has before
+    9 minutes, counted from the start of the work. No line starts without
+    3 minutes left (or the slowest of the last 20 lines, if longer), plus
+    the 5 s keeping may take: the maker keeps what's made and stops, and
+    the worker queues itself again.
   - A page not in English, or with a line Kokoro fails on, is left to the
     phone's voice. So is one where the app died twice saying the same line:
     a crash in Kokoro's native code would otherwise repeat on every charge.
@@ -348,7 +357,9 @@ flowchart LR
 - **`PodcastLog`** records what the making did: each run's start, whether
   it got the foreground, why it stopped, each piece kept (seconds of audio
   and of work), lines over 30 s or that sound wrong (`SpeechCheck`), and
-  the unkept audio a stop dropped. Playing adds where each play started
+  where a stop left off. A process that ended badly gets a line: Android's
+  reason, when, its memory, and Android's description, on one line of at
+  most 200 characters with any address's sign-in and query cut. Playing adds where each play started
   and which piece failed. It
   keeps the last 400 entries in `files/podcast-log.txt` for Settings ›
   Listening to show and share, and writes the same to logcat (`PodcastLog`).
@@ -372,7 +383,7 @@ twice.
 | `ReadingTimeWorker` (periodic) | App start | `reading-times-12h`, KEEP | Every 12 h, Wi-Fi, charging. Measures the next 20 saved links with no reading time (`ReadingTimes`). |
 | `MoveFeedsWorker` | Moving phone feeds to tt-rss; app start, if a move is stored | `move-feeds`, APPEND_OR_REPLACE | Connected. Runs `FeedMoves.run`; what's left is in DataStore, so a run stopped part way carries on in the next. Appended so a run finishing up can't swallow a new move. |
 | `KokoroWorker` | Settings › Listening, picking **A natural voice** | `kokoro`, REPLACE | Downloads Kokoro on Wi-Fi (any connection if the reader chose mobile data), then the speed check. Resumes across WorkManager's 10-minute limit; gives up after 6 failures with nothing arriving between them. |
-| `PodcastWorker` | A scheduled edition built with Kokoro in use; turning Kokoro back on | `podcast`, APPEND_OR_REPLACE | Only while charging: a no-op `WaitForCharger` ahead of it carries the charging constraint, because once the maker is in the foreground WorkManager checks constraints in the app and counts a phone holding its charge at 80% as not charging. Runs in the foreground with a quiet notification, so past WorkManager's 10-minute limit, where Android allows it: before Android 12, with battery use Unrestricted, or with the app on screen. Otherwise it doesn't ask (asked and refused, WorkManager would ignore unplugging), and runs as background work, stopped at 10 minutes and rationed. Refused anyway, it stays in the background for an hour; after Android 15's 6 hours a day, for 12. It checks for itself every 30 s that the phone is plugged in, and, not really in the foreground, stops at 9 minutes and queues itself again: work WorkManager thinks is foreground but Android doesn't would otherwise never be stopped. Unplugged, it stops and carries on from the last piece kept when it runs again. Appended so a run finishing up can't swallow a new edition. |
+| `PodcastWorker` | A scheduled edition built with Kokoro in use; turning Kokoro back on | `podcast`, APPEND_OR_REPLACE | Only while charging: a no-op `WaitForCharger` ahead of it carries the charging constraint, because once the maker is in the foreground WorkManager checks constraints in the app and counts a phone holding its charge at 80% as not charging. Runs in the foreground with a quiet notification, so past WorkManager's 10-minute limit, where Android allows it: before Android 12, with battery use Unrestricted, or with the app on screen. Otherwise it doesn't ask (asked and refused, WorkManager would ignore unplugging), and runs as background work, stopped at 10 minutes and rationed. Refused anyway, it stays in the background for an hour; after Android 15's 6 hours a day, for 12. It checks for itself every 30 s that the phone is plugged in, and, not really in the foreground, stops at 9 minutes and queues itself again: work WorkManager thinks is foreground but Android doesn't would otherwise never be stopped. Not in the foreground, the maker stops itself sooner, before a line that might not end in time (see `PodcastMaker`), and it's queued again the same way. Unplugged, it stops and carries on from the last piece kept when it runs again. Appended so a run finishing up can't swallow a new edition. |
 
 Timed editions use a chain of one-off timers, not periodic work, because
 periodic work can't say "6:30 on weekdays" and its start time drifts

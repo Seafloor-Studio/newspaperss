@@ -190,19 +190,22 @@ class PodcastStore(val dir: File) {
 
     /**
      * Keeps a piece of [page] from [firstLine], written to [made], with its lines' [starts]. The
-     * audio is renamed into place last, so a piece with audio always has its times.
+     * audio is renamed into place last, so a piece with audio always has its times. With the
+     * podcast deleted, or asked for again, since [asked], it's dropped: false.
      */
     @Synchronized
-    fun keep(editionId: Long, page: Int, firstLine: Int, made: File, starts: List<Double>) {
+    fun keep(editionId: Long, asked: String?, page: Int, firstLine: Int, made: File, starts: List<Double>): Boolean {
         val folder = folder(editionId)
-        if (!folder.exists()) {
+        // Checked here, under the lock: a piece closed slowly can outlast its podcast, and the one asked for since is another.
+        if (!folder.exists() || read(editionId, ASKED) != asked) {
             made.delete()
-            return
+            return false
         }
         val name = "$page$SEP$firstLine"
         write(editionId, "$name.$STARTS", starts.joinToString("\n", postfix = "\n") { "%.3f".format(Locale.ROOT, it) })
         if (!made.renameTo(File(folder, "$name.$AUDIO"))) throw IOException("Couldn't keep $name")
         changed()
+        return true
     }
 
     @Synchronized

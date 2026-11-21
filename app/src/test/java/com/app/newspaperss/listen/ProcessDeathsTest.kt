@@ -55,8 +55,20 @@ class ProcessDeathsTest {
         val exit = ProcessDeaths.last(app)!!
         assertFalse("a line can't be blamed for the phone running out of memory", exit.crash)
         assertTrue(exit.abnormal)
-        assertEquals("the phone was out of memory, 1367 MB resident, 1171 MB proportional", exit.description)
+        assertTrue(exit.description, exit.description.startsWith("the phone was out of memory at "))
+        assertTrue(exit.description, exit.description.endsWith(", 1367 MB resident, 1171 MB proportional"))
         assertEquals(TIME, exit.atMs)
+    }
+
+    /** Android's words are kept to a line of the log, whatever it says. */
+    @Test
+    fun whatAndroidSaysIsOneShortLine() {
+        assertNull(ProcessDeaths.shareable(null))
+        assertNull(ProcessDeaths.shareable(" \n "))
+        assertEquals("excessive cpu usage", ProcessDeaths.shareable("excessive cpu usage"))
+        val long = ProcessDeaths.shareable("Input dispatching timed out\n" + "waiting ".repeat(100))!!
+        assertEquals(200, long.length)
+        assertTrue(long, long.startsWith("Input dispatching timed out waiting") && long.endsWith("…"))
     }
 
     @Test

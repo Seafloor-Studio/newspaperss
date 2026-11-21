@@ -1175,16 +1175,18 @@ whose Kindle and KOReader answers ask for more on the same page).
     what a paper takes to make here, **Delete all audio** with the space it takes (Kokoro stays, so
     it can be made again), **Remove Kokoro** (back to Listening), and **Audio log**: what the making and playing did,
     newest first, with Share to send it to whoever's fixing it. While it's in use, each scheduled edition's audio
-    is made after the book, only while the phone charges: unplugged, it
-    stops and keeps what's made. It runs at low priority, so using
+    is made after the book, only while the phone charges: unplugged, or
+    stopped by Android, it keeps what's made, the sentence under way
+    included, and carries on from there. It runs at low priority, so using
     the phone meanwhile isn't slowed. It's made in the foreground, with a
     quiet "Making the audio" notification (if notifications are on),
     whose **Stop** stops making audio, keeping what's made, until one
     is asked for again:
     Android lets long work run only so. From Android 12 that's allowed
     overnight only if the app's battery use is Unrestricted, and from
-    Android 15 for 6 hours a day; otherwise it's made a few minutes at a
-    time, slowly.
+    Android 15 for 6 hours a day; otherwise it's made slowly, in runs of
+    about 6 minutes that end well before Android's 10, keeping what's made
+    about every minute.
     English articles only; the rest are left
     to the phone's voice. An article that comes back in a later edition
     (one not sent gives its articles back) isn't made again: if it says
