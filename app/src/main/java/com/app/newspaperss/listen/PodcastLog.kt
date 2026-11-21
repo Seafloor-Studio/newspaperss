@@ -87,7 +87,7 @@ class PodcastLog(
     private fun entries(): List<String> {
         val dir = dir ?: return emptyList()
         return try {
-            legacy?.takeIf { it.isFile }?.readLines().orEmpty() + days(dir).flatMap { it.readLines() }
+            (legacy?.takeIf { it.isFile }?.readLines().orEmpty() + days(dir).flatMap { it.readLines() }).map(::withoutKeys)
         } catch (e: Exception) {
             emptyList()
         }
@@ -125,3 +125,14 @@ class PodcastLog(
         val DAY = Regex("""\d{4}-\d{2}-\d{2}\.txt""")
     }
 }
+
+/**
+ * A log line with every web address cut to its scheme, host and path, as [forLog] cuts the ones
+ * written now. Lines kept from before it, a fortnight of them, held a private feed's key in full,
+ * and reading and sharing both go through here.
+ */
+internal fun withoutKeys(line: String): String =
+    line.replace(SIGN_IN, "$1").replace(QUERY, "$1")
+
+private val SIGN_IN = Regex("""(\b[a-zA-Z][a-zA-Z0-9+.-]*://)[^\s/@]*@""")
+private val QUERY = Regex("""(\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s?#]*)[?#]\S*""")
