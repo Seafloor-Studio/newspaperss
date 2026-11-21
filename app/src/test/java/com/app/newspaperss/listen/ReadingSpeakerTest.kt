@@ -237,6 +237,8 @@ class ReadingSpeakerTest {
         assertTrue(logged.toString(), logged.any { "https://api.example.com/feed/podcast/42/episode.mp3 at" in it })
         assertTrue(logged.toString(), logged.any { "episode.mp3 failed (offline)" in it })
         assertTrue(logged.toString(), logged.none { secret in it || "pass@" in it || "#t=5" in it })
+        // A "?" in a password: the sign-in still goes before the query is cut.
+        assertEquals("https://cdn.example.org/a.mp3", forLog("https://user:pa?ss@cdn.example.org/a.mp3?token=$secret"))
     }
 
     @Test

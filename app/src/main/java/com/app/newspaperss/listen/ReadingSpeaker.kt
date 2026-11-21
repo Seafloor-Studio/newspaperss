@@ -446,4 +446,5 @@ class ReadingSpeaker(
  * something the reader shares.
  */
 internal fun forLog(url: String?): String? =
-    url?.substringBefore('#')?.substringBefore('?')?.replace(Regex("^([a-zA-Z][a-zA-Z0-9+.-]*://)[^/@]*@"), "$1")
+    // Sign-in first: a password can hold a "?" that would otherwise cut it in half.
+    url?.replace(Regex("^([a-zA-Z][a-zA-Z0-9+.-]*://)[^/@]*@"), "$1")?.substringBefore('#')?.substringBefore('?')
