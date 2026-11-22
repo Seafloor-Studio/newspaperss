@@ -34,7 +34,9 @@ data class LastExit(
 ) {
     /** For the audio log, which the reader shares: when, in the phone's time, so it can be set against the runs logged. */
     val description: String get() {
-        val at = SimpleDateFormat("d MMM HH:mm", Locale.ROOT).format(Date(atMs))
+        // English month names, as the rest of the log is English. Android has no names for the root
+        // locale and writes "M11" for November, which the JVM tests can't see.
+        val at = SimpleDateFormat("d MMM HH:mm", Locale.ENGLISH).format(Date(atMs))
         return "$name at $at, ${rssKb / 1024} MB resident, ${pssKb / 1024} MB proportional" + (androidSays?.let { "; Android says: $it" } ?: "")
     }
 }
