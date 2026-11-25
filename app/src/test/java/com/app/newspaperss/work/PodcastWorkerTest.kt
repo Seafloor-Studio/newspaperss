@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.BatteryManager
+import android.os.Looper
 import android.os.PowerManager
 import android.os.Process
 import androidx.test.core.app.ApplicationProvider
@@ -24,6 +25,7 @@ import androidx.work.WorkerParameters
 import androidx.work.impl.foreground.SystemForegroundService
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.WorkManagerTestInitHelper
+import com.app.newspaperss.listen.EncoderLost
 import com.app.newspaperss.listen.PodcastMaker
 import com.app.newspaperss.notify.Notifier
 import com.app.newspaperss.testutil.TestApp
@@ -67,12 +69,14 @@ class PodcastWorkerTest {
         WorkManagerTestInitHelper.initializeTestWorkManager(app)
         PodcastWorker.holdOffUntil = 0
         PodcastWorker.lastExitNoted = 0
+        PodcastWorker.lastRunEnded = 0
         app.container.notifier.createChannels()
     }
 
     @After fun tearDown() {
         PodcastWorker.holdOffUntil = 0
         PodcastWorker.lastExitNoted = 0
+        PodcastWorker.lastRunEnded = 0
         WorkManagerTestInitHelper.closeWorkDatabase()
     }
 
@@ -197,6 +201,98 @@ class PodcastWorkerTest {
         assertEquals(1, again.size)
         assertEquals(5 * 60_000L, again.single().initialDelayMillis)
         assertEquals(1, noted("Run failed: java.lang.IllegalStateException; trying again in 5 min"))
+    }
+
+    /** A lost encoder isn't the page's fault: the run goes on a few minutes later, as after a failure. */
+    @Test
+    fun aRunThatLosesTheEncoderRunsAgainAfterAWhile() = runTest {
+        unrestricted(true)
+
+        assertTrue(runFailing(EncoderLost("reclaimed", IllegalStateException())) is ListenableWorker.Result.Success)
+
+        val again = WorkManager.getInstance(app).getWorkInfosForUniqueWork("podcast").get().filter { it.state == WorkInfo.State.ENQUEUED }
+        assertEquals(5 * 60_000L, again.single().initialDelayMillis)
+        assertEquals(1, noted("Run stopped: the encoder was lost; trying again in 5 min"))
+    }
+
+    private fun workManagerService(foreground: Boolean?) = shadowOf(app.getSystemService(ActivityManager::class.java)).setServices(
+        listOfNotNull(
+            foreground?.let {
+                ActivityManager.RunningServiceInfo().apply {
+                    service = ComponentName(app, SystemForegroundService::class.java)
+                    this.foreground = it
+                }
+            },
+        ),
+    )
+
+    /**
+     * Android's daily foreground time ran out after an hour of runs: WorkManager's service left in
+     * the foreground after a run would explain it. Checked on a while after the run, not as it
+     * ends, when WorkManager hasn't yet let it go.
+     */
+    @Test
+    fun aServiceStillInTheForegroundAfterTheRunIsNoted() = runTest {
+        unrestricted(true)
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        workManagerService(foreground = true)
+
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(PodcastWorker.SERVICE_CHECK_MS - 1_000))
+        assertEquals(0, noted("WorkManager's service"))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        assertEquals(1, noted("90s after the run, WorkManager's service still in the foreground after the run ended"))
+    }
+
+    @Test
+    fun aServiceLetGoAfterTheRunIsNotedToo() = runTest {
+        unrestricted(true)
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        workManagerService(foreground = null)
+
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(PodcastWorker.SERVICE_CHECK_MS + 1_000))
+        assertEquals(1, noted("90s after the run, WorkManager's service has stopped"))
+    }
+
+    /** A process asleep or frozen runs the check late: the line says how late, not the 90s it was meant for. */
+    @Test
+    fun aLateCheckSaysHowLongAfterTheRunItReallyWas() = runTest {
+        unrestricted(true)
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        workManagerService(foreground = true)
+
+        ShadowSystemClock.advanceBy(Duration.ofHours(3))
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(1, noted("180 min after the run, WorkManager's service still in the foreground"))
+    }
+
+    /** A run straight after another finds the last one's service still being let go: nothing to remark on. */
+    @Test
+    fun aRunChainedStraightAfterAnotherDoesntRemarkOnTheService() = runTest {
+        unrestricted(true)
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        workManagerService(foreground = true)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(3))
+
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        assertEquals(0, noted("already in the foreground as this run starts"))
+    }
+
+    /** During another run the service is that run's: nothing to say about the last one. */
+    @Test
+    fun theServiceIsntCheckedOnDuringAnotherRun() = runTest {
+        unrestricted(true)
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        workManagerService(foreground = true)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+
+        assertTrue(
+            runMaking {
+                shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(PodcastWorker.SERVICE_CHECK_MS + 1_000))
+                false
+            } is ListenableWorker.Result.Success,
+        )
+        assertEquals(0, noted("after the run, WorkManager's service"))
+        assertEquals("noted as the second run started", 1, noted("WorkManager's service already in the foreground as this run starts, 20s after the last ended"))
     }
 
     /** Kokoro not loading would fail every run: it waits to be asked again rather than loop all night. */

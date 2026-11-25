@@ -80,11 +80,18 @@ object ProcessDeaths {
 
     /**
      * Whether the app fell over, rather than Android ending it. A signal is both: SIGKILL is
-     * Android stopping the process, and the rest are the app's own native code failing.
+     * Android stopping the process, and the rest are the app's own native code failing. The app
+     * never ends itself, so ending itself is native code calling exit(), as sherpa-onnx and
+     * espeak-ng both do on some errors rather than throw.
      */
     @RequiresApi(Build.VERSION_CODES.R)
     internal fun crash(reason: Int, status: Int) = when (reason) {
-        ApplicationExitInfo.REASON_CRASH, ApplicationExitInfo.REASON_CRASH_NATIVE, ApplicationExitInfo.REASON_ANR -> true
+        ApplicationExitInfo.REASON_CRASH,
+        ApplicationExitInfo.REASON_CRASH_NATIVE,
+        ApplicationExitInfo.REASON_ANR,
+        -> true
+        // Exit code 0 is an orderly exit, which says nothing against the line.
+        ApplicationExitInfo.REASON_EXIT_SELF -> status != 0
         ApplicationExitInfo.REASON_SIGNALED -> status != SIGKILL
         else -> false
     }
@@ -92,7 +99,6 @@ object ProcessDeaths {
     /** Ends that say nothing: the reader swiped the app away, or it was updated. */
     @RequiresApi(Build.VERSION_CODES.R)
     internal fun abnormal(reason: Int) = when (reason) {
-        ApplicationExitInfo.REASON_EXIT_SELF,
         ApplicationExitInfo.REASON_USER_REQUESTED,
         ApplicationExitInfo.REASON_USER_STOPPED,
         ApplicationExitInfo.REASON_PACKAGE_UPDATED,
@@ -109,7 +115,7 @@ object ProcessDeaths {
         ApplicationExitInfo.REASON_CRASH_NATIVE -> "native crash"
         ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "something it depended on died"
         ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "using too much of the phone"
-        ApplicationExitInfo.REASON_EXIT_SELF -> "ended itself"
+        ApplicationExitInfo.REASON_EXIT_SELF -> "ended itself (exit code $status)"
         ApplicationExitInfo.REASON_FREEZER -> "frozen"
         ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "couldn't start"
         ApplicationExitInfo.REASON_LOW_MEMORY -> "the phone was out of memory"
