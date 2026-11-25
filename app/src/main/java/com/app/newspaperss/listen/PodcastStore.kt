@@ -308,16 +308,21 @@ class PodcastStore(val dir: File) {
 
     fun saidKey(editionId: Long, page: Int): String? = read(editionId, "$page.$KEY")
 
-    /** A page made whole, in another edition than [except], whose audio says [key]: its edition and page. */
-    fun madeElsewhere(key: String, except: Long): Pair<Long, Int>? {
+    /**
+     * The pages made whole in editions other than [except], by what their audio says: each key's
+     * edition and page. Read once for a run of lookups; [reuse] checks the page is still made.
+     */
+    fun madeKeys(except: Long): Map<String, Pair<Long, Int>> {
+        val found = HashMap<String, Pair<Long, Int>>()
         for (folder in dir.listFiles() ?: emptyArray()) {
             val editionId = folder.name.toLongOrNull()?.takeIf { it != except } ?: continue
             for (file in folder.listFiles() ?: emptyArray()) {
                 val page = file.name.takeIf { it.endsWith(".$KEY") }?.removeSuffix(".$KEY")?.toIntOrNull() ?: continue
-                if (made(editionId, page) && read(editionId, file.name) == key) return editionId to page
+                if (!made(editionId, page)) continue
+                read(editionId, file.name)?.takeIf { it != NO_KEY }?.let { found.putIfAbsent(it, editionId to page) }
             }
         }
-        return null
+        return found
     }
 
     /** Editions with pages made before keys were noted: [PodcastMaker] notes theirs from their books. */
