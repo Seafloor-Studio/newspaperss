@@ -335,6 +335,15 @@ flowchart LR
     3 minutes left (or the slowest of the last 20 lines, if longer), plus
     the 5 s keeping may take: the maker keeps what's made and stops, and
     the worker queues itself again.
+  - `KokoroEngine` says a line too long for Kokoro in pieces (`KokoroText`
+    in `:core`, about 250 characters, with digits, symbols, addresses and
+    words spelt out letter by letter counting for the sounds they become),
+    cut between words at a `;`, `:`, dash or comma if it can, the last cut
+    near the middle so no piece is a scrap, and joins them with 0.12 s of
+    quiet into the line's audio.
+    sherpa-onnx 1.13.8 ends the process on a sentence whose phonemes come
+    to exactly Kokoro's 510 tokens; its 2.0 drops espeak, and with it every
+    word not in its lexicon. A shorter line is one call.
   - A page not in English, or with a line Kokoro fails on, is left to the
     phone's voice. So is one where the app died twice saying the same line:
     a crash in Kokoro's native code would otherwise repeat on every charge.
