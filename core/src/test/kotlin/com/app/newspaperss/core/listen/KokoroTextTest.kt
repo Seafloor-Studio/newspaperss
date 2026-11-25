@@ -54,6 +54,12 @@ class KokoroTextTest {
         assertTrue(pieces.toString(), pieces.all { KokoroText.weight(it) >= KokoroText.weight(line) / 3 && words(it).size > 1 })
         assertWhole(line, pieces)
 
+        // A comma in reach but near the end would leave a scrap: a space nearer the middle wins.
+        val late = "word ".repeat(48) + "so, " + "word ".repeat(11)
+        val evenly = KokoroText.pieces(late)
+        assertTrue(evenly.toString(), evenly.all { KokoroText.weight(it) >= KokoroText.weight(late) / 3 })
+        assertWhole(late, evenly)
+
         // Just over the limit, with a comma near the middle: cut there.
         val middle = "word ".repeat(25) + "then, " + "word ".repeat(25)
         assertTrue(KokoroText.weight(middle) > KokoroText.LIMIT)
@@ -100,6 +106,8 @@ class KokoroTextTest {
         }
         assertTrue(KokoroText.weight("xkcd") > 4 * KokoroText.weight("kick"))
         assertTrue(KokoroText.weight("e.g.") > 4 * KokoroText.weight("eggs"))
+        // "dot", not a pause.
+        assertTrue(KokoroText.weight("example.org") > KokoroText.weight("example org") + 2)
         assertEquals("a word with a vowel is read as a word", 8, KokoroText.weight("strength"))
     }
 
