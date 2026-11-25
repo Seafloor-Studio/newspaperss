@@ -615,6 +615,23 @@ class PodcastMakerTest {
         assertTrue(store.made(thursday, 1))
     }
 
+    /** In the same voice, an article with a word changed isn't given the old audio, though the pages after it are. */
+    @Test
+    fun anArticleChangedInTheSameVoiceIsMadeAgain() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos, trains)
+        request(wednesday)
+        make()
+
+        said.clear()
+        val thursday = edition("Thursday", lagos.copy(bodyHtml = "<p>The drivers met again.</p>"), trains)
+        request(thursday)
+        make()
+        assertTrue(said.toString(), "The drivers met again." in said)
+        assertFalse(said.toString(), "Night Trains" in said)
+        assertTrue(store.finished(thursday))
+    }
+
     /** The pages left to make after the reused ones are taken are made in book order, as ever. */
     @Test
     fun reusedPagesAreTakenFirstAndTheRestMadeInBookOrder() {
