@@ -330,7 +330,8 @@ class PodcastMaker(
             "Edition $editionId page $page: from line $from of ${lines.size}" + when {
                 died < 0 -> ""
                 taken -> ", line $died was in flight when the app ended (${exit?.name}); not counted against it"
-                else -> ", line $died took the app down $deaths times (${exit?.name ?: "Android doesn't say why"})"
+                else -> ", line $died took the app down ${times(deaths)} (${exit?.name ?: "Android doesn't say why"})" +
+                    (lines.getOrNull(died)?.let { "; it has ${shape(it.spoken)}" } ?: "")
             },
         )
         var piece: Piece? = null
@@ -355,7 +356,7 @@ class PodcastMaker(
                     return
                 }
                 val death = if (i == deadAt) deaths + 1 else 1
-                if (death > CRASHES) throw Unsayable(IllegalStateException("Line $i took the app down $deaths times"))
+                if (death > CRASHES) throw Unsayable(IllegalStateException("line $i took the app down ${times(deaths)} (${exit?.name ?: "Android doesn't say why"})"))
                 val began = now()
                 store.saying(editionId, page, i, death)
                 val speech = try {
@@ -410,18 +411,32 @@ class PodcastMaker(
             // A full disk, most likely: tried again later, as it is.
             log.add("Page $page: ${e.javaClass.simpleName}, tried again next run")
             throw e
+        } catch (e: EncoderLost) {
+            // Android takes encoders back from apps in the background: the piece in it is lost,
+            // but the page isn't at fault. Past a few on one page, it counts as the page failing,
+            // in case it was no reclaim at all and would otherwise be tried again for good.
+            val losses = store.encoderLost(editionId, page)
+            if (losses > ENCODER_LOSSES) return failed(editionId, page, e)
+            log.add("Page $page: the encoder was lost (${e.why}: ${e.cause?.javaClass?.name}); resumes at line ${piece?.firstLine ?: next}; not counted against the page ($losses of $ENCODER_LOSSES)")
+            throw e
         } catch (e: Exception) {
-            // The encoder, say, failing the same way each time: given up after a few runs, so
-            // the pages after it, and older podcasts, aren't held up for good.
-            val failures = store.failed(editionId, page)
-            log.add("Page $page failed ($failures of $FAILURES): ${e.javaClass.name}")
-            if (failures < FAILURES) throw PageFailed(e)
-            log.add("Page $page left to the phone's voice")
-            store.leaveLive(editionId, page)
+            failed(editionId, page, e)
         } finally {
             piece?.drop()
             store.said(editionId, page)
         }
+    }
+
+    /**
+     * Counts a run failing on [page]: the encoder, say, failing the same way each time. Given up
+     * after a few runs, so the pages after it, and older podcasts, aren't held up for good.
+     */
+    private fun failed(editionId: Long, page: Int, e: Exception) {
+        val failures = store.failed(editionId, page)
+        log.add("Page $page failed ($failures of $FAILURES): ${e.javaClass.name}")
+        if (failures < FAILURES) throw PageFailed(e)
+        log.add("Page $page left to the phone's voice")
+        store.leaveLive(editionId, page)
     }
 
     private enum class Kept { KEPT, DROPPED, FAILED, LATE }
@@ -532,6 +547,27 @@ class PodcastMaker(
 
         /** Runs failing on the same page before it's left to the phone's voice. */
         internal const val FAILURES = 3
+
+        /** Encoders lost on the same page before a loss counts as the page failing ([FAILURES]). */
+        internal const val ENCODER_LOSSES = 10
+
+        private fun times(n: Int) = when (n) {
+            1 -> "once"
+            2 -> "twice"
+            else -> "$n times"
+        }
+
+        /**
+         * A line's length and the characters in it beyond printable ASCII, as code points, for
+         * the log: what might have upset Kokoro, without the article's words in a shared log.
+         */
+        internal fun shape(text: String): String {
+            val unusual = text.codePoints().filter { it !in 0x20..0x7e }.distinct().limit(UNUSUAL_SHOWN + 1L).toArray()
+            val listed = unusual.take(UNUSUAL_SHOWN).joinToString(" ") { "U+%04X".format(Locale.ROOT, it) } + if (unusual.size > UNUSUAL_SHOWN) " …" else ""
+            return "${text.length} character${if (text.length == 1) "" else "s"}, " + if (unusual.isEmpty()) "all plain ASCII" else "beyond plain ASCII: $listed"
+        }
+
+        private const val UNUSUAL_SHOWN = 12
 
         /**
          * What a page's audio says and how: the voice, each line, and where the breath between

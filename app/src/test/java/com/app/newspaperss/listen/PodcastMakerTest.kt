@@ -1,6 +1,8 @@
 package com.app.newspaperss.listen
 
+import android.app.ActivityManager
 import android.app.ApplicationExitInfo
+import androidx.test.core.app.ApplicationProvider
 import com.app.newspaperss.testutil.TestDataStores
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -29,6 +31,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowActivityManager
 import org.robolectric.annotation.Config
 import java.io.File
 
@@ -40,6 +44,7 @@ class PodcastMakerTest {
     @get:Rule val stores = TestDataStores()
     @get:Rule val dbRule = DbRule()
     private val db = dbRule.db
+    private val app = ApplicationProvider.getApplicationContext<TestApp>()
 
     private val settings by lazy { SettingsStore(stores.preferences("s")) }
     private val editionsDir by lazy { tmp.newFolder("editions") }
@@ -84,6 +89,8 @@ class PodcastMakerTest {
     private var silentFor: String? = null
     /** The first line said into a piece the encoder will fail to finish. */
     private var encoderBrokenOn: String? = null
+    /** A line whose audio the encoder is lost on, as Android takes it back. */
+    private var encoderLostOn: String? = null
 
     /** Writes the samples' count, so a page's file says how much went into it. */
     private val encoder = AudioEncoder { file, rate ->
@@ -92,7 +99,10 @@ class PodcastMakerTest {
         val hold = holdClose
         object : AudioSink {
             var count = 0
-            override fun write(samples: FloatArray) { count += samples.size }
+            override fun write(samples: FloatArray) {
+                if (encoderLostOn != null && said.lastOrNull() == encoderLostOn) throw EncoderLost("reclaimed", IllegalStateException())
+                count += samples.size
+            }
             override fun close() {
                 hold?.await(10, java.util.concurrent.TimeUnit.SECONDS)
                 onClose()
@@ -871,6 +881,118 @@ class PodcastMakerTest {
 
         assertTrue(store.live(id, 0))
         assertFalse(said.contains("Then a teacher counted."))
+    }
+
+    /** What Android records, read back as the app does, for the maker to judge. */
+    private fun endedAsAndroidSays(reason: Int, status: Int = 0): LastExit {
+        val info = ShadowActivityManager.ApplicationExitInfoBuilder.newBuilder()
+            .setProcessName(app.packageName).setReason(reason).setStatus(status).setTimestamp(1L).build()
+        shadowOf(app.getSystemService(ActivityManager::class.java)).addApplicationExitInfo(info)
+        return ProcessDeaths.last(app)!!
+    }
+
+    /**
+     * The app never ends itself: native code calling exit() mid-line did. Not counted, the line
+     * took the app down on every run, all morning, and nothing after it was made.
+     */
+    @Test
+    fun aLineTheAppEndedItselfOnIsCountedAgainstIt() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        // The first death on the fourth line, which no earlier death counted against.
+        store.saying(id, 0, 3, 1)
+        exit = endedAsAndroidSays(ApplicationExitInfo.REASON_EXIT_SELF, status = 255)
+        var marked: Pair<Int, Int>? = null
+        afterLine = { if (it == "Then a teacher counted.") marked = store.deaths(id, 0) }
+        make()
+
+        assertEquals("a death there now would be its second", 3 to 2, marked)
+        val line = log.read().single { it.contains("page 0: from line") }
+        assertTrue(line, line.endsWith("line 3 took the app down once (ended itself (exit code 255)); it has 23 characters, all plain ASCII"))
+    }
+
+    /** Past the limit the page goes to the phone's voice, as for a crash, and the run moves on. */
+    @Test
+    fun aLineTheAppEndedItselfOnTwiceLeavesItsPageAndTheRunGoesOn() {
+        inUse()
+        val id = edition("Thursday", knots, lagos)
+        request(id)
+        store.saying(id, 0, 3, 2)
+        exit = endedAsAndroidSays(ApplicationExitInfo.REASON_EXIT_SELF, status = 255)
+        make()
+
+        assertTrue(store.live(id, 0))
+        assertFalse(said.contains("Then a teacher counted."))
+        assertTrue(store.made(id, 1))
+        assertTrue(store.finished(id))
+        assertTrue(log.read().toString(), log.read().any { it.endsWith("Page 0 left to the phone's voice: line 3 took the app down twice (ended itself (exit code 255))") })
+    }
+
+    /** The reader swiping the app away mid-line says nothing about the line. */
+    @Test
+    fun aLineTheReaderClosedTheAppOnIsntBlamedForIt() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        store.saying(id, 0, 3, 2)
+        exit = endedAsAndroidSays(ApplicationExitInfo.REASON_USER_REQUESTED)
+        make()
+
+        assertFalse(store.live(id, 0))
+        assertTrue(store.made(id, 0))
+        assertTrue(log.read().any { it.endsWith("line 3 was in flight when the app ended (the reader closed it); not counted against it") })
+    }
+
+    /** What the log says of a line, so a line that keeps failing can be looked into: never its words. */
+    @Test
+    fun aLinesShapeIsItsLengthAndItsUnusualCharacters() {
+        assertEquals("5 characters, all plain ASCII", PodcastMaker.shape("A cat"))
+        assertEquals("10 characters, beyond plain ASCII: U+2019 U+00A0", PodcastMaker.shape("It’s here’"))
+        assertEquals("1 character, beyond plain ASCII: U+0009", PodcastMaker.shape("\t"))
+        assertTrue(PodcastMaker.shape((0x3b1..0x3c9).joinToString("") { it.toChar().toString() }).endsWith("U+03BC …"))
+    }
+
+    /**
+     * Android takes encoders back from apps in the background. The piece in it is lost, but the
+     * page isn't at fault: the run stops as at a stop, and the page isn't counted as failing.
+     */
+    @Test
+    fun anEncoderAndroidTookBackStopsTheRunWithoutCountingAgainstThePage() {
+        inUse()
+        pieceSeconds = 0.001
+        val id = edition("Thursday", knots, lagos)
+        request(id)
+        encoderLostOn = "Then a teacher counted."
+        repeat(PodcastMaker.FAILURES + 1) {
+            assertTrue(runCatching { make() }.exceptionOrNull() is EncoderLost)
+        }
+
+        assertFalse("not given up on", store.settled(id, 0))
+        // The pieces before it were kept, a line each.
+        assertEquals(listOf(0, 1, 2), store.pieces(id, 0).map { it.firstLine })
+        assertTrue(log.read().toString(), log.read().any { it.endsWith("Page 0: the encoder was lost (reclaimed: java.lang.IllegalStateException); resumes at line 3; not counted against the page (1 of ${PodcastMaker.ENCODER_LOSSES})") })
+        assertTrue(log.read().none { it.contains("failed (") })
+
+        encoderLostOn = null
+        make()
+        assertTrue(store.made(id, 0))
+        assertTrue(store.finished(id))
+    }
+
+    /** Lost on one page time after time, it's taken for a fault after all, or it would be tried for good. */
+    @Test
+    fun anEncoderLostOnOnePageTooOftenCountsAsThePageFailing() {
+        inUse()
+        val id = edition("Thursday", knots, lagos)
+        request(id)
+        encoderLostOn = "Then a teacher counted."
+        repeat(PodcastMaker.ENCODER_LOSSES) { assertTrue(runCatching { make() }.exceptionOrNull() is EncoderLost) }
+        repeat(PodcastMaker.FAILURES - 1) { assertTrue(runCatching { make() }.exceptionOrNull() is PodcastMaker.PageFailed) }
+        make()
+
+        assertTrue(store.live(id, 0))
+        assertTrue(store.made(id, 1))
     }
 
     private fun endedWith(reason: Int, name: String, crash: Boolean) =

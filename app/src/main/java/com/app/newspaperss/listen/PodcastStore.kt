@@ -272,6 +272,14 @@ class PodcastStore(val dir: File) {
         return count
     }
 
+    /** Counts an encoder Android took back while [page] was made, and returns how many have been. */
+    @Synchronized
+    fun encoderLost(editionId: Long, page: Int): Int {
+        val count = (read(editionId, "$page.$LOST")?.toIntOrNull() ?: 0) + 1
+        write(editionId, "$page.$LOST", count.toString())
+        return count
+    }
+
     /** Somewhere to write a piece before it's kept: inside [dir], so keeping it is a rename. */
     fun scratch(editionId: Long, page: Int, firstLine: Int): File {
         dir.mkdirs()
@@ -386,6 +394,7 @@ class PodcastStore(val dir: File) {
         private const val LIVE = "live"
         private const val SAYING = "saying"
         private const val FAILED = "failed"
+        private const val LOST = "lost"
         private const val COST = "cost"
         private const val LINES = "lines"
         private const val PART = "part"

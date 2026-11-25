@@ -81,6 +81,20 @@ class ProcessDeathsTest {
         assertEquals("native crash", exit.name)
     }
 
+    /**
+     * The app never ends itself, so its native code did: sherpa-onnx and espeak-ng call exit() on
+     * some errors. Taken for Android's doing, a line that does it loops every run for good.
+     */
+    @Test
+    fun endingItselfIsTheAppsOwnAndSaysItsExitCode() {
+        ended(ApplicationExitInfo.REASON_EXIT_SELF, status = 255)
+
+        val exit = ProcessDeaths.last(app)!!
+        assertTrue(exit.crash)
+        assertTrue("worth a line in the log", exit.abnormal)
+        assertEquals("ended itself (exit code 255)", exit.name)
+    }
+
     @Test
     fun usingTooMuchOfThePhoneIsAndroidsDoing() {
         ended(ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE)
