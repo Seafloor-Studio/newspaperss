@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Process
 import com.app.newspaperss.core.listen.KokoroFile
 import com.app.newspaperss.core.listen.KokoroManifest
+import com.app.newspaperss.core.listen.KokoroText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -200,6 +201,27 @@ class KokoroDownload(
 class Speech(val samples: FloatArray, val sampleRate: Int) {
     val seconds: Double get() = samples.size.toDouble() / sampleRate
 }
+
+/**
+ * [text] said by [say] a piece at a time ([KokoroText.pieces]) and joined into one [Speech], with a
+ * comma's pause between pieces. A line short enough is one call, as it is.
+ */
+fun speakInPieces(text: String, say: (String) -> Speech): Speech {
+    val speeches = KokoroText.pieces(text).map(say)
+    if (speeches.size == 1) return speeches[0]
+    val rate = speeches[0].sampleRate
+    val gap = (rate * PIECE_GAP_SECONDS).toInt()
+    val joined = FloatArray(speeches.sumOf { it.samples.size } + gap * (speeches.size - 1))
+    var at = 0
+    for (speech in speeches) {
+        speech.samples.copyInto(joined, at)
+        at += speech.samples.size + gap
+    }
+    return Speech(joined, rate)
+}
+
+/** The quiet between the pieces of a long line: about a comma's. */
+const val PIECE_GAP_SECONDS = 0.12
 
 /** Makes speech in one of Kokoro's voices. Not thread-safe; [release] when done. */
 interface PodcastEngine {

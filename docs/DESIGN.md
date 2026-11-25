@@ -1190,7 +1190,8 @@ whose Kindle and KOReader answers ask for more on the same page).
     English articles only; the rest are left
     to the phone's voice, as is one Kokoro can't say, or that took the
     app down twice while it was said (the reader closing the app, or
-    Android ending it for memory, doesn't count). An article that comes back in a later edition
+    Android ending it for memory, doesn't count). A very long sentence is
+    said in parts, with a comma's pause between them. An article that comes back in a later edition
     (one not sent gives its articles back) isn't made again: if it says
     exactly the same in the same voice, the audio already made is used,
     taking no more space. An edition's audio is deleted with its book (an
