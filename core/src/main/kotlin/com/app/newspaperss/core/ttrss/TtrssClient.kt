@@ -1,6 +1,7 @@
 package com.app.newspaperss.core.ttrss
 
 import com.app.newspaperss.core.feed.Enclosure
+import com.app.newspaperss.core.feed.FeedParser
 import com.app.newspaperss.core.feed.isWebAddress
 import com.app.newspaperss.core.net.HttpClient
 import kotlinx.serialization.SerializationException
@@ -194,7 +195,7 @@ class TtrssClient(
             fun text(key: String) = (o[key] as? JsonPrimitive)?.contentOrNull
             listOf(
                 TtrssFeed(
-                    id, text("title") ?: "", text("unread")?.toIntOrNull() ?: 0,
+                    id, FeedParser.cleanTitle(text("title")), text("unread")?.toIntOrNull() ?: 0,
                     feedUrl = text("feed_url")?.takeIf { it.isNotBlank() }, categoryId = text("cat_id")?.toIntOrNull(),
                     lastUpdated = text("last_updated")?.toLongOrNull(),
                     lastError = text("last_error")?.replace(Regex("\\s+"), " ")?.trim()?.let(::shortened)?.ifBlank { null },
@@ -482,12 +483,14 @@ class TtrssClient(
         val id = idOf(o) ?: return null
         return TtrssHeadline(
             id = id,
-            title = text("title") ?: "",
+            // tt-rss passes a feed's title on as stored, so a feed that escapes it twice ("&amp;amp;")
+            // arrives as "&amp;": made plain text as a phone feed's title is.
+            title = FeedParser.cleanTitle(text("title")),
             link = text("link") ?: return null,
             content = text("content"),
             author = text("author"),
             updated = (o["updated"] as? JsonPrimitive)?.longOrNull,
-            feedTitle = text("feed_title"),
+            feedTitle = text("feed_title")?.let(FeedParser::cleanTitle)?.ifBlank { null },
             feedId = text("feed_id") ?: return null,
             attachments = (o["attachments"] as? JsonArray).orEmpty().mapNotNull { a ->
                 val att = a as? JsonObject ?: return@mapNotNull null
