@@ -246,8 +246,13 @@ class PodcastStore(val dir: File) {
      */
     @Synchronized
     fun deaths(editionId: Long, page: Int): Pair<Int, Int> =
-        read(editionId, "$page.$SAYING")?.split(' ')?.mapNotNull { it.toIntOrNull() }
+        read(editionId, "$page.$SAYING")?.split(' ')?.take(2)?.mapNotNull { it.toIntOrNull() }
             ?.takeIf { it.size == 2 }?.let { it[0] to it[1] } ?: (-1 to 0)
+
+    /** When the line [deaths] names was begun, in the phone's time; null if the marker is older than that. */
+    @Synchronized
+    fun sayingSince(editionId: Long, page: Int): Long? =
+        read(editionId, "$page.$SAYING")?.split(' ')?.getOrNull(2)?.toLongOrNull()
 
     /**
      * Notes that [line] is being said, and that if the app dies saying it, it's the [death]th time
@@ -255,8 +260,8 @@ class PodcastStore(val dir: File) {
      * do it on every charge. [said] clears it.
      */
     @Synchronized
-    fun saying(editionId: Long, page: Int, line: Int, death: Int) {
-        write(editionId, "$page.$SAYING", "$line $death")
+    fun saying(editionId: Long, page: Int, line: Int, death: Int, at: Long = System.currentTimeMillis()) {
+        write(editionId, "$page.$SAYING", "$line $death $at")
     }
 
     @Synchronized
@@ -270,6 +275,23 @@ class PodcastStore(val dir: File) {
         val count = (read(editionId, "$page.$FAILED")?.toIntOrNull() ?: 0) + 1
         write(editionId, "$page.$FAILED", count.toString())
         return count
+    }
+
+    /**
+     * Counts an encoder Android took back while [page] was made, and returns how many have been
+     * since [encoderKept]. [page] is [PodcastMaker.CLIPS] for an edition's clips.
+     */
+    @Synchronized
+    fun encoderLost(editionId: Long, page: Int): Int {
+        val count = (read(editionId, "$page.$LOST")?.toIntOrNull() ?: 0) + 1
+        write(editionId, "$page.$LOST", count.toString())
+        return count
+    }
+
+    /** Something of [page] was kept, so the encoder works: losses before it don't count against it. */
+    @Synchronized
+    fun encoderKept(editionId: Long, page: Int) {
+        File(folder(editionId), "$page.$LOST").delete()
     }
 
     /** Somewhere to write a piece before it's kept: inside [dir], so keeping it is a rename. */
@@ -386,6 +408,7 @@ class PodcastStore(val dir: File) {
         private const val LIVE = "live"
         private const val SAYING = "saying"
         private const val FAILED = "failed"
+        private const val LOST = "lost"
         private const val COST = "cost"
         private const val LINES = "lines"
         private const val PART = "part"

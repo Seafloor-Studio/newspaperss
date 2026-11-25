@@ -7,6 +7,8 @@ import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.BatteryManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import androidx.annotation.RequiresApi
@@ -20,6 +22,7 @@ import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.app.newspaperss.container
+import com.app.newspaperss.listen.EncoderLost
 import com.app.newspaperss.listen.PodcastMaker
 import com.app.newspaperss.listen.ProcessDeaths
 import com.app.newspaperss.notify.Notifier
@@ -31,6 +34,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Makes the podcasts asked for ([PodcastMaker.makeAll]), only while the phone charges: a
@@ -50,15 +54,35 @@ import java.util.concurrent.TimeUnit
 open class PodcastWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     private val log get() = applicationContext.container.podcastLog
 
+    /** Whether this run asked for the foreground: WorkManager's service is checked on after it. */
+    private var askedForeground = false
+
     /** Noted from the guard as the stop comes, and again as the run ends: once is enough. */
     @Volatile
     private var timedOut = false
 
-    override suspend fun doWork(): Result = try {
+    override suspend fun doWork(): Result {
+        running.incrementAndGet()
+        try {
+            return work()
+        } finally {
+            running.decrementAndGet()
+            lastRunEnded = SystemClock.elapsedRealtime()
+            if (askedForeground) checkServiceLater(applicationContext, lastRunEnded)
+        }
+    }
+
+    private suspend fun work(): Result = try {
         // Android's 10 minutes start with the work, not once it's ready to make.
         val began = SystemClock.elapsedRealtime()
         fun backgroundLeft() = (BACKGROUND_MS - (SystemClock.elapsedRealtime() - began)) / 1000.0
         noteLastExit()
+        // Before this run could have asked for it: what's there is a run's before this one. Not
+        // just after one, which WorkManager may still be letting go of.
+        val sinceLast = SystemClock.elapsedRealtime() - lastRunEnded
+        if (lastRunEnded > 0 && sinceLast > SETTLED_MS && workManagerService(applicationContext) == true) {
+            log.add("WorkManager's service already in the foreground as this run starts, ${ago(sinceLast)} after the last ended")
+        }
         val holdBack = holdBack()
         if (!plugged()) {
             // WorkManager runs it again after a stop without going through WaitForCharger.
@@ -70,6 +94,7 @@ open class PodcastWorker(context: Context, params: WorkerParameters) : Coroutine
             enqueue(applicationContext, COOL_OFF_MS)
         } else {
             val asked = mayGoForeground()
+            askedForeground = asked
             log.add("Run started (try ${runAttemptCount + 1}): ${if (asked) "asking for the foreground" else "in the background"}, ${standing()}")
             if (asked && !goForeground()) {
                 enqueue(applicationContext)
@@ -121,6 +146,11 @@ open class PodcastWorker(context: Context, params: WorkerParameters) : Coroutine
         noteTimeout()
         log.add("Stopped by Android" + if (Build.VERSION.SDK_INT >= 31) ": ${stopReasonName(stopReason)} (reason $stopReason)" else "")
         throw e
+    } catch (e: EncoderLost) {
+        // Kept what was made before the encoder went; a few minutes, so whatever wanted it may be done.
+        log.add("Run stopped: the encoder was lost; trying again in ${RETRY_MS / 60_000} min")
+        enqueue(applicationContext, RETRY_MS)
+        Result.success()
     } catch (e: PodcastMaker.PageFailed) {
         // Only a run tries the page again, and nothing else asks for one overnight. A few
         // minutes, so a phone short of memory has a moment to free some.
@@ -252,10 +282,7 @@ open class PodcastWorker(context: Context, params: WorkerParameters) : Coroutine
      * Whether WorkManager's service really is in the foreground: Android can refuse it silently,
      * inside the service. Not the process's standing, which the app's own player or screen lifts.
      */
-    @Suppress("DEPRECATION") // Still lists the app's own services.
-    private fun inForeground() = applicationContext.getSystemService(ActivityManager::class.java)
-        .getRunningServices(Int.MAX_VALUE)
-        .any { it.foreground && it.service.className == FOREGROUND_SERVICE }
+    private fun inForeground() = workManagerService(applicationContext) == true
 
     /** Plugged in, charging or not: a phone holding its charge at 80% overnight still counts. */
     private fun plugged(): Boolean {
@@ -294,6 +321,54 @@ open class PodcastWorker(context: Context, params: WorkerParameters) : Coroutine
         /** Until when the work doesn't ask for the foreground, after a refusal. Kept only while the app runs. */
         @Volatile
         internal var holdOffUntil = 0L
+
+        /** Runs under way in this process: a check on WorkManager's service after one ended means nothing during another. */
+        private val running = AtomicInteger()
+
+        /** How long after a run that asked for the foreground WorkManager's service is checked on. */
+        internal const val SERVICE_CHECK_MS = 90_000L
+
+        /** Time WorkManager is given to let its service go after a run, before it's remarked on. */
+        private const val SETTLED_MS = 10_000L
+
+        /** When the last run in this process ended, by [SystemClock.elapsedRealtime]; 0 before any. */
+        @Volatile
+        internal var lastRunEnded = 0L
+
+        internal fun ago(ms: Long): String = if (ms < 120_000) "${ms / 1000}s" else "${ms / 60_000} min"
+
+        /**
+         * Whether WorkManager's foreground service is running, and in the foreground; null if it
+         * isn't running. Android lists only the app's own services, which is all this needs.
+         */
+        @Suppress("DEPRECATION")
+        internal fun workManagerService(context: Context): Boolean? = context.getSystemService(ActivityManager::class.java)
+            ?.getRunningServices(Int.MAX_VALUE)
+            ?.firstOrNull { it.service.className == FOREGROUND_SERVICE }
+            ?.foreground
+
+        /**
+         * After a run that asked for the foreground, whether WorkManager let its service go: one
+         * left in the foreground would use up Android's daily foreground time with nothing being
+         * made. Checked a while after, as WorkManager stops it only once the work has returned;
+         * on the main thread's clock, which a frozen process doesn't run, so a service that kept
+         * the process from freezing is the one sure to be noted.
+         */
+        private fun checkServiceLater(context: Context, ended: Long) {
+            val log = context.container.podcastLog
+            Handler(Looper.getMainLooper()).postDelayed({
+                if (running.get() > 0) return@postDelayed
+                // The real time: a process asleep or frozen runs this hours late.
+                val after = "${ago(SystemClock.elapsedRealtime() - ended)} after the run"
+                log.add(
+                    when (workManagerService(context)) {
+                        null -> "$after, WorkManager's service has stopped"
+                        false -> "$after, WorkManager's service is still running, not in the foreground"
+                        true -> "$after, WorkManager's service still in the foreground after the run ended"
+                    },
+                )
+            }, SERVICE_CHECK_MS)
+        }
 
         /** The death already logged, so every run in a process doesn't repeat the one before it. */
         @Volatile
