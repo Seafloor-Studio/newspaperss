@@ -575,6 +575,67 @@ class PodcastMakerTest {
         assertEquals(store.bytes(wednesday), store.bytes(again))
     }
 
+    /**
+     * A page that fails every run, as one that takes the app down does, doesn't keep the articles
+     * after it from audio another edition already made: they're taken before it's tried.
+     */
+    @Test
+    fun aPageThatFailsDoesntKeepTheReusablePagesAfterItFromTheirAudio() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos, trains)
+        request(wednesday)
+        make()
+
+        said.clear()
+        val thursday = edition("Thursday", knots, lagos, trains)
+        request(thursday)
+        encoderBrokenOn = "Quanta"
+        assertTrue(runCatching { make() }.exceptionOrNull() is PodcastMaker.PageFailed)
+        assertFalse(store.settled(thursday, 0))
+        assertTrue(store.made(thursday, 1))
+        assertTrue(store.made(thursday, 2))
+        assertFalse(said.toString(), "Lagos Drivers" in said || "Night Trains" in said)
+        assertTrue(log.read().toString(), log.read().any { it.contains("Page 2: the same as edition $wednesday page 1, its audio reused") })
+    }
+
+    /** Out of time before its first page, a background run has still taken what it needn't make. */
+    @Test
+    fun aRunOutOfTimeOnItsFirstPageStillTakesTheReusablePages() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos)
+        request(wednesday)
+        make()
+
+        said.clear()
+        val thursday = edition("Thursday", knots, lagos)
+        request(thursday)
+        assertTrue(runBlocking { maker.makeAll { 10.0 } })
+        assertTrue(said.toString(), said.isEmpty())
+        assertFalse(store.settled(thursday, 0))
+        assertTrue(store.made(thursday, 1))
+    }
+
+    /** The pages left to make after the reused ones are taken are made in book order, as ever. */
+    @Test
+    fun reusedPagesAreTakenFirstAndTheRestMadeInBookOrder() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos)
+        request(wednesday)
+        make()
+
+        said.clear()
+        val thursday = edition("Thursday", knots, lagos, trains)
+        request(thursday)
+        make()
+        assertTrue(store.finished(thursday))
+        val titles = said.filter { it == "Counting Knots" || it == "Lagos Drivers" || it == "Night Trains" }
+        assertEquals(listOf("Counting Knots", "Night Trains"), titles)
+        val entries = log.read()
+        val reusedAt = entries.indexOfFirst { it.contains("Page 1: the same as edition $wednesday page 0, its audio reused") }
+        val firstMade = entries.indexOfFirst { it.contains("Edition $thursday page 0: from line 0") }
+        assertTrue(entries.toString(), reusedAt in 0 until firstMade)
+    }
+
     /** Older audio that doesn't cover its page as it's read today isn't passed on, nor looked at again. */
     @Test
     fun olderAudioThatDoesntMatchItsPageTodayIsMadeAfresh() {

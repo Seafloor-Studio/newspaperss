@@ -170,7 +170,8 @@ class PodcastMaker(
     /**
      * Notes [page]'s key and, if another edition has made a page that says the same, takes its
      * audio: before Kokoro is loaded, so an edition whose articles are all reused never loads it.
-     * True if the page is now made.
+     * Only another edition's pages count, so nothing this edition makes later in the run changes
+     * what this finds. True if the page is now made.
      */
     private fun reused(editionId: Long, asked: String?, page: Int, script: ListenScript?, voice: PodcastVoice): Boolean {
         if (script == null || script.lines.isEmpty() || !english(script.language)) return false
@@ -226,6 +227,14 @@ class PodcastMaker(
                 val voice = store.voice(editionId) ?: continue
                 val asked = store.asked(editionId)
                 book.use {
+                    // Every page another edition has made is taken before any is made: a page that
+                    // fails, or takes the app down, every run would otherwise keep those after it
+                    // from their audio. Done each time the edition comes up, so a page made since
+                    // in a newer edition, which went first, is found too.
+                    for (page in book.pages.indices) {
+                        if (!store.wanted(editionId, asked)) return@use
+                        if (!store.settled(editionId, page)) reused(editionId, asked, page, script(book, page), voice)
+                    }
                     for (page in book.pages.indices) {
                         if (store.settled(editionId, page)) continue
                         if (!inUse()) {
@@ -234,9 +243,7 @@ class PodcastMaker(
                         }
                         // A newer edition asked for since: it goes first, and this one carries on after.
                         if (store.waiting().firstOrNull() != editionId || !store.wanted(editionId, asked)) return@use
-                        val script = script(book, page)
-                        if (reused(editionId, asked, page, script, voice)) continue
-                        makePage(editionId, asked, page, script, kokoroFor(editionId, voice), run)
+                        makePage(editionId, asked, page, script(book, page), kokoroFor(editionId, voice), run)
                         if (run.outOfTime) return
                     }
                     // Best effort: without its clips, what's said around a recording is the phone's voice.
