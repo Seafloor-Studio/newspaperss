@@ -299,10 +299,24 @@ class PodcastMaker(
             try {
                 // An encoder given no audio at all can't finish its file.
                 sink.write(speech.samples.takeIf { it.isNotEmpty() } ?: FloatArray(speech.sampleRate / 10))
-            } finally {
-                sink.close()
+            } catch (e: Exception) {
+                // Closing a sink that failed fails too, and mustn't hide why.
+                runCatching { sink.close() }
+                throw e
             }
+            sink.close()
             store.keepClip(editionId, asked, text, file)
+            store.encoderKept(editionId, CLIPS)
+        } catch (e: EncoderLost) {
+            file.delete()
+            // As on a page: the edition would otherwise be finished without the clip, for good.
+            val losses = store.encoderLost(editionId, CLIPS)
+            if (losses > ENCODER_LOSSES) {
+                log.add("A clip wasn't made: ${e.javaClass.name}")
+                return
+            }
+            log.add("A clip's encoder was lost (${e.why}: ${e.cause?.javaClass?.name}); not counted against it ($losses of $ENCODER_LOSSES)")
+            throw e
         } catch (e: Exception) {
             file.delete()
             log.add("A clip wasn't made: ${e.javaClass.name}")
@@ -321,8 +335,12 @@ class PodcastMaker(
         val (died, deaths) = store.deaths(editionId, page)
         // The marker says which line was in flight when the process ended, not that the line
         // ended it. Android taking the app for memory doesn't make a line unsayable, and two of
-        // those would otherwise hand the page to the phone's voice for good.
-        val exit = if (died >= 0) lastExit() else null
+        // those would otherwise hand the page to the phone's voice for good. Only a record of a
+        // death after the line began is this death's: an older one is another process's.
+        val since = store.sayingSince(editionId, page)
+        val record = if (died >= 0) lastExit() else null
+        val exit = record?.takeIf { since == null || it.atMs >= since }
+        val unknown = if (record != null) "Android's last record is older than the line" else "Android doesn't say why"
         val taken = exit != null && !exit.crash
         val deadAt = if (taken) -1 else died
         val from = store.linesMade(editionId, page)
@@ -330,7 +348,7 @@ class PodcastMaker(
             "Edition $editionId page $page: from line $from of ${lines.size}" + when {
                 died < 0 -> ""
                 taken -> ", line $died was in flight when the app ended (${exit?.name}); not counted against it"
-                else -> ", line $died took the app down ${times(deaths)} (${exit?.name ?: "Android doesn't say why"})" +
+                else -> ", line $died took the app down ${times(deaths)} (${exit?.name ?: unknown})" +
                     (lines.getOrNull(died)?.let { "; it has ${shape(it.spoken)}" } ?: "")
             },
         )
@@ -356,7 +374,7 @@ class PodcastMaker(
                     return
                 }
                 val death = if (i == deadAt) deaths + 1 else 1
-                if (death > CRASHES) throw Unsayable(IllegalStateException("line $i took the app down ${times(deaths)} (${exit?.name ?: "Android doesn't say why"})"))
+                if (death > CRASHES) throw Unsayable(IllegalStateException("line $i took the app down ${times(deaths)} (${exit?.name ?: unknown})"))
                 val began = now()
                 store.saying(editionId, page, i, death)
                 val speech = try {
@@ -493,6 +511,7 @@ class PodcastMaker(
                 log.add("Dropped $lines: the podcast deleted or asked for again since")
                 return false
             }
+            store.encoderKept(editionId, page)
             store.addCost(editionId, work + now() - began, spoken.toDouble() / rate)
             log.add("Kept $lines: ${seconds.toInt()}s of audio in ${seconds(work + now() - began)}s")
             return true
@@ -548,8 +567,14 @@ class PodcastMaker(
         /** Runs failing on the same page before it's left to the phone's voice. */
         internal const val FAILURES = 3
 
-        /** Encoders lost on the same page before a loss counts as the page failing ([FAILURES]). */
+        /**
+         * Encoders lost on the same page, with nothing of it kept between, before a loss counts as
+         * the page failing ([FAILURES]).
+         */
         internal const val ENCODER_LOSSES = 10
+
+        /** Where an edition's clips count their lost encoders, as a page would. */
+        internal const val CLIPS = -1
 
         private fun times(n: Int) = when (n) {
             1 -> "once"

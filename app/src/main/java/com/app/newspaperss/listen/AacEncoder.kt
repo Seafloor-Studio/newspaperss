@@ -6,6 +6,7 @@ import android.media.MediaFormat
 import android.media.MediaMuxer
 import java.io.Closeable
 import java.io.File
+import java.io.IOException
 import java.nio.ByteOrder
 
 /** Where encoded audio goes, a block of samples at a time. */
@@ -41,7 +42,13 @@ object AacEncoder : AudioEncoder {
             setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
             setInteger(MediaFormat.KEY_BIT_RATE, BITRATE)
         }
-        val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
+        // Refused for want of resources, Android says so here: a transient codec error, or an
+        // IOException where it couldn't allocate one. No file is touched yet, so neither is the disk.
+        val codec = try {
+            lossSaid { MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC) }
+        } catch (e: IOException) {
+            throw EncoderLost("not to be had", e)
+        }
         try {
             lossSaid {
                 codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)

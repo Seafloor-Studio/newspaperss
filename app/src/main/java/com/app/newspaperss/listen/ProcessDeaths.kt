@@ -89,8 +89,9 @@ object ProcessDeaths {
         ApplicationExitInfo.REASON_CRASH,
         ApplicationExitInfo.REASON_CRASH_NATIVE,
         ApplicationExitInfo.REASON_ANR,
-        ApplicationExitInfo.REASON_EXIT_SELF,
         -> true
+        // Exit code 0 is an orderly exit, which says nothing against the line.
+        ApplicationExitInfo.REASON_EXIT_SELF -> status != 0
         ApplicationExitInfo.REASON_SIGNALED -> status != SIGKILL
         else -> false
     }

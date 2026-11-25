@@ -340,18 +340,23 @@ flowchart LR
     a crash in Kokoro's native code would otherwise repeat on every charge.
     A death counts when Android's record (`ProcessDeaths`) says the app
     fell over: a crash, a native crash, not responding, a signal other
-    than SIGKILL, or the app ending itself, which only native code calling
-    exit() does (sherpa-onnx and espeak-ng do on some errors). Android
-    ending it (memory, SIGKILL), the reader closing it or an update don't
-    count. Below Android 11, with no record, every death counts.
+    than SIGKILL, or the app ending itself with a non-zero exit code, which
+    only native code calling exit() does (sherpa-onnx and espeak-ng do on
+    some errors). Android ending it (memory, SIGKILL), the reader closing
+    it, an update or an exit code of 0 don't count. Only a record made
+    after the line began (the marker holds its time) is judged; with none,
+    below Android 11 or an older record, the death counts.
   - A full disk stops the run without settling the page, so it's tried
     again with the next edition. Any other failure is too, but after three
     runs failing on one page it's left to the phone's voice.
-  - Android takes encoders back from apps in the background (`AacEncoder`
-    throws `EncoderLost`: a `MediaCodec` reclaimed, transient or
-    recoverable error, or one released under it). The piece in it is lost
-    and the run stops, keeping the pieces before it, and runs again in 5
-    minutes; the page isn't counted as failing until the eleventh loss on it.
+  - Android takes encoders back from apps in the background, or refuses one
+    (`AacEncoder` throws `EncoderLost`: a `MediaCodec` reclaimed, transient
+    or recoverable error, one released under it, or none to be had). The
+    piece in it is lost and the run stops, keeping the pieces before it,
+    and runs again in 5 minutes. The page isn't counted as failing until
+    the eleventh loss on it with nothing of it kept between. A loss on a
+    clip stops the run the same way, so the edition isn't finished
+    without it.
   - The newest edition goes first. A podcast keeps the voice it started in.
   - `KokoroEngine.lock` keeps one Kokoro loaded at a time, the speed check
     included: a stopped run's native code runs on until its sentence ends.
@@ -373,11 +378,12 @@ flowchart LR
   most 200 characters with any address's sign-in and query cut. A line
   counted as taking the app down is logged with its length and the
   characters in it beyond ASCII, as code points, never its words. 90 s
-  after a run that asked for the foreground, the log says whether
+  after a run that asked for the foreground (or later, if the process
+  slept: the line gives the real time since), the log says whether
   WorkManager's `SystemForegroundService` has stopped, is still running,
   or is still in the foreground (which would use up Android's daily
   foreground time); a run that finds it already in the foreground as it
-  starts says so too. Playing adds where each play started
+  starts, more than 10 s after the last ended, says so too. Playing adds where each play started
   and which piece failed. It
   keeps the last 400 entries in `files/podcast-log.txt` for Settings ›
   Listening to show and share, and writes the same to logcat (`PodcastLog`).

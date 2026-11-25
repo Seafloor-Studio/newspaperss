@@ -69,12 +69,14 @@ class PodcastWorkerTest {
         WorkManagerTestInitHelper.initializeTestWorkManager(app)
         PodcastWorker.holdOffUntil = 0
         PodcastWorker.lastExitNoted = 0
+        PodcastWorker.lastRunEnded = 0
         app.container.notifier.createChannels()
     }
 
     @After fun tearDown() {
         PodcastWorker.holdOffUntil = 0
         PodcastWorker.lastExitNoted = 0
+        PodcastWorker.lastRunEnded = 0
         WorkManagerTestInitHelper.closeWorkDatabase()
     }
 
@@ -251,12 +253,37 @@ class PodcastWorkerTest {
         assertEquals(1, noted("90s after the run, WorkManager's service has stopped"))
     }
 
+    /** A process asleep or frozen runs the check late: the line says how late, not the 90s it was meant for. */
+    @Test
+    fun aLateCheckSaysHowLongAfterTheRunItReallyWas() = runTest {
+        unrestricted(true)
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        workManagerService(foreground = true)
+
+        ShadowSystemClock.advanceBy(Duration.ofHours(3))
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(1, noted("180 min after the run, WorkManager's service still in the foreground"))
+    }
+
+    /** A run straight after another finds the last one's service still being let go: nothing to remark on. */
+    @Test
+    fun aRunChainedStraightAfterAnotherDoesntRemarkOnTheService() = runTest {
+        unrestricted(true)
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        workManagerService(foreground = true)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(3))
+
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        assertEquals(0, noted("already in the foreground as this run starts"))
+    }
+
     /** During another run the service is that run's: nothing to say about the last one. */
     @Test
     fun theServiceIsntCheckedOnDuringAnotherRun() = runTest {
         unrestricted(true)
         assertTrue(runMaking { false } is ListenableWorker.Result.Success)
         workManagerService(foreground = true)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
 
         assertTrue(
             runMaking {
@@ -265,7 +292,7 @@ class PodcastWorkerTest {
             } is ListenableWorker.Result.Success,
         )
         assertEquals(0, noted("after the run, WorkManager's service"))
-        assertEquals("noted as the second run started", 1, noted("WorkManager's service already in the foreground as this run starts"))
+        assertEquals("noted as the second run started", 1, noted("WorkManager's service already in the foreground as this run starts, 20s after the last ended"))
     }
 
     /** Kokoro not loading would fail every run: it waits to be asked again rather than loop all night. */
