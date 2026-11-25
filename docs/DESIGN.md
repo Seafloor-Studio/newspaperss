@@ -1193,7 +1193,8 @@ whose Kindle and KOReader answers ask for more on the same page).
     Android ending it for memory, doesn't count). An article that comes back in a later edition
     (one not sent gives its articles back) isn't made again: if it says
     exactly the same in the same voice, the audio already made is used,
-    taking no more space. An edition's audio is deleted with its book (an
+    taking no more space, before any article is made: one Kokoro keeps
+    failing on doesn't hold back the rest. An edition's audio is deleted with its book (an
     article reused in a later one keeps its audio there), and all of it
     with Kokoro. Listen plays an article in the natural voice once
     its audio is made, and in the phone's voice until then: from the next play or

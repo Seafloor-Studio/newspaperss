@@ -358,6 +358,12 @@ flowchart LR
     clip stops the run the same way, so the edition isn't finished
     without it.
   - The newest edition goes first. A podcast keeps the voice it started in.
+  - A page that says exactly what another edition's made page says, in the
+    same voice (`PodcastMaker.saidKey`), takes its audio (`PodcastStore.reuse`,
+    hard-linked) instead of being made. Each time an edition comes up, every
+    such page is taken first, without Kokoro, then the rest are made in
+    order: a page that fails or takes the app down every run doesn't keep
+    the pages after it from audio that's already there.
   - `KokoroEngine.lock` keeps one Kokoro loaded at a time, the speed check
     included: a stopped run's native code runs on until its sentence ends.
   - `KokoroThread` runs all of Kokoro's native calls on one thread at
