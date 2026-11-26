@@ -610,6 +610,13 @@ class ListenAppTest {
         compose.idleUntil { player.state.value.script?.lines?.getOrNull(player.state.value.at.line)?.spoken == "Nobody could say how many knots there are." }
         compose.onNodeWithText("The transcript has no timings, so the page doesn't follow the episode.").assertExists()
         assertEquals(emptyList<String>(), underlined("Nobody could say"))
+        // Nothing followed, so nothing to come back to.
+        compose.onNodeWithText("The count took a week.").performTouchInput { swipeDown() }
+        compose.onNodeWithText("Back to where it's reading").assertDoesNotExist()
+        // Paused, the page still says why it marks nothing.
+        compose.onNodeWithContentDescription("Pause").performClick()
+        compose.onNodeWithText("no timings", substring = true).assertExists()
+        compose.onNodeWithContentDescription("Play").performClick()
 
         // The voice reading it instead says each line, so it marks them.
         now.value = now.value!!.copy(voiceInstead = true)
