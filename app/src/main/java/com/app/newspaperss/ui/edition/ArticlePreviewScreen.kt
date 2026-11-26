@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.app.newspaperss.listen.Listening
 import com.app.newspaperss.listen.ListenPosition
 import com.app.newspaperss.listen.ListenState
+import com.app.newspaperss.listen.ReadingSpeaker
 import com.app.newspaperss.ui.listen.PlayerDock
 import com.app.newspaperss.ui.listen.follow
 import android.graphics.BitmapFactory
@@ -384,6 +385,7 @@ fun ArticlePreviewScreen(
                         // An episode's last block is its time marks, each a tap away while it plays.
                         here && playing && state.pages.getOrNull(state.at.page)?.episode == true &&
                             (state.script?.let { s -> s.lines.count { it.block == s.blocks.lastIndex } } ?: 0) > 1 -> "Tap a time to play from there."
+                        now != null && untimed(now) -> "The transcript has no timings, so the page doesn't follow the episode."
                         else -> null
                     }
                     hint?.let {
@@ -398,6 +400,8 @@ fun ArticlePreviewScreen(
                     ArticleBanner(banner) { onBannerLink(onScreen.article, it) }
                     HorizontalDivider()
                 }
+                val recording = listen?.reading?.collectAsStateWithLifecycle()?.value
+                val estimated = recording?.takeIf { it.editionId == listening?.editionId && it.page == onScreen.article }?.let(::untimed) == true
                 key(onScreen.article) {
                     PreviewPageView(
                         onScreen, open.pages, textSize, link,
@@ -408,6 +412,7 @@ fun ArticlePreviewScreen(
                         },
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         voice = listening?.takeIf { it.at.page == onScreen.article },
+                        followed = !estimated,
                         onReadFrom = { line -> player?.seek(ListenPosition(onScreen.article, line)) },
                         // Heard to the end on the phone, it's as good as sent: its articles shouldn't
                         // come back for the next edition.
@@ -437,6 +442,12 @@ private fun parsed(xhtml: String): ListenScript = try {
  * The article's blocks, its text selectable: the selection menu's **Share** sends the words with
  * the original's address under them, so a quote says where it's from.
  */
+/**
+ * A transcript's episode: where it's reached is guessed from the transcript read aloud, which
+ * intros, ads and edits put tens of seconds out, so the page doesn't claim a line.
+ */
+private fun untimed(now: ReadingSpeaker.Now) = now.reading.episode && !now.reading.atTheEnd && !now.voiceInstead
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PreviewPageView(
@@ -449,6 +460,8 @@ private fun PreviewPageView(
     /** Listen on this article: its sentence is tinted and followed, and while it plays a tap reads from a sentence. */
     voice: ListenState? = null,
     onReadFrom: (line: Int) -> Unit = {},
+    /** Whether the line [voice] is at is tinted and followed: not when that's only a guess. */
+    followed: Boolean = true,
     /** Under the page's last block. */
     footer: (@Composable () -> Unit)? = null,
 ) {
@@ -475,7 +488,7 @@ private fun PreviewPageView(
     // The voice's lines, from the player's own reading of the page. The page drawn here adds a "Next"
     // line at its end, so the blocks before it are the same.
     val spoken = voice?.script
-    val line = spoken?.lines?.getOrNull(voice.at.line)?.takeIf { it.block < script.blocks.size }
+    val line = spoken?.lines?.getOrNull(voice.at.line)?.takeIf { followed && it.block < script.blocks.size }
     val layouts = remember(page.article) { mutableStateMapOf<Int, TextLayoutResult>() }
     val tables = remember(page.article) { mutableMapOf<Int, TableRows>() }
     val dragged by list.interactionSource.collectIsDraggedAsState()
@@ -521,7 +534,7 @@ private fun PreviewPageView(
             footer?.let { item { it() } }
         }
     }
-        if (voice != null && !following) {
+        if (voice != null && followed && !following) {
             TextButton(
                 onClick = { following = true; scope.launch { list.scrollToItem(line?.block ?: 0) } },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)

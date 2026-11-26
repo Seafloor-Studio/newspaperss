@@ -766,7 +766,11 @@ whose Kindle and KOReader answers ask for more on the same page).
     shorter is a preview, longer a transcript of part of it. Listen's
     times count the episode's length, not the transcript's. Each
     recording plays once an edition; a second post with the same one is
-    read by the voice.
+    read by the voice. The page doesn't tint or follow a line while the
+    episode plays: where it is can only be guessed from the transcript's
+    length, which intros, ads and edits put tens of seconds out, so a note
+    says the transcript has no timings. A tapped line still plays from
+    about there.
   - **Episode notes** (debug builds) are read by the voice in their place,
     with "The episode itself plays after the edition." after their title
     (once, and in the natural voice too), and their episode plays once the
