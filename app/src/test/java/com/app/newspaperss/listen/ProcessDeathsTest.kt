@@ -55,8 +55,20 @@ class ProcessDeathsTest {
         val exit = ProcessDeaths.last(app)!!
         assertFalse("a line can't be blamed for the phone running out of memory", exit.crash)
         assertTrue(exit.abnormal)
-        assertEquals("the phone was out of memory, 1367 MB resident, 1171 MB proportional", exit.description)
+        assertTrue(exit.description, exit.description.startsWith("the phone was out of memory at "))
+        assertTrue(exit.description, exit.description.endsWith(", 1367 MB resident, 1171 MB proportional"))
         assertEquals(TIME, exit.atMs)
+    }
+
+    /** Android's words are kept to a line of the log, whatever it says. */
+    @Test
+    fun whatAndroidSaysIsOneShortLine() {
+        assertNull(ProcessDeaths.shareable(null))
+        assertNull(ProcessDeaths.shareable(" \n "))
+        assertEquals("excessive cpu usage", ProcessDeaths.shareable("excessive cpu usage"))
+        val long = ProcessDeaths.shareable("Input dispatching timed out\n" + "waiting ".repeat(100))!!
+        assertEquals(200, long.length)
+        assertTrue(long, long.startsWith("Input dispatching timed out waiting") && long.endsWith("…"))
     }
 
     @Test
@@ -67,6 +79,30 @@ class ProcessDeathsTest {
         assertTrue(exit.crash)
         assertTrue(exit.abnormal)
         assertEquals("native crash", exit.name)
+    }
+
+    /**
+     * The app never ends itself, so its native code did: sherpa-onnx and espeak-ng call exit() on
+     * some errors. Taken for Android's doing, a line that does it loops every run for good.
+     */
+    @Test
+    fun endingItselfIsTheAppsOwnAndSaysItsExitCode() {
+        ended(ApplicationExitInfo.REASON_EXIT_SELF, status = 255)
+
+        val exit = ProcessDeaths.last(app)!!
+        assertTrue(exit.crash)
+        assertTrue("worth a line in the log", exit.abnormal)
+        assertEquals("ended itself (exit code 255)", exit.name)
+    }
+
+    /** Exit code 0 is an orderly exit: worth a line, but nothing against what was being said. */
+    @Test
+    fun endingItselfCleanlyIsNoCrash() {
+        ended(ApplicationExitInfo.REASON_EXIT_SELF, status = 0)
+
+        val exit = ProcessDeaths.last(app)!!
+        assertFalse(exit.crash)
+        assertTrue(exit.abnormal)
     }
 
     @Test

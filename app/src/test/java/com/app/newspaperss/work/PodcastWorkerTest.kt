@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.BatteryManager
+import android.os.Looper
 import android.os.PowerManager
 import android.os.Process
 import androidx.test.core.app.ApplicationProvider
@@ -24,6 +25,7 @@ import androidx.work.WorkerParameters
 import androidx.work.impl.foreground.SystemForegroundService
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.WorkManagerTestInitHelper
+import com.app.newspaperss.listen.EncoderLost
 import com.app.newspaperss.listen.PodcastMaker
 import com.app.newspaperss.notify.Notifier
 import com.app.newspaperss.testutil.TestApp
@@ -48,6 +50,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowActivityManager
+import org.robolectric.shadows.ShadowSystemClock
+import java.time.Duration
 import org.robolectric.annotation.Config
 import java.util.UUID
 
@@ -65,12 +69,14 @@ class PodcastWorkerTest {
         WorkManagerTestInitHelper.initializeTestWorkManager(app)
         PodcastWorker.holdOffUntil = 0
         PodcastWorker.lastExitNoted = 0
+        PodcastWorker.lastRunEnded = 0
         app.container.notifier.createChannels()
     }
 
     @After fun tearDown() {
         PodcastWorker.holdOffUntil = 0
         PodcastWorker.lastExitNoted = 0
+        PodcastWorker.lastRunEnded = 0
         WorkManagerTestInitHelper.closeWorkDatabase()
     }
 
@@ -114,14 +120,71 @@ class PodcastWorkerTest {
         TestListenableWorkerBuilder<PodcastWorker>(app).setForegroundUpdater(updater).build().doWork()
 
     /** A worker whose making fails as [failure] says, as the maker's would. */
-    private suspend fun runFailing(failure: Exception): ListenableWorker.Result {
+    private suspend fun runFailing(failure: Exception) = runMaking { throw failure }
+
+    /** A worker whose making is [making], given the seconds-left the worker hands the maker. */
+    private suspend fun runMaking(updater: ForegroundUpdater = allowed, making: (secondsLeft: () -> Double?) -> Boolean): ListenableWorker.Result {
         val factory = object : WorkerFactory() {
             override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters) =
                 object : PodcastWorker(appContext, workerParameters) {
-                    override suspend fun make() = throw failure
+                    override suspend fun make(secondsLeft: () -> Double?) = making(secondsLeft)
                 }
         }
-        return TestListenableWorkerBuilder<PodcastWorker>(app).setForegroundUpdater(allowed).setWorkerFactory(factory).build().doWork()
+        return TestListenableWorkerBuilder<PodcastWorker>(app).setForegroundUpdater(updater).setWorkerFactory(factory).build().doWork()
+    }
+
+    /** Android's 10 minutes start with the work: time spent getting the foreground counts. */
+    @Test
+    fun theTimeLeftCountsFromTheStartOfTheWork() = runTest {
+        unrestricted(true)
+        val slow = ForegroundUpdater { _: Context, _: UUID, info: ForegroundInfo ->
+            shown = info
+            ShadowSystemClock.advanceBy(Duration.ofMinutes(2))
+            Futures.immediateFuture(null)
+        }
+        var given: Double? = null
+
+        assertTrue(runMaking(slow) { left -> given = left(); false } is ListenableWorker.Result.Success)
+        assertEquals(420.0, given!!, 1.0)
+    }
+
+    /** In the foreground for most of a long run and then not, it says so: not "short of 9 min". */
+    @Test
+    fun aRunThatLosesTheForegroundLateSaysSo() = runTest {
+        unrestricted(true)
+
+        assertTrue(runMaking { ShadowSystemClock.advanceBy(Duration.ofMinutes(40)); true } is ListenableWorker.Result.Success)
+
+        assertEquals(1, noted("Stopped: out of the foreground 40 min into the run; not asking again for 12 hours"))
+        assertEquals(0, noted("Stopped short of"))
+        assertEquals(1, queued())
+    }
+
+    /**
+     * Not really in the foreground, the maker is told how long it has before the 9-minute stop,
+     * and stopping short of it is a stop like the guard's: queued to go on, and Android's refusal
+     * noted as the guard notes it.
+     */
+    @Test
+    fun aBackgroundRunThatStopsItselfShortOfTheLimitGoesOnLater() = runTest {
+        unrestricted(true)
+        var given: Double? = null
+
+        assertTrue(runMaking { left -> given = left(); true } is ListenableWorker.Result.Success)
+
+        assertEquals(540.0, given!!, 1.0)
+        assertEquals(1, queued())
+        assertEquals(1, noted("Stopped short of 9 min, not in the foreground; not asking again for 12 hours"))
+        assertEquals(0, noted("Run ended"))
+        assertTrue(PodcastWorker.holdOffUntil > 0)
+    }
+
+    @Test
+    fun aRunThatFinishesIsntQueuedAgain() = runTest {
+        unrestricted(true)
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        assertEquals(0, queued())
+        assertEquals(1, noted("Run ended"))
     }
 
     /**
@@ -138,6 +201,98 @@ class PodcastWorkerTest {
         assertEquals(1, again.size)
         assertEquals(5 * 60_000L, again.single().initialDelayMillis)
         assertEquals(1, noted("Run failed: java.lang.IllegalStateException; trying again in 5 min"))
+    }
+
+    /** A lost encoder isn't the page's fault: the run goes on a few minutes later, as after a failure. */
+    @Test
+    fun aRunThatLosesTheEncoderRunsAgainAfterAWhile() = runTest {
+        unrestricted(true)
+
+        assertTrue(runFailing(EncoderLost("reclaimed", IllegalStateException())) is ListenableWorker.Result.Success)
+
+        val again = WorkManager.getInstance(app).getWorkInfosForUniqueWork("podcast").get().filter { it.state == WorkInfo.State.ENQUEUED }
+        assertEquals(5 * 60_000L, again.single().initialDelayMillis)
+        assertEquals(1, noted("Run stopped: the encoder was lost; trying again in 5 min"))
+    }
+
+    private fun workManagerService(foreground: Boolean?) = shadowOf(app.getSystemService(ActivityManager::class.java)).setServices(
+        listOfNotNull(
+            foreground?.let {
+                ActivityManager.RunningServiceInfo().apply {
+                    service = ComponentName(app, SystemForegroundService::class.java)
+                    this.foreground = it
+                }
+            },
+        ),
+    )
+
+    /**
+     * Android's daily foreground time ran out after an hour of runs: WorkManager's service left in
+     * the foreground after a run would explain it. Checked on a while after the run, not as it
+     * ends, when WorkManager hasn't yet let it go.
+     */
+    @Test
+    fun aServiceStillInTheForegroundAfterTheRunIsNoted() = runTest {
+        unrestricted(true)
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        workManagerService(foreground = true)
+
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(PodcastWorker.SERVICE_CHECK_MS - 1_000))
+        assertEquals(0, noted("WorkManager's service"))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        assertEquals(1, noted("90s after the run, WorkManager's service still in the foreground after the run ended"))
+    }
+
+    @Test
+    fun aServiceLetGoAfterTheRunIsNotedToo() = runTest {
+        unrestricted(true)
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        workManagerService(foreground = null)
+
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(PodcastWorker.SERVICE_CHECK_MS + 1_000))
+        assertEquals(1, noted("90s after the run, WorkManager's service has stopped"))
+    }
+
+    /** A process asleep or frozen runs the check late: the line says how late, not the 90s it was meant for. */
+    @Test
+    fun aLateCheckSaysHowLongAfterTheRunItReallyWas() = runTest {
+        unrestricted(true)
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        workManagerService(foreground = true)
+
+        ShadowSystemClock.advanceBy(Duration.ofHours(3))
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(1, noted("180 min after the run, WorkManager's service still in the foreground"))
+    }
+
+    /** A run straight after another finds the last one's service still being let go: nothing to remark on. */
+    @Test
+    fun aRunChainedStraightAfterAnotherDoesntRemarkOnTheService() = runTest {
+        unrestricted(true)
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        workManagerService(foreground = true)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(3))
+
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        assertEquals(0, noted("already in the foreground as this run starts"))
+    }
+
+    /** During another run the service is that run's: nothing to say about the last one. */
+    @Test
+    fun theServiceIsntCheckedOnDuringAnotherRun() = runTest {
+        unrestricted(true)
+        assertTrue(runMaking { false } is ListenableWorker.Result.Success)
+        workManagerService(foreground = true)
+        ShadowSystemClock.advanceBy(Duration.ofSeconds(20))
+
+        assertTrue(
+            runMaking {
+                shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(PodcastWorker.SERVICE_CHECK_MS + 1_000))
+                false
+            } is ListenableWorker.Result.Success,
+        )
+        assertEquals(0, noted("after the run, WorkManager's service"))
+        assertEquals("noted as the second run started", 1, noted("WorkManager's service already in the foreground as this run starts, 20s after the last ended"))
     }
 
     /** Kokoro not loading would fail every run: it waits to be asked again rather than loop all night. */
@@ -167,6 +322,36 @@ class PodcastWorkerTest {
 
         assertTrue(run(allowed) is ListenableWorker.Result.Success)
         assertEquals("the same death shouldn't be logged twice", before + 1, noted("out of memory"))
+    }
+
+    /**
+     * When, so a death can be set against the runs logged around it, and in Android's words, which
+     * say what a "not responding" was waiting on. The log is shared: an address's sign-in and
+     * query, where a key would be, are cut.
+     */
+    @Test
+    fun aDeathSaysWhenAndWhatAndroidSaid() = runTest {
+        val zone = java.util.TimeZone.getDefault()
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("UTC"))
+        try {
+            unrestricted(true)
+            val info = ShadowActivityManager.ApplicationExitInfoBuilder.newBuilder()
+                .setProcessName(app.packageName)
+                .setReason(ApplicationExitInfo.REASON_ANR)
+                .setTimestamp(1_760_000_000_000L)
+                .setDescription("Input dispatching timed out\n(waiting on https://reader:hunter2@example.com/feed?token=s3cret)")
+                .build()
+            shadowOf(app.getSystemService(ActivityManager::class.java)).addApplicationExitInfo(info)
+
+            assertTrue(run(allowed) is ListenableWorker.Result.Success)
+
+            val line = app.container.podcastLog.read().single { it.contains("The process before this one ended") }
+            assertTrue(line, line.contains("not responding at 9 Oct 08:53, "))
+            assertTrue(line, line.endsWith("; Android says: Input dispatching timed out (waiting on https://example.com/feed"))
+            assertFalse(line, line.contains("hunter2") || line.contains("s3cret"))
+        } finally {
+            java.util.TimeZone.setDefault(zone)
+        }
     }
 
     @Test

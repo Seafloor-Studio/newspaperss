@@ -52,7 +52,7 @@ class BookGoneTest {
     private fun listeningTo(id: Long) {
         val store = container.podcastStore
         store.want(id, PodcastVoice.HEART)
-        store.keep(id, 0, 0, store.scratch(id, 0, 0).apply { writeBytes(ByteArray(2_000_000)) }, listOf(0.0))
+        store.keep(id, store.asked(id), 0, 0, store.scratch(id, 0, 0).apply { writeBytes(ByteArray(2_000_000)) }, listOf(0.0))
         StoredReadingChoices(app).setVoiceInstead(id, 0, true)
         player.start(id)
         idleUntil { player.state.value.script != null }

@@ -39,6 +39,25 @@ class PodcastLogTest {
         assertTrue(kept.first().endsWith("entry 25"))
     }
 
+    /**
+     * Lines written before addresses were cut held a private feed's key in full. Reading and
+     * sharing the log both leave it, and any sign-in, out; the rest of each line stays.
+     */
+    @Test
+    fun keysAlreadyInTheLogDontLeaveThePhone() {
+        val secret = "9f86d081-0000-4000-8000-00000000abcd"
+        val log = log()
+        log.add("Reading: edition 7 page 2 from line 2: https://api.example.com/feed/podcast/42/ep.mp3?token=$secret at 0s, speed 1.0")
+        log.add("Reading: https://user:pa?ss@cdn.example.org/a.mp3#t=5 failed (offline); the voice from line 3")
+
+        val shared = log.export()!!.readText()
+        for (text in listOf(shared, log.read().joinToString("\n"))) {
+            assertFalse(text, secret in text || "user" in text || "pa?ss" in text || "#t=5" in text)
+            assertTrue(text, "https://api.example.com/feed/podcast/42/ep.mp3 at 0s, speed 1.0" in text)
+            assertTrue(text, "https://cdn.example.org/a.mp3 failed (offline)" in text)
+        }
+    }
+
     @Test
     fun aLogThatCantBeWrittenDoesntStopTheMaking() {
         // A file where the folder should be: every write fails, as on a full disk.

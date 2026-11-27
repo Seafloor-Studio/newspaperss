@@ -87,7 +87,7 @@ class PodcastLineTest {
         waitFor("Making the audio now")
         store.lines(7, 0, 4)
         val scratch = store.scratch(7, 0, 0).apply { writeText("audio") }
-        store.keep(7, 0, 0, scratch, listOf(0.0, 2.0))
+        store.keep(7, store.asked(7), 0, 0, scratch, listOf(0.0, 2.0))
         // Half of its 12 minutes to hear.
         waitFor("6 min of 27 min made.")
         // Unplugged: it says it carries on later.
@@ -121,7 +121,7 @@ class PodcastLineTest {
     fun deletingAPodcastAsksFirstThenFreesItsSpace() {
         store.want(7, PodcastVoice.HEART)
         val scratch = store.scratch(7, 0, 0).apply { writeBytes(ByteArray(3_000_000)) }
-        store.keep(7, 0, 0, scratch, listOf(0.0))
+        store.keep(7, store.asked(7), 0, 0, scratch, listOf(0.0))
         show()
         waitFor("Delete audio · 3 MB")
         compose.onNodeWithText("Delete audio · 3 MB").performClick()

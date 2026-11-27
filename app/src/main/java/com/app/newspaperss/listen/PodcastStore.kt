@@ -190,19 +190,22 @@ class PodcastStore(val dir: File) {
 
     /**
      * Keeps a piece of [page] from [firstLine], written to [made], with its lines' [starts]. The
-     * audio is renamed into place last, so a piece with audio always has its times.
+     * audio is renamed into place last, so a piece with audio always has its times. With the
+     * podcast deleted, or asked for again, since [asked], it's dropped: false.
      */
     @Synchronized
-    fun keep(editionId: Long, page: Int, firstLine: Int, made: File, starts: List<Double>) {
+    fun keep(editionId: Long, asked: String?, page: Int, firstLine: Int, made: File, starts: List<Double>): Boolean {
         val folder = folder(editionId)
-        if (!folder.exists()) {
+        // Checked here, under the lock: a piece closed slowly can outlast its podcast, and the one asked for since is another.
+        if (!folder.exists() || read(editionId, ASKED) != asked) {
             made.delete()
-            return
+            return false
         }
         val name = "$page$SEP$firstLine"
         write(editionId, "$name.$STARTS", starts.joinToString("\n", postfix = "\n") { "%.3f".format(Locale.ROOT, it) })
         if (!made.renameTo(File(folder, "$name.$AUDIO"))) throw IOException("Couldn't keep $name")
         changed()
+        return true
     }
 
     @Synchronized
@@ -243,8 +246,13 @@ class PodcastStore(val dir: File) {
      */
     @Synchronized
     fun deaths(editionId: Long, page: Int): Pair<Int, Int> =
-        read(editionId, "$page.$SAYING")?.split(' ')?.mapNotNull { it.toIntOrNull() }
+        read(editionId, "$page.$SAYING")?.split(' ')?.take(2)?.mapNotNull { it.toIntOrNull() }
             ?.takeIf { it.size == 2 }?.let { it[0] to it[1] } ?: (-1 to 0)
+
+    /** When the line [deaths] names was begun, in the phone's time; null if the marker is older than that. */
+    @Synchronized
+    fun sayingSince(editionId: Long, page: Int): Long? =
+        read(editionId, "$page.$SAYING")?.split(' ')?.getOrNull(2)?.toLongOrNull()
 
     /**
      * Notes that [line] is being said, and that if the app dies saying it, it's the [death]th time
@@ -252,8 +260,8 @@ class PodcastStore(val dir: File) {
      * do it on every charge. [said] clears it.
      */
     @Synchronized
-    fun saying(editionId: Long, page: Int, line: Int, death: Int) {
-        write(editionId, "$page.$SAYING", "$line $death")
+    fun saying(editionId: Long, page: Int, line: Int, death: Int, at: Long = System.currentTimeMillis()) {
+        write(editionId, "$page.$SAYING", "$line $death $at")
     }
 
     @Synchronized
@@ -267,6 +275,23 @@ class PodcastStore(val dir: File) {
         val count = (read(editionId, "$page.$FAILED")?.toIntOrNull() ?: 0) + 1
         write(editionId, "$page.$FAILED", count.toString())
         return count
+    }
+
+    /**
+     * Counts an encoder Android took back while [page] was made, and returns how many have been
+     * since [encoderKept]. [page] is [PodcastMaker.CLIPS] for an edition's clips.
+     */
+    @Synchronized
+    fun encoderLost(editionId: Long, page: Int): Int {
+        val count = (read(editionId, "$page.$LOST")?.toIntOrNull() ?: 0) + 1
+        write(editionId, "$page.$LOST", count.toString())
+        return count
+    }
+
+    /** Something of [page] was kept, so the encoder works: losses before it don't count against it. */
+    @Synchronized
+    fun encoderKept(editionId: Long, page: Int) {
+        File(folder(editionId), "$page.$LOST").delete()
     }
 
     /** Somewhere to write a piece before it's kept: inside [dir], so keeping it is a rename. */
@@ -283,16 +308,21 @@ class PodcastStore(val dir: File) {
 
     fun saidKey(editionId: Long, page: Int): String? = read(editionId, "$page.$KEY")
 
-    /** A page made whole, in another edition than [except], whose audio says [key]: its edition and page. */
-    fun madeElsewhere(key: String, except: Long): Pair<Long, Int>? {
+    /**
+     * The pages made whole in editions other than [except], by what their audio says: each key's
+     * edition and page. Read once for a run of lookups; [reuse] checks the page is still made.
+     */
+    fun madeKeys(except: Long): Map<String, Pair<Long, Int>> {
+        val found = HashMap<String, Pair<Long, Int>>()
         for (folder in dir.listFiles() ?: emptyArray()) {
             val editionId = folder.name.toLongOrNull()?.takeIf { it != except } ?: continue
             for (file in folder.listFiles() ?: emptyArray()) {
                 val page = file.name.takeIf { it.endsWith(".$KEY") }?.removeSuffix(".$KEY")?.toIntOrNull() ?: continue
-                if (made(editionId, page) && read(editionId, file.name) == key) return editionId to page
+                if (!made(editionId, page)) continue
+                read(editionId, file.name)?.takeIf { it != NO_KEY }?.let { found.putIfAbsent(it, editionId to page) }
             }
         }
-        return null
+        return found
     }
 
     /** Editions with pages made before keys were noted: [PodcastMaker] notes theirs from their books. */
@@ -383,6 +413,7 @@ class PodcastStore(val dir: File) {
         private const val LIVE = "live"
         private const val SAYING = "saying"
         private const val FAILED = "failed"
+        private const val LOST = "lost"
         private const val COST = "cost"
         private const val LINES = "lines"
         private const val PART = "part"

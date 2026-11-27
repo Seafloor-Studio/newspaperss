@@ -226,7 +226,7 @@ class PodcastSettingsTest {
         runBlocking { store.update { it.copy(listenVoice = ListenVoice.PODCAST) } }
         val podcasts = PodcastStore(java.io.File(context.filesDir, "podcasts"))
         podcasts.want(7, PodcastVoice.HEART)
-        podcasts.keep(7, 0, 0, podcasts.scratch(7, 0, 0).apply { writeBytes(ByteArray(5_000_000)) }, listOf(0.0))
+        podcasts.keep(7, podcasts.asked(7), 0, 0, podcasts.scratch(7, 0, 0).apply { writeBytes(ByteArray(5_000_000)) }, listOf(0.0))
         show()
         waitFor("Heart · 5 MB of audio")
         openVoicesAndAudio()
