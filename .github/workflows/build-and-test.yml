@@ -185,11 +185,14 @@ jobs:
         with:
           name: newspaperss-debug-apk
       # The shared debug key, which signed every build testers have: the new key's rotation names it.
+      # And the app's build file, for the version the notes give.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.changed.outputs.publish == 'true'
         with:
           persist-credentials: false
-          sparse-checkout: app/debug.keystore
+          sparse-checkout: |
+            app/debug.keystore
+            app/build.gradle.kts
           sparse-checkout-cone-mode: false
           path: repo
       # The committed debug key is public, so the updater's signature check could only prove a
@@ -249,11 +252,12 @@ jobs:
           mv app-arm64-v8a-debug.apk newspapeRSS-debug.apk
           build="${{ github.run_number }}"
           short="${GITHUB_SHA::7}"
+          version=$(sed -n 's/^ *versionName = "\(.*\)"/\1/p' repo/app/build.gradle.kts)
           # The same build under a numbered name, so a download can't be mistaken for an older one.
           numbered="newspapeRSS-debug-$build.apk"
           cp newspapeRSS-debug.apk "$numbered"
           title="Debug build $build · $short · $(date -u '+%b %-d')"
-          notes="Build $build from main ($short), $(date -u '+%Y-%m-%d %H:%M') UTC. Installs beside a release build as com.app.newspaperss.debug; its version is 0.1.0-debug.$build+$short (Settings, at the bottom). newspapeRSS-debug.apk is for arm64, most phones and e-readers; an older 32-bit e-reader needs the armeabi-v7a one, which has no podcast voice."
+          notes="Build $build from main ($short), $(date -u '+%Y-%m-%d %H:%M') UTC. Installs beside a release build as com.app.newspaperss.debug; its version is $version-debug.$build+$short (Settings, at the bottom). newspapeRSS-debug.apk is for arm64, most phones and e-readers; an older 32-bit e-reader needs the armeabi-v7a one, which has no podcast voice."
           if [ "$SIGNED" = true ]; then
             notes="$notes Signed with the debug channel's own key, rotated from the shared one, so a test build from before updates in place. On Android 9 and later, a build made with installDebug can't then go over it: uninstall first; editions and settings go with it. Android 8 still sees the shared key."
           fi
