@@ -595,6 +595,35 @@ class ListenAppTest {
         compose.onNodeWithText("Thursday Morning Edition").assertDoesNotExist()
     }
 
+    /** A transcript's episode reaches its lines only by a guess, so the page doesn't mark one. */
+    @Test
+    fun aTranscriptsEpisodeDoesntMarkALineItCanOnlyGuess() {
+        val id = edition()
+        startAndWait(id)
+        val now = kotlinx.coroutines.flow.MutableStateFlow<ReadingSpeaker.Now?>(
+            ReadingSpeaker.Now(id, 0, Reading("https://cdn.example/e.mp3", 900, own = true, bodyLine = 3, starts = listOf(0.0), episode = true), voiceInstead = false),
+        )
+        compose.setContent(playing(id, reading = now))
+        compose.idleUntil { compose.onAllNodesWithText("Nobody could say", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        while (speaker.queue.firstOrNull()?.text != "Nobody could say how many knots there are.") speaker.sayNext()
+        speaker.startNext()
+        compose.idleUntil { player.state.value.script?.lines?.getOrNull(player.state.value.at.line)?.spoken == "Nobody could say how many knots there are." }
+        compose.onNodeWithText("The transcript has no timings, so the page doesn't follow the episode.").assertExists()
+        assertEquals(emptyList<String>(), underlined("Nobody could say"))
+        // Nothing followed, so nothing to come back to.
+        compose.onNodeWithText("The count took a week.").performTouchInput { swipeDown() }
+        compose.onNodeWithText("Back to where it's reading").assertDoesNotExist()
+        // Paused, the page still says why it marks nothing.
+        compose.onNodeWithContentDescription("Pause").performClick()
+        compose.onNodeWithText("no timings", substring = true).assertExists()
+        compose.onNodeWithContentDescription("Play").performClick()
+
+        // The voice reading it instead says each line, so it marks them.
+        now.value = now.value!!.copy(voiceInstead = true)
+        compose.idleUntil { underlined("Nobody could say") == listOf("Nobody could say how many knots there are.") }
+        compose.onNodeWithText("no timings", substring = true).assertDoesNotExist()
+    }
+
     @Test
     fun anArticlePlayingItsRecordingSaysSoAndOffersTheVoiceInstead() {
         val id = edition()

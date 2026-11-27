@@ -171,6 +171,22 @@ class TtrssClientTest {
         assertEquals("\"getCategories\"", server.sent[1].str("op"))
     }
 
+    /**
+     * tt-rss passes a feed's titles on as stored, so one that escapes them twice arrives as
+     * "&amp;": they're made plain text, as a phone feed's are.
+     */
+    @Test
+    fun titlesEscapedTwiceByTheirFeedComeOutPlain() = runTest {
+        server.reply(loggedIn)
+        server.reply(ok("""[{"id":1,"title":"Frontier AI, &amp; More","link":"https://a.example/","feed_id":1,"feed_title":"Q&amp;A Weekly"}]"""))
+        server.reply(ok("""[{"id":7,"title":"Q&amp;A Weekly","unread":3}]"""))
+        val client = client()
+        val item = client.unreadHeadlines().single()
+        assertEquals("Frontier AI, & More", item.title)
+        assertEquals("Q&A Weekly", item.feedTitle)
+        assertEquals("Q&A Weekly", client.unreadFeeds().single().title)
+    }
+
     @Test
     fun headlinesWithoutALinkOrIdAreSkipped() = runTest {
         server.reply(loggedIn)

@@ -1,6 +1,8 @@
 package com.app.newspaperss.listen
 
+import android.app.ActivityManager
 import android.app.ApplicationExitInfo
+import androidx.test.core.app.ApplicationProvider
 import com.app.newspaperss.testutil.TestDataStores
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -29,6 +31,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowActivityManager
 import org.robolectric.annotation.Config
 import java.io.File
 
@@ -40,6 +44,7 @@ class PodcastMakerTest {
     @get:Rule val stores = TestDataStores()
     @get:Rule val dbRule = DbRule()
     private val db = dbRule.db
+    private val app = ApplicationProvider.getApplicationContext<TestApp>()
 
     private val settings by lazy { SettingsStore(stores.preferences("s")) }
     private val editionsDir by lazy { tmp.newFolder("editions") }
@@ -84,15 +89,29 @@ class PodcastMakerTest {
     private var silentFor: String? = null
     /** The first line said into a piece the encoder will fail to finish. */
     private var encoderBrokenOn: String? = null
+    /** A line whose audio the encoder is lost on, as Android takes it back. */
+    private var encoderLostOn: String? = null
+    /** The line said as the encoder for a piece is opened, which Android refuses. */
+    private var encoderRefusedOn: String? = null
+    /** Lost as a piece is closed to be kept: the whole piece goes with it. */
+    private var encoderLostOnClose = false
 
     /** Writes the samples' count, so a page's file says how much went into it. */
     private val encoder = AudioEncoder { file, rate ->
         assertEquals(RATE, rate)
+        if (encoderRefusedOn != null && said.lastOrNull() == encoderRefusedOn) throw EncoderLost("transient", IllegalStateException())
         val broken = encoderBrokenOn != null && said.lastOrNull() == encoderBrokenOn
+        val hold = holdClose
         object : AudioSink {
             var count = 0
-            override fun write(samples: FloatArray) { count += samples.size }
+            override fun write(samples: FloatArray) {
+                if (encoderLostOn != null && said.lastOrNull() == encoderLostOn) throw EncoderLost("reclaimed", IllegalStateException())
+                count += samples.size
+            }
             override fun close() {
+                hold?.await(10, java.util.concurrent.TimeUnit.SECONDS)
+                onClose()
+                if (encoderLostOnClose) throw EncoderLost("reclaimed", IllegalStateException())
                 if (diskFull) throw java.io.IOException("No space left on device")
                 // As MediaMuxer does, given nothing to put in the file.
                 check(count > 0 && !broken) { "Failed to stop the muxer" }
@@ -101,6 +120,11 @@ class PodcastMakerTest {
         }
     }
 
+    /** Held by pieces opened while it's set, which can't be closed until it's let go. */
+    private var holdClose: java.util.concurrent.CountDownLatch? = null
+    private var keepOnStopMs = 5_000L
+    /** Called as each piece's file is closed, which can be slow. */
+    private var onClose: () -> Unit = {}
     private var started = 0
     private var pieceSeconds = PodcastMaker.PIECE_SECONDS
     private var pieceWorkSeconds = PodcastMaker.PIECE_WORK_SECONDS
@@ -108,7 +132,7 @@ class PodcastMakerTest {
     private val threadsUsed = mutableListOf<Int>()
     private var threadsFor: (Long) -> Int = { KOKORO_THREADS }
     private val log by lazy { PodcastLog(tmp.newFolder("logs")) }
-    private val maker by lazy { PodcastMaker(editions, store, install, settings, engine, encoder, pieceSeconds, pieceWorkSeconds, lastExit = { exit }, threads = { threadsFor(it) }, now = { clock }, log = log, spokenAround = { around }) }
+    private val maker by lazy { PodcastMaker(editions, store, install, settings, engine, encoder, pieceSeconds, pieceWorkSeconds, lastExit = { exit }, threads = { threadsFor(it) }, now = { clock }, log = log, spokenAround = { around }, keepOnStopMs = keepOnStopMs) }
     private var around: List<String> = emptyList()
     private var battery: String? = null
     private val podcasts by lazy { Podcasts(store, settings, install, log, battery = { battery }) { started++ } }
@@ -146,6 +170,110 @@ class PodcastMakerTest {
     private fun request(id: Long) = runBlocking { podcasts.request(id) }
 
     private fun make() = runBlocking { maker.makeAll() }
+
+    /** Seconds left of a 9-minute background run, by the fake clock: each line of [long] takes 7.5s or 15s. */
+    private fun inTheBackground(seconds: Double = 540.0): () -> Double? = { seconds - clock / 1e9 }
+
+    /**
+     * In the background Android stops a run at 10 minutes, and a line in flight then is lost
+     * whole: no line starts once it might not end in time, and what's made is kept as it stops.
+     */
+    @Test
+    fun inTheBackgroundNoLineStartsTooCloseToTheStop() {
+        inUse()
+        val id = edition("Thursday", long(125))
+        request(id)
+        val stoppedItself = runBlocking { maker.makeAll(inTheBackground()) }
+
+        assertTrue(stoppedItself)
+        val stoppedAt = clock / 1e9
+        // The slowest line seen, and keeping it: 185s in hand, then one line of at most 15s.
+        val reserve = PodcastMaker.SLOWEST_LINE_SECONDS + PodcastMaker.KEEP_ON_STOP_MS / 1000.0
+        assertTrue("stopped at ${stoppedAt}s", stoppedAt >= 540 - reserve && stoppedAt <= 540 - reserve + 15)
+        assertFalse(store.made(id, 0))
+        assertEquals("every line said is kept", said.size, store.linesMade(id, 0))
+        // A piece every 75s of work, not 240: what a stop it didn't see coming would lose.
+        val pieces = store.pieces(id, 0)
+        assertTrue(pieces.map { it.starts.size }.toString(), pieces.size >= 5 && pieces.all { it.starts.size <= 11 })
+        assertTrue(log.read().toString(), log.read().any { it.contains("Stopped on page 0 before line ${said.size}: ") })
+
+        // Carried on from the line after the last kept: none said twice, none missed.
+        val first = said.toList()
+        said.clear()
+        make()
+        assertTrue(store.made(id, 0))
+        assertTrue(said.none { it in first })
+        // The closing page is said after it.
+        assertEquals(store.pieces(id, 0).sumOf { it.starts.size }, first.size + said.count { it.startsWith("xxxx") })
+    }
+
+    /** Keeping what's made as the run is stopped takes time too, and is left time for. */
+    @Test
+    fun inTheBackgroundKeepingIsLeftTimeFor() {
+        inUse()
+        keepOnStopMs = 60_000
+        val id = edition("Thursday", long(125))
+        request(id)
+        assertTrue(runBlocking { maker.makeAll(inTheBackground()) })
+
+        val stoppedAt = clock / 1e9
+        assertTrue("stopped at ${stoppedAt}s", stoppedAt >= 540 - 240 && stoppedAt <= 540 - 240 + 15)
+    }
+
+    /**
+     * A piece whose file is still closing as the podcast is deleted and asked for again is the
+     * old podcast's: it isn't kept in the new one, and the log doesn't say it was.
+     */
+    @Test
+    fun aPieceClosedAsThePodcastIsAskedForAgainIsntKeptInTheNewOne() {
+        inUse()
+        pieceSeconds = 0.001
+        val id = edition("Thursday", knots)
+        request(id)
+        onClose = {
+            onClose = {}
+            podcasts.delete(id)
+            request(id)
+        }
+        make()
+
+        // The new one is made in the same run, from its first line: the old piece isn't in it.
+        assertTrue(store.made(id, 0))
+        assertEquals(2, said.count { it == "Quanta" })
+        assertEquals((0..4).toList(), store.pieces(id, 0).map { it.firstLine })
+        val entries = log.read()
+        assertEquals(entries.toString(), 1, entries.count { it.contains("Kept page 0 lines 0–0") })
+        assertTrue(entries.toString(), entries.any { it.contains("Dropped page 0 lines 0–0: the podcast deleted or asked for again since") })
+    }
+
+    /** A line far slower than the rest (once 178s) keeps that much in hand from then on. */
+    @Test
+    fun inTheBackgroundASlowLineKeepsMoreInHand() {
+        inUse()
+        val id = edition("Thursday", long(125))
+        request(id)
+        afterLine = { if (said.size == 3) clock += 200_000_000_000L }
+        val stoppedItself = runBlocking { maker.makeAll(inTheBackground()) }
+
+        assertTrue(stoppedItself)
+        val stoppedAt = clock / 1e9
+        // Lines after it take 7.5s or 15s, so the last starts with the slow one's 200s and more left.
+        assertTrue("stopped at ${stoppedAt}s", stoppedAt > 300 && stoppedAt <= 345)
+        assertEquals(said.size, store.linesMade(id, 0))
+    }
+
+    /** In the foreground there's no limit to keep to, and pieces are as they were. */
+    @Test
+    fun inTheForegroundAPageIsMadeWhole() {
+        inUse()
+        val id = edition("Thursday", long(125))
+        request(id)
+        assertFalse(runBlocking { maker.makeAll { null } })
+
+        assertTrue(store.finished(id))
+        // Its 2 minutes of audio, in 180s of work: about 20 lines, where the background's 75s is about 10.
+        assertTrue(store.pieces(id, 0).map { it.starts.size }.toString(), store.pieces(id, 0).dropLast(1).all { it.starts.size >= 20 })
+    }
 
     /** What's said around the edition's recordings is made too, once its pages are: in its voice, not the phone's. */
     @Test
@@ -255,7 +383,6 @@ class PodcastMakerTest {
         assertTrue(stopped is CancellationException)
         assertTrue(store.made(id, 0))
         assertFalse(store.settled(id, 1))
-        assertTrue(store.pieces(id, 1).isEmpty())
         assertFalse(store.finished(id))
         assertTrue("no half-made page is left", store.dir.list()!!.none { it.endsWith(".part") })
 
@@ -263,7 +390,65 @@ class PodcastMakerTest {
         said.clear()
         make()
         assertTrue(store.finished(id))
-        assertEquals("Rest of World", said.first())
+        assertEquals("the line said as it stopped is kept, not said again", "Lagos Drivers", said.first())
+    }
+
+    /**
+     * Stopped mid-piece (Android's stop, the 9-minute guard, unplugged), every line in it is kept,
+     * the one Kokoro was saying as the stop came included: dropped, each stop lost a piece's work.
+     */
+    @Test
+    fun aStopKeepsEveryLineMadeTheOneInFlightIncluded() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        val job = Job()
+        // Mid-sentence, as the stop comes: Kokoro finishes it whatever the coroutine says.
+        afterLine = { if (it == "Nobody knew.") job.cancel() }
+        runBlocking { runCatching { withContext(job) { maker.makeAll() } } }
+
+        val piece = store.pieces(id, 0).single()
+        assertEquals(0, piece.firstLine)
+        assertEquals(3, piece.starts.size)
+        assertEquals("Quanta, Counting Knots and Nobody knew.", 3, store.linesMade(id, 0))
+        assertFalse(store.made(id, 0))
+        assertTrue("no half-made piece is left", store.dir.list()!!.none { it.endsWith(".part") })
+
+        afterLine = {}
+        said.clear()
+        make()
+        assertTrue(store.made(id, 0))
+        assertEquals("Then a teacher counted.", said.first())
+        assertEquals(5, store.pieces(id, 0).sumOf { it.starts.size })
+    }
+
+    /**
+     * Keeping can't be cut short, but a run stopped by Android ends within its grace all the same;
+     * the next run waits for the piece rather than write the same one under the same name.
+     */
+    @Test
+    fun aStoppedRunWaitsOnlySoLongForItsPieceAndTheNextWaitsForTheRest() {
+        inUse()
+        keepOnStopMs = 100
+        val id = edition("Thursday", knots)
+        request(id)
+        val closing = java.util.concurrent.CountDownLatch(1)
+        holdClose = closing
+        val job = Job()
+        afterLine = { if (it == "Nobody knew.") job.cancel() }
+        val began = System.nanoTime()
+        runBlocking { runCatching { withContext(job) { maker.makeAll() } } }
+        assertTrue("the stopped run should end without the piece kept", (System.nanoTime() - began) / 1e9 < 5)
+        assertTrue(store.pieces(id, 0).isEmpty())
+        assertTrue(log.read().toString(), log.read().any { it.contains("still keeping lines 0–2 after 100ms") })
+
+        holdClose = null
+        afterLine = {}
+        said.clear()
+        Thread { Thread.sleep(300); closing.countDown() }.start()
+        make()
+        assertEquals("Then a teacher counted.", said.first())
+        assertEquals(listOf(0, 3), store.pieces(id, 0).map { it.firstLine })
     }
 
     @Test
@@ -281,7 +466,8 @@ class PodcastMakerTest {
         // The fake Kokoro says nothing: each line's silence is named, with where it sits in its piece.
         assertTrue(entries.toString(), entries.any { it.contains("  Page 0 line 1, ") && it.contains("s into piece 0: no sound in ") && it.contains("; Kokoro was given: ") })
         // Where it left off, and what it lost by stopping: the clue to runs that never keep a piece.
-        assertTrue(entries.toString(), entries.last().contains("Stopped on page 1 before line 1; 0s of unkept audio dropped, resumes at line 0"))
+        assertTrue(entries.toString(), entries.any { it.contains("Kept page 1 lines 0–0") })
+        assertTrue(entries.toString(), entries.last().contains("Stopped on page 1 before line 1; resumes at line 1"))
     }
 
     @Test
@@ -323,7 +509,7 @@ class PodcastMakerTest {
         val reused = store.pieces(thursday, 1).single()
         assertEquals(made.starts, reused.starts)
         assertEquals(made.audio.readText(), reused.audio.readText())
-        assertTrue(log.read().toString(), log.read().any { it.contains("Page 1: the same as edition $wednesday page 1, its audio reused") })
+        assertTrue(log.read().toString(), log.read().any { it.contains("Edition $thursday page 1: the same as edition $wednesday page 1, its audio reused") })
 
         // Its audio stays when the edition it came from goes.
         podcasts.delete(wednesday)
@@ -387,6 +573,114 @@ class PodcastMakerTest {
         // Linked, not copied: the total is what it was, though each edition holds it all.
         assertEquals(space, store.bytes())
         assertEquals(store.bytes(wednesday), store.bytes(again))
+    }
+
+    /**
+     * A page that fails every run, as one that takes the app down does, doesn't keep the articles
+     * after it from audio another edition already made: they're taken before it's tried.
+     */
+    @Test
+    fun aPageThatFailsDoesntKeepTheReusablePagesAfterItFromTheirAudio() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos, trains)
+        request(wednesday)
+        make()
+
+        said.clear()
+        val thursday = edition("Thursday", knots, lagos, trains)
+        request(thursday)
+        encoderBrokenOn = "Quanta"
+        assertTrue(runCatching { make() }.exceptionOrNull() is PodcastMaker.PageFailed)
+        assertFalse(store.settled(thursday, 0))
+        assertTrue(store.made(thursday, 1))
+        assertTrue(store.made(thursday, 2))
+        assertFalse(said.toString(), "Lagos Drivers" in said || "Night Trains" in said)
+        assertTrue(log.read().toString(), log.read().any { it.contains("Edition $thursday page 2: the same as edition $wednesday page 1, its audio reused") })
+    }
+
+    /**
+     * The app ending on page 0 every run, by Android's doing so never counted against the page,
+     * doesn't keep the articles after it from audio another edition already made.
+     */
+    @Test
+    fun theAppEndingOnPageZeroEveryRunDoesntKeepTheReusablePagesFromTheirAudio() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos, trains)
+        request(wednesday)
+        make()
+
+        said.clear()
+        val thursday = edition("Thursday", knots, lagos, trains)
+        request(thursday)
+        exit = endedWith(ApplicationExitInfo.REASON_LOW_MEMORY, "the phone was out of memory", crash = false)
+        // Each run ends as page 0's fourth line is said, leaving its marker, as a process ended there does.
+        afterLine = { if (it == "Then a teacher counted.") throw ProcessEnded() }
+        repeat(3) {
+            store.saying(thursday, 0, 3, 1)
+            assertTrue(runCatching { make() }.exceptionOrNull() is ProcessEnded)
+        }
+        assertFalse(store.settled(thursday, 0))
+        assertTrue(store.made(thursday, 1))
+        assertTrue(store.made(thursday, 2))
+        assertFalse(said.toString(), "Lagos Drivers" in said || "Night Trains" in said)
+    }
+
+    /** What the app ending mid-line looks like from inside: nothing after it runs but `finally`. */
+    private class ProcessEnded : Error()
+
+    /** Out of time before its first page, a background run has still taken what it needn't make. */
+    @Test
+    fun aRunOutOfTimeOnItsFirstPageStillTakesTheReusablePages() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos)
+        request(wednesday)
+        make()
+
+        said.clear()
+        val thursday = edition("Thursday", knots, lagos)
+        request(thursday)
+        assertTrue(runBlocking { maker.makeAll { 10.0 } })
+        assertTrue(said.toString(), said.isEmpty())
+        assertFalse(store.settled(thursday, 0))
+        assertTrue(store.made(thursday, 1))
+    }
+
+    /** In the same voice, an article with a word changed isn't given the old audio, though the pages after it are. */
+    @Test
+    fun anArticleChangedInTheSameVoiceIsMadeAgain() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos, trains)
+        request(wednesday)
+        make()
+
+        said.clear()
+        val thursday = edition("Thursday", lagos.copy(bodyHtml = "<p>The drivers met again.</p>"), trains)
+        request(thursday)
+        make()
+        assertTrue(said.toString(), "The drivers met again." in said)
+        assertFalse(said.toString(), "Night Trains" in said)
+        assertTrue(store.finished(thursday))
+    }
+
+    /** The pages left to make after the reused ones are taken are made in book order, as ever. */
+    @Test
+    fun reusedPagesAreTakenFirstAndTheRestMadeInBookOrder() {
+        inUse()
+        val wednesday = edition("Wednesday", lagos)
+        request(wednesday)
+        make()
+
+        said.clear()
+        val thursday = edition("Thursday", knots, lagos, trains)
+        request(thursday)
+        make()
+        assertTrue(store.finished(thursday))
+        val titles = said.filter { it == "Counting Knots" || it == "Lagos Drivers" || it == "Night Trains" }
+        assertEquals(listOf("Counting Knots", "Night Trains"), titles)
+        val entries = log.read()
+        val reusedAt = entries.indexOfFirst { it.contains("Edition $thursday page 1: the same as edition $wednesday page 0, its audio reused") }
+        val firstMade = entries.indexOfFirst { it.contains("Edition $thursday page 0: from line 0") }
+        assertTrue(entries.toString(), reusedAt in 0 until firstMade)
     }
 
     /** Older audio that doesn't cover its page as it's read today isn't passed on, nor looked at again. */
@@ -703,8 +997,221 @@ class PodcastMakerTest {
         assertFalse(said.contains("Then a teacher counted."))
     }
 
+    /** What Android records, read back as the app does, for the maker to judge. */
+    private fun endedAsAndroidSays(reason: Int, status: Int = 0, at: Long = System.currentTimeMillis() + 60_000): LastExit {
+        val info = ShadowActivityManager.ApplicationExitInfoBuilder.newBuilder()
+            .setProcessName(app.packageName).setReason(reason).setStatus(status).setTimestamp(at).build()
+        shadowOf(app.getSystemService(ActivityManager::class.java)).addApplicationExitInfo(info)
+        return ProcessDeaths.last(app)!!
+    }
+
+    /**
+     * The app never ends itself: native code calling exit() mid-line did. Not counted, the line
+     * took the app down on every run, all morning, and nothing after it was made.
+     */
+    @Test
+    fun aLineTheAppEndedItselfOnIsCountedAgainstIt() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        // The first death on the fourth line, which no earlier death counted against.
+        store.saying(id, 0, 3, 1)
+        exit = endedAsAndroidSays(ApplicationExitInfo.REASON_EXIT_SELF, status = 255)
+        var marked: Pair<Int, Int>? = null
+        afterLine = { if (it == "Then a teacher counted.") marked = store.deaths(id, 0) }
+        make()
+
+        assertEquals("a death there now would be its second", 3 to 2, marked)
+        val line = log.read().single { it.contains("page 0: from line") }
+        assertTrue(line, line.endsWith("line 3 took the app down once (ended itself (exit code 255)); it has 23 characters, all plain ASCII"))
+    }
+
+    /** Past the limit the page goes to the phone's voice, as for a crash, and the run moves on. */
+    @Test
+    fun aLineTheAppEndedItselfOnTwiceLeavesItsPageAndTheRunGoesOn() {
+        inUse()
+        val id = edition("Thursday", knots, lagos)
+        request(id)
+        store.saying(id, 0, 3, 2)
+        exit = endedAsAndroidSays(ApplicationExitInfo.REASON_EXIT_SELF, status = 255)
+        make()
+
+        assertTrue(store.live(id, 0))
+        assertFalse(said.contains("Then a teacher counted."))
+        assertTrue(store.made(id, 1))
+        assertTrue(store.finished(id))
+        assertTrue(log.read().toString(), log.read().any { it.endsWith("Page 0 left to the phone's voice: line 3 took the app down twice (ended itself (exit code 255))") })
+    }
+
+    /** Exit code 0 is an orderly exit: nothing against the line. */
+    @Test
+    fun aLineTheAppExitedCleanlyOnIsntBlamedForIt() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        store.saying(id, 0, 3, 2)
+        exit = endedAsAndroidSays(ApplicationExitInfo.REASON_EXIT_SELF, status = 0)
+        make()
+
+        assertTrue(store.made(id, 0))
+        assertTrue(log.read().any { it.endsWith("line 3 was in flight when the app ended (ended itself (exit code 0)); not counted against it") })
+    }
+
+    /**
+     * Android's last record can be another process's, from before the line began (the app opened
+     * and closed since, say): it says nothing of this death, so it can't excuse the line.
+     */
+    @Test
+    fun aRecordFromBeforeTheLineBeganIsntThisDeaths() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        store.saying(id, 0, 3, 2, at = 5_000)
+        exit = endedAsAndroidSays(ApplicationExitInfo.REASON_LOW_MEMORY, at = 4_000)
+        make()
+
+        assertTrue(store.live(id, 0))
+        assertTrue(log.read().toString(), log.read().any { it.endsWith("line 3 took the app down twice (Android's last record is older than the line)") })
+    }
+
+    /** The reader swiping the app away mid-line says nothing about the line. */
+    @Test
+    fun aLineTheReaderClosedTheAppOnIsntBlamedForIt() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        store.saying(id, 0, 3, 2)
+        exit = endedAsAndroidSays(ApplicationExitInfo.REASON_USER_REQUESTED)
+        make()
+
+        assertFalse(store.live(id, 0))
+        assertTrue(store.made(id, 0))
+        assertTrue(log.read().any { it.endsWith("line 3 was in flight when the app ended (the reader closed it); not counted against it") })
+    }
+
+    /** What the log says of a line, so a line that keeps failing can be looked into: never its words. */
+    @Test
+    fun aLinesShapeIsItsLengthAndItsUnusualCharacters() {
+        assertEquals("5 characters, all plain ASCII", PodcastMaker.shape("A cat"))
+        assertEquals("10 characters, beyond plain ASCII: U+2019 U+00A0", PodcastMaker.shape("It’s here’"))
+        assertEquals("1 character, beyond plain ASCII: U+0009", PodcastMaker.shape("\t"))
+        assertTrue(PodcastMaker.shape((0x3b1..0x3c9).joinToString("") { it.toChar().toString() }).endsWith("U+03BC …"))
+    }
+
+    /**
+     * Android takes encoders back from apps in the background. The piece in it is lost, but the
+     * page isn't at fault: the run stops as at a stop, and the page isn't counted as failing.
+     */
+    @Test
+    fun anEncoderAndroidTookBackStopsTheRunWithoutCountingAgainstThePage() {
+        inUse()
+        pieceSeconds = 0.001
+        val id = edition("Thursday", knots, lagos)
+        request(id)
+        encoderLostOn = "Then a teacher counted."
+        repeat(PodcastMaker.FAILURES + 1) {
+            assertTrue(runCatching { make() }.exceptionOrNull() is EncoderLost)
+        }
+
+        assertFalse("not given up on", store.settled(id, 0))
+        // The pieces before it were kept, a line each.
+        assertEquals(listOf(0, 1, 2), store.pieces(id, 0).map { it.firstLine })
+        assertTrue(log.read().toString(), log.read().any { it.endsWith("Page 0: the encoder was lost (reclaimed: java.lang.IllegalStateException); resumes at line 3; not counted against the page (1 of ${PodcastMaker.ENCODER_LOSSES})") })
+        assertTrue(log.read().none { it.contains("failed (") })
+
+        encoderLostOn = null
+        make()
+        assertTrue(store.made(id, 0))
+        assertTrue(store.finished(id))
+    }
+
+    /** Lost as a whole piece is kept, every line of it is made again: from the piece's first line. */
+    @Test
+    fun anEncoderLostAsAPieceIsKeptResumesAtThePiecesFirstLine() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        encoderLostOnClose = true
+        assertTrue(runCatching { make() }.exceptionOrNull() is EncoderLost)
+
+        assertTrue(store.pieces(id, 0).isEmpty())
+        assertTrue(log.read().toString(), log.read().any { it.contains("Page 0: the encoder was lost (reclaimed: ") && it.contains("resumes at line 0;") })
+        assertFalse(store.settled(id, 0))
+    }
+
+    /** Refused as a piece is opened, nothing of the line is in it: it's said again. */
+    @Test
+    fun anEncoderRefusedAsAPieceOpensResumesAtThatLine() {
+        inUse()
+        pieceSeconds = 0.001
+        val id = edition("Thursday", knots)
+        request(id)
+        encoderRefusedOn = "Then a teacher counted."
+        assertTrue(runCatching { make() }.exceptionOrNull() is EncoderLost)
+
+        assertEquals(listOf(0, 1, 2), store.pieces(id, 0).map { it.firstLine })
+        assertTrue(log.read().any { it.contains("the encoder was lost (transient: ") && it.contains("resumes at line 3;") })
+    }
+
+    /**
+     * Only losses with nothing kept between count toward giving up: a page that keeps getting
+     * further, the encoder lost now and then, is made in the end.
+     */
+    @Test
+    fun keepingAPieceForgivesTheLossesBeforeIt() {
+        inUse()
+        pieceSeconds = 0.001
+        val id = edition("Thursday", knots, lagos)
+        request(id)
+        encoderLostOn = "Quanta"
+        repeat(PodcastMaker.ENCODER_LOSSES) { assertTrue(runCatching { make() }.exceptionOrNull() is EncoderLost) }
+        // A run keeps pieces of the page before the next loss: not the eleventh in a row.
+        encoderLostOn = "Then a teacher counted."
+        assertTrue(runCatching { make() }.exceptionOrNull() is EncoderLost)
+
+        assertTrue(log.read().toString(), log.read().last { it.contains("the encoder was lost") }.endsWith("(1 of ${PodcastMaker.ENCODER_LOSSES})"))
+        assertFalse(store.settled(id, 0))
+    }
+
+    /**
+     * Lost on a clip, after the pages: the run stops to try again, rather than finish the edition
+     * without the clip, for good.
+     */
+    @Test
+    fun anEncoderLostOnAClipStopsTheRunAndTheEditionIsntFinishedWithoutIt() {
+        inUse()
+        val id = edition("Thursday", knots)
+        request(id)
+        around = listOf("Now the episode itself.")
+        encoderLostOn = "Now the episode itself."
+        val lost = runCatching { make() }.exceptionOrNull()
+        assertTrue("$lost ${log.read()}", lost is EncoderLost)
+        assertFalse(store.finished(id))
+        assertNull(store.clip(id, "Now the episode itself."))
+
+        encoderLostOn = null
+        make()
+        assertTrue(store.finished(id))
+        assertTrue(store.clip(id, "Now the episode itself.") != null)
+    }
+
+    /** Lost on one page time after time, it's taken for a fault after all, or it would be tried for good. */
+    @Test
+    fun anEncoderLostOnOnePageTooOftenCountsAsThePageFailing() {
+        inUse()
+        val id = edition("Thursday", knots, lagos)
+        request(id)
+        encoderLostOn = "Then a teacher counted."
+        repeat(PodcastMaker.ENCODER_LOSSES) { assertTrue(runCatching { make() }.exceptionOrNull() is EncoderLost) }
+        repeat(PodcastMaker.FAILURES - 1) { assertTrue(runCatching { make() }.exceptionOrNull() is PodcastMaker.PageFailed) }
+        make()
+
+        assertTrue(store.live(id, 0))
+        assertTrue(store.made(id, 1))
+    }
+
     private fun endedWith(reason: Int, name: String, crash: Boolean) =
-        LastExit(reason = reason, name = name, rssKb = 0, pssKb = 0, atMs = 1, crash = crash, abnormal = true)
+        LastExit(reason = reason, name = name, rssKb = 0, pssKb = 0, atMs = System.currentTimeMillis() + 60_000, crash = crash, abnormal = true)
 
     /**
      * The arm is the edition's, not the run's: a podcast is made over many runs and heat carries
