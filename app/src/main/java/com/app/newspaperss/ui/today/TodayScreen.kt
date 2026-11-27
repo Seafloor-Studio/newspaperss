@@ -56,6 +56,7 @@ import com.app.newspaperss.data.EditionArticleEntity
 import com.app.newspaperss.data.EditionEntity
 import com.app.newspaperss.data.EditionStatus
 import com.app.newspaperss.edition.EditionBuilder
+import com.app.newspaperss.delivery.EditionEmail
 import com.app.newspaperss.delivery.EditionIntents
 import com.app.newspaperss.delivery.KindleSend
 import com.app.newspaperss.ui.edition.KindleNote
@@ -192,8 +193,9 @@ fun TodayScreen(
         if (!readyWaiting) item(key = "build") { BuildPanel(state.build, announcer, make, hadOne = latest != null, onMake = viewModel::makeOneNow) }
         if (latest != null) {
             item(key = "latest") {
-                // Ready before Send is tapped: the mail app has to open while the screen is still in front.
-                val emailBody by remember(latest.id) { viewModel.emailBody(latest.id) }.collectAsStateWithLifecycle(null)
+                // From the articles that came with the edition, so it's there whenever Send can be tapped:
+                // the mail app has to open while the screen is still in front, with no load to wait for.
+                val emailBody = remember(latest.title, state.latestArticles) { EditionEmail.body(latest.title, state.latestArticles) }
                 val hasFile = remember(latest.fileName, latest.status) { viewModel.fileOf(latest) != null }
                 LatestEdition(
                     latest,
