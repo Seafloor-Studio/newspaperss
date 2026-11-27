@@ -249,7 +249,7 @@ class ReadingSpeaker(
         // Asked for again after it failed: worth another try, the connection may be back.
         if (!instead) failed -= editionId to page
         val reading = readingAt(editionId, page)
-        log("Reading: edition $editionId page $page ${if (instead) "switched to the voice" else "back to its recording"} at line $line (${what(reading)}, ${reading?.url})")
+        log("Reading: edition $editionId page $page ${if (instead) "switched to the voice" else "back to its recording"} at line $line (${what(reading)}, ${forLog(reading?.url)})")
         _now.value = _now.value?.takeIf { it.editionId == editionId && it.page == page }?.copy(voiceInstead = instead)
         article = null
     }
@@ -302,7 +302,7 @@ class ReadingSpeaker(
         val ms = resume ?: total?.let { (share * it).toLong() } ?: 0L
         seekWhenKnown = share.takeIf { resume == null && total == null && it > 0 }
         atMs = ms
-        log("Reading: edition ${from.editionId} page ${from.page} from line ${from.line}: ${reading.url} at ${ms / 1000}s, speed ${"%.1f".format(Locale.ROOT, rate)}")
+        log("Reading: edition ${from.editionId} page ${from.page} from line ${from.line}: ${forLog(reading.url)} at ${ms / 1000}s, speed ${"%.1f".format(Locale.ROOT, rate)}")
         audio.play(reading.url, ms, rate)
     }
 
@@ -346,7 +346,7 @@ class ReadingSpeaker(
     private fun failedToPlay(code: String) {
         val at = playing ?: return
         if (reading?.atTheEnd == true) {
-            log("Reading: ${reading?.url} failed ($code); an episode after the edition, so on to the next page")
+            log("Reading: ${forLog(reading?.url)} failed ($code); an episode after the edition, so on to the next page")
             stopRecording()
             skipping = "$SKIPPING$at"
             voice.speak(skipping!!, "The episode won't play right now.", null, rate, flush = true)
@@ -354,7 +354,7 @@ class ReadingSpeaker(
         }
         article?.let { failed += it }
         val line = maxOf(reported, at.line)
-        log("Reading: ${reading?.url} failed ($code); the voice from line $line")
+        log("Reading: ${forLog(reading?.url)} failed ($code); the voice from line $line")
         stopRecording()
         reading = null
         _now.value = _now.value?.copy(voiceInstead = true)
@@ -439,3 +439,12 @@ class ReadingSpeaker(
 
     }
 }
+
+/**
+ * A recording's address as the audio log shows it: no query, fragment or sign-in. A private
+ * feed's episodes carry the subscriber's key in the query (Substack's `?token=`), and the log is
+ * something the reader shares.
+ */
+internal fun forLog(url: String?): String? =
+    // Sign-in first: a password can hold a "?" that would otherwise cut it in half.
+    url?.replace(Regex("^([a-zA-Z][a-zA-Z0-9+.-]*://)[^/@]*@"), "$1")?.substringBefore('#')?.substringBefore('?')

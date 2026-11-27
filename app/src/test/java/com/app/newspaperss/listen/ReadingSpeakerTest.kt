@@ -225,6 +225,22 @@ class ReadingSpeakerTest {
         assertEquals("nothing playing, nothing to log", count, logged.size)
     }
 
+    /** A private feed's episode carries the subscriber's key in its address; the log, which readers share, leaves it out. */
+    @Test
+    fun aPrivateFeedsKeyNeverReachesTheLog() {
+        val secret = "9f86d081-0000-4000-8000-00000000abcd"
+        val private = reading.copy(url = "https://user:pass@api.example.com/feed/podcast/42/episode.mp3?token=$secret#t=5")
+        val speaker = ReadingSpeaker(voice, audio, { _, _ -> private }, choices, logged::add)
+        speaker.speak(id(3), "Line three.", null, 1f, flush = true)
+        assertEquals("the player still gets the whole address", private.url, audio.played.last().first)
+        audio.listener!!.onError("offline")
+        assertTrue(logged.toString(), logged.any { "https://api.example.com/feed/podcast/42/episode.mp3 at" in it })
+        assertTrue(logged.toString(), logged.any { "episode.mp3 failed (offline)" in it })
+        assertTrue(logged.toString(), logged.none { secret in it || "pass@" in it || "#t=5" in it })
+        // A "?" in a password: the sign-in still goes before the query is cut.
+        assertEquals("https://cdn.example.org/a.mp3", forLog("https://user:pa?ss@cdn.example.org/a.mp3?token=$secret"))
+    }
+
     @Test
     fun aRecordingWhoseLengthWasntKnownLogsWhereItSoughtTo() {
         val untimed = reading.copy(seconds = null)
@@ -411,7 +427,7 @@ class ReadingSpeakerTest {
         val store = PodcastStore(folder)
         store.want(7, com.app.newspaperss.settings.PodcastVoice.EMMA)
         val scratch = store.scratch(7, 0, 0).apply { writeText("audio") }
-        store.keep(7, 0, 0, scratch, listOf(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
+        store.keep(7, store.asked(7), 0, 0, scratch, listOf(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
         store.complete(7, 0)
         val kokoro = object : PodcastAudio {
             override var listener: PodcastAudio.Listener? = null

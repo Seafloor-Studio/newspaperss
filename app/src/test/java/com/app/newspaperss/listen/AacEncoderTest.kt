@@ -1,9 +1,11 @@
 package com.app.newspaperss.listen
 
+import android.media.MediaCodec
 import android.media.MediaFormat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -63,6 +65,58 @@ class AacEncoderTest {
         sink.close()
     }
 
+    /**
+     * Android takes a background app's codec when something else wants one, and the codec says
+     * so from the next call: the sink tells that apart from the encoder failing, which counts
+     * against a page.
+     */
+    @Test
+    fun aCodecTakenBackMidWriteIsLostNotFailed() {
+        var reclaim = false
+        ShadowMediaCodec.addEncoder(
+            MediaFormat.MIMETYPE_AUDIO_AAC,
+            ShadowMediaCodec.CodecConfig(4096, 4096) { input, output ->
+                if (reclaim) throw codecError(MediaCodec.CodecException.ERROR_RECLAIMED, action = 0)
+                output.put(input)
+            },
+        )
+        val sink = AacEncoder.open(tmp.newFile("page.m4a"), 24_000)
+        sink.write(FloatArray(10))
+        reclaim = true
+
+        val lost = runCatching { sink.write(FloatArray(10)) }.exceptionOrNull()
+        assertTrue("$lost", lost is EncoderLost)
+        assertEquals("reclaimed", (lost as EncoderLost).why)
+        runCatching { sink.close() }
+    }
+
+    @Test
+    fun aReclaimedOrPassingCodecErrorIsALossAndAnyOtherIsAFault() {
+        assertEquals("reclaimed", AacEncoder.lost(codecError(MediaCodec.CodecException.ERROR_RECLAIMED, action = 0)))
+        assertEquals("transient", AacEncoder.lost(codecError(0, action = ACTION_TRANSIENT)))
+        assertEquals("recoverable", AacEncoder.lost(codecError(0, action = ACTION_RECOVERABLE)))
+        assertNull("a codec error that won't pass", AacEncoder.lost(codecError(0, action = 0)))
+        // A codec released under the app answers from MediaCodec itself.
+        val released = IllegalStateException().apply { stackTrace = arrayOf(StackTraceElement("android.media.MediaCodec", "native_dequeueInputBuffer", null, -2)) }
+        assertEquals("released", AacEncoder.lost(released))
+        // The muxer's, and the sink's own checks: faults, which count.
+        assertNull(AacEncoder.lost(IllegalStateException("Failed to stop the muxer")))
+        assertNull(AacEncoder.lost(java.io.IOException("No space left on device")))
+    }
+
+    /** MediaCodec.CodecException's constructor is hidden: what MediaCodec's native code builds. */
+    private fun codecError(code: Int, action: Int): MediaCodec.CodecException =
+        MediaCodec.CodecException::class.java.getDeclaredConstructor(Int::class.java, Int::class.java, String::class.java)
+            .apply { isAccessible = true }.newInstance(code, action, "codec error")
+
     private fun short(bytes: ByteArray, sample: Int): Short =
         ((bytes[sample * 2].toInt() and 0xFF) or (bytes[sample * 2 + 1].toInt() shl 8)).toShort()
+
+    private companion object {
+        val ACTION_TRANSIENT = hidden("ACTION_TRANSIENT")
+        val ACTION_RECOVERABLE = hidden("ACTION_RECOVERABLE")
+
+        private fun hidden(name: String) =
+            MediaCodec.CodecException::class.java.getDeclaredField(name).apply { isAccessible = true }.getInt(null)
+    }
 }

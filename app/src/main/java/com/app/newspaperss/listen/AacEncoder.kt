@@ -6,6 +6,7 @@ import android.media.MediaFormat
 import android.media.MediaMuxer
 import java.io.Closeable
 import java.io.File
+import java.io.IOException
 import java.nio.ByteOrder
 
 /** Where encoded audio goes, a block of samples at a time. */
@@ -17,6 +18,13 @@ interface AudioSink : Closeable {
 fun interface AudioEncoder {
     fun open(file: File, sampleRate: Int): AudioSink
 }
+
+/**
+ * The encoder was taken from under the app, [why]: Android's resource manager reclaims codecs
+ * from apps in the background when something else wants one. What it held is lost; trying again
+ * later may well work, and the audio being made isn't at fault.
+ */
+class EncoderLost(val why: String, cause: Exception) : Exception(cause)
 
 /**
  * Speech as AAC in an MP4 file, through Android's own encoder: every phone has one from API 16,
@@ -34,10 +42,18 @@ object AacEncoder : AudioEncoder {
             setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
             setInteger(MediaFormat.KEY_BIT_RATE, BITRATE)
         }
-        val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
+        // Refused for want of resources, Android says so here: a transient codec error, or an
+        // IOException where it couldn't allocate one. No file is touched yet, so neither is the disk.
+        val codec = try {
+            lossSaid { MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC) }
+        } catch (e: IOException) {
+            throw EncoderLost("not to be had", e)
+        }
         try {
-            codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-            codec.start()
+            lossSaid {
+                codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+                codec.start()
+            }
         } catch (e: Exception) {
             codec.release()
             throw e
@@ -51,13 +67,39 @@ object AacEncoder : AudioEncoder {
         return Sink(codec, muxer, sampleRate)
     }
 
+    /**
+     * Why [e] means the codec was taken from under the app, or null if it's a fault of its own.
+     * A codec released under the app answers any call with IllegalStateException; the app's own
+     * use of it is the same in every run, so a misuse would fail in the foreground too, and
+     * [PodcastMaker] counts a page that keeps losing it as failing all the same.
+     */
+    internal fun lost(e: Exception): String? = when {
+        e is MediaCodec.CodecException -> when {
+            e.errorCode == MediaCodec.CodecException.ERROR_RECLAIMED -> "reclaimed"
+            e.isTransient -> "transient"
+            e.isRecoverable -> "recoverable"
+            else -> null
+        }
+        // Only from MediaCodec itself: the muxer's and this file's own checks throw it too.
+        e is IllegalStateException && e.stackTrace.firstOrNull()?.className?.startsWith(MediaCodec::class.java.name) == true -> "released"
+        else -> null
+    }
+
+    private inline fun <T> lossSaid(block: () -> T): T = try {
+        block()
+    } catch (e: IllegalStateException) {
+        throw lost(e)?.let { EncoderLost(it, e) } ?: e
+    }
+
     private class Sink(private val codec: MediaCodec, private val muxer: MediaMuxer, private val rate: Int) : AudioSink {
         private val info = MediaCodec.BufferInfo()
         private var track = -1
         private var fed = 0L
         private var closed = false
 
-        override fun write(samples: FloatArray) {
+        override fun write(samples: FloatArray) = lossSaid { feed(samples) }
+
+        private fun feed(samples: FloatArray) {
             var at = 0
             var waits = 0
             while (at < samples.size) {
@@ -112,20 +154,24 @@ object AacEncoder : AudioEncoder {
             if (closed) return
             closed = true
             try {
-                var index = -1
-                for (i in 0 until WAITS) {
-                    index = codec.dequeueInputBuffer(TIMEOUT_US)
-                    if (index >= 0) break
-                    drain(false)
-                }
-                check(index >= 0) { "The encoder took no more" }
-                codec.queueInputBuffer(index, 0, 0, fed * 1_000_000 / rate, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                drain(true)
-                if (track >= 0) muxer.stop()
+                lossSaid { finish() }
             } finally {
                 codec.release()
                 muxer.release()
             }
+        }
+
+        private fun finish() {
+            var index = -1
+            for (i in 0 until WAITS) {
+                index = codec.dequeueInputBuffer(TIMEOUT_US)
+                if (index >= 0) break
+                drain(false)
+            }
+            check(index >= 0) { "The encoder took no more" }
+            codec.queueInputBuffer(index, 0, 0, fed * 1_000_000 / rate, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+            drain(true)
+            if (track >= 0) muxer.stop()
         }
     }
 }

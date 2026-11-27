@@ -32,7 +32,9 @@ class KokoroEngine(install: KokoroInstall, voice: PodcastVoice, threads: Int = K
         ),
     ) }
 
-    override fun speak(text: String): Speech = KokoroThread.run { tts.generate(text, speaker, 1f).let { Speech(it.samples, it.sampleRate) } }
+    override fun speak(text: String): Speech = KokoroThread.run {
+        speakInPieces(text) { piece -> tts.generate(piece, speaker, 1f).let { Speech(it.samples, it.sampleRate) } }
+    }
 
     override fun release() = KokoroThread.run { tts.release() }
 

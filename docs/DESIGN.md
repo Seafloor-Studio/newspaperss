@@ -766,7 +766,11 @@ whose Kindle and KOReader answers ask for more on the same page).
     shorter is a preview, longer a transcript of part of it. Listen's
     times count the episode's length, not the transcript's. Each
     recording plays once an edition; a second post with the same one is
-    read by the voice.
+    read by the voice. Past its heading, the page doesn't tint or follow
+    a line while the episode plays: where it is can only be guessed from the transcript's
+    length, which intros, ads and edits put tens of seconds out, so a note
+    says the transcript has no timings. A tapped line still plays from
+    about there.
   - **Episode notes** (debug builds) are read by the voice in their place,
     with "The episode itself plays after the edition." after their title
     (once, and in the natural voice too), and their episode plays once the
@@ -1175,21 +1179,27 @@ whose Kindle and KOReader answers ask for more on the same page).
     what a paper takes to make here, **Delete all audio** with the space it takes (Kokoro stays, so
     it can be made again), **Remove Kokoro** (back to Listening), and **Audio log**: what the making and playing did,
     newest first, with Share to send it to whoever's fixing it. While it's in use, each scheduled edition's audio
-    is made after the book, only while the phone charges: unplugged, it
-    stops and keeps what's made. It runs at low priority, so using
+    is made after the book, only while the phone charges: unplugged, or
+    stopped by Android, it keeps what's made, the sentence under way
+    included, and carries on from there. It runs at low priority, so using
     the phone meanwhile isn't slowed. It's made in the foreground, with a
     quiet "Making the audio" notification (if notifications are on),
     whose **Stop** stops making audio, keeping what's made, until one
     is asked for again:
     Android lets long work run only so. From Android 12 that's allowed
     overnight only if the app's battery use is Unrestricted, and from
-    Android 15 for 6 hours a day; otherwise it's made a few minutes at a
-    time, slowly.
+    Android 15 for 6 hours a day; otherwise it's made slowly, in runs of
+    about 6 minutes that end well before Android's 10, keeping what's made
+    about every minute.
     English articles only; the rest are left
-    to the phone's voice. An article that comes back in a later edition
+    to the phone's voice, as is one Kokoro can't say, or that took the
+    app down twice while it was said (the reader closing the app, or
+    Android ending it for memory, doesn't count). A very long sentence is
+    said in parts, with a comma's pause between them. An article that comes back in a later edition
     (one not sent gives its articles back) isn't made again: if it says
     exactly the same in the same voice, the audio already made is used,
-    taking no more space. An edition's audio is deleted with its book (an
+    taking no more space, before any article is made: one Kokoro keeps
+    failing on doesn't hold back the rest. An edition's audio is deleted with its book (an
     article reused in a later one keeps its audio there), and all of it
     with Kokoro. Listen plays an article in the natural voice once
     its audio is made, and in the phone's voice until then: from the next play or

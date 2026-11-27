@@ -75,7 +75,7 @@ class PodcastSpeakerTest {
 
     private fun keep(editionId: Long, page: Int, first: Int, starts: List<Double>) {
         val scratch = store.scratch(editionId, page, first).apply { writeText("audio") }
-        store.keep(editionId, page, first, scratch, starts)
+        store.keep(editionId, store.asked(editionId), page, first, scratch, starts)
     }
 
     /** A line of edition 7: five lines on a page, as made() makes them. */
@@ -329,7 +329,7 @@ class PodcastSpeakerTest {
         // The first article made: its kicker, title and two sentences, 2 seconds each.
         store.want(editionId, PodcastVoice.HEART)
         val scratch = store.scratch(editionId, 0, 0).apply { writeText("audio") }
-        store.keep(editionId, 0, 0, scratch, listOf(0.0, 2.0, 4.0, 6.0))
+        store.keep(editionId, store.asked(editionId), 0, 0, scratch, listOf(0.0, 2.0, 4.0, 6.0))
         store.complete(editionId, 0)
 
         val player = ListenPlayer(speaker, StoredListenProgress(app), open = { ListenBook.open(repo, it) }, CoroutineScope(SupervisorJob() + Dispatchers.Main))
