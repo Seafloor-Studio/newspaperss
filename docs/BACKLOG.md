@@ -14,6 +14,11 @@ Grouped by part of the app. The tag says where each item came from: *device* (yo
 ### First up *(you chose)*
 
 - [ ] **On a Boox, a not-sent edition offers Read,** as a ready edition does, since its book is still on the phone. Today it asks "Read it another way?" with no first way offered (no Read or Open). madCode chose this on the 31 Oct morning page, over rewording it as "Read it on your Boox?". *(from the 30 Oct test audit)*
+- [ ] **One rule for a recording and its short post** ([#427](https://github.com/Seafloor-Studio/newspaperss/issues/427), madCode approved 27 Nov). A transcript and its notes, and a written post and its audio version's stub, are the same pair: the text that matches the recording, and a short post whose point is the recording. Listen treats both alike:
+  - **The matching text is in the edition:** the recording plays in its place.
+  - **It isn't:** the voice reads the short post without its furniture, and the recording plays at the end. This holds even when the matching text came in an earlier edition.
+  - **Both are in the edition:** the recording plays once. The short post is read without its furniture, and if nothing is left it says nothing. This replaces the audio version's special case and covers "Rule 3's silent stub" below.
+  - The four kinds stay as the detector's labels; only Listen loses the special case. Rewrite the rules in `docs/research/episodes-design.md` first, then the code.
 
 ### From the 16 Oct audit *(audit)*
 Architecture and test health, cycle 6 of the 16 Oct run. Most severe first; "checked" means read against the code, not yet reproduced.
